@@ -485,6 +485,10 @@
 :root[data-theme='dark'] .character-cell strong,
 :root[data-theme='dark'] .team-summary strong,
 :root[data-theme='dark'] .team-member-info strong,
+:root[data-theme='dark'] .priority-item-line h3,
+:root[data-theme='dark'] .team-capacity strong,
+:root[data-theme='dark'] .access-section-heading h3,
+:root[data-theme='dark'] .panel-footer strong,
 :root[data-theme='dark'] .ranked-name,
 :root[data-theme='dark'] .history-item,
 :root[data-theme='dark'] .award-modal-item strong { color: #e0e8f1; }

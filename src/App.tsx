@@ -9,7 +9,7 @@ import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from '
 import { useGuildData } from './useGuildData'
 import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
-import { AfkCalendar } from './AfkCalendar'
+import { AfkCalendar } from './features/calendar/AfkCalendar'
 import {
   guildCrest, membersArt, raidArt, lootArt, coinsArt, trophyArt,
   accessArt, seasonArt, calendarArt, guildArt,

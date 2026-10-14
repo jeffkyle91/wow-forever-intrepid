@@ -1,0 +1,79 @@
+# Architecture
+
+How the code is organised, and how to add to it without stepping on each other. Read this before adding a feature.
+
+## Layout
+
+```text
+src/
+  main.tsx, index.css          entry point and design tokens
+  App.tsx                      composition root: shared state, hooks, and the layout of the shell
+  App.css                      shared layout and primitive styles (global)
+  firebase.ts guildApi.ts      core: Firebase client, record types and write helpers
+  useGuildData.ts              core: live subscriptions to the guild collections
+  useGuildSession.ts           core: sign-in and membership
+  security.ts                  core: UI-side role predicates (UI only; Firestore rules decide)
+  AccessScreen.tsx             sign-in and access-request screen (not a tab)
+  shell/                       the frame around every tab
+    tabs.ts                    the tab registry
+    Sidebar, Topbar, PageHeading, StatStrip, WorkspacePanel, ModalHost
+  features/                    one folder per feature
+    roster/ teams/ calendar/ loot/ access/
+  shared/                      things two or more features use
+    tabs/types.ts              the contracts: TabDefinition, TabContext, ModalRenderer
+    ui/                        Modal, ArtIcon, EmptyRow, RolePill, ClassAvatar
+    game/                      class/spec data and the raid team definitions
+    lib/dates.ts, art.ts
+```
+
+Dependencies point one way: `shared` and the core files at the top of `src/` import nothing from `features` or `shell`; a feature imports `shared` and the core files, never another feature and never `shell`; `shell` imports a feature only through its `tab.tsx`; `App.tsx` imports `shell`. If two features need the same thing, move it to `shared` in its own small change.
+
+## How a tab works
+
+Every tab is one `TabDefinition` (`shared/tabs/types.ts`) exported from its feature's `tab.tsx` (the loot feature exports two, `prioritiesTab` and `historyTab`) and listed in `shell/tabs.ts`. The shell reads that definition to draw the sidebar entry, page title and hint, the search box, the toolbar, the content, the record count and the footer. A feature never edits `App.tsx` to appear.
+
+The shell passes each tab one `TabContext`:
+
+| Field | What it is |
+| --- | --- |
+| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `members`, `joinRequests`) |
+| `query` | the current search text |
+| `identity` | `uid`, `displayName`, `canEditRoster`, `canEditRaidData` |
+| `shell` | `raidView` and `setRaidView` (the 10/20/40 selector lives in the shell so it survives tab switches) |
+| `feedback` | `busy`, `setBusy`, `setMutationError`, `setNotice` (one shared banner and busy flag) |
+| `openModal(render)` | opens a dialog (see below) |
+| `navigate(id)` | switches tab; ids are matched as strings, an unknown id is ignored (and logged in development); does not clear the search text |
+
+A new `TabContext` object is built on every render, so do not put `ctx` or `ctx.openModal` in a hook dependency array.
+
+`TabContext` deliberately carries no role string. Role display and the "VIEW AS" preview live in `App.tsx` and `shell/Topbar.tsx` only. The `identity` booleans decide which controls to show; Firestore rules decide what is allowed. Never put an authorization decision in the UI alone, and never pass a previewed role to a data hook or a write helper.
+
+## Adding a tab
+
+1. Create `src/features/<name>/` with a content component, `<Name>Tab.tsx`, taking `{ ctx }: { ctx: TabContext }`.
+2. Add `src/features/<name>/tab.tsx` exporting `<name>Tab = { id, label, art, hint, panelTitle, recordCount, footer, Content, ... } as const satisfies TabDefinition`. Write it exactly that way, without a `: TabDefinition` annotation, so the `id` stays a literal; the registry fails to compile if an id widens to `string`. Optional fields: `search`, `navCount`, `guildLeaderOnly`, `HeadingActions` (buttons beside the page title), `Toolbar` (controls beside the search box). Naming: the definition is `rosterTab`, the content component it points at is `RosterTab`.
+3. Add one import and one line to the `tabs` array in `src/shell/tabs.ts` (one entry per line, so two people adding tabs rarely conflict). The order of that array is the sidebar order.
+4. Import any new artwork from the feature itself (`import art from '../../../Art/...'`). `shared/art.ts` is the list of art the existing shell and features use; avoid editing it so two people don't both append to it.
+5. Add a stylesheet for the feature if it needs one (see CSS below).
+
+## Dialogs
+
+Open a dialog with `ctx.openModal(({ close, live }) => <MyModal ... close={close} live={live} />)`. One dialog is open at a time; `shell/ModalHost.tsx` renders it after the main content and remounts it on every open.
+
+- Capture the thing being edited (an award's priority, a player) in the closure when you open the dialog, and compute anything that must not change while it is open (such as a default date) in the click handler before calling `openModal`, not inside the renderer.
+- Read everything that changes (`busy`, identity, data) from `live`, never from the `ctx` you opened it with, or the double-submit guards go stale.
+- The renderer is a single JSX return of your modal component and contains no hooks. Put hooks inside the modal component.
+
+## Data and rules
+
+`useGuildData` subscribes to the guild's collections once and every tab reads them from `ctx.data`. Writes go through `guildApi.ts`. `navCount`, `recordCount` and `footer` are functions of `ctx.data`, so today a tab can only show counts for data the shell already loads. If a feature needs its own collection, agree on how it loads that data (a hook inside its content component, or a new shared subscription) before building it. Adding a new collection currently touches shared files: the record type and write helper in `guildApi.ts`, a subscription in `useGuildData.ts`, and a block in `firestore.rules` (Firebase deploys a single rules file). Do each in its own small commit and say so in the PR so a reviewer looks at the rules change on its own. Rules are the authorization boundary, so a feature that writes data needs a rules change and a rules deploy before the hosting build ships.
+
+Award snapshots are immutable: the candidate order and council note are copied from the priority as it was when the award dialog opened (`features/loot/AwardModal.tsx`) and the rules compare them to the stored priority. Do not change that flow casually.
+
+## CSS
+
+`App.css` holds the shared layout and primitive styles and is global. `./App.css` must stay the last stylesheet import in `App.tsx`: several selectors rely on load order and on `:nth-child` positions, so do not add wrapper elements or reorder children inside existing components. A feature that needs new styles adds its own stylesheet with a unique prefix on every class (for example `.cov-...`), imports it from the feature, and does not edit another feature's stylesheet. `AfkCalendar.css` is the existing example.
+
+## Known quirks (unchanged on purpose)
+
+The notice banner is never cleared, and the error and notice banners persist across tab switches. The history footer shows the filtered count for both numbers. Assigning, unassigning and reordering do not set the busy flag. The "last Guild Leader" guard is UI-only. The modal has no Escape key or focus trap. These predate the module split; fix them in their own PRs.

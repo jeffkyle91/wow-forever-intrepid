@@ -19,7 +19,8 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Code map
 
-- **Application shell and workflows:** [src/App.tsx](src/App.tsx) connects navigation, feature views, role-based controls, and dialogs; shared layout styling lives in [src/App.css](src/App.css).
+- **Application shell:** [src/App.tsx](src/App.tsx) owns shared state and lays out the frame; [src/shell/](src/shell/) holds the sidebar, top bar, page heading, stat strip, workspace panel, dialog host, and the tab registry ([src/shell/tabs.ts](src/shell/tabs.ts)); shared layout styling lives in [src/App.css](src/App.css).
+- **Features:** each tab lives in its own folder under [src/features/](src/features/) (roster, teams, calendar, loot, access) with its views, dialogs, and actions. Shared building blocks (UI pieces, class and team data, the tab and dialog contracts) live in [src/shared/](src/shared/). See [ARCHITECTURE.md](ARCHITECTURE.md) for how to add a tab and [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution rules.
 - **Raid Calendar:** [src/features/calendar/AfkCalendar.tsx](src/features/calendar/AfkCalendar.tsx) and [src/features/calendar/AfkCalendar.css](src/features/calendar/AfkCalendar.css) render the month, availability ranges, and scheduled raids. [src/guildApi.ts](src/guildApi.ts) defines and writes records, while [src/useGuildData.ts](src/useGuildData.ts) subscribes to live guild data.
 - **Authentication and role checks:** [src/useGuildSession.ts](src/useGuildSession.ts) resolves sign-in and membership; [src/security.ts](src/security.ts) controls which actions the UI presents.
 - **Authorization:** [firestore.rules](firestore.rules) is the backend permission boundary for guild records, raid scheduling, and member availability.

@@ -1,6 +1,6 @@
 # Intrepid Guild Raid Desk: instructions for coding assistants
 
-A React + TypeScript + Vite guild-operations app on Firebase Authentication and Cloud Firestore. Read `ARCHITECTURE.md` before adding a feature and `CONTRIBUTING.md` for the contribution rules.
+A React + TypeScript + Vite guild-operations app on Firebase Authentication and Cloud Firestore. Read `ARCHITECTURE.md` before adding a feature and `CONTRIBUTING.md` for the contribution rules. `docs/ROADMAP.md` records the decisions, the order of work and who can work on what in parallel.
 
 ## Commands
 

@@ -1,9 +1,13 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
-  Check, ChevronDown, LogOut, Moon, Plus, Search, Shield, Sun,
+  ChevronDown, LogOut, Moon, Plus, Search, Shield, Sun,
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
-import { createAfkEntry, createAward, createRaidEvent, deleteAfkEntry, approveJoinRequest, importLocalPreviewData, rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess, type AwardRecord, type JoinRequestRecord, type PlayerRecord, type PriorityRecord, type RaidRecord, type TenManTeam } from './guildApi'
+import {
+  createAfkEntry, deleteAfkEntry, approveJoinRequest, importLocalPreviewData,
+  rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess,
+  type JoinRequestRecord, type PriorityRecord, type TenManTeam,
+} from './guildApi'
 import { auth } from './firebase'
 import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from './security'
 import { useGuildData } from './useGuildData'
@@ -11,15 +15,18 @@ import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
 import { AfkCalendar } from './features/calendar/AfkCalendar'
 import {
-  guildCrest, membersArt, raidArt, lootArt, coinsArt, trophyArt,
-  accessArt, seasonArt, calendarArt, guildArt,
+  guildCrest, membersArt, raidArt, lootArt, trophyArt, accessArt,
+  seasonArt, calendarArt, guildArt,
 } from './shared/art'
-import type { Role } from './shared/game/classes'
 import { tenManTeams, type RaidView } from './shared/game/teams'
 import { localDateKey } from './shared/lib/dates'
 import { ArtIcon } from './shared/ui/ArtIcon'
-import { Modal } from './shared/ui/Modal'
-import { PlayerForm } from './features/roster/PlayerForm'
+import type { ModalRenderer, TabContext } from './shared/tabs/types'
+import { ModalHost, type ActiveModal } from './shell/ModalHost'
+import { PlayerModal } from './features/roster/PlayerModal'
+import { RaidModal } from './features/calendar/RaidModal'
+import { AwardModal } from './features/loot/AwardModal'
+import { PriorityModal } from './features/loot/PriorityModal'
 import { RosterTable } from './features/roster/RosterTable'
 import { RaidTeamsView } from './features/teams/RaidTeamsView'
 import { AwardHistory } from './features/loot/AwardHistory'
@@ -28,15 +35,7 @@ import { GuildAccessManager } from './features/access/GuildAccessManager'
 import './App.css'
 
 type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
-type Player = PlayerRecord
 type LootPriority = PriorityRecord
-type Award = AwardRecord
-type ModalState =
-  | { kind: 'player'; player?: Player }
-  | { kind: 'priority'; priority?: LootPriority }
-  | { kind: 'award'; priority: LootPriority; awardedAt: string }
-  | { kind: 'raid'; date: string }
-  | null
 
 function App() {
   const session = useGuildSession()
@@ -45,12 +44,13 @@ function App() {
   const [selectedTab, setActiveTab] = useState<Tab>('priorities')
   const [raidView, setRaidView] = useState<RaidView>(10)
   const [query, setQuery] = useState('')
-  const [modal, setModal] = useState<ModalState>(null)
+  const [modal, setModal] = useState<ActiveModal | null>(null)
   const [impersonatedRole, setImpersonatedRole] = useState<GuildRole | null>(null)
   const [mutationError, setMutationError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const { roster, assignments, priorities, awards, afkEntries, raids, members, joinRequests, dataError } = useGuildData(session.status === 'active', actualRole)
+  const data = useGuildData(session.status === 'active', actualRole)
+  const { roster, assignments, priorities, awards, afkEntries, raids, members, joinRequests, dataError } = data
   const effectiveRole = actualRole === 'Guild Leader' ? impersonatedRole ?? actualRole : actualRole
   const activeTab = selectedTab === 'access' && effectiveRole !== 'Guild Leader' ? 'roster' : selectedTab
   const canEditRoster = effectiveRole ? canManageRoster(effectiveRole) : false
@@ -76,106 +76,18 @@ function App() {
   const filteredPriorities = priorities.filter((priority) => `${priority.item} ${priority.encounter} ${priority.rankedPlayers.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
   const filteredAwards = awards.filter((award) => `${award.item} ${award.encounter} ${award.recipient}`.toLowerCase().includes(query.toLowerCase()))
 
-  async function savePlayer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const player: Player = {
-      id: modal?.kind === 'player' && modal.player ? modal.player.id : crypto.randomUUID(),
-      name: String(data.get('name')).trim(),
-      className: String(data.get('className')).trim(),
-      specialization: String(data.get('specialization')).trim(),
-      role: String(data.get('role')) as Role,
-    }
-    setBusy(true)
-    try {
-      const { id, ...record } = player
-      await saveGuildRecord('roster', id, record)
-      setMutationError('')
-      setModal(null)
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not save guild member.')
-    } finally {
-      setBusy(false)
-    }
+  function openModal(render: ModalRenderer) {
+    setModal((current) => ({ render, key: (current?.key ?? 0) + 1 }))
   }
 
-  async function savePriority(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const priority: LootPriority = {
-      id: modal?.kind === 'priority' && modal.priority ? modal.priority.id : crypto.randomUUID(),
-      item: String(data.get('item')).trim(),
-      encounter: String(data.get('encounter')).trim(),
-      rankedPlayers: String(data.get('rankedPlayers')).split(',').map((name) => name.trim()).filter(Boolean),
-      councilNote: String(data.get('councilNote')).trim(),
-    }
-    setBusy(true)
-    try {
-      const { id, ...record } = priority
-      await saveGuildRecord('lootPriorities', id, record)
-      setMutationError('')
-      setModal(null)
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not save loot priority.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function recordAward(event: FormEvent<HTMLFormElement>, priority: LootPriority) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const award: Omit<Award, 'id'> = {
-      priorityId: priority.id,
-      item: priority.item,
-      encounter: priority.encounter,
-      recipient: String(data.get('recipient')),
-      awardedAt: String(data.get('awardedAt')),
-      prioritySnapshot: [...priority.rankedPlayers],
-      councilNoteSnapshot: priority.councilNote,
-      awardNote: String(data.get('awardNote')).trim(),
-    }
-    setBusy(true)
-    try {
-      await createAward(award)
-      setMutationError('')
-      setModal(null)
-      setActiveTab('history')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not record loot award.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function saveRaid(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const data = new FormData(event.currentTarget)
-    const date = String(data.get('date') ?? '')
-    const name = String(data.get('name') ?? '').trim()
-    const size = Number(data.get('size'))
-    if (!session.user || !date || !name || ![10, 20, 40].includes(size)) {
-      setMutationError('Enter a raid name, date, and a valid raid size.')
-      return
-    }
-
-    setBusy(true)
-    try {
-      await createRaidEvent({ date, name, size: size as RaidRecord['size'] }, session.user.uid)
-      setMutationError('')
-      setNotice('Raid added to the calendar.')
-      setModal(null)
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not add raid.')
-    } finally {
-      setBusy(false)
-    }
+  function navigate(id: string) {
+    if ((['roster', 'teams', 'afk', 'priorities', 'history', 'access'] as string[]).includes(id)) setActiveTab(id as Tab)
   }
 
   function openAward(priority: LootPriority) {
     const now = new Date()
     const localDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
-    setModal({ kind: 'award', priority, awardedAt: localDate })
+    openModal(({ close, live }) => <AwardModal priority={priority} awardedAt={localDate} close={close} live={live} />)
   }
 
   async function assignMember(playerId: string, team: TenManTeam) {
@@ -304,6 +216,16 @@ function App() {
     return <AccessScreen status={session.status} user={session.user} error={session.error} setError={session.setError} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
   }
 
+  const ctx: TabContext = {
+    data,
+    query,
+    identity: { uid: session.user?.uid ?? '', displayName: session.membership.displayName, canEditRoster, canEditRaidData },
+    shell: { raidView, setRaidView },
+    feedback: { busy, setBusy, setMutationError, setNotice },
+    openModal,
+    navigate,
+  }
+
   const pageTitle = activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Raid teams' : activeTab === 'afk' ? 'Raid Calendar' : activeTab === 'priorities' ? 'Loot priorities' : activeTab === 'history' ? 'Award history' : 'Member access'
   const pageHint = activeTab === 'roster' ? 'Every member of the guild, whether assigned to a raid team or not.' : activeTab === 'teams' ? 'Manage four 10-player groups; larger teams are combined automatically.' : activeTab === 'afk' ? 'Share dates when you are unavailable to raid.' : activeTab === 'priorities' ? 'Set council order before the next drop.' : activeTab === 'history' ? 'A permanent record of council decisions.' : 'Review join requests and manage guild roles.'
 
@@ -334,9 +256,9 @@ function App() {
         </div></header>
         <div className="page-wrap">
           <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line" /> GUILD OPERATIONS</div><h1>{pageTitle}</h1><p>{pageHint}</p></div><div className="heading-actions">
-            {activeTab === 'roster' && canEditRoster && <button className="button button-primary" onClick={() => setModal({ kind: 'player' })}><Plus size={16} /> Add member</button>}
-            {activeTab === 'afk' && canEditRaidData && <button className="button button-primary" onClick={() => setModal({ kind: 'raid', date: localDateKey(new Date()) })}><Plus size={16} /> Add Raid</button>}
-            {activeTab === 'priorities' && canEditRaidData && <button className="button button-primary" onClick={() => setModal({ kind: 'priority' })}><Plus size={16} /> Add priority</button>}
+            {activeTab === 'roster' && canEditRoster && <button className="button button-primary" onClick={() => openModal(({ close, live }) => <PlayerModal close={close} live={live} />)}><Plus size={16} /> Add member</button>}
+            {activeTab === 'afk' && canEditRaidData && <button className="button button-primary" onClick={() => openModal(({ close, live }) => <RaidModal date={localDateKey(new Date())} close={close} live={live} />)}><Plus size={16} /> Add Raid</button>}
+            {activeTab === 'priorities' && canEditRaidData && <button className="button button-primary" onClick={() => openModal(({ close, live }) => <PriorityModal close={close} live={live} />)}><Plus size={16} /> Add priority</button>}
           </div></section>
 
           <section className="stat-strip" aria-label="Guild overview">
@@ -351,10 +273,10 @@ function App() {
               {activeTab === 'teams' && <div className="segmented-control" aria-label="Raid team size">{([10, 20, 40] as const).map((size) => <button key={size} className={raidView === size ? 'segment selected' : 'segment'} onClick={() => setRaidView(size)} aria-pressed={raidView === size}>{size}<span>player</span></button>)}</div>}
               {activeTab !== 'teams' && activeTab !== 'access' && activeTab !== 'afk' && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === 'roster' ? 'Find a member...' : 'Find item or player...'} /><kbd>Ctrl K</kbd></label>}
             </div></div>
-            {activeTab === 'roster' && <RosterTable players={filteredRoster} assignments={assignments} canEdit={canEditRoster} onEdit={(player) => setModal({ kind: 'player', player })} />}
+            {activeTab === 'roster' && <RosterTable players={filteredRoster} assignments={assignments} canEdit={canEditRoster} onEdit={(player) => openModal(({ close, live }) => <PlayerModal existing={player} close={close} live={live} />)} />}
             {activeTab === 'teams' && <RaidTeamsView players={roster} assignments={assignments} view={raidView} canEdit={canEditRaidData} onAssign={assignMember} onRemove={removeMemberFromTeams} />}
             {activeTab === 'afk' && <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={session.user?.uid ?? ''} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} />}
-            {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => setModal({ kind: 'priority', priority })} onAward={openAward} onMoveCandidate={moveCandidate} />}
+            {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />}
             {activeTab === 'history' && <AwardHistory awards={filteredAwards} />}
             {activeTab === 'access' && effectiveRole === 'Guild Leader' && <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />}
             {(mutationError || dataError) && <p className="app-error" role="alert">{mutationError || dataError}</p>}
@@ -365,26 +287,7 @@ function App() {
         </div>
       </main>
 
-      {modal?.kind === 'player' && <Modal title={modal.player ? 'Edit member' : 'Add guild member'} onClose={() => setModal(null)}><PlayerForm player={modal.player} busy={busy} onSubmit={savePlayer} onCancel={() => setModal(null)} /></Modal>}
-      {modal?.kind === 'raid' && <Modal title="Add Raid" onClose={() => setModal(null)}><form className="modal-form" onSubmit={saveRaid}>
-        <label>Raid name<input name="name" placeholder="e.g. Karazhan" maxLength={80} required autoFocus /></label>
-        <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={modal.date} required /></label><label>Raid size<select name="size" defaultValue="10"><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
-        <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModal(null)}>Cancel</button><button className="button button-primary" disabled={busy}><Plus size={15} /> Add Raid</button></div>
-      </form></Modal>}
-      {modal?.kind === 'priority' && <Modal title={modal.priority ? 'Edit loot priority' : 'Add loot priority'} onClose={() => setModal(null)}><form className="modal-form" onSubmit={savePriority}>
-        <label>Item name<input name="item" defaultValue={modal.priority?.item} placeholder="e.g. Signet of the Deep Earth" required autoFocus /></label>
-        <label>Raid · encounter<input name="encounter" defaultValue={modal.priority?.encounter} placeholder="Raid name · Boss name" required /></label>
-        <label>Ranked candidates <span className="field-hint">Comma-separated, highest priority first</span><input name="rankedPlayers" defaultValue={modal.priority?.rankedPlayers.join(', ')} placeholder="Morrow, Aurelia, Vex" /></label>
-        <label>Council note<textarea name="councilNote" defaultValue={modal.priority?.councilNote} rows={3} placeholder="Why this order? What should council consider?" /></label>
-        <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModal(null)}>Cancel</button><button className="button button-primary" disabled={busy}><Check size={15} /> Save priority</button></div>
-      </form></Modal>}
-      {modal?.kind === 'award' && <Modal title="Record loot award" onClose={() => setModal(null)}><div className="award-modal-item"><span className="item-gem"><ArtIcon src={coinsArt} className="loot-art-icon" /></span><span><strong>{modal.priority.item}</strong><small>{modal.priority.encounter}</small></span></div><form className="modal-form" onSubmit={(event) => recordAward(event, modal.priority)}>
-        <label>Awarded to<select name="recipient" defaultValue={modal.priority.rankedPlayers[0] ?? ''} required>{modal.priority.rankedPlayers.map((name) => <option key={name}>{name}</option>)}</select></label>
-        <label>Award date<input type="date" name="awardedAt" defaultValue={modal.awardedAt} required /></label>
-        <label>Council decision note<textarea name="awardNote" rows={3} placeholder="Optional context for the permanent record" /></label>
-        <p className="snapshot-callout"><Shield size={15} /> The current priority order and council note will be saved with this award.</p>
-        <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModal(null)}>Cancel</button><button className="button button-primary" disabled={busy || modal.priority.rankedPlayers.length === 0}><Check size={15} /> Record award</button></div>
-      </form></Modal>}
+      <ModalHost modal={modal} close={() => setModal(null)} live={ctx} />
     </div>
   )
 }

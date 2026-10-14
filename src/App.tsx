@@ -4,16 +4,16 @@ import {
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import {
-  createAfkEntry, deleteAfkEntry, approveJoinRequest,
-  importLocalPreviewData, rejectJoinRequest, saveGuildRecord,
-  updateMembershipAccess, type JoinRequestRecord, type PriorityRecord,
+  approveJoinRequest, importLocalPreviewData, rejectJoinRequest,
+  saveGuildRecord, updateMembershipAccess, type   JoinRequestRecord,
+  type PriorityRecord,
 } from './guildApi'
 import { auth } from './firebase'
 import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from './security'
 import { useGuildData } from './useGuildData'
 import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
-import { AfkCalendar } from './features/calendar/AfkCalendar'
+import { CalendarTab } from './features/calendar/CalendarTab'
 import {
   guildCrest, membersArt, raidArt, lootArt, trophyArt, accessArt,
   seasonArt, calendarArt, guildArt,
@@ -159,37 +159,6 @@ function App() {
     }
   }
 
-  async function addAfkEntry(startDate: string, endDate: string) {
-    if (!session.user || !session.membership) return false
-    setBusy(true)
-    try {
-      await createAfkEntry({ userId: session.user.uid, displayName: session.membership.displayName, startDate, endDate })
-      setMutationError('')
-      setNotice('Unavailable dates added.')
-      return true
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not add unavailable dates.')
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function removeAfkEntry(entryId: string) {
-    setBusy(true)
-    try {
-      await deleteAfkEntry(entryId)
-      setMutationError('')
-      setNotice('Unavailable dates removed.')
-      return true
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not remove unavailable dates.')
-      return false
-    } finally {
-      setBusy(false)
-    }
-  }
-
   if (session.status !== 'active' || !session.membership) {
     return <AccessScreen status={session.status} user={session.user} error={session.error} setError={session.setError} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
   }
@@ -253,7 +222,7 @@ function App() {
             </div></div>
             {activeTab === 'roster' && <RosterTab ctx={ctx} />}
             {activeTab === 'teams' && <TeamsTab ctx={ctx} />}
-            {activeTab === 'afk' && <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={session.user?.uid ?? ''} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} />}
+            {activeTab === 'afk' && <CalendarTab ctx={ctx} />}
             {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />}
             {activeTab === 'history' && <AwardHistory awards={filteredAwards} />}
             {activeTab === 'access' && effectiveRole === 'Guild Leader' && <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />}

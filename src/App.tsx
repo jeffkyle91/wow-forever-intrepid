@@ -14,7 +14,7 @@ import {
   guildCrest, membersArt, raidArt, lootArt, coinsArt, trophyArt,
   accessArt, seasonArt, calendarArt, guildArt,
 } from './shared/art'
-import { type Role } from './shared/game/classes'
+import type { Role } from './shared/game/classes'
 import { tenManTeams, type RaidView } from './shared/game/teams'
 import { localDateKey } from './shared/lib/dates'
 import { ArtIcon } from './shared/ui/ArtIcon'

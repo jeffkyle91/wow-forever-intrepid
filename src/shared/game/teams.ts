@@ -8,3 +8,8 @@ export const tenManTeams: { key: TenManTeam; name: string }[] = [
   { key: 'red', name: 'Red' },
   { key: 'white', name: 'White' },
 ]
+
+export const groups20 = [
+  { name: 'Green', parts: ['blue', 'yellow'] as TenManTeam[] },
+  { name: 'Pink', parts: ['red', 'white'] as TenManTeam[] },
+]

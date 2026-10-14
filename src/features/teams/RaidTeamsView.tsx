@@ -1,6 +1,6 @@
 import { useState, type DragEvent as ReactDragEvent } from 'react'
 import type { PlayerRecord as Player, TenManTeam } from '../../guildApi'
-import { tenManTeams, type RaidView } from '../../shared/game/teams'
+import { groups20, tenManTeams, type RaidView } from '../../shared/game/teams'
 import { DerivedTeamCard } from './DerivedTeamCard'
 import { GuildRosterPool } from './GuildRosterPool'
 import { TenManTeamCard } from './TenManTeamCard'
@@ -15,10 +15,6 @@ export function RaidTeamsView({ players, assignments, view, canEdit, onAssign, o
 }) {
   const [activeDropTarget, setActiveDropTarget] = useState<TenManTeam | 'roster' | null>(null)
   const membersFor = (team: TenManTeam) => players.filter((player) => assignments[player.id] === team)
-  const groups20 = [
-    { name: 'Green', parts: ['blue', 'yellow'] as TenManTeam[] },
-    { name: 'Pink', parts: ['red', 'white'] as TenManTeam[] },
-  ]
   function acceptDrop(event: ReactDragEvent<HTMLElement>, team: TenManTeam) {
     event.preventDefault()
     if (canEdit) setActiveDropTarget(team)

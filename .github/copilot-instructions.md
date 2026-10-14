@@ -7,3 +7,4 @@
 - Run `npm run build` and `npm run lint` to validate changes.
 - Only deploy to firebase when requested to limit the number of pushes to the hosting target.
 
+- Read `AGENTS.md`, `ARCHITECTURE.md` and `CONTRIBUTING.md` before adding a feature: each tab lives in `src/features/<name>/`, is described by a `TabDefinition` in its `tab.tsx`, and is registered in `src/shell/tabs.ts`. Do not add feature code to `src/App.tsx`.

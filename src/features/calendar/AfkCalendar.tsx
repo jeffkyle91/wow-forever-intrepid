@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
-import type { AfkEntryRecord, PlayerRecord, RaidRecord } from './guildApi'
-import calendarArt from '../Art/icons-split/calendar.png'
+import type { AfkEntryRecord, PlayerRecord, RaidRecord } from '../../guildApi'
+import calendarArt from '../../../Art/icons-split/calendar.png'
 import './AfkCalendar.css'
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

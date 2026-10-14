@@ -111,3 +111,11 @@ npm run lint
 ```
 
 `npm run lint` treats warnings as errors. GitHub Actions (`.github/workflows/ci.yml`) runs both commands on every pull request and on pushes to `main`.
+
+The Firestore rules have their own tests, which run against the local emulator and need JDK 21 (see [CONTRIBUTING.md](CONTRIBUTING.md#testing-the-firestore-rules)):
+
+```powershell
+npm run test:rules
+```
+
+CI runs them in a separate job.

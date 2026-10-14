@@ -5,6 +5,7 @@
 .access-brand > span:last-child { display: grid; gap: 1px; }
 .access-brand strong { font-size: 12px; letter-spacing: 1px; }
 .access-brand small { color: #788b9e; font-size: 8px; letter-spacing: 1.2px; }
+.access-theme-toggle { margin-left: auto; }
 .access-panel { width: min(100%, 420px); padding: 27px; border: 1px solid #dfe7ef; border-radius: 7px; background: #fff; box-shadow: 0 16px 48px #24324812; }
 .access-emblem { display: grid; width: 43px; height: 43px; place-items: center; margin-bottom: 20px; border: 1px solid #d2e5f2; border-radius: 6px; color: #3779aa; background: #edf6fc; }
 .access-emblem img { display: block; width: 29px; height: 29px; object-fit: contain; }
@@ -43,4 +44,3 @@
 :root[data-theme='dark'] .access-switch { color: #99c9ed; }
 :root[data-theme='dark'] .access-error { border-color: #69484a; color: #f0b8ae !important; background: #36282e; }
 :root[data-theme='dark'] .access-footnote { color: #9babbc; }
-:root[data-theme='dark'] .access-theme-toggle { margin-left: auto; }

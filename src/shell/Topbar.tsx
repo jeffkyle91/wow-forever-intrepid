@@ -20,7 +20,7 @@ export function Topbar({ title, actualRole, effectiveRole, impersonatedRole, onI
     <header className="topbar"><div className="breadcrumb"><span>INTREPID</span><span className="crumb-slash">/</span><strong>{title.toUpperCase()}</strong></div><div className="topbar-actions">
       {actualRole === 'Guild Leader' && <label className="impersonation-control"><span>VIEW AS</span><select value={effectiveRole ?? 'Guild Leader'} onChange={(event) => onImpersonate(event.target.value === 'Guild Leader' ? null : event.target.value as GuildRole)}>{guildRoles.map((role) => <option key={role}>{role}</option>)}</select></label>}
       {impersonatedRole && <span className="impersonation-badge">Previewing {impersonatedRole}</span>}
-      <span className="role-badge">{effectiveRole}</span><span className="avatar" title={email}>{displayName.slice(0, 2).toUpperCase()}</span>
+      <span className="role-badge">{effectiveRole}</span><span className="avatar" title={email}>{(displayName ?? '').slice(0, 2).toUpperCase()}</span>
       <button className="icon-button theme-toggle" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={onToggleTheme}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button>
       <button className="icon-button" title="Sign out" aria-label="Sign out" onClick={() => auth && void signOut(auth)}><LogOut size={16} /></button>
     </div></header>

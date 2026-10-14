@@ -12,7 +12,7 @@ export function authErrorMessage(cause: unknown, fallback: string): string {
     case 'auth/invalid-login-credentials':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'That email and password do not match. Check them and try again.'
+      return 'That email and password do not match. Check them and try again, or use "Forgot password?".'
     case 'auth/email-already-in-use':
       return 'An account already exists for that email. Sign in instead.'
     case 'auth/invalid-email':

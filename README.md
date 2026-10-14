@@ -108,3 +108,5 @@ The specialization PNGs in `wowspecsemojis-master/` are from [danetch/wowspecsem
 npm run build
 npm run lint
 ```
+
+`npm run lint` treats warnings as errors. GitHub Actions (`.github/workflows/ci.yml`) runs both commands on every pull request and on pushes to `main`.

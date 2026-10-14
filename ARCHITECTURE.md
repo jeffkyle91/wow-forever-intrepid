@@ -21,9 +21,9 @@ src/
     roster/ teams/ calendar/ loot/ access/
   shared/                      things two or more features use
     tabs/types.ts              the contracts: TabDefinition, TabContext, ModalRenderer
-    ui/                        Modal, ArtIcon, EmptyRow, RolePill, ClassAvatar
+    ui/                        Modal, ArtIcon, EmptyRow, RolePill, ClassAvatar, ErrorBoundary
     game/                      class/spec data and the raid team definitions
-    lib/dates.ts, art.ts
+    lib/dates.ts, art.ts, normalize.ts
 ```
 
 Dependencies point one way: `shared` and the core files at the top of `src/` import nothing from `features` or `shell`; a feature imports `shared` and the core files, never another feature and never `shell`; `shell` imports a feature only through its `tab.tsx`; `App.tsx` imports `shell`. If two features need the same thing, move it to `shared` in its own small change.
@@ -36,7 +36,7 @@ The shell passes each tab one `TabContext`:
 
 | Field | What it is |
 | --- | --- |
-| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `members`, `joinRequests`) |
+| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `members`, `joinRequests`) and `unreadable`, how many documents were skipped because they could not be read |
 | `query` | the current search text |
 | `identity` | `uid`, `displayName`, `canEditRoster`, `canEditRaidData` |
 | `shell` | `raidView` and `setRaidView` (the 10/20/40 selector lives in the shell so it survives tab switches) |
@@ -69,6 +69,12 @@ Open a dialog with `ctx.openModal(({ close, live }) => <MyModal ... close={close
 `useGuildData` subscribes to the guild's collections once and every tab reads them from `ctx.data`. Writes go through `guildApi.ts`. `navCount`, `recordCount` and `footer` are functions of `ctx.data`, so today a tab can only show counts for data the shell already loads. If a feature needs its own collection, agree on how it loads that data (a hook inside its content component, or a new shared subscription) before building it. Adding a new collection currently touches shared files: the record type and write helper in `guildApi.ts`, a subscription in `useGuildData.ts`, and a block in `firestore.rules` (Firebase deploys a single rules file). Do each in its own small commit and say so in the PR so a reviewer looks at the rules change on its own. Rules are the authorization boundary, so a feature that writes data needs a rules change and a rules deploy before the hosting build ships.
 
 Award snapshots are immutable: the candidate order and council note are copied from the priority as it was when the award dialog opened (`features/loot/AwardModal.tsx`) and the rules compare them to the stored priority. Do not change that flow casually.
+
+### Reading data safely
+
+The rules decide who may write and check a few shapes (a member's role, the allowed keys of a join request), but they do not require the fields the UI reads or check their types, and roster, lootPriorities and awards written by a Guild Leader are free-form. So the client does not trust what it reads. `subscribeGuildCollection` passes each document of those five collections through a normalizer in `shared/lib/normalize.ts` before it reaches `useGuildData`. A field the UI reads gets a safe default (text `''`, lists `[]`, non-string list entries dropped), every other field passes through unchanged, and a document that cannot be used (a name or item that is missing or not text, an unknown role or status) is skipped. Skipped documents are counted in `data.unreadable`, which the shell shows to Guild Leaders as "N records could not be read", and named by collection and id in a console warning. If a feature starts reading a new field from one of these collections, add it to that collection's normalizer. raids, afkEntries and teamAssignments are validated by the rules and are read as they are. `guildApi.ts` and `useGuildData.ts` import `shared/lib/normalize.ts` at runtime; `normalize.ts` must keep its import from `guildApi.ts` type-only so the two never import each other at runtime.
+
+Render errors are contained by `shared/ui/ErrorBoundary`: one around the workspace panel (reset when the tab changes), one around the dialog host (reset when the open dialog changes) and one around the whole app in `main.tsx`. A boundary adds no element when nothing has thrown, and a healthy panel stays mounted across tab switches. Once it has caught an error it stays up until its `resetKey` changes (the tab id, or the open dialog's key) or the page reloads, even if the data heals. It does not catch errors in event handlers or async code.
 
 ## CSS
 

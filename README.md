@@ -99,9 +99,13 @@ Guild Leader impersonation only narrows the visible UI to preview a role. It doe
 
 A Guild Leader can import this browser's prior local preview records from Member Access when the shared guild collections are empty. The import carries roster assignments and award-time priority snapshots. Local browser data is not uploaded automatically.
 
-## Specialization icons
+## Licence and credits
 
-The specialization PNGs in `wowspecsemojis-master/` are from [danetch/wowspecsemojis](https://github.com/danetch/wowspecsemojis) and are used here for this non-commercial guild app under the Blizzard fan-content allowance described by the project owner. The icons remain Blizzard artwork; do not use them commercially.
+This is an unofficial fan project for a World of Warcraft guild. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft and the names, class and specialization artwork it refers to are trademarks or property of Blizzard Entertainment.
+
+- **Code:** [MIT](LICENSE). The licence covers the source code only, not the artwork below.
+- **Specialization icons** (`wowspecsemojis-master/`): from [danetch/wowspecsemojis](https://github.com/danetch/wowspecsemojis), which shares the original Blizzard specialization icons as PNGs. They remain Blizzard artwork; they are used here for a non-commercial guild app and must not be used commercially.
+- **Guild crest and interface artwork** (`Art/`): generated with ChatGPT (OpenAI). They are not Blizzard artwork.
 
 ## Checks
 

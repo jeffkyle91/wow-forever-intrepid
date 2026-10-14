@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { subscribeGuildCollection, type AwardRecord, type JoinRequestRecord, type MembershipRecord, type PlayerRecord, type PriorityRecord, type TeamAssignmentRecord } from './guildApi'
+import { subscribeGuildCollection, type AfkEntryRecord, type AwardRecord, type JoinRequestRecord, type MembershipRecord, type PlayerRecord, type PriorityRecord, type RaidRecord, type TeamAssignmentRecord } from './guildApi'
 import type { GuildRole } from './security'
 
 export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
@@ -7,6 +7,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
   const [assignments, setAssignments] = useState<Record<string, TeamAssignmentRecord['team']>>({})
   const [priorities, setPriorities] = useState<PriorityRecord[]>([])
   const [awards, setAwards] = useState<AwardRecord[]>([])
+  const [afkEntries, setAfkEntries] = useState<AfkEntryRecord[]>([])
+  const [raids, setRaids] = useState<RaidRecord[]>([])
   const [members, setMembers] = useState<MembershipRecord[]>([])
   const [joinRequests, setJoinRequests] = useState<JoinRequestRecord[]>([])
   const [dataError, setDataError] = useState('')
@@ -19,6 +21,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
       subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))), onError),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', setPriorities, onError),
       subscribeGuildCollection<AwardRecord>('awards', (records) => setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))), onError),
+      subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
+      subscribeGuildCollection<RaidRecord>('raids', (records) => setRaids(records.sort((a, b) => a.date.localeCompare(b.date))), onError),
     ]
     if (actualRole === 'Guild Leader') {
       unsubscribers.push(subscribeGuildCollection<MembershipRecord>('members', setMembers, onError))
@@ -32,6 +36,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
     assignments,
     priorities,
     awards,
+    afkEntries,
+    raids,
     members: actualRole === 'Guild Leader' ? members : [],
     joinRequests: actualRole === 'Guild Leader' ? joinRequests : [],
     dataError,

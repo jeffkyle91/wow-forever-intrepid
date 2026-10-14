@@ -1,0 +1,85 @@
+.afk-calendar-tool { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 22px; padding: 17px; }
+.afk-calendar-main { min-width: 0; }
+.afk-month-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.afk-month-heading { display: flex; align-items: center; gap: 8px; color: #527694; }
+.afk-calendar-art-icon { display: block; width: 17px; height: 17px; object-fit: contain; }
+.afk-calendar-button-art-icon { display: block; width: 15px; height: 15px; object-fit: contain; }
+.afk-month-heading h3 { margin: 0; color: #344a60; font: 600 14px/1.2 var(--display); }
+.afk-month-controls { display: flex; align-items: center; gap: 5px; }
+.afk-month-button { display: grid; min-width: 30px; height: 29px; place-items: center; padding: 0 8px; border: 1px solid #e1e7ec; border-radius: 4px; color: #61768a; background: #fff; font: inherit; font-size: 9px; cursor: pointer; }
+.afk-month-button:hover { border-color: #b7cad9; color: #345d7d; background: #f6f9fb; }
+.afk-month-icon-button { width: 30px; padding: 0; }
+.afk-calendar-scroll { overflow-x: auto; border: 1px solid #e2e8ed; border-radius: 5px; background: #fff; }
+.afk-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 630px; }
+.afk-calendar-grid > :nth-child(7n) { border-right: 0; }
+.afk-weekday { display: grid; min-height: 30px; place-items: center; border-right: 1px solid #e9edf1; color: #8190a0; background: #f8fafb; font-size: 8px; font-weight: 700; }
+.afk-day { min-width: 0; min-height: 92px; padding: 6px; border-top: 1px solid #e9edf1; border-right: 1px solid #e9edf1; background: #fff; }
+.afk-day.outside-month { background: #f8fafb; }
+.afk-day.today { box-shadow: inset 0 0 0 1px #78a6c6; }
+.afk-day-number { display: block; margin-bottom: 5px; color: #52677b; font-size: 9px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.afk-day.outside-month .afk-day-number { color: #a6b0ba; }
+.afk-day-entries { display: grid; gap: 3px; max-height: 62px; overflow-y: auto; }
+.raid-calendar-event { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; padding: 3px 4px; overflow: hidden; border-left: 2px solid #a77c34; border-radius: 2px; color: #695127; background: #f8f1e2; font-size: 8px; line-height: 1.25; }
+.raid-calendar-event span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.raid-calendar-event small { flex: 0 0 auto; color: #8c6b31; font-size: 7px; font-weight: 700; }
+.afk-calendar-entry { display: block; min-width: 0; padding: 3px 4px; overflow: hidden; border-left: 2px solid #7c9fb8; border-radius: 2px; color: #4f687d; background: #edf4f8; font-size: 8px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.afk-calendar-entry.own-entry { border-left-color: #3c78a5; color: #315d7d; background: #e5f0f7; font-weight: 700; }
+.afk-calendar-entry span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.afk-calendar-sidebar { display: grid; align-content: start; gap: 18px; min-width: 0; padding-left: 18px; border-left: 1px solid #e9edf1; }
+.afk-entry-section h3, .afk-own-ranges h3 { margin: 2px 0 12px; color: #3b5065; font: 600 12px/1.25 var(--display); }
+.afk-entry-form { display: grid; gap: 10px; }
+.afk-entry-form label { display: grid; gap: 5px; color: #718192; font-size: 9px; font-weight: 700; }
+.afk-entry-form input { width: 100%; min-width: 0; height: 34px; padding: 0 8px; border: 1px solid #dfe6eb; border-radius: 4px; outline: 0; color: #40566b; background: #fff; font: inherit; font-size: 10px; }
+.afk-entry-form input:focus { border-color: #8eb7d7; box-shadow: 0 0 0 2px #e3f0f8; }
+.afk-entry-form .button { justify-content: center; margin-top: 2px; }
+.afk-form-error { color: #a45448; font-size: 9px; line-height: 1.4; }
+.afk-own-ranges { padding-top: 15px; border-top: 1px solid #e9edf1; }
+.afk-own-ranges ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.afk-own-ranges li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 7px 0; border-bottom: 1px solid #eef1f3; }
+.afk-own-ranges li > span { display: grid; gap: 2px; min-width: 0; }
+.afk-own-ranges li strong { color: #465c70; font-size: 9px; font-variant-numeric: tabular-nums; }
+.afk-own-ranges li small { color: #8996a2; font-size: 8px; }
+.afk-remove-button { display: grid; flex: 0 0 27px; width: 27px; height: 27px; place-items: center; border: 1px solid transparent; border-radius: 4px; color: #8493a0; background: transparent; cursor: pointer; }
+.afk-remove-button:hover:not(:disabled) { border-color: #f0d4d1; color: #a64e4a; background: #fcf0ef; }
+.afk-remove-button:disabled { opacity: .4; cursor: not-allowed; }
+.afk-no-ranges { color: #8996a2; font-size: 9px; line-height: 1.5; }
+
+:root[data-theme='dark'] .afk-month-heading { color: #9fc5df; }
+:root[data-theme='dark'] .afk-month-heading h3 { color: #e0e9f2; }
+:root[data-theme='dark'] .afk-month-button { border-color: #3a4b61; color: #bdcddd; background: #1d2c3f; }
+:root[data-theme='dark'] .afk-month-button:hover { border-color: #54728f; color: #d7eafa; background: #26394f; }
+:root[data-theme='dark'] .afk-calendar-scroll { border-color: #34465c; background: #1a293b; }
+:root[data-theme='dark'] .afk-weekday { border-color: #34465c; color: #aab9c8; background: #202f42; }
+:root[data-theme='dark'] .afk-day { border-color: #34465c; background: #1a293b; }
+:root[data-theme='dark'] .afk-day.outside-month { background: #172536; }
+:root[data-theme='dark'] .afk-day.today { box-shadow: inset 0 0 0 1px #6d9fc1; }
+:root[data-theme='dark'] .afk-day-number { color: #d0dce8; }
+:root[data-theme='dark'] .afk-day.outside-month .afk-day-number { color: #78899b; }
+:root[data-theme='dark'] .raid-calendar-event { border-left-color: #d0a351; color: #f0dba8; background: #403828; }
+:root[data-theme='dark'] .raid-calendar-event small { color: #d7ba77; }
+:root[data-theme='dark'] .afk-calendar-entry { border-left-color: #7097b3; color: #c1d5e4; background: #263b50; }
+:root[data-theme='dark'] .afk-calendar-entry.own-entry { border-left-color: #82b9dc; color: #d5eafa; background: #2b4860; }
+:root[data-theme='dark'] .afk-calendar-sidebar { border-color: #34465c; }
+:root[data-theme='dark'] .afk-entry-section h3, :root[data-theme='dark'] .afk-own-ranges h3 { color: #d6e1ec; }
+:root[data-theme='dark'] .afk-entry-form label { color: #aab9c8; }
+:root[data-theme='dark'] .afk-entry-form input { border-color: #3a4b61; color: #d8e3ed; background: #172536; }
+:root[data-theme='dark'] .afk-entry-form input:focus { border-color: #6d9fc1; box-shadow: 0 0 0 2px #35506a; }
+:root[data-theme='dark'] .afk-form-error { color: #f1a394; }
+:root[data-theme='dark'] .afk-own-ranges { border-color: #34465c; }
+:root[data-theme='dark'] .afk-own-ranges li { border-color: #2c3d51; }
+:root[data-theme='dark'] .afk-own-ranges li strong { color: #d5e0eb; }
+:root[data-theme='dark'] .afk-own-ranges li small, :root[data-theme='dark'] .afk-no-ranges { color: #9eafbf; }
+:root[data-theme='dark'] .afk-remove-button { color: #acbdce; }
+:root[data-theme='dark'] .afk-remove-button:hover:not(:disabled) { border-color: #684641; color: #ffc0b5; background: #392d30; }
+
+@media (max-width: 1180px) {
+  .afk-calendar-tool { grid-template-columns: minmax(0, 1fr); }
+  .afk-calendar-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 17px 0 0; border-top: 1px solid #e9edf1; border-left: 0; }
+  :root[data-theme='dark'] .afk-calendar-sidebar { border-color: #34465c; }
+}
+
+@media (max-width: 560px) {
+  .afk-calendar-tool { gap: 18px; padding: 12px; }
+  .afk-calendar-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .afk-month-heading h3 { font-size: 12px; }
+}

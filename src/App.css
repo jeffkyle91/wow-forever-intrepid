@@ -68,9 +68,9 @@
 .stat-label { color: #849087; font-size: 8px; font-weight: 700; letter-spacing: 1px; }
 .stat-cell > strong { color: #233128; font-size: 19px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .stat-cell > strong small { color: #7b877e; font-size: 10px; font-weight: 400; }
-.stat-callout { display: grid; grid-template-columns: 10px auto; align-items: center; gap: 0 8px; padding: 0 19px; color: #8b958c; font-size: 8px; font-weight: 700; letter-spacing: .9px; }
+.stat-callout { display: grid; grid-template-columns: 12px auto; align-items: center; gap: 0 8px; padding: 0 19px; color: #8b958c; font-size: 8px; font-weight: 700; letter-spacing: .9px; }
 .stat-callout strong { grid-column: 2; margin-top: 4px; color: #425c7a; font-size: 11px; letter-spacing: 0; }
-.pulse-dot { grid-row: span 2; width: 7px; height: 7px; border-radius: 50%; background: #d79a41; box-shadow: 0 0 0 3px #f7eee0; }
+.pulse-dot { grid-row: span 2; width: 10.5px; height: 10.5px; border-radius: 50%; background: #d79a41; box-shadow: 0 0 8px 2px rgba(215,154,65,.48); }
 .workspace-panel { overflow: hidden; border: 1px solid #e0e7ef; border-radius: 6px; background: #fff; box-shadow: 0 8px 26px rgba(31,49,64,.035); }
 .panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 67px; padding: 12px 19px; border-bottom: 1px solid #e9eee7; }
 .panel-heading { display: flex; align-items: baseline; gap: 10px; }
@@ -247,6 +247,8 @@
 .derived-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 0 14px; }
 .derived-subteam { min-width: 0; padding: 10px; border: 1px solid #e9edf1; border-radius: 5px; background: #fafbfd; }
 .derived-subteam-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; color: #8c98a3; font-size: 8px; }
+.derived-subteam-name { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: #42566b; font-size: 9px; font-weight: 700; white-space: nowrap; }
+.derived-subteam-name .team-color-mark { width: 7px; height: 16px; flex-basis: 7px; border-radius: 2px; }
 .derived-member-list { display: grid; gap: 7px; }
 .derived-member { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 2px 7px; min-width: 0; }
 .derived-member .class-avatar { grid-row: span 2; width: 24px; height: 24px; flex-basis: 24px; font-size: 9px; }
@@ -258,6 +260,7 @@
 .priority-item-line { display: flex; align-items: flex-start; gap: 10px; }
 .item-gem { display: grid; flex: 0 0 31px; width: 31px; height: 31px; place-items: center; border: 1px solid #f0dfca; border-radius: 5px; color: #bf7943; background: #fff7ee; }
 .loot-art-icon { display: block; width: 25px; height: 25px; object-fit: contain; filter: saturate(.22) brightness(1.08); }
+.priority-loot-icon { display: block; width: 25px; height: 25px; object-fit: contain; }
 .priority-item-line h3 { margin: 1px 0 5px; color: #29372f; font: 600 13px/1.3 var(--display); }
 .encounter-label { display: inline-flex; align-items: center; gap: 5px; color: #8b968d; font-size: 9px; }
 .encounter-art-icon { display: block; flex: 0 0 14px; width: 14px; height: 14px; object-fit: contain; }
@@ -530,6 +533,7 @@
 :root[data-theme='dark'] .award-modal-item { border-color: #34465c; background: #202e40; }
 :root[data-theme='dark'] .derived-subteam-heading,
 :root[data-theme='dark'] .award-modal-item small { color: #aab8c8; }
+:root[data-theme='dark'] .derived-subteam-name { color: #d1dce8; }
 :root[data-theme='dark'] .snapshot-order > span { color: #d2dce7; border-color: #394b61; background: #243348; }
 :root[data-theme='dark'] .empty-state,
 :root[data-theme='dark'] .empty-state strong { color: #d1dce8; }

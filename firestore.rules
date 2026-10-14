@@ -73,6 +73,18 @@ service cloud.firestore {
         && request.resource.data.team in ['blue', 'yellow', 'red', 'white'];
     }
 
+    function validIsoDate(date) {
+      return date is string && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function validAfkDateRange() {
+      let startDate = request.resource.data.startDate;
+      let endDate = request.resource.data.endDate;
+      return validIsoDate(startDate)
+        && validIsoDate(endDate)
+        && startDate <= endDate;
+    }
+
     match /guilds/{guildId} {
       allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
       allow write: if false;
@@ -116,6 +128,33 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      match /afkEntries/{entryId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+          && request.resource.data.keys().hasOnly(['userId', 'displayName', 'startDate', 'endDate', 'createdAt'])
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.displayName == get(memberPath(guildId, request.auth.uid)).data.displayName
+          && request.resource.data.createdAt == request.time
+          && validAfkDateRange();
+        allow update: if false;
+        allow delete: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+          && resource.data.userId == request.auth.uid;
+      }
+
+      match /raids/{raidId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create: if canManageRaid(guildId)
+          && request.resource.data.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt'])
+          && validIsoDate(request.resource.data.date)
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.size in [10, 20, 40]
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+
       match /joinRequests/{userId} {
         allow create: if signedIn()
           && request.auth.uid == userId
@@ -126,8 +165,10 @@ service cloud.firestore {
         allow list: if isGuildLeader(guildId);
         allow update: if (isGuildLeader(guildId)
           && request.resource.data.status in ['approved', 'rejected']
-          && request.resource.data.keys().hasOnly(['userId', 'email', 'displayName', 'status', 'requestedAt', 'assignedRole'])
-          && (request.resource.data.status != 'approved' || request.resource.data.assignedRole in ['Guild Leader', 'Raid Leader', 'Member']))
+          && request.resource.data.keys().hasOnly(['userId', 'email', 'displayName', 'status', 'requestedAt', 'assignedRole', 'linkedPlayerId'])
+          && (request.resource.data.status != 'approved' || (request.resource.data.assignedRole in ['Guild Leader', 'Raid Leader', 'Member']
+            && request.resource.data.get('linkedPlayerId', null) == getAfter(memberPath(guildId, userId)).data.get('playerId', null)
+            && request.resource.data.assignedRole == getAfter(memberPath(guildId, userId)).data.role)))
           || (signedIn()
             && request.auth.uid == userId
             && resource.data.status == 'rejected'

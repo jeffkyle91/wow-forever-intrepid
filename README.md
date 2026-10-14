@@ -2,6 +2,34 @@
 
 A React, TypeScript, and Vite guild-operations app backed by Firebase Authentication and Cloud Firestore.
 
+## Purpose
+
+Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shared place to maintain the roster, organize raid teams, prepare loot-council decisions, and review award history. Guild data is shared through authenticated Firestore access; local browser data is not shared automatically.
+
+## Current functionality
+
+- **Guild roster:** Add and edit characters with class, specialization, and a role derived from specialization. The complete guild roster remains separate from raid assignments.
+- **Raid teams:** Assign characters to four 10-player teams (Blue, Yellow, Red, and White). Green combines Blue and Yellow; Pink combines Red and White; Brown combines all four. View role composition and move characters with drag-and-drop or controls.
+- **Raid Calendar:** Guild members can add inclusive unavailable date ranges and remove their own entries. Guild and Raid Leaders can schedule 10-, 20-, and 40-player raids by date. Availability and raids appear together on the shared monthly calendar.
+- **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.
+- **Award history:** Review recipients, dates, and decision notes. Each award preserves a snapshot of the candidate order and council note at decision time.
+- **Guild access:** Members authenticate and request access. Guild Leaders approve requests, assign roles, and link accounts to roster characters. Firestore rules enforce permissions independently of the UI.
+- **Guild experience:** Use the app in light or dark theme, with WoW class and specialization artwork.
+- **Hosting:** The production app is served from [Firebase Hosting](https://intrepid-wow-forever.web.app/).
+
+## Discussed future work
+
+These ideas have been discussed but are not implemented as part of this app yet:
+
+- Loot Priorities and Award History: Reworking the existing [loot-council app](https://intrepid-reforged-p2-loot-tracker.netlify.app/) and selectively adapt useful workflows if its source repository becomes available. This project was started independently while waiting for that repository.
+    - Interfacing loot from an outside source to populate the items in the loot priority list.
+- Raid Optimziation: Add a raid optimization tool to evaluate buffs and debuffs by class to ensure raids (10/20/40) have the best use of classes/specs available.
+- Attendance Tracker: Ability to discern benched (voluntary/involuntary) and attendance %
+    - Interfacing with warcraft logs to evaluate who contributed to a raid
+    - Manual input in case a log is missed
+- Add a setting tool to update season and status indicators
+
+
 ## Local setup
 
 Requires Node.js 20.19+ or 22.12+.
@@ -11,6 +39,17 @@ npm install
 Copy-Item .env.example .env.local
 npm run dev
 ```
+
+## Firebase Hosting
+
+The Firebase Hosting target serves the Vite production build from `dist` and rewrites app routes to `index.html`. Configure the Firebase values in `.env.local`, then build and deploy the hosting target:
+
+```powershell
+npm run build
+npx firebase-tools@latest deploy --only hosting --project intrepid-wow-forever
+```
+
+The deployed site is [intrepid-wow-forever.web.app](https://intrepid-wow-forever.web.app/). Hosting deployment does not deploy Firestore rules; deploy those separately when the rules change.
 
 ## Raid team building
 
@@ -41,9 +80,9 @@ Without Firebase configuration, the app intentionally shows a setup-required scr
 
 ## Roles
 
-- **Guild Leader:** manage guild roster, raid teams, loot priorities, awards, member access, and role assignments.
-- **Raid Leader:** manage raid teams, loot priorities, and awards; view the guild roster and history.
-- **Member:** read-only access to guild roster, teams, priorities, and award history.
+- **Guild Leader:** manage guild roster, raid teams, loot priorities, awards, member access, and role assignments; schedule raids and manage their own unavailable dates.
+- **Raid Leader:** manage raid teams, loot priorities, and awards; view the guild roster and history; schedule raids and manage their own unavailable dates.
+- **Member:** read guild data and add or remove their own AFK date ranges.
 
 Guild Leader impersonation only narrows the visible UI to preview a role. It does not change the authenticated identity or the permissions enforced by Firestore.
 

@@ -30,6 +30,8 @@ export type AwardRecord = {
   councilNoteSnapshot: string
   awardNote: string
 }
+export type AfkEntryRecord = { id: string; userId: string; displayName: string; startDate: string; endDate: string; createdAt?: unknown }
+export type RaidRecord = { id: string; date: string; name: string; size: 10 | 20 | 40; createdBy: string; createdAt?: unknown }
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
@@ -85,6 +87,18 @@ export async function setTeamAssignment(playerId: string, team: TenManTeam | nul
 
 export async function createAward(data: Omit<AwardRecord, 'id'>) {
   await addDoc(guildCollection('awards'), data)
+}
+
+export async function createAfkEntry(data: Omit<AfkEntryRecord, 'id' | 'createdAt'>) {
+  await addDoc(guildCollection('afkEntries'), { ...data, createdAt: serverTimestamp() })
+}
+
+export async function deleteAfkEntry(id: string) {
+  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'afkEntries', id))
+}
+
+export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {
+  await addDoc(guildCollection('raids'), { ...data, createdBy: uid, createdAt: serverTimestamp() })
 }
 
 export async function updateMembershipRole(uid: string, role: GuildRole) {

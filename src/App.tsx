@@ -6,12 +6,13 @@ import {
   Waves, X, type LucideIcon,
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
-import { createAward, approveJoinRequest, importLocalPreviewData, rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess, type AwardRecord, type JoinRequestRecord, type PlayerRecord, type PriorityRecord, type TenManTeam } from './guildApi'
+import { createAfkEntry, createAward, createRaidEvent, deleteAfkEntry, approveJoinRequest, importLocalPreviewData, rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess, type AwardRecord, type JoinRequestRecord, type PlayerRecord, type PriorityRecord, type RaidRecord, type TenManTeam } from './guildApi'
 import { auth } from './firebase'
 import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from './security'
 import { useGuildData } from './useGuildData'
 import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
+import { AfkCalendar } from './AfkCalendar'
 import { getSpecializationIcon } from './specIcons'
 import guildCrest from '../Art/GuildCrest-256.png'
 import membersArt from '../Art/icons-split/members.png'
@@ -21,12 +22,13 @@ import coinsArt from '../Art/ui-icons/coins-new.png'
 import trophyArt from '../Art/icons-split/trophy.png'
 import accessArt from '../Art/icons-split/handshake.png'
 import seasonArt from '../Art/icons-split/compass.png'
+import calendarArt from '../Art/icons-split/calendar.png'
 import guildArt from '../Art/icons-split/crown.png'
 import encounterArt from '../Art/icons-split/skull.png'
 import './App.css'
 
 type Role = 'Tank' | 'Healer' | 'Melee' | 'Ranged'
-type Tab = 'roster' | 'teams' | 'priorities' | 'history' | 'access'
+type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
 type RaidView = 10 | 20 | 40
 type Player = PlayerRecord
 type LootPriority = PriorityRecord
@@ -36,10 +38,15 @@ type ModalState =
   | { kind: 'player'; player?: Player }
   | { kind: 'priority'; priority?: LootPriority }
   | { kind: 'award'; priority: LootPriority; awardedAt: string }
+  | { kind: 'raid'; date: string }
   | null
 
 function classColorKey(className: string) {
   return className.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function localDateKey(date: Date) {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
 }
 
 const tenManTeams: { key: TenManTeam; name: string }[] = [
@@ -120,7 +127,7 @@ function App() {
   const [mutationError, setMutationError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
-  const { roster, assignments, priorities, awards, members, joinRequests, dataError } = useGuildData(session.status === 'active', actualRole)
+  const { roster, assignments, priorities, awards, afkEntries, raids, members, joinRequests, dataError } = useGuildData(session.status === 'active', actualRole)
   const effectiveRole = actualRole === 'Guild Leader' ? impersonatedRole ?? actualRole : actualRole
   const activeTab = selectedTab === 'access' && effectiveRole !== 'Guild Leader' ? 'roster' : selectedTab
   const canEditRoster = effectiveRole ? canManageRoster(effectiveRole) : false
@@ -213,6 +220,30 @@ function App() {
       setActiveTab('history')
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'Could not record loot award.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function saveRaid(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const date = String(data.get('date') ?? '')
+    const name = String(data.get('name') ?? '').trim()
+    const size = Number(data.get('size'))
+    if (!session.user || !date || !name || ![10, 20, 40].includes(size)) {
+      setMutationError('Enter a raid name, date, and a valid raid size.')
+      return
+    }
+
+    setBusy(true)
+    try {
+      await createRaidEvent({ date, name, size: size as RaidRecord['size'] }, session.user.uid)
+      setMutationError('')
+      setNotice('Raid added to the calendar.')
+      setModal(null)
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Could not add raid.')
     } finally {
       setBusy(false)
     }
@@ -315,12 +346,43 @@ function App() {
     }
   }
 
+  async function addAfkEntry(startDate: string, endDate: string) {
+    if (!session.user || !session.membership) return false
+    setBusy(true)
+    try {
+      await createAfkEntry({ userId: session.user.uid, displayName: session.membership.displayName, startDate, endDate })
+      setMutationError('')
+      setNotice('Unavailable dates added.')
+      return true
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Could not add unavailable dates.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeAfkEntry(entryId: string) {
+    setBusy(true)
+    try {
+      await deleteAfkEntry(entryId)
+      setMutationError('')
+      setNotice('Unavailable dates removed.')
+      return true
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Could not remove unavailable dates.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (session.status !== 'active' || !session.membership) {
     return <AccessScreen status={session.status} user={session.user} error={session.error} setError={session.setError} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
   }
 
-  const pageTitle = activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Raid teams' : activeTab === 'priorities' ? 'Loot priorities' : activeTab === 'history' ? 'Award history' : 'Member access'
-  const pageHint = activeTab === 'roster' ? 'Every member of the guild, whether assigned to a raid team or not.' : activeTab === 'teams' ? 'Manage four 10-player groups; larger teams are combined automatically.' : activeTab === 'priorities' ? 'Set council order before the next drop.' : activeTab === 'history' ? 'A permanent record of council decisions.' : 'Review join requests and manage guild roles.'
+  const pageTitle = activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Raid teams' : activeTab === 'afk' ? 'Raid Calendar' : activeTab === 'priorities' ? 'Loot priorities' : activeTab === 'history' ? 'Award history' : 'Member access'
+  const pageHint = activeTab === 'roster' ? 'Every member of the guild, whether assigned to a raid team or not.' : activeTab === 'teams' ? 'Manage four 10-player groups; larger teams are combined automatically.' : activeTab === 'afk' ? 'Share dates when you are unavailable to raid.' : activeTab === 'priorities' ? 'Set council order before the next drop.' : activeTab === 'history' ? 'A permanent record of council decisions.' : 'Review join requests and manage guild roles.'
 
   return (
     <div className="app-shell">
@@ -331,6 +393,7 @@ function App() {
         <nav className="main-nav" aria-label="Guild tools">
           <NavButton active={activeTab === 'roster'} onClick={() => { setActiveTab('roster'); setQuery('') }} icon={<ArtIcon src={membersArt} className="nav-art-icon" />} label="Guild roster" count={roster.length} />
           <NavButton active={activeTab === 'teams'} onClick={() => { setActiveTab('teams'); setQuery('') }} icon={<ArtIcon src={raidArt} className="nav-art-icon" />} label="Raid teams" count={assignedCount} />
+          <NavButton active={activeTab === 'afk'} onClick={() => { setActiveTab('afk'); setQuery('') }} icon={<ArtIcon src={calendarArt} className="nav-art-icon" />} label="Raid Calendar" count={raids.length + afkEntries.length} />
           <NavButton active={activeTab === 'priorities'} onClick={() => { setActiveTab('priorities'); setQuery('') }} icon={<ArtIcon src={lootArt} className="nav-art-icon" />} label="Loot priorities" count={priorities.length} />
           <NavButton active={activeTab === 'history'} onClick={() => { setActiveTab('history'); setQuery('') }} icon={<ArtIcon src={trophyArt} className="nav-art-icon" />} label="Award history" count={awards.length} />
           {effectiveRole === 'Guild Leader' && <NavButton active={activeTab === 'access'} onClick={() => { setActiveTab('access'); setQuery('') }} icon={<ArtIcon src={accessArt} className="nav-art-icon" />} label="Member access" count={joinRequests.length} />}
@@ -349,35 +412,42 @@ function App() {
         <div className="page-wrap">
           <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line" /> GUILD OPERATIONS</div><h1>{pageTitle}</h1><p>{pageHint}</p></div><div className="heading-actions">
             {activeTab === 'roster' && canEditRoster && <button className="button button-primary" onClick={() => setModal({ kind: 'player' })}><Plus size={16} /> Add member</button>}
+            {activeTab === 'afk' && canEditRaidData && <button className="button button-primary" onClick={() => setModal({ kind: 'raid', date: localDateKey(new Date()) })}><Plus size={16} /> Add Raid</button>}
             {activeTab === 'priorities' && canEditRaidData && <button className="button button-primary" onClick={() => setModal({ kind: 'priority' })}><Plus size={16} /> Add priority</button>}
           </div></section>
 
           <section className="stat-strip" aria-label="Guild overview">
             <Stat icon={<ArtIcon src={membersArt} className="stat-art-icon" />} tone="green" label="ROSTER" value={roster.length} detail="members" />
-            <Stat icon={<ArtIcon src={coinsArt} className="stat-art-icon" />} tone="orange" label="PRIORITY LIST" value={priorities.length} detail="items tracked" />
+            <Stat icon={<ArtIcon src={lootArt} className="stat-art-icon" />} tone="orange" label="PRIORITY LIST" value={priorities.length} detail="items tracked" />
             <Stat icon={<ArtIcon src={trophyArt} className="stat-art-icon" />} tone="dark" label="AWARDED" value={awards.length} detail="decisions logged" />
             <div className="stat-callout"><span className="pulse-dot" /> COUNCIL STATUS <strong>Preparing for launch</strong></div>
           </section>
 
           <section className="workspace-panel">
-            <div className="panel-toolbar"><div className="panel-heading"><h2>{activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Team composition' : activeTab === 'priorities' ? 'Upcoming loot' : activeTab === 'history' ? 'Recent awards' : 'Guild members and requests'}</h2><span className="record-count">{activeTab === 'roster' ? `${roster.length} members` : activeTab === 'teams' ? (raidView === 10 ? '4 teams' : raidView === 20 ? '2 teams' : '1 team') : activeTab === 'priorities' ? `${priorities.length} records` : activeTab === 'history' ? `${awards.length} records` : `${members.length} members · ${joinRequests.length} requests`}</span></div><div className="toolbar-controls">
+            <div className="panel-toolbar"><div className="panel-heading"><h2>{activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Team composition' : activeTab === 'afk' ? 'Raid Calendar' : activeTab === 'priorities' ? 'Upcoming loot' : activeTab === 'history' ? 'Recent awards' : 'Guild members and requests'}</h2><span className="record-count">{activeTab === 'roster' ? `${roster.length} members` : activeTab === 'teams' ? (raidView === 10 ? '4 teams' : raidView === 20 ? '2 teams' : '1 team') : activeTab === 'afk' ? `${raids.length} raids · ${afkEntries.length} date ranges` : activeTab === 'priorities' ? `${priorities.length} records` : activeTab === 'history' ? `${awards.length} records` : `${members.length} members · ${joinRequests.length} requests`}</span></div><div className="toolbar-controls">
               {activeTab === 'teams' && <div className="segmented-control" aria-label="Raid team size">{([10, 20, 40] as const).map((size) => <button key={size} className={raidView === size ? 'segment selected' : 'segment'} onClick={() => setRaidView(size)} aria-pressed={raidView === size}>{size}<span>player</span></button>)}</div>}
-              {activeTab !== 'teams' && activeTab !== 'access' && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === 'roster' ? 'Find a member...' : 'Find item or player...'} /><kbd>Ctrl K</kbd></label>}
+              {activeTab !== 'teams' && activeTab !== 'access' && activeTab !== 'afk' && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === 'roster' ? 'Find a member...' : 'Find item or player...'} /><kbd>Ctrl K</kbd></label>}
             </div></div>
             {activeTab === 'roster' && <RosterTable players={filteredRoster} assignments={assignments} canEdit={canEditRoster} onEdit={(player) => setModal({ kind: 'player', player })} />}
             {activeTab === 'teams' && <RaidTeamsView players={roster} assignments={assignments} view={raidView} canEdit={canEditRaidData} onAssign={assignMember} onRemove={removeMemberFromTeams} />}
+            {activeTab === 'afk' && <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={session.user?.uid ?? ''} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} />}
             {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => setModal({ kind: 'priority', priority })} onAward={openAward} onMoveCandidate={moveCandidate} />}
             {activeTab === 'history' && <AwardHistory awards={filteredAwards} />}
             {activeTab === 'access' && effectiveRole === 'Guild Leader' && <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />}
             {(mutationError || dataError) && <p className="app-error" role="alert">{mutationError || dataError}</p>}
             {notice && <p className="app-notice" role="status">{notice}</p>}
-            <footer className="panel-footer"><span>{activeTab === 'teams' ? <><strong>{assignedCount}</strong> of <strong>{roster.length}</strong> guild members assigned</> : activeTab === 'access' ? <><strong>{members.length}</strong> active guild accounts</> : <>Showing <strong>{activeTab === 'roster' ? filteredRoster.length : activeTab === 'priorities' ? filteredPriorities.length : filteredAwards.length}</strong> of <strong>{activeTab === 'roster' ? roster.length : activeTab === 'priorities' ? priorities.length : filteredAwards.length}</strong></>}</span><span className="footer-right"><span className="save-indicator" /> Shared with guild</span></footer>
+            <footer className="panel-footer"><span>{activeTab === 'teams' ? <><strong>{assignedCount}</strong> of <strong>{roster.length}</strong> guild members assigned</> : activeTab === 'access' ? <><strong>{members.length}</strong> active guild accounts</> : activeTab === 'afk' ? <><strong>{raids.length}</strong> raids · <strong>{afkEntries.length}</strong> shared date ranges</> : <>Showing <strong>{activeTab === 'roster' ? filteredRoster.length : activeTab === 'priorities' ? filteredPriorities.length : filteredAwards.length}</strong> of <strong>{activeTab === 'roster' ? roster.length : activeTab === 'priorities' ? priorities.length : filteredAwards.length}</strong></>}</span><span className="footer-right"><span className="save-indicator" /> Shared with guild</span></footer>
           </section>
           <p className="preview-note"><Shield size={14} /> Guild data is shared with authorized guild accounts and protected by Firestore rules.</p>
         </div>
       </main>
 
       {modal?.kind === 'player' && <Modal title={modal.player ? 'Edit member' : 'Add guild member'} onClose={() => setModal(null)}><PlayerForm player={modal.player} busy={busy} onSubmit={savePlayer} onCancel={() => setModal(null)} /></Modal>}
+      {modal?.kind === 'raid' && <Modal title="Add Raid" onClose={() => setModal(null)}><form className="modal-form" onSubmit={saveRaid}>
+        <label>Raid name<input name="name" placeholder="e.g. Karazhan" maxLength={80} required autoFocus /></label>
+        <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={modal.date} required /></label><label>Raid size<select name="size" defaultValue="10"><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
+        <div className="modal-actions"><button type="button" className="button button-secondary" onClick={() => setModal(null)}>Cancel</button><button className="button button-primary" disabled={busy}><Plus size={15} /> Add Raid</button></div>
+      </form></Modal>}
       {modal?.kind === 'priority' && <Modal title={modal.priority ? 'Edit loot priority' : 'Add loot priority'} onClose={() => setModal(null)}><form className="modal-form" onSubmit={savePriority}>
         <label>Item name<input name="item" defaultValue={modal.priority?.item} placeholder="e.g. Signet of the Deep Earth" required autoFocus /></label>
         <label>Raid · encounter<input name="encounter" defaultValue={modal.priority?.encounter} placeholder="Raid name · Boss name" required /></label>
@@ -539,11 +609,9 @@ function TenManTeamCard({ team, members, available, canEdit, dropActive, onDragS
     if (selectedId) onAssign(selectedId, team.key)
     setSelectedId('')
   }
-  const roleCounts = raidRoles.map((role) => ({ role, count: members.filter((player) => player.role === role).length }))
-
   return <article className={`team-card team-card-${team.key}${dropActive ? ' drop-active' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
     <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${team.key}`} /><div><h3>{team.name}</h3><p>10-player group</p></div></div><span className="team-capacity"><strong>{members.length}</strong> / 10</span></header>
-    <div className="team-role-composition" aria-label={`Composition: ${roleCounts.map(({ role, count }) => `${count} ${role}`).join(', ')}`}>{roleCounts.map(({ role, count }) => <RoleCount key={role} role={role} count={count} />)}</div>
+    <TeamRoleComposition members={members} />
     <div className="team-member-list">{members.map((player) => <div className="team-member-row" key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)}>
       <ClassAvatar player={player} /><span className="team-member-info"><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>
       {canEdit ? <><select className="move-team-select" value={team.key} onChange={(event) => onMove(player.id, event.target.value as TenManTeam)} aria-label={`Move ${player.name} to another 10-player team`}>{tenManTeams.map((option) => <option key={option.key} value={option.key}>{option.name}</option>)}</select><button className="remove-member-button" onClick={() => onRemove(player.id)} title={`Remove ${player.name} from ${team.name}`} aria-label={`Remove ${player.name} from ${team.name}`}><X size={15} /></button></> : <span />}
@@ -559,17 +627,19 @@ function DerivedTeamCard({ name, parts, players, assignments }: {
   assignments: Record<string, TenManTeam>
 }) {
   const sourceTeams = parts.map((key) => tenManTeams.find((team) => team.key === key)!).filter(Boolean)
-  const memberCount = players.filter((player) => parts.includes(assignments[player.id])).length
+  const members = players.filter((player) => parts.includes(assignments[player.id]))
+  const memberCount = members.length
   const equation = name === 'Green' ? 'Blue + Yellow' : name === 'Pink' ? 'Red + White' : 'Blue + Yellow + Red + White'
 
   return <article className={`team-card derived-team team-card-${name.toLowerCase()}`}>
     <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${name.toLowerCase()}`} /><div><h3>{name}</h3><p>{name === 'Brown' ? '40-player raid team' : '20-player raid team'}</p></div></div><span className="team-capacity"><strong>{memberCount}</strong> / {name === 'Brown' ? 40 : 20}</span></header>
+    <TeamRoleComposition members={members} />
     <div className="derived-equation">{equation} <span>= {name}</span></div>
     <div className="derived-groups">{sourceTeams.map((team) => {
       const members = players.filter((player) => assignments[player.id] === team.key)
       return <section className="derived-subteam" key={team.key}>
-        <header className="derived-subteam-heading"><span className={`team-name-pill team-${team.key}`}>{team.name}</span><span>{members.length} / 10</span></header>
-        {members.length ? <div className="derived-member-list">{members.map((player) => <span className="derived-member" key={player.id}><ClassAvatar player={player} /><strong>{player.name}</strong><small>{player.specialization || player.className}</small></span>)}</div> : <p className="team-empty">No members in {team.name}</p>}
+        <header className="derived-subteam-heading"><span className="derived-subteam-name"><span className={`team-color-mark mark-${team.key}`} aria-hidden="true" />{team.name}</span><span>{members.length} / 10</span></header>
+        {members.length ? <div className="derived-member-list">{members.map((player) => <span className="derived-member" key={player.id}><ClassAvatar player={player} /><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>)}</div> : <p className="team-empty">No members in {team.name}</p>}
       </section>
     })}</div>
     <p className="derived-note">Membership is combined from the 10-player groups and managed on the 10-player view.</p>
@@ -580,7 +650,7 @@ function PriorityList({ priorities, awards, canEdit, busy, onEdit, onAward, onMo
   return <div className="priority-list">{priorities.map((priority, index) => {
     const recentAward = awards.filter((award) => award.item === priority.item).sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))[0]
     return <article className="priority-row stagger-row" key={priority.id} style={{ '--row-index': index } as CSSProperties}>
-      <div className="priority-main"><div className="priority-item-line"><span className="item-gem"><ArtIcon src={coinsArt} className="loot-art-icon" /></span><div><h3>{priority.item}</h3><span className="encounter-label"><ArtIcon src={encounterArt} className="encounter-art-icon" /> {priority.encounter}</span></div></div><p className="council-note">{priority.councilNote || <span className="muted">No council note yet</span>}</p></div>
+      <div className="priority-main"><div className="priority-item-line"><span className="item-gem"><ArtIcon src={lootArt} className="priority-loot-icon" /></span><div><h3>{priority.item}</h3><span className="encounter-label"><ArtIcon src={encounterArt} className="encounter-art-icon" /> {priority.encounter}</span></div></div><p className="council-note">{priority.councilNote || <span className="muted">No council note yet</span>}</p></div>
       <div className="priority-ranking"><div className="ranking-heading"><span>COUNCIL ORDER</span><span className="rank-count">{priority.rankedPlayers.length} ranked</span></div>
         {priority.rankedPlayers.length ? <ol>{priority.rankedPlayers.map((name, rank) => <li key={`${name}-${rank}`}><span className={rank === 0 ? 'rank-number first' : 'rank-number'}>{String(rank + 1).padStart(2, '0')}</span><span className="ranked-name">{name}</span>{rank === 0 && <span className="top-pick">TOP PICK</span>}{canEdit && <span className="rank-reorder"><button onClick={() => onMoveCandidate(priority, rank, -1)} disabled={busy || rank === 0} title="Move up" aria-label={`Move ${name} up`}><ArrowUp size={13} /></button><button onClick={() => onMoveCandidate(priority, rank, 1)} disabled={busy || rank === priority.rankedPlayers.length - 1} title="Move down" aria-label={`Move ${name} down`}><ArrowDown size={13} /></button></span>}</li>)}</ol> : <div className="unranked">Candidates not ranked</div>}
       </div>
@@ -636,6 +706,14 @@ function RoleIcon({ role, size }: { role: Role; size: number }) {
 
 function RoleCount({ role, count }: { role: Role; count: number }) {
   return <span className={`team-role-count role-${role.toLowerCase()}`} title={`${role}: ${count}`} aria-label={`${role}: ${count}`}><RoleIcon role={role} size={12} /><strong>{count}</strong></span>
+}
+
+function TeamRoleComposition({ members }: { members: Player[] }) {
+  const roleCounts = raidRoles.map((role) => ({ role, count: members.filter((player) => player.role === role).length }))
+
+  return <div className="team-role-composition" aria-label={`Composition: ${roleCounts.map(({ role, count }) => `${count} ${role}`).join(', ')}`}>
+    {roleCounts.map(({ role, count }) => <RoleCount key={role} role={role} count={count} />)}
+  </div>
 }
 
 function ClassAvatar({ player }: { player: Player }) {

@@ -5,3 +5,5 @@
 - Preserve immutable award snapshots of the candidate priority order and council note at decision time.
 - Do not imply local browser data is shared; only authenticated Firestore data is shared with guild members.
 - Run `npm run build` and `npm run lint` to validate changes.
+- Only deploy to firebase when requested to limit the number of pushes to the hosting target.
+

@@ -13,6 +13,21 @@ dist-ssr
 .firebase/
 *.local
 
+# Environment files (the .env.example template is committed)
+.env
+.env.*
+!.env.example
+
+# Credentials that must never be committed
+*-adminsdk-*.json
+service-account*.json
+serviceAccount*.json
+*.pem
+
+# Test and emulator output
+/coverage/
+/emulator-data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

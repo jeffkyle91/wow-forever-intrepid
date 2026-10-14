@@ -30,6 +30,7 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
     try {
       if (authMode === 'create') await createUserWithEmailAndPassword(auth, email.trim(), password)
       else await signInWithEmailAndPassword(auth, email.trim(), password)
+      setPassword('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not sign in.')
     } finally {
@@ -52,6 +53,10 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
   }
 
   async function leaveAccount() {
+    setAuthMode('sign-in')
+    setEmail('')
+    setPassword('')
+    setDisplayName('')
     if (auth) await signOut(auth)
   }
 

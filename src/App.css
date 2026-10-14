@@ -512,7 +512,9 @@
 :root[data-theme='dark'] .award-modal-item { border-color: #34465c; background: #202e40; }
 :root[data-theme='dark'] .derived-subteam-heading,
 :root[data-theme='dark'] .award-modal-item small { color: #aab8c8; }
-:root[data-theme='dark'] .derived-subteam-name { color: #d1dce8; }
+:root[data-theme='dark'] .derived-subteam-name,
+:root[data-theme='dark'] .derived-member strong,
+:root[data-theme='dark'] .derived-equation span { color: #d1dce8; }
 :root[data-theme='dark'] .snapshot-order > span { color: #d2dce7; border-color: #394b61; background: #243348; }
 :root[data-theme='dark'] .empty-state,
 :root[data-theme='dark'] .empty-state strong { color: #d1dce8; }

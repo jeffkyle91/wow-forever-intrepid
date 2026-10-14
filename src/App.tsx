@@ -6,6 +6,7 @@ import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
 import type { RaidView } from './shared/game/teams'
 import type { ModalRenderer, TabContext } from './shared/tabs/types'
+import { ErrorBoundary } from './shared/ui/ErrorBoundary'
 import { ModalHost, type ActiveModal } from './shell/ModalHost'
 import { PageHeading } from './shell/PageHeading'
 import { Sidebar } from './shell/Sidebar'
@@ -86,12 +87,12 @@ function App() {
 
           <StatStrip roster={roster.length} priorities={priorities.length} awards={awards.length} />
 
-          <WorkspacePanel tab={tab} ctx={ctx} setQuery={setQuery} error={mutationError || dataError} notice={notice} />
+          <ErrorBoundary kind="panel" resetKey={tab.id}><WorkspacePanel tab={tab} ctx={ctx} setQuery={setQuery} error={mutationError || dataError} notice={notice} /></ErrorBoundary>
           <p className="preview-note"><Shield size={14} /> Guild data is shared with authorized guild accounts and protected by Firestore rules.</p>
         </div>
       </main>
 
-      <ModalHost modal={modal} close={() => setModal(null)} live={ctx} />
+      <ErrorBoundary kind="dialog" resetKey={modal?.key ?? 0} onClose={() => setModal(null)}><ModalHost modal={modal} close={() => setModal(null)} live={ctx} /></ErrorBoundary>
     </div>
   )
 }

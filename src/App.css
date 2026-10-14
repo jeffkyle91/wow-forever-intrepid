@@ -382,6 +382,7 @@
   .page-wrap { padding: 25px 18px; }
   .stat-strip { grid-template-columns: repeat(3, 1fr); }
   .stat-callout { grid-column: 1 / -1; min-height: 42px; border-top: 1px solid #edf0ea; }
+  :root[data-theme='dark'] .stat-callout { border-top-color: #314157; }
   .stat-cell:nth-child(3) { border-right: 0; }
   .raid-team-view { padding: 12px; }
   .raid-team-workbench { grid-template-columns: minmax(205px, .7fr) minmax(0, 1.5fr); gap: 10px; }
@@ -492,6 +493,9 @@
 :root[data-theme='dark'] .ranked-name,
 :root[data-theme='dark'] .history-item,
 :root[data-theme='dark'] .award-modal-item strong { color: #e0e8f1; }
+:root[data-theme='dark'] .rank-number { color: #c5d1de; background: #263649; }
+:root[data-theme='dark'] .rank-number.first { color: #b9dcf5; background: #2a4058; }
+:root[data-theme='dark'] .item-gem { border-color: #694d42; background: #3a2e2c; }
 :root[data-theme='dark'] .class-name,
 :root[data-theme='dark'] .specialization-name { color: var(--wow-class-dark-color, #c4d1df); }
 :root[data-theme='dark'] .unassigned-label,
@@ -561,6 +565,7 @@
 :root[data-theme='dark'] .snapshot-callout svg { color: #93c6e8; }
 :root[data-theme='dark'] .access-section-heading p,
 :root[data-theme='dark'] .request-person small { color: #a4b2c1; }
+:root[data-theme='dark'] .access-count { border-color: #3c5871; color: #b9ddf5; background: #20364c; }
 :root[data-theme='dark'] .request-person strong,
 :root[data-theme='dark'] .member-access-table td strong { color: #e0e8f1; }
 :root[data-theme='dark'] .request-avatar { border-color: #3c5871; color: #b9ddf5; background: #20364c; }

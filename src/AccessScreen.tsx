@@ -1,18 +1,20 @@
 import { useState, type FormEvent } from 'react'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { AlertCircle, Check, Moon, Sun } from 'lucide-react'
-import { auth, firebaseConfigured } from './firebase'
+import { auth, firebaseConfigured, guildId } from './firebase'
 import { submitJoinRequest } from './guildApi'
 import type { GuildSessionStatus } from './useGuildSession'
 import guildCrest from '../Art/GuildCrest-256.png'
 import shieldArt from '../Art/icons-split/shield.png'
 import './AccessScreen.css'
 
-export function AccessScreen({ status, user, error, setError, theme, onToggleTheme }: {
+export function AccessScreen({ status, user, error, setError, offline, onRetry, theme, onToggleTheme }: {
   status: GuildSessionStatus
   user: { uid: string; email: string | null } | null
   error: string
   setError: (error: string) => void
+  offline?: boolean
+  onRetry?: () => void
   theme: 'light' | 'dark'
   onToggleTheme: () => void
 }) {
@@ -69,7 +71,7 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
         <p>Authentication and shared guild data are not configured yet. Add the Firebase web-app settings and guild ID to your local environment, then deploy the Firestore rules.</p>
         <code>.env.local</code>
       </> : status === 'loading' ? <>
-        <span className="access-kicker">CHECKING ACCESS</span><h1>Connecting to the guild</h1><p>Verifying your sign-in and guild membership.</p>
+        <span className="access-kicker">CHECKING ACCESS</span><h1>Connecting to the guild</h1><p>{offline ? 'You appear to be offline, or the guild database cannot be reached. This page continues when the connection returns.' : 'Verifying your sign-in and guild membership.'}</p>{offline && <button className="access-switch" onClick={leaveAccount}>Sign out</button>}
       </> : status === 'signed-out' ? <>
         <span className="access-kicker">GUILD ACCESS</span><h1>{authMode === 'create' ? 'Create an account' : 'Sign in'}</h1>
         <p>Use your account to access the shared guild roster and loot council.</p>
@@ -83,7 +85,7 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
       </> : status === 'pending' ? <>
         <span className="access-kicker">REQUEST SENT</span><h1>Waiting for guild approval</h1><p>A Guild Leader will review your request. You can sign out while it is pending.</p><button className="access-submit secondary" onClick={leaveAccount}>Sign out</button>
       </> : status === 'error' ? <>
-        <span className="access-kicker">ACCESS CHECK FAILED</span><h1>Could not verify access</h1><p>{error || 'Check the Firebase project settings and security rules.'}</p><button className="access-submit secondary" onClick={leaveAccount}>Sign out</button>
+        <span className="access-kicker">ACCESS CHECK FAILED</span><h1>Could not verify access</h1><p>{error || 'Check the Firebase project settings and security rules.'}</p><p>Guild ID: {guildId}</p>{onRetry && <button className="access-submit secondary" onClick={onRetry}>Try again</button>}<button className="access-switch" onClick={leaveAccount}>Sign out</button>
       </> : <>
         <span className="access-kicker">{status === 'rejected' ? 'REQUEST DECLINED' : 'GUILD ACCESS'}</span><h1>Request guild access</h1>
         <p>{status === 'rejected' ? 'You can submit a new request for Guild Leader review.' : `Signed in as ${user?.email ?? 'your account'}. Tell the Guild Leaders what name to look for.`}</p>

@@ -5,8 +5,7 @@ import {
 import { signOut } from 'firebase/auth'
 import {
   approveJoinRequest, importLocalPreviewData, rejectJoinRequest,
-  saveGuildRecord, updateMembershipAccess, type   JoinRequestRecord,
-  type PriorityRecord,
+  updateMembershipAccess, type JoinRequestRecord,
 } from './guildApi'
 import { auth } from './firebase'
 import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from './security'
@@ -25,19 +24,17 @@ import type { ModalRenderer, TabContext } from './shared/tabs/types'
 import { ModalHost, type ActiveModal } from './shell/ModalHost'
 import { PlayerModal } from './features/roster/PlayerModal'
 import { RaidModal } from './features/calendar/RaidModal'
-import { AwardModal } from './features/loot/AwardModal'
 import { PriorityModal } from './features/loot/PriorityModal'
 import { filterRoster } from './features/roster/filter'
 import { RosterTab } from './features/roster/RosterTab'
 import { TeamsTab } from './features/teams/TeamsTab'
-import { AwardHistory } from './features/loot/AwardHistory'
-import { PriorityList } from './features/loot/PriorityList'
+import { filterAwards, filterPriorities } from './features/loot/filters'
+import { HistoryTab } from './features/loot/HistoryTab'
+import { PrioritiesTab } from './features/loot/PrioritiesTab'
 import { GuildAccessManager } from './features/access/GuildAccessManager'
 import './App.css'
 
 type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
-type LootPriority = PriorityRecord
-
 function App() {
   const session = useGuildSession()
   const actualRole = session.membership?.role ?? null
@@ -74,8 +71,8 @@ function App() {
   }, [])
   const filteredRoster = filterRoster(roster, query)
   const assignedCount = roster.filter((player) => assignments[player.id]).length
-  const filteredPriorities = priorities.filter((priority) => `${priority.item} ${priority.encounter} ${priority.rankedPlayers.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
-  const filteredAwards = awards.filter((award) => `${award.item} ${award.encounter} ${award.recipient}`.toLowerCase().includes(query.toLowerCase()))
+  const filteredPriorities = filterPriorities(priorities, query)
+  const filteredAwards = filterAwards(awards, query)
 
   function openModal(render: ModalRenderer) {
     setModal((current) => ({ render, key: (current?.key ?? 0) + 1 }))
@@ -83,26 +80,6 @@ function App() {
 
   function navigate(id: string) {
     if ((['roster', 'teams', 'afk', 'priorities', 'history', 'access'] as string[]).includes(id)) setActiveTab(id as Tab)
-  }
-
-  function openAward(priority: LootPriority) {
-    const now = new Date()
-    const localDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
-    openModal(({ close, live }) => <AwardModal priority={priority} awardedAt={localDate} close={close} live={live} />)
-  }
-
-  async function moveCandidate(priority: LootPriority, index: number, direction: -1 | 1) {
-    const rankedPlayers = [...priority.rankedPlayers]
-    const target = index + direction
-    if (target < 0 || target >= rankedPlayers.length) return
-    ;[rankedPlayers[index], rankedPlayers[target]] = [rankedPlayers[target], rankedPlayers[index]]
-    try {
-      const { id, ...record } = { ...priority, rankedPlayers }
-      await saveGuildRecord('lootPriorities', id, record)
-      setMutationError('')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not reorder loot candidates.')
-    }
   }
 
   async function importLegacyData() {
@@ -223,8 +200,8 @@ function App() {
             {activeTab === 'roster' && <RosterTab ctx={ctx} />}
             {activeTab === 'teams' && <TeamsTab ctx={ctx} />}
             {activeTab === 'afk' && <CalendarTab ctx={ctx} />}
-            {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />}
-            {activeTab === 'history' && <AwardHistory awards={filteredAwards} />}
+            {activeTab === 'priorities' && <PrioritiesTab ctx={ctx} />}
+            {activeTab === 'history' && <HistoryTab ctx={ctx} />}
             {activeTab === 'access' && effectiveRole === 'Guild Leader' && <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />}
             {(mutationError || dataError) && <p className="app-error" role="alert">{mutationError || dataError}</p>}
             {notice && <p className="app-notice" role="status">{notice}</p>}

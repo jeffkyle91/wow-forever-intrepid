@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
-import { subscribeGuildCollection, type AfkEntryRecord, type AwardRecord, type JoinRequestRecord, type MembershipRecord, type PlayerRecord, type PriorityRecord, type RaidRecord, type TeamAssignmentRecord } from './guildApi'
+import {
+  subscribeGuildCollection,
+  type AfkEntryRecord,
+  type AwardRecord,
+  type JoinRequestRecord,
+  type MembershipRecord,
+  type PlayerRecord,
+  type PriorityRecord,
+  type RaidRecord,
+  type TeamAssignmentRecord,
+} from './guildApi'
 import type { GuildRole } from './security'
 
 export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {

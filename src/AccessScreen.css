@@ -1,0 +1,46 @@
+.access-shell { display: grid; min-height: 100vh; place-content: center; justify-items: center; gap: 18px; padding: 24px; background: linear-gradient(145deg, #edf4fa, #f8f6f0 62%, #eff5f9); }
+.access-brand { display: flex; align-items: center; gap: 10px; width: min(100%, 420px); color: #23364d; }
+.access-brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 6px; color: #17304b; background: #71bce8; }
+.access-brand-mark img { display: block; width: 100%; height: 100%; border: 1px solid #45617e; border-radius: 6px; object-fit: cover; }
+.access-brand > span:last-child { display: grid; gap: 1px; }
+.access-brand strong { font-size: 12px; letter-spacing: 1px; }
+.access-brand small { color: #788b9e; font-size: 8px; letter-spacing: 1.2px; }
+.access-panel { width: min(100%, 420px); padding: 27px; border: 1px solid #dfe7ef; border-radius: 7px; background: #fff; box-shadow: 0 16px 48px #24324812; }
+.access-emblem { display: grid; width: 43px; height: 43px; place-items: center; margin-bottom: 20px; border: 1px solid #d2e5f2; border-radius: 6px; color: #3779aa; background: #edf6fc; }
+.access-emblem img { display: block; width: 29px; height: 29px; object-fit: contain; }
+.access-kicker { color: #68829b; font-size: 9px; font-weight: 700; letter-spacing: 1.1px; }
+.access-panel h1 { margin: 7px 0 8px; color: #24364b; font: 600 24px/1.15 var(--display); }
+.access-panel p { color: #728195; font-size: 11px; line-height: 1.6; }
+.access-panel code { display: inline-block; margin-top: 16px; padding: 5px 8px; border-radius: 4px; color: #48627b; background: #f1f5f8; font-size: 10px; }
+.access-form { display: grid; gap: 12px; margin-top: 20px; }
+.access-form label { display: grid; gap: 5px; color: #526478; font-size: 10px; font-weight: 700; }
+.access-form input { width: 100%; height: 37px; padding: 0 9px; border: 1px solid #dfe6ed; border-radius: 4px; outline: 0; color: #32485f; background: #fff; font: inherit; font-size: 11px; }
+.access-form input:focus { border-color: #82b6d9; box-shadow: 0 0 0 2px #e5f2fa; }
+.access-submit { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 37px; margin-top: 4px; border: 1px solid #315f9f; border-radius: 4px; color: #fff; background: #315f9f; font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.access-submit:hover:not(:disabled) { background: #284f87; }
+.access-submit:disabled { opacity: .55; cursor: wait; }
+.access-submit.secondary { width: 100%; margin-top: 18px; color: #526478; border-color: #dce5ee; background: #fff; }
+.access-switch { display: block; margin: 15px auto 0; padding: 4px; border: 0; color: #4878a2; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
+.access-switch:hover { text-decoration: underline; }
+.access-error { display: flex; align-items: flex-start; gap: 6px; margin-top: 15px; padding: 9px; border: 1px solid #eedbd4; border-radius: 4px; color: #a55342 !important; background: #fff8f5; font-size: 10px !important; }
+.access-error svg { flex: 0 0 auto; margin-top: 1px; }
+.access-footnote { color: #8292a3; font-size: 9px; text-align: center; }
+@media (max-width: 480px) { .access-shell { padding: 18px; } .access-panel { padding: 21px; } }
+
+:root[data-theme='dark'] .access-shell { background: radial-gradient(ellipse at top, #22334a 0, #141f2e 54%, #101823 100%); }
+:root[data-theme='dark'] .access-brand { color: #e0eaf4; }
+:root[data-theme='dark'] .access-brand small { color: #a3b7cc; }
+:root[data-theme='dark'] .access-panel { border-color: #34465c; background: #1c2939; box-shadow: 0 16px 48px #0005; }
+:root[data-theme='dark'] .access-emblem { border-color: #3b5b78; color: #b8ddf5; background: #21384f; }
+:root[data-theme='dark'] .access-kicker { color: #a6c7e1; }
+:root[data-theme='dark'] .access-panel h1 { color: #e3ebf4; }
+:root[data-theme='dark'] .access-panel p { color: #b2bfce; }
+:root[data-theme='dark'] .access-panel code { color: #c2d7e8; background: #26364a; }
+:root[data-theme='dark'] .access-form label { color: #c3d0de; }
+:root[data-theme='dark'] .access-form input { border-color: #3a4d63; color: #e3ebf4; background: #172435; }
+:root[data-theme='dark'] .access-form input:focus { border-color: #72a8d0; box-shadow: 0 0 0 2px #294661; }
+:root[data-theme='dark'] .access-submit.secondary { color: #d1deeb; border-color: #40556d; background: #26374c; }
+:root[data-theme='dark'] .access-switch { color: #99c9ed; }
+:root[data-theme='dark'] .access-error { border-color: #69484a; color: #f0b8ae !important; background: #36282e; }
+:root[data-theme='dark'] .access-footnote { color: #9babbc; }
+:root[data-theme='dark'] .access-theme-toggle { margin-left: auto; }

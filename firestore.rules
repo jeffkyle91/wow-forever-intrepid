@@ -1,0 +1,145 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath(guildId, userId) {
+      return /databases/$(database)/documents/guilds/$(guildId)/members/$(userId);
+    }
+
+    function hasGuildRole(guildId, allowedRoles) {
+      return signedIn()
+        && exists(memberPath(guildId, request.auth.uid))
+        && get(memberPath(guildId, request.auth.uid)).data.role in allowedRoles;
+    }
+
+    function isGuildLeader(guildId) {
+      return hasGuildRole(guildId, ['Guild Leader']);
+    }
+
+    function canManageRaid(guildId) {
+      return hasGuildRole(guildId, ['Guild Leader', 'Raid Leader']);
+    }
+
+    function hasValidRole() {
+      return request.resource.data.role in ['Guild Leader', 'Raid Leader', 'Member'];
+    }
+
+    function hasValidPlayerLink(guildId, userId) {
+      let playerId = request.resource.data.get('playerId', null);
+      return playerId == null
+        || (playerId is string
+          && getAfter(/databases/$(database)/documents/guilds/$(guildId)/roster/$(playerId)).data.linkedUid == userId);
+    }
+
+    function releasesPreviousPlayerLink(guildId, userId) {
+      let previousPlayerId = resource.data.get('playerId', null);
+      let nextPlayerId = request.resource.data.get('playerId', null);
+      return previousPlayerId == null
+        || previousPlayerId == nextPlayerId
+        || getAfter(/databases/$(database)/documents/guilds/$(guildId)/roster/$(previousPlayerId)).data.get('linkedUid', null) != userId;
+    }
+
+    function hasValidRosterLink(guildId, playerId) {
+      let linkedUid = request.resource.data.get('linkedUid', null);
+      return linkedUid == null
+        || (linkedUid is string
+          && getAfter(memberPath(guildId, linkedUid)).data.playerId == playerId);
+    }
+
+    function releasesPreviousMemberLink(guildId, playerId) {
+      let previousUid = resource.data.get('linkedUid', null);
+      let nextUid = request.resource.data.get('linkedUid', null);
+      return previousUid == null
+        || previousUid == nextUid
+        || getAfter(memberPath(guildId, previousUid)).data.get('playerId', null) != playerId;
+    }
+
+    function hasPrioritySnapshot(guildId) {
+      let priorityPath = /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(request.resource.data.priorityId);
+      return request.resource.data.priorityId is string
+        && exists(priorityPath)
+        && request.resource.data.prioritySnapshot == get(priorityPath).data.rankedPlayers
+        && request.resource.data.councilNoteSnapshot == get(priorityPath).data.councilNote
+        && request.resource.data.item == get(priorityPath).data.item
+        && request.resource.data.encounter == get(priorityPath).data.encounter
+        && request.resource.data.recipient in get(priorityPath).data.rankedPlayers;
+    }
+
+    function validTeamAssignment() {
+      return request.resource.data.keys().hasOnly(['team'])
+        && request.resource.data.team in ['blue', 'yellow', 'red', 'white'];
+    }
+
+    match /guilds/{guildId} {
+      allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+      allow write: if false;
+
+      match /members/{userId} {
+        allow get: if signedIn() && (request.auth.uid == userId || isGuildLeader(guildId));
+        allow list: if isGuildLeader(guildId);
+        allow create: if isGuildLeader(guildId) && hasValidRole() && hasValidPlayerLink(guildId, userId);
+        allow update: if isGuildLeader(guildId)
+          && hasValidRole()
+          && hasValidPlayerLink(guildId, userId)
+          && releasesPreviousPlayerLink(guildId, userId);
+        allow delete: if false;
+      }
+
+      match /roster/{playerId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create: if isGuildLeader(guildId) && hasValidRosterLink(guildId, playerId);
+        allow update: if isGuildLeader(guildId)
+          && hasValidRosterLink(guildId, playerId)
+          && releasesPreviousMemberLink(guildId, playerId);
+        allow delete: if isGuildLeader(guildId)
+          && (resource.data.get('linkedUid', null) == null
+            || getAfter(memberPath(guildId, resource.data.linkedUid)).data.get('playerId', null) == null);
+      }
+
+      match /teamAssignments/{playerId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update: if canManageRaid(guildId) && validTeamAssignment();
+        allow delete: if canManageRaid(guildId);
+      }
+
+      match /lootPriorities/{priorityId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update, delete: if canManageRaid(guildId);
+      }
+
+      match /awards/{awardId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create: if isGuildLeader(guildId) || (canManageRaid(guildId) && hasPrioritySnapshot(guildId));
+        allow update, delete: if false;
+      }
+
+      match /joinRequests/{userId} {
+        allow create: if signedIn()
+          && request.auth.uid == userId
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == 'pending'
+          && request.resource.data.keys().hasOnly(['userId', 'email', 'displayName', 'status', 'requestedAt']);
+        allow get: if signedIn() && (request.auth.uid == userId || isGuildLeader(guildId));
+        allow list: if isGuildLeader(guildId);
+        allow update: if (isGuildLeader(guildId)
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.keys().hasOnly(['userId', 'email', 'displayName', 'status', 'requestedAt', 'assignedRole'])
+          && (request.resource.data.status != 'approved' || request.resource.data.assignedRole in ['Guild Leader', 'Raid Leader', 'Member']))
+          || (signedIn()
+            && request.auth.uid == userId
+            && resource.data.status == 'rejected'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.keys().hasOnly(['userId', 'email', 'displayName', 'status', 'requestedAt']));
+        allow delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

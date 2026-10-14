@@ -21,7 +21,6 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
 
   async function authenticate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -45,7 +44,6 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
     setError('')
     try {
       await submitJoinRequest(user.uid, user.email ?? email, displayName.trim())
-      setSubmitted(true)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not submit your request.')
     } finally {
@@ -77,14 +75,14 @@ export function AccessScreen({ status, user, error, setError, theme, onToggleThe
           <button className="access-submit" disabled={busy}>{busy ? 'Working...' : authMode === 'create' ? 'Create account' : 'Sign in'}</button>
         </form>
         <button className="access-switch" onClick={() => { setAuthMode(authMode === 'create' ? 'sign-in' : 'create'); setError('') }}>{authMode === 'create' ? 'Already have an account? Sign in' : 'New to the guild desk? Create an account'}</button>
-      </> : status === 'pending' || submitted ? <>
+      </> : status === 'pending' ? <>
         <span className="access-kicker">REQUEST SENT</span><h1>Waiting for guild approval</h1><p>A Guild Leader will review your request. You can sign out while it is pending.</p><button className="access-submit secondary" onClick={leaveAccount}>Sign out</button>
       </> : status === 'error' ? <>
         <span className="access-kicker">ACCESS CHECK FAILED</span><h1>Could not verify access</h1><p>{error || 'Check the Firebase project settings and security rules.'}</p><button className="access-submit secondary" onClick={leaveAccount}>Sign out</button>
       </> : <>
-        <span className="access-kicker">{status === 'rejected' ? 'REQUEST DECLINED' : 'GUILD ACCESS'}</span><h1>{submitted ? 'Waiting for approval' : 'Request guild access'}</h1>
-        <p>{submitted ? 'A Guild Leader will review your request.' : status === 'rejected' ? 'You can submit a new request for Guild Leader review.' : `Signed in as ${user?.email ?? 'your account'}. Tell the Guild Leaders what name to look for.`}</p>
-        {!submitted && <form className="access-form" onSubmit={requestAccess}><label>Character or display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" required /></label><button className="access-submit" disabled={busy}><Check size={16} /> {busy ? 'Sending...' : 'Request access'}</button></form>}
+        <span className="access-kicker">{status === 'rejected' ? 'REQUEST DECLINED' : 'GUILD ACCESS'}</span><h1>Request guild access</h1>
+        <p>{status === 'rejected' ? 'You can submit a new request for Guild Leader review.' : `Signed in as ${user?.email ?? 'your account'}. Tell the Guild Leaders what name to look for.`}</p>
+        <form className="access-form" onSubmit={requestAccess}><label>Character or display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" required /></label><button className="access-submit" disabled={busy}><Check size={16} /> {busy ? 'Sending...' : 'Request access'}</button></form>
         <button className="access-switch" onClick={leaveAccount}>Sign out</button>
       </>}
       {error && status !== 'error' && <p className="access-error"><AlertCircle size={14} />{error}</p>}

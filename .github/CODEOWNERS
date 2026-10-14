@@ -1,0 +1,7 @@
+# Review requests only: GitHub asks these owners to review changes to the files below.
+# Nothing is enforced unless branch protection requires code owner review.
+/firestore.rules @nkarkosh84-sketch
+/firebase.json @nkarkosh84-sketch
+/.github/ @nkarkosh84-sketch
+/package.json @nkarkosh84-sketch
+/package-lock.json @nkarkosh84-sketch

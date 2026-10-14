@@ -40,7 +40,7 @@ These ideas have been discussed but are not implemented as part of this app yet:
 
 ## Local setup
 
-Requires Node.js 20.19+ or 22.12+.
+Requires Node.js 24.12 or newer (`.nvmrc` selects Node 24; get it from nodejs.org or a version manager such as nvm or fnm). Node 22.12+ also builds, but npm prints unsupported-engine warnings for the Firebase packages.
 
 ```powershell
 npm install
@@ -108,3 +108,5 @@ The specialization PNGs in `wowspecsemojis-master/` are from [danetch/wowspecsem
 npm run build
 npm run lint
 ```
+
+`npm run lint` treats warnings as errors. GitHub Actions (`.github/workflows/ci.yml`) runs both commands on every pull request and on pushes to `main`.

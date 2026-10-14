@@ -12,7 +12,7 @@ import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
 import { AfkCalendar } from './AfkCalendar'
 import { guildCrest, membersArt, raidArt, lootArt, coinsArt, trophyArt, accessArt, seasonArt, calendarArt, guildArt, encounterArt } from './shared/art'
-import { classColorKey, classSpecializations, raidRoles, type Role } from './shared/game/classes'
+import { raidRoles, type Role } from './shared/game/classes'
 import { tenManTeams, type RaidView } from './shared/game/teams'
 import { localDateKey } from './shared/lib/dates'
 import { ArtIcon } from './shared/ui/ArtIcon'
@@ -20,6 +20,8 @@ import { ClassAvatar } from './shared/ui/ClassAvatar'
 import { EmptyRow } from './shared/ui/EmptyRow'
 import { Modal } from './shared/ui/Modal'
 import { RoleIcon, RolePill } from './shared/ui/RolePill'
+import { PlayerForm } from './features/roster/PlayerForm'
+import { RosterTable } from './features/roster/RosterTable'
 import './App.css'
 
 type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
@@ -388,47 +390,8 @@ function NavButton({ active, onClick, icon, label, count }: { active: boolean; o
   return <button className={active ? 'nav-item active' : 'nav-item'} onClick={onClick}>{icon}<span>{label}</span><span className="nav-count">{count}</span></button>
 }
 
-function PlayerForm({ player, busy, onSubmit, onCancel }: {
-  player?: Player
-  busy: boolean
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
-  onCancel: () => void
-}) {
-  const startingClass = player && classSpecializations[player.className] ? player.className : 'Warrior'
-  const [className, setClassName] = useState(startingClass)
-  const availableSpecs = classSpecializations[className]
-  const [specialization, setSpecialization] = useState(() => availableSpecs.some((option) => option.name === player?.specialization)
-    ? player?.specialization ?? availableSpecs[0].name
-    : availableSpecs[0].name)
-  const selectedSpec = availableSpecs.find((option) => option.name === specialization) ?? availableSpecs[0]
-
-  return <form className="modal-form" onSubmit={onSubmit}>
-    <div className="form-grid"><label>Character name<input name="name" defaultValue={player?.name} placeholder="e.g. Starweaver" required autoFocus /></label><label>Class<select name="className" value={className} onChange={(event) => { const nextClass = event.target.value; setClassName(nextClass); setSpecialization(classSpecializations[nextClass][0].name) }}>{Object.keys(classSpecializations).map((name) => <option key={name}>{name}</option>)}</select></label></div>
-    <div className="form-grid"><label>Specialization<select name="specialization" value={specialization} onChange={(event) => setSpecialization(event.target.value)}>{availableSpecs.map((option) => <option key={option.name}>{option.name}</option>)}</select></label><div className="derived-role-field"><span className="derived-role-label">RAID ROLE</span><RolePill role={selectedSpec.role} /><input type="hidden" name="role" value={selectedSpec.role} /></div></div>
-    <div className="modal-actions"><button type="button" className="button button-secondary" onClick={onCancel}>Cancel</button><button className="button button-primary" disabled={busy}><Check size={15} /> Save member</button></div>
-  </form>
-}
-
 function Stat({ icon, tone, label, value, detail }: { icon: ReactNode; tone: string; label: string; value: number; detail: string }) {
   return <div className="stat-cell"><span className={`stat-icon ${tone}`}>{icon}</span><span className="stat-label">{label}</span><strong>{value}<small> {detail}</small></strong></div>
-}
-
-function RosterTable({ players, assignments, canEdit, onEdit }: { players: Player[]; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void }) {
-  return <div className="table-scroll"><table className="data-table roster-table"><thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th className="team-column-heading">10-PLAYER TEAM</th><th>APP ACCESS</th>{canEdit && <th><span className="visually-hidden">Actions</span></th>}</tr></thead><tbody>
-    {players.map((player, index) => {
-      const assignedTeam = tenManTeams.find((team) => team.key === assignments[player.id])
-      return <tr key={player.id} className="stagger-row" style={{ '--row-index': index } as CSSProperties}>
-        <td><span className="character-cell"><ClassAvatar player={player} /><strong>{player.name}</strong></span></td>
-        <td><span className={`class-name class-color-${classColorKey(player.className)}`}>{player.className}</span></td>
-        <td><span className={`specialization-name class-color-${classColorKey(player.className)}`}>{player.specialization || 'Not set'}</span></td>
-        <td><RolePill role={player.role} /></td>
-        <td className="team-dot-cell">{assignedTeam ? <span className={`team-dot-indicator team-dot-${assignedTeam.key}`} role="img" aria-label={`${assignedTeam.name} team`} title={`${assignedTeam.name} team`} /> : <span className="unassigned-label">Unassigned</span>}</td>
-        <td><span className={player.linkedUid ? 'linked-account-status linked' : 'linked-account-status'}>{player.linkedUid ? 'Linked' : 'No account'}</span></td>
-        {canEdit && <td><button className="row-action" onClick={() => onEdit(player)} title={`Edit ${player.name}`} aria-label={`Edit ${player.name}`}><Pencil size={15} /></button></td>}
-      </tr>
-    })}
-    {!players.length && <EmptyRow colSpan={canEdit ? 7 : 6} title="No members found" detail="Try a different search or add a guild member." />}
-  </tbody></table></div>
 }
 
 function RaidTeamsView({ players, assignments, view, canEdit, onAssign, onRemove }: {

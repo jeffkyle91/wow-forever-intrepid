@@ -3,10 +3,6 @@ import {
   ChevronDown, LogOut, Moon, Plus, Search, Shield, Sun,
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
-import {
-  approveJoinRequest, importLocalPreviewData, rejectJoinRequest,
-  updateMembershipAccess, type JoinRequestRecord,
-} from './guildApi'
 import { auth } from './firebase'
 import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from './security'
 import { useGuildData } from './useGuildData'
@@ -31,7 +27,7 @@ import { TeamsTab } from './features/teams/TeamsTab'
 import { filterAwards, filterPriorities } from './features/loot/filters'
 import { HistoryTab } from './features/loot/HistoryTab'
 import { PrioritiesTab } from './features/loot/PrioritiesTab'
-import { GuildAccessManager } from './features/access/GuildAccessManager'
+import { AccessTab } from './features/access/AccessTab'
 import './App.css'
 
 type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
@@ -80,60 +76,6 @@ function App() {
 
   function navigate(id: string) {
     if ((['roster', 'teams', 'afk', 'priorities', 'history', 'access'] as string[]).includes(id)) setActiveTab(id as Tab)
-  }
-
-  async function importLegacyData() {
-    setBusy(true)
-    try {
-      const imported = await importLocalPreviewData()
-      setMutationError('')
-      setNotice(`Imported ${imported} local preview records.`)
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not import local preview records.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function changeMemberAccess(uid: string, role: GuildRole, playerId: string | null) {
-    if (members.find((member) => member.id === uid)?.role === 'Guild Leader' && role !== 'Guild Leader'
-      && members.filter((member) => member.role === 'Guild Leader').length < 2) {
-      setMutationError('Promote another Guild Leader before changing the last Guild Leader role.')
-      return
-    }
-    setBusy(true)
-    try {
-      await updateMembershipAccess(uid, role, playerId)
-      setMutationError('')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not update member role.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function approveRequest(request: JoinRequestRecord, role: GuildRole, playerId: string | null) {
-    setBusy(true)
-    try {
-      await approveJoinRequest(request, role, playerId)
-      setMutationError('')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not approve join request.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function rejectRequest(uid: string) {
-    setBusy(true)
-    try {
-      await rejectJoinRequest(uid)
-      setMutationError('')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not reject join request.')
-    } finally {
-      setBusy(false)
-    }
   }
 
   if (session.status !== 'active' || !session.membership) {
@@ -202,7 +144,7 @@ function App() {
             {activeTab === 'afk' && <CalendarTab ctx={ctx} />}
             {activeTab === 'priorities' && <PrioritiesTab ctx={ctx} />}
             {activeTab === 'history' && <HistoryTab ctx={ctx} />}
-            {activeTab === 'access' && effectiveRole === 'Guild Leader' && <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />}
+            {activeTab === 'access' && effectiveRole === 'Guild Leader' && <AccessTab ctx={ctx} />}
             {(mutationError || dataError) && <p className="app-error" role="alert">{mutationError || dataError}</p>}
             {notice && <p className="app-notice" role="status">{notice}</p>}
             <footer className="panel-footer"><span>{activeTab === 'teams' ? <><strong>{assignedCount}</strong> of <strong>{roster.length}</strong> guild members assigned</> : activeTab === 'access' ? <><strong>{members.length}</strong> active guild accounts</> : activeTab === 'afk' ? <><strong>{raids.length}</strong> raids · <strong>{afkEntries.length}</strong> shared date ranges</> : <>Showing <strong>{activeTab === 'roster' ? filteredRoster.length : activeTab === 'priorities' ? filteredPriorities.length : filteredAwards.length}</strong> of <strong>{activeTab === 'roster' ? roster.length : activeTab === 'priorities' ? priorities.length : filteredAwards.length}</strong></>}</span><span className="footer-right"><span className="save-indicator" /> Shared with guild</span></footer>

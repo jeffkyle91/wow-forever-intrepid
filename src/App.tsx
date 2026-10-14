@@ -1,9 +1,7 @@
 import { useEffect, useState, type CSSProperties, type DragEvent as ReactDragEvent, type FormEvent, type ReactNode } from 'react'
 import {
-  ArrowDown, ArrowUp, Axe, BowArrow, CalendarDays, Check, ChevronDown,
-  CircleUserRound, ClipboardList, Crosshair, Flame, Heart, Leaf,
-  LogOut, Moon, Pencil, Plus, Search, Shield, Sparkles, Sun,
-  Waves, X, type LucideIcon,
+  ArrowDown, ArrowUp, CalendarDays, Check, ChevronDown, CircleUserRound,
+  ClipboardList, LogOut, Moon, Pencil, Plus, Search, Shield, Sun, X,
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { createAfkEntry, createAward, createRaidEvent, deleteAfkEntry, approveJoinRequest, importLocalPreviewData, rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess, type AwardRecord, type JoinRequestRecord, type PlayerRecord, type PriorityRecord, type RaidRecord, type TenManTeam } from './guildApi'
@@ -13,11 +11,15 @@ import { useGuildData } from './useGuildData'
 import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
 import { AfkCalendar } from './AfkCalendar'
-import { getSpecializationIcon } from './specIcons'
 import { guildCrest, membersArt, raidArt, lootArt, coinsArt, trophyArt, accessArt, seasonArt, calendarArt, guildArt, encounterArt } from './shared/art'
 import { classColorKey, classSpecializations, raidRoles, type Role } from './shared/game/classes'
 import { tenManTeams, type RaidView } from './shared/game/teams'
 import { localDateKey } from './shared/lib/dates'
+import { ArtIcon } from './shared/ui/ArtIcon'
+import { ClassAvatar } from './shared/ui/ClassAvatar'
+import { EmptyRow } from './shared/ui/EmptyRow'
+import { Modal } from './shared/ui/Modal'
+import { RoleIcon, RolePill } from './shared/ui/RolePill'
 import './App.css'
 
 type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
@@ -31,17 +33,6 @@ type ModalState =
   | { kind: 'raid'; date: string }
   | null
 
-const classIcons: Record<string, LucideIcon> = {
-  warrior: Axe,
-  paladin: Sun,
-  hunter: BowArrow,
-  rogue: Crosshair,
-  priest: Heart,
-  shaman: Waves,
-  mage: Sparkles,
-  warlock: Flame,
-  druid: Leaf,
-}
 function App() {
   const session = useGuildSession()
   const actualRole = session.membership?.role ?? null
@@ -418,10 +409,6 @@ function PlayerForm({ player, busy, onSubmit, onCancel }: {
   </form>
 }
 
-function ArtIcon({ src, className }: { src: string; className: string }) {
-  return <img className={className} src={src} alt="" aria-hidden="true" />
-}
-
 function Stat({ icon, tone, label, value, detail }: { icon: ReactNode; tone: string; label: string; value: number; detail: string }) {
   return <div className="stat-cell"><span className={`stat-icon ${tone}`}>{icon}</span><span className="stat-label">{label}</span><strong>{value}<small> {detail}</small></strong></div>
 }
@@ -622,15 +609,6 @@ function GuildAccessManager({ members, roster, requests, busy, canImport, onMemb
   </div>
 }
 
-function RolePill({ role }: { role: Role }) {
-  return <span className={`role-pill role-${role.toLowerCase()}`}><RoleIcon role={role} size={12} />{role}</span>
-}
-
-function RoleIcon({ role, size }: { role: Role; size: number }) {
-  const Icon = role === 'Tank' ? Shield : role === 'Healer' ? Heart : role === 'Melee' ? Axe : BowArrow
-  return <Icon size={size} />
-}
-
 function RoleCount({ role, count }: { role: Role; count: number }) {
   return <span className={`team-role-count role-${role.toLowerCase()}`} title={`${role}: ${count}`} aria-label={`${role}: ${count}`}><RoleIcon role={role} size={12} /><strong>{count}</strong></span>
 }
@@ -641,22 +619,6 @@ function TeamRoleComposition({ members }: { members: Player[] }) {
   return <div className="team-role-composition" aria-label={`Composition: ${roleCounts.map(({ role, count }) => `${count} ${role}`).join(', ')}`}>
     {roleCounts.map(({ role, count }) => <RoleCount key={role} role={role} count={count} />)}
   </div>
-}
-
-function ClassAvatar({ player }: { player: Player }) {
-  const Icon = classIcons[player.className.toLowerCase()] ?? CircleUserRound
-  const specializationIcon = getSpecializationIcon(player.className, player.specialization)
-  return <span className={`class-avatar ${player.className.toLowerCase()}${specializationIcon ? ' spec-icon-avatar' : ''}`} title={`${player.name} · ${player.specialization || player.className}`}>
-    {specializationIcon ? <img src={specializationIcon} alt="" /> : <Icon size={14} strokeWidth={1.8} />}
-  </span>
-}
-
-function EmptyRow({ colSpan, title, detail }: { colSpan: number; title: string; detail: string }) {
-  return <tr><td colSpan={colSpan}><div className="empty-state"><span className="empty-icon"><Search size={20} /></span><strong>{title}</strong><p>{detail}</p></div></td></tr>
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header className="modal-header"><div><span className="eyebrow"><span className="eyebrow-line" /> GUILD DESK</span><h2 id="modal-title">{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close dialog"><X size={18} /></button></header>{children}</section></div>
 }
 
 export default App

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { AlertCircle, Check, Moon, Sun } from 'lucide-react'
 import { auth, firebaseConfigured, guildId } from './firebase'
+import { authErrorMessage } from './authErrors'
 import { submitJoinRequest } from './guildApi'
 import type { GuildSessionStatus } from './useGuildSession'
 import guildCrest from '../Art/GuildCrest-256.png'
@@ -34,7 +35,7 @@ export function AccessScreen({ status, user, error, setError, offline, onRetry, 
       else await signInWithEmailAndPassword(auth, email.trim(), password)
       setPassword('')
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not sign in.')
+      setError(authErrorMessage(cause, authMode === 'create' ? 'Could not create your account. Please try again.' : 'Could not sign in. Please try again.'))
     } finally {
       setBusy(false)
     }
@@ -92,7 +93,7 @@ export function AccessScreen({ status, user, error, setError, offline, onRetry, 
         <form className="access-form" onSubmit={requestAccess}><label>Character or display name<input value={displayName} onChange={(event) => setDisplayName(event.target.value)} autoComplete="name" required /></label><button className="access-submit" disabled={busy}><Check size={16} /> {busy ? 'Sending...' : 'Request access'}</button></form>
         <button className="access-switch" onClick={leaveAccount}>Sign out</button>
       </>}
-      {error && status !== 'error' && <p className="access-error"><AlertCircle size={14} />{error}</p>}
+      {error && status !== 'error' && <p className="access-error" role="alert"><AlertCircle size={14} />{error}</p>}
     </section>
     <p className="access-footnote">Guild membership and permissions are enforced by Firebase security rules.</p>
   </main>

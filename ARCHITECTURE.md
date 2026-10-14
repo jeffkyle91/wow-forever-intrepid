@@ -14,6 +14,7 @@ src/
   useGuildSession.ts           core: sign-in and membership
   security.ts                  core: UI-side role predicates (UI only; Firestore rules decide)
   AccessScreen.tsx             sign-in and access-request screen (not a tab)
+  authErrors.ts                core: friendly text for Firebase Auth error codes (used by AccessScreen)
   shell/                       the frame around every tab
     tabs.ts                    the tab registry
     Sidebar, Topbar, PageHeading, StatStrip, WorkspacePanel, ModalHost

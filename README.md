@@ -83,6 +83,8 @@ VITE_GUILD_ID=
 5. Create the first user in Firebase Authentication. Copy that user's UID and create `guilds/<VITE_GUILD_ID>/members/<UID>` in Firestore with `email`, `displayName`, and `role: "Guild Leader"` fields.
 6. Sign in with that account. Guild Leaders can review access requests and assign roles in Member Access.
 
+If a Guild Leader is shown "Request guild access" after signing in, `VITE_GUILD_ID` or the UID in `guilds/<VITE_GUILD_ID>/members/<UID>` is wrong. If the access check fails outright, the "Could not verify access" screen shows the Firestore error code and the guild ID the build is using.
+
 When approving a join request, a Guild Leader can optionally connect the account to an existing roster character. Existing accounts can also be linked or reassigned from Member Access. Links use stable roster document IDs, and Firestore rules require the roster and membership references to agree. A roster character can be linked to at most one account through the Guild Leader workflow.
 
 Without Firebase configuration, the app intentionally shows a setup-required screen. There is no client-side role selector that grants access.

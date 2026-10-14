@@ -27,7 +27,8 @@ import { PlayerModal } from './features/roster/PlayerModal'
 import { RaidModal } from './features/calendar/RaidModal'
 import { AwardModal } from './features/loot/AwardModal'
 import { PriorityModal } from './features/loot/PriorityModal'
-import { RosterTable } from './features/roster/RosterTable'
+import { filterRoster } from './features/roster/filter'
+import { RosterTab } from './features/roster/RosterTab'
 import { RaidTeamsView } from './features/teams/RaidTeamsView'
 import { AwardHistory } from './features/loot/AwardHistory'
 import { PriorityList } from './features/loot/PriorityList'
@@ -71,7 +72,7 @@ function App() {
     window.addEventListener('keydown', focusSearch)
     return () => window.removeEventListener('keydown', focusSearch)
   }, [])
-  const filteredRoster = roster.filter((player) => `${player.name} ${player.className} ${player.specialization ?? ''} ${player.role}`.toLowerCase().includes(query.toLowerCase()))
+  const filteredRoster = filterRoster(roster, query)
   const assignedCount = roster.filter((player) => assignments[player.id]).length
   const filteredPriorities = priorities.filter((priority) => `${priority.item} ${priority.encounter} ${priority.rankedPlayers.join(' ')}`.toLowerCase().includes(query.toLowerCase()))
   const filteredAwards = awards.filter((award) => `${award.item} ${award.encounter} ${award.recipient}`.toLowerCase().includes(query.toLowerCase()))
@@ -273,7 +274,7 @@ function App() {
               {activeTab === 'teams' && <div className="segmented-control" aria-label="Raid team size">{([10, 20, 40] as const).map((size) => <button key={size} className={raidView === size ? 'segment selected' : 'segment'} onClick={() => setRaidView(size)} aria-pressed={raidView === size}>{size}<span>player</span></button>)}</div>}
               {activeTab !== 'teams' && activeTab !== 'access' && activeTab !== 'afk' && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === 'roster' ? 'Find a member...' : 'Find item or player...'} /><kbd>Ctrl K</kbd></label>}
             </div></div>
-            {activeTab === 'roster' && <RosterTable players={filteredRoster} assignments={assignments} canEdit={canEditRoster} onEdit={(player) => openModal(({ close, live }) => <PlayerModal existing={player} close={close} live={live} />)} />}
+            {activeTab === 'roster' && <RosterTab ctx={ctx} />}
             {activeTab === 'teams' && <RaidTeamsView players={roster} assignments={assignments} view={raidView} canEdit={canEditRaidData} onAssign={assignMember} onRemove={removeMemberFromTeams} />}
             {activeTab === 'afk' && <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={session.user?.uid ?? ''} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} />}
             {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />}

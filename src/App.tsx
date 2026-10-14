@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
-  ChevronDown, LogOut, Moon, Plus, Search, Shield, Sun,
+  ChevronDown, LogOut, Moon, Search, Shield, Sun,
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { auth } from './firebase'
@@ -8,34 +8,21 @@ import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from '
 import { useGuildData } from './useGuildData'
 import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
-import { CalendarTab } from './features/calendar/CalendarTab'
 import {
-  guildCrest, membersArt, raidArt, lootArt, trophyArt, accessArt,
-  seasonArt, calendarArt, guildArt,
+  guildCrest, membersArt, lootArt, trophyArt, seasonArt, guildArt,
 } from './shared/art'
 import { type RaidView } from './shared/game/teams'
-import { localDateKey } from './shared/lib/dates'
 import { ArtIcon } from './shared/ui/ArtIcon'
 import type { ModalRenderer, TabContext } from './shared/tabs/types'
 import { ModalHost, type ActiveModal } from './shell/ModalHost'
-import { PlayerModal } from './features/roster/PlayerModal'
-import { RaidModal } from './features/calendar/RaidModal'
-import { PriorityModal } from './features/loot/PriorityModal'
-import { filterRoster } from './features/roster/filter'
-import { RosterTab } from './features/roster/RosterTab'
-import { TeamsTab } from './features/teams/TeamsTab'
-import { filterAwards, filterPriorities } from './features/loot/filters'
-import { HistoryTab } from './features/loot/HistoryTab'
-import { PrioritiesTab } from './features/loot/PrioritiesTab'
-import { AccessTab } from './features/access/AccessTab'
+import { DEFAULT_TAB_ID, FALLBACK_TAB_ID, isTabVisible, tabList, type TabId } from './shell/tabs'
 import './App.css'
 
-type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
 function App() {
   const session = useGuildSession()
   const actualRole = session.membership?.role ?? null
   const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('intrepid-theme') === 'dark' ? 'dark' : 'light')
-  const [selectedTab, setActiveTab] = useState<Tab>('priorities')
+  const [selectedTab, setActiveTab] = useState<TabId>(DEFAULT_TAB_ID)
   const [raidView, setRaidView] = useState<RaidView>(10)
   const [query, setQuery] = useState('')
   const [modal, setModal] = useState<ActiveModal | null>(null)
@@ -44,9 +31,10 @@ function App() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const data = useGuildData(session.status === 'active', actualRole)
-  const { roster, assignments, priorities, awards, afkEntries, raids, members, joinRequests, dataError } = data
+  const { roster, priorities, awards, dataError } = data
   const effectiveRole = actualRole === 'Guild Leader' ? impersonatedRole ?? actualRole : actualRole
-  const activeTab = selectedTab === 'access' && effectiveRole !== 'Guild Leader' ? 'roster' : selectedTab
+  const selectedDef = tabList.find((entry) => entry.id === selectedTab) ?? tabList[0]
+  const tab = isTabVisible(selectedDef, effectiveRole) ? selectedDef : tabList.find((entry) => entry.id === FALLBACK_TAB_ID) ?? tabList[0]
   const canEditRoster = effectiveRole ? canManageRoster(effectiveRole) : false
   const canEditRaidData = effectiveRole ? canManageRaidData(effectiveRole) : false
 
@@ -65,17 +53,15 @@ function App() {
     window.addEventListener('keydown', focusSearch)
     return () => window.removeEventListener('keydown', focusSearch)
   }, [])
-  const filteredRoster = filterRoster(roster, query)
-  const assignedCount = roster.filter((player) => assignments[player.id]).length
-  const filteredPriorities = filterPriorities(priorities, query)
-  const filteredAwards = filterAwards(awards, query)
 
   function openModal(render: ModalRenderer) {
     setModal((current) => ({ render, key: (current?.key ?? 0) + 1 }))
   }
 
   function navigate(id: string) {
-    if ((['roster', 'teams', 'afk', 'priorities', 'history', 'access'] as string[]).includes(id)) setActiveTab(id as Tab)
+    const target = tabList.find((entry) => entry.id === id)
+    if (target) setActiveTab(target.id)
+    else if (import.meta.env.DEV) console.warn(`navigate: unknown tab id "${id}"`)
   }
 
   if (session.status !== 'active' || !session.membership) {
@@ -92,9 +78,6 @@ function App() {
     navigate,
   }
 
-  const pageTitle = activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Raid teams' : activeTab === 'afk' ? 'Raid Calendar' : activeTab === 'priorities' ? 'Loot priorities' : activeTab === 'history' ? 'Award history' : 'Member access'
-  const pageHint = activeTab === 'roster' ? 'Every member of the guild, whether assigned to a raid team or not.' : activeTab === 'teams' ? 'Manage four 10-player groups; larger teams are combined automatically.' : activeTab === 'afk' ? 'Share dates when you are unavailable to raid.' : activeTab === 'priorities' ? 'Set council order before the next drop.' : activeTab === 'history' ? 'A permanent record of council decisions.' : 'Review join requests and manage guild roles.'
-
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -102,18 +85,13 @@ function App() {
         <div className="guild-switcher"><span className="guild-emblem"><ArtIcon src={guildArt} className="guild-emblem-art" /></span><span className="guild-name"><strong>Intrepid</strong><small>Guild workspace</small></span><ChevronDown size={15} /></div>
         <div className="side-label">GUILD TOOLS</div>
         <nav className="main-nav" aria-label="Guild tools">
-          <NavButton active={activeTab === 'roster'} onClick={() => { setActiveTab('roster'); setQuery('') }} icon={<ArtIcon src={membersArt} className="nav-art-icon" />} label="Guild roster" count={roster.length} />
-          <NavButton active={activeTab === 'teams'} onClick={() => { setActiveTab('teams'); setQuery('') }} icon={<ArtIcon src={raidArt} className="nav-art-icon" />} label="Raid teams" count={assignedCount} />
-          <NavButton active={activeTab === 'afk'} onClick={() => { setActiveTab('afk'); setQuery('') }} icon={<ArtIcon src={calendarArt} className="nav-art-icon" />} label="Raid Calendar" count={raids.length + afkEntries.length} />
-          <NavButton active={activeTab === 'priorities'} onClick={() => { setActiveTab('priorities'); setQuery('') }} icon={<ArtIcon src={lootArt} className="nav-art-icon" />} label="Loot priorities" count={priorities.length} />
-          <NavButton active={activeTab === 'history'} onClick={() => { setActiveTab('history'); setQuery('') }} icon={<ArtIcon src={trophyArt} className="nav-art-icon" />} label="Award history" count={awards.length} />
-          {effectiveRole === 'Guild Leader' && <NavButton active={activeTab === 'access'} onClick={() => { setActiveTab('access'); setQuery('') }} icon={<ArtIcon src={accessArt} className="nav-art-icon" />} label="Member access" count={joinRequests.length} />}
+          {tabList.map((entry) => isTabVisible(entry, effectiveRole) && <NavButton key={entry.id} active={tab.id === entry.id} onClick={() => { setActiveTab(entry.id); setQuery('') }} icon={<ArtIcon src={entry.art} className="nav-art-icon" />} label={entry.label} count={entry.navCount ? entry.navCount(ctx) : 0} />)}
         </nav>
         <div className="sidebar-bottom"><div className="season-card"><span className="season-icon"><ArtIcon src={seasonArt} className="season-art-icon" /></span><span><small>SEASON</small><strong>Launch prep</strong></span><span className="season-dot" /></div><span className="version-label">SECURE WORKSPACE · 0.2.0</span></div>
       </aside>
 
       <main className="main-content" id="top">
-        <header className="topbar"><div className="breadcrumb"><span>INTREPID</span><span className="crumb-slash">/</span><strong>{pageTitle.toUpperCase()}</strong></div><div className="topbar-actions">
+        <header className="topbar"><div className="breadcrumb"><span>INTREPID</span><span className="crumb-slash">/</span><strong>{tab.label.toUpperCase()}</strong></div><div className="topbar-actions">
           {actualRole === 'Guild Leader' && <label className="impersonation-control"><span>VIEW AS</span><select value={effectiveRole ?? 'Guild Leader'} onChange={(event) => setImpersonatedRole(event.target.value === 'Guild Leader' ? null : event.target.value as GuildRole)}>{guildRoles.map((role) => <option key={role}>{role}</option>)}</select></label>}
           {impersonatedRole && <span className="impersonation-badge">Previewing {impersonatedRole}</span>}
           <span className="role-badge">{effectiveRole}</span><span className="avatar" title={session.user?.email ?? ''}>{session.membership.displayName.slice(0, 2).toUpperCase()}</span>
@@ -121,10 +99,8 @@ function App() {
           <button className="icon-button" title="Sign out" aria-label="Sign out" onClick={() => auth && void signOut(auth)}><LogOut size={16} /></button>
         </div></header>
         <div className="page-wrap">
-          <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line" /> GUILD OPERATIONS</div><h1>{pageTitle}</h1><p>{pageHint}</p></div><div className="heading-actions">
-            {activeTab === 'roster' && canEditRoster && <button className="button button-primary" onClick={() => openModal(({ close, live }) => <PlayerModal close={close} live={live} />)}><Plus size={16} /> Add member</button>}
-            {activeTab === 'afk' && canEditRaidData && <button className="button button-primary" onClick={() => openModal(({ close, live }) => <RaidModal date={localDateKey(new Date())} close={close} live={live} />)}><Plus size={16} /> Add Raid</button>}
-            {activeTab === 'priorities' && canEditRaidData && <button className="button button-primary" onClick={() => openModal(({ close, live }) => <PriorityModal close={close} live={live} />)}><Plus size={16} /> Add priority</button>}
+          <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line" /> GUILD OPERATIONS</div><h1>{tab.label}</h1><p>{tab.hint}</p></div><div className="heading-actions">
+            {tab.HeadingActions && <tab.HeadingActions ctx={ctx} />}
           </div></section>
 
           <section className="stat-strip" aria-label="Guild overview">
@@ -135,19 +111,14 @@ function App() {
           </section>
 
           <section className="workspace-panel">
-            <div className="panel-toolbar"><div className="panel-heading"><h2>{activeTab === 'roster' ? 'Guild roster' : activeTab === 'teams' ? 'Team composition' : activeTab === 'afk' ? 'Raid Calendar' : activeTab === 'priorities' ? 'Upcoming loot' : activeTab === 'history' ? 'Recent awards' : 'Guild members and requests'}</h2><span className="record-count">{activeTab === 'roster' ? `${roster.length} members` : activeTab === 'teams' ? (raidView === 10 ? '4 teams' : raidView === 20 ? '2 teams' : '1 team') : activeTab === 'afk' ? `${raids.length} raids · ${afkEntries.length} date ranges` : activeTab === 'priorities' ? `${priorities.length} records` : activeTab === 'history' ? `${awards.length} records` : `${members.length} members · ${joinRequests.length} requests`}</span></div><div className="toolbar-controls">
-              {activeTab === 'teams' && <div className="segmented-control" aria-label="Raid team size">{([10, 20, 40] as const).map((size) => <button key={size} className={raidView === size ? 'segment selected' : 'segment'} onClick={() => setRaidView(size)} aria-pressed={raidView === size}>{size}<span>player</span></button>)}</div>}
-              {activeTab !== 'teams' && activeTab !== 'access' && activeTab !== 'afk' && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === 'roster' ? 'Find a member...' : 'Find item or player...'} /><kbd>Ctrl K</kbd></label>}
+            <div className="panel-toolbar"><div className="panel-heading"><h2>{tab.panelTitle}</h2><span className="record-count">{tab.recordCount(ctx)}</span></div><div className="toolbar-controls">
+              {tab.Toolbar && <tab.Toolbar ctx={ctx} />}
+              {tab.search && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tab.search.placeholder} /><kbd>Ctrl K</kbd></label>}
             </div></div>
-            {activeTab === 'roster' && <RosterTab ctx={ctx} />}
-            {activeTab === 'teams' && <TeamsTab ctx={ctx} />}
-            {activeTab === 'afk' && <CalendarTab ctx={ctx} />}
-            {activeTab === 'priorities' && <PrioritiesTab ctx={ctx} />}
-            {activeTab === 'history' && <HistoryTab ctx={ctx} />}
-            {activeTab === 'access' && effectiveRole === 'Guild Leader' && <AccessTab ctx={ctx} />}
+            <tab.Content key={tab.id} ctx={ctx} />
             {(mutationError || dataError) && <p className="app-error" role="alert">{mutationError || dataError}</p>}
             {notice && <p className="app-notice" role="status">{notice}</p>}
-            <footer className="panel-footer"><span>{activeTab === 'teams' ? <><strong>{assignedCount}</strong> of <strong>{roster.length}</strong> guild members assigned</> : activeTab === 'access' ? <><strong>{members.length}</strong> active guild accounts</> : activeTab === 'afk' ? <><strong>{raids.length}</strong> raids · <strong>{afkEntries.length}</strong> shared date ranges</> : <>Showing <strong>{activeTab === 'roster' ? filteredRoster.length : activeTab === 'priorities' ? filteredPriorities.length : filteredAwards.length}</strong> of <strong>{activeTab === 'roster' ? roster.length : activeTab === 'priorities' ? priorities.length : filteredAwards.length}</strong></>}</span><span className="footer-right"><span className="save-indicator" /> Shared with guild</span></footer>
+            <footer className="panel-footer"><span>{tab.footer(ctx)}</span><span className="footer-right"><span className="save-indicator" /> Shared with guild</span></footer>
           </section>
           <p className="preview-note"><Shield size={14} /> Guild data is shared with authorized guild accounts and protected by Firestore rules.</p>
         </div>

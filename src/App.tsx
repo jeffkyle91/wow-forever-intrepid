@@ -1,7 +1,7 @@
-import { useEffect, useState, type CSSProperties, type DragEvent as ReactDragEvent, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import {
   ArrowDown, ArrowUp, CalendarDays, Check, ChevronDown, CircleUserRound,
-  ClipboardList, LogOut, Moon, Pencil, Plus, Search, Shield, Sun, X,
+  ClipboardList, LogOut, Moon, Pencil, Plus, Search, Shield, Sun,
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { createAfkEntry, createAward, createRaidEvent, deleteAfkEntry, approveJoinRequest, importLocalPreviewData, rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess, type AwardRecord, type JoinRequestRecord, type PlayerRecord, type PriorityRecord, type RaidRecord, type TenManTeam } from './guildApi'
@@ -12,16 +12,15 @@ import { useGuildSession } from './useGuildSession'
 import { AccessScreen } from './AccessScreen'
 import { AfkCalendar } from './AfkCalendar'
 import { guildCrest, membersArt, raidArt, lootArt, coinsArt, trophyArt, accessArt, seasonArt, calendarArt, guildArt, encounterArt } from './shared/art'
-import { raidRoles, type Role } from './shared/game/classes'
+import { type Role } from './shared/game/classes'
 import { tenManTeams, type RaidView } from './shared/game/teams'
 import { localDateKey } from './shared/lib/dates'
 import { ArtIcon } from './shared/ui/ArtIcon'
-import { ClassAvatar } from './shared/ui/ClassAvatar'
 import { EmptyRow } from './shared/ui/EmptyRow'
 import { Modal } from './shared/ui/Modal'
-import { RoleIcon, RolePill } from './shared/ui/RolePill'
 import { PlayerForm } from './features/roster/PlayerForm'
 import { RosterTable } from './features/roster/RosterTable'
+import { RaidTeamsView } from './features/teams/RaidTeamsView'
 import './App.css'
 
 type Tab = 'roster' | 'teams' | 'afk' | 'priorities' | 'history' | 'access'
@@ -394,135 +393,6 @@ function Stat({ icon, tone, label, value, detail }: { icon: ReactNode; tone: str
   return <div className="stat-cell"><span className={`stat-icon ${tone}`}>{icon}</span><span className="stat-label">{label}</span><strong>{value}<small> {detail}</small></strong></div>
 }
 
-function RaidTeamsView({ players, assignments, view, canEdit, onAssign, onRemove }: {
-  players: Player[]
-  assignments: Record<string, TenManTeam>
-  view: RaidView
-  canEdit: boolean
-  onAssign: (playerId: string, team: TenManTeam) => void
-  onRemove: (playerId: string) => void
-}) {
-  const [activeDropTarget, setActiveDropTarget] = useState<TenManTeam | 'roster' | null>(null)
-  const membersFor = (team: TenManTeam) => players.filter((player) => assignments[player.id] === team)
-  const groups20 = [
-    { name: 'Green', parts: ['blue', 'yellow'] as TenManTeam[] },
-    { name: 'Pink', parts: ['red', 'white'] as TenManTeam[] },
-  ]
-  function acceptDrop(event: ReactDragEvent<HTMLElement>, team: TenManTeam) {
-    event.preventDefault()
-    if (canEdit) setActiveDropTarget(team)
-  }
-  function assignDrop(event: ReactDragEvent<HTMLElement>, team: TenManTeam) {
-    event.preventDefault()
-    setActiveDropTarget(null)
-    const playerId = event.dataTransfer.getData('text/plain')
-    if (canEdit && playerId) onAssign(playerId, team)
-  }
-  function unassignDrop(event: ReactDragEvent<HTMLElement>) {
-    event.preventDefault()
-    setActiveDropTarget(null)
-    const playerId = event.dataTransfer.getData('text/plain')
-    if (canEdit && playerId && assignments[playerId]) onRemove(playerId)
-  }
-
-  return <div className="raid-team-view">
-    <div className="raid-team-workbench">
-      <GuildRosterPool players={players.filter((player) => !assignments[player.id])} totalPlayers={players.length} canEdit={canEdit} dropActive={activeDropTarget === 'roster'} onDragStart={(event, playerId) => { event.dataTransfer.setData('text/plain', playerId); event.dataTransfer.effectAllowed = 'move' }} onDragOver={(event) => { if (canEdit) { event.preventDefault(); setActiveDropTarget('roster') } }} onDragLeave={() => setActiveDropTarget(null)} onDrop={unassignDrop} />
-      <div className="raid-team-views">
-        {view === 10 && <div className="team-grid team-grid-four">{tenManTeams.map((team) => <TenManTeamCard key={team.key} team={team} members={membersFor(team.key)} available={players.filter((player) => !assignments[player.id])} canEdit={canEdit} dropActive={activeDropTarget === team.key} onDragStart={(event, playerId) => { event.dataTransfer.setData('text/plain', playerId); event.dataTransfer.effectAllowed = 'move' }} onDragOver={(event) => acceptDrop(event, team.key)} onDragLeave={() => setActiveDropTarget(null)} onDrop={(event) => assignDrop(event, team.key)} onAssign={onAssign} onMove={onAssign} onRemove={onRemove} />)}</div>}
-        {view === 20 && <div className="team-grid team-grid-two">{groups20.map((group) => <DerivedTeamCard key={group.name} name={group.name} parts={group.parts} players={players} assignments={assignments} />)}</div>}
-        {view === 40 && <div className="team-grid team-grid-one"><DerivedTeamCard name="Brown" parts={tenManTeams.map((team) => team.key)} players={players} assignments={assignments} /></div>}
-      </div>
-    </div>
-  </div>
-}
-
-function GuildRosterPool({ players, totalPlayers, canEdit, dropActive, onDragStart, onDragOver, onDragLeave, onDrop }: {
-  players: Player[]
-  totalPlayers: number
-  canEdit: boolean
-  dropActive: boolean
-  onDragStart: (event: ReactDragEvent<HTMLDivElement>, playerId: string) => void
-  onDragOver: (event: ReactDragEvent<HTMLElement>) => void
-  onDragLeave: () => void
-  onDrop: (event: ReactDragEvent<HTMLElement>) => void
-}) {
-  const roles: Role[] = ['Tank', 'Healer', 'Melee', 'Ranged']
-
-  return <aside className={`guild-roster-pool${dropActive ? ' drop-active' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-    <header className="guild-roster-pool-header"><div><h3>Available roster</h3><p>{players.length} available · {totalPlayers} total guild members</p></div><ArtIcon src={membersArt} className="roster-pool-art-icon" /></header>
-    {roles.map((role) => {
-      const group = players.filter((player) => player.role === role).sort((a, b) => a.name.localeCompare(b.name))
-      return <details className={`roster-role-group role-group-${role.toLowerCase()}`} key={role} open>
-        <summary><RolePill role={role} /><span className="roster-role-count">{group.length}</span><ChevronDown size={14} /></summary>
-        <div className="roster-role-members">{group.map((player) => {
-          return <div className="roster-pool-member" key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)} title={canEdit ? `Drag ${player.name} to a 10-player team` : player.name}>
-            <ClassAvatar player={player} /><span className="roster-pool-member-info"><strong>{player.name}</strong><small>{player.specialization || player.className}</small></span><span className="pool-unassigned">Available</span>
-          </div>
-        })}{!group.length && <p className="roster-role-empty">No {role.toLowerCase()} characters</p>}</div>
-      </details>
-    })}
-    {canEdit && <p className="roster-pool-drop-hint">Drop an assigned character here to return them to the available roster.</p>}
-  </aside>
-}
-
-function TenManTeamCard({ team, members, available, canEdit, dropActive, onDragStart, onDragOver, onDragLeave, onDrop, onAssign, onMove, onRemove }: {
-  team: { key: TenManTeam; name: string }
-  members: Player[]
-  available: Player[]
-  canEdit: boolean
-  dropActive: boolean
-  onDragStart: (event: ReactDragEvent<HTMLDivElement>, playerId: string) => void
-  onDragOver: (event: ReactDragEvent<HTMLElement>) => void
-  onDragLeave: () => void
-  onDrop: (event: ReactDragEvent<HTMLElement>) => void
-  onAssign: (playerId: string, team: TenManTeam) => void
-  onMove: (playerId: string, team: TenManTeam) => void
-  onRemove: (playerId: string) => void
-}) {
-  const [selectedId, setSelectedId] = useState('')
-  function addMember(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (selectedId) onAssign(selectedId, team.key)
-    setSelectedId('')
-  }
-  return <article className={`team-card team-card-${team.key}${dropActive ? ' drop-active' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-    <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${team.key}`} /><div><h3>{team.name}</h3><p>10-player group</p></div></div><span className="team-capacity"><strong>{members.length}</strong> / 10</span></header>
-    <TeamRoleComposition members={members} />
-    <div className="team-member-list">{members.map((player) => <div className="team-member-row" key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)}>
-      <ClassAvatar player={player} /><span className="team-member-info"><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>
-      {canEdit ? <><select className="move-team-select" value={team.key} onChange={(event) => onMove(player.id, event.target.value as TenManTeam)} aria-label={`Move ${player.name} to another 10-player team`}>{tenManTeams.map((option) => <option key={option.key} value={option.key}>{option.name}</option>)}</select><button className="remove-member-button" onClick={() => onRemove(player.id)} title={`Remove ${player.name} from ${team.name}`} aria-label={`Remove ${player.name} from ${team.name}`}><X size={15} /></button></> : <span />}
-    </div>)}{!members.length && <p className="team-empty">No members assigned</p>}</div>
-    {canEdit && <form className="team-add-form" onSubmit={addMember}><select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label={`Choose a guild member to add to ${team.name}`} disabled={!available.length || members.length >= 10}><option value="">{available.length ? 'Add from guild roster' : 'No unassigned members'}</option>{available.map((player) => <option key={player.id} value={player.id}>{player.name} · {player.specialization || player.className}</option>)}</select><button className="add-team-member" type="submit" disabled={!selectedId || members.length >= 10} aria-label={`Add member to ${team.name}`} title={`Add member to ${team.name}`}><Plus size={16} /></button></form>}
-  </article>
-}
-
-function DerivedTeamCard({ name, parts, players, assignments }: {
-  name: string
-  parts: TenManTeam[]
-  players: Player[]
-  assignments: Record<string, TenManTeam>
-}) {
-  const sourceTeams = parts.map((key) => tenManTeams.find((team) => team.key === key)!).filter(Boolean)
-  const members = players.filter((player) => parts.includes(assignments[player.id]))
-  const memberCount = members.length
-  const equation = name === 'Green' ? 'Blue + Yellow' : name === 'Pink' ? 'Red + White' : 'Blue + Yellow + Red + White'
-
-  return <article className={`team-card derived-team team-card-${name.toLowerCase()}`}>
-    <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${name.toLowerCase()}`} /><div><h3>{name}</h3><p>{name === 'Brown' ? '40-player raid team' : '20-player raid team'}</p></div></div><span className="team-capacity"><strong>{memberCount}</strong> / {name === 'Brown' ? 40 : 20}</span></header>
-    <TeamRoleComposition members={members} />
-    <div className="derived-equation">{equation} <span>= {name}</span></div>
-    <div className="derived-groups">{sourceTeams.map((team) => {
-      const members = players.filter((player) => assignments[player.id] === team.key)
-      return <section className="derived-subteam" key={team.key}>
-        <header className="derived-subteam-heading"><span className="derived-subteam-name"><span className={`team-color-mark mark-${team.key}`} aria-hidden="true" />{team.name}</span><span>{members.length} / 10</span></header>
-        {members.length ? <div className="derived-member-list">{members.map((player) => <span className="derived-member" key={player.id}><ClassAvatar player={player} /><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>)}</div> : <p className="team-empty">No members in {team.name}</p>}
-      </section>
-    })}</div>
-    <p className="derived-note">Membership is combined from the 10-player groups and managed on the 10-player view.</p>
-  </article>
-}
-
 function PriorityList({ priorities, awards, canEdit, busy, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; awards: Award[]; canEdit: boolean; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void }) {
   return <div className="priority-list">{priorities.map((priority, index) => {
     const recentAward = awards.filter((award) => award.item === priority.item).sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))[0]
@@ -569,18 +439,6 @@ function GuildAccessManager({ members, roster, requests, busy, canImport, onMemb
     <section className="access-section"><header className="access-section-heading"><div><h3>Guild accounts</h3><p>Roles are enforced by Firestore. Only Guild Leaders can change access.</p></div><span className="access-count">{members.length} active</span></header>
       <div className="table-scroll"><table className="data-table member-access-table"><thead><tr><th>MEMBER</th><th>EMAIL</th><th>CHARACTER</th><th>ROLE</th></tr></thead><tbody>{members.map((member) => <tr key={member.id}><td><strong>{member.displayName || 'Unnamed member'}</strong></td><td>{member.email}</td><td><select className="member-role-select" value={member.playerId ?? ''} disabled={busy} aria-label={`Roster character for ${member.displayName || member.email}`} onChange={(event) => onMemberChange(member.id, member.role, event.target.value || null)}><option value="">No linked character</option>{roster.filter((player) => !player.linkedUid || player.linkedUid === member.id).map((player) => <option key={player.id} value={player.id}>{player.name} · {player.className}</option>)}</select></td><td><select className="member-role-select" value={member.role} disabled={busy} aria-label={`Role for ${member.displayName || member.email}`} onChange={(event) => onMemberChange(member.id, event.target.value as GuildRole, member.playerId ?? null)}>{guildRoles.map((role) => <option key={role}>{role}</option>)}</select></td></tr>)}{!members.length && <EmptyRow colSpan={4} title="No guild accounts" detail="Provision the first Guild Leader in Firebase, then manage the rest here." />}</tbody></table></div>
     </section>
-  </div>
-}
-
-function RoleCount({ role, count }: { role: Role; count: number }) {
-  return <span className={`team-role-count role-${role.toLowerCase()}`} title={`${role}: ${count}`} aria-label={`${role}: ${count}`}><RoleIcon role={role} size={12} /><strong>{count}</strong></span>
-}
-
-function TeamRoleComposition({ members }: { members: Player[] }) {
-  const roleCounts = raidRoles.map((role) => ({ role, count: members.filter((player) => player.role === role).length }))
-
-  return <div className="team-role-composition" aria-label={`Composition: ${roleCounts.map(({ role, count }) => `${count} ${role}`).join(', ')}`}>
-    {roleCounts.map(({ role, count }) => <RoleCount key={role} role={role} count={count} />)}
   </div>
 }
 

@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db, guildId } from './firebase'
 import type { GuildRole } from './security'
+import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type PlayerRecord = { id: string; name: string; className: string; specialization: string; role: 'Tank' | 'Healer' | 'Melee' | 'Ranged'; linkedUid?: string }
@@ -45,13 +46,18 @@ function guildCollection(name: string) {
   return collection(requireDb(), 'guilds', guildId, name)
 }
 
+// `normalize` (see shared/lib/normalize.ts) checks each document's shape and may drop it; without one a
+// document is read as `{ ...data, id }`. `dropped` is how many documents in this snapshot were skipped.
 export function subscribeGuildCollection<T extends { id: string }>(
   name: string,
-  onData: (records: T[]) => void,
+  onData: (records: T[], dropped: number) => void,
   onError: (error: Error) => void,
+  normalize: Normalizer<T> = (id, data) => ({ ...data, id }) as T,
 ) {
   return onSnapshot(guildCollection(name), (snapshot) => {
-    onData(snapshot.docs.map((entry) => ({ ...entry.data(), id: entry.id }) as T))
+    const { records, droppedIds } = normalizeDocs(snapshot.docs, normalize)
+    if (droppedIds.length) console.warn(`${name}: skipped ${droppedIds.length} unreadable document(s), ids: ${droppedIds.join(', ')}`)
+    onData(records, droppedIds.length)
   }, onError)
 }
 

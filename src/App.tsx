@@ -4,9 +4,9 @@ import {
 } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import {
-  createAfkEntry, deleteAfkEntry, approveJoinRequest, importLocalPreviewData,
-  rejectJoinRequest, saveGuildRecord, setTeamAssignment, updateMembershipAccess,
-  type JoinRequestRecord, type PriorityRecord, type TenManTeam,
+  createAfkEntry, deleteAfkEntry, approveJoinRequest,
+  importLocalPreviewData, rejectJoinRequest, saveGuildRecord,
+  updateMembershipAccess, type JoinRequestRecord, type PriorityRecord,
 } from './guildApi'
 import { auth } from './firebase'
 import { canManageRaidData, canManageRoster, guildRoles, type GuildRole } from './security'
@@ -18,7 +18,7 @@ import {
   guildCrest, membersArt, raidArt, lootArt, trophyArt, accessArt,
   seasonArt, calendarArt, guildArt,
 } from './shared/art'
-import { tenManTeams, type RaidView } from './shared/game/teams'
+import { type RaidView } from './shared/game/teams'
 import { localDateKey } from './shared/lib/dates'
 import { ArtIcon } from './shared/ui/ArtIcon'
 import type { ModalRenderer, TabContext } from './shared/tabs/types'
@@ -29,7 +29,7 @@ import { AwardModal } from './features/loot/AwardModal'
 import { PriorityModal } from './features/loot/PriorityModal'
 import { filterRoster } from './features/roster/filter'
 import { RosterTab } from './features/roster/RosterTab'
-import { RaidTeamsView } from './features/teams/RaidTeamsView'
+import { TeamsTab } from './features/teams/TeamsTab'
 import { AwardHistory } from './features/loot/AwardHistory'
 import { PriorityList } from './features/loot/PriorityList'
 import { GuildAccessManager } from './features/access/GuildAccessManager'
@@ -89,29 +89,6 @@ function App() {
     const now = new Date()
     const localDate = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
     openModal(({ close, live }) => <AwardModal priority={priority} awardedAt={localDate} close={close} live={live} />)
-  }
-
-  async function assignMember(playerId: string, team: TenManTeam) {
-    if (assignments[playerId] === team) return
-    if (roster.filter((player) => assignments[player.id] === team).length >= 10) {
-      setMutationError(`${tenManTeams.find((entry) => entry.key === team)?.name} is full. Remove or move someone first.`)
-      return
-    }
-    try {
-      await setTeamAssignment(playerId, team)
-      setMutationError('')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not update raid team.')
-    }
-  }
-
-  async function removeMemberFromTeams(playerId: string) {
-    try {
-      await setTeamAssignment(playerId, null)
-      setMutationError('')
-    } catch (error) {
-      setMutationError(error instanceof Error ? error.message : 'Could not remove member from raid team.')
-    }
   }
 
   async function moveCandidate(priority: LootPriority, index: number, direction: -1 | 1) {
@@ -275,7 +252,7 @@ function App() {
               {activeTab !== 'teams' && activeTab !== 'access' && activeTab !== 'afk' && <label className="search-field" htmlFor="table-search"><Search size={15} /><input id="table-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={activeTab === 'roster' ? 'Find a member...' : 'Find item or player...'} /><kbd>Ctrl K</kbd></label>}
             </div></div>
             {activeTab === 'roster' && <RosterTab ctx={ctx} />}
-            {activeTab === 'teams' && <RaidTeamsView players={roster} assignments={assignments} view={raidView} canEdit={canEditRaidData} onAssign={assignMember} onRemove={removeMemberFromTeams} />}
+            {activeTab === 'teams' && <TeamsTab ctx={ctx} />}
             {activeTab === 'afk' && <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={session.user?.uid ?? ''} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} />}
             {activeTab === 'priorities' && <PriorityList priorities={filteredPriorities} awards={awards} canEdit={canEditRaidData} busy={busy} onEdit={(priority) => openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />}
             {activeTab === 'history' && <AwardHistory awards={filteredAwards} />}

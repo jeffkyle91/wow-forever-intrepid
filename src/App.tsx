@@ -97,7 +97,7 @@ function App() {
 
           <StatStrip roster={roster.length} priorities={priorities.length} awards={awards.length} />
 
-          <ErrorBoundary kind="panel" resetKey={tab.id}><WorkspacePanel tab={tab} ctx={ctx} setQuery={setQuery} error={mutationError || dataError} notice={notice} /></ErrorBoundary>
+          <ErrorBoundary kind="panel" resetKey={tab.id}><WorkspacePanel tab={tab} ctx={ctx} setQuery={setQuery} error={mutationError || dataError} notice={notice} unreadable={effectiveRole === 'Guild Leader' ? data.unreadable : 0} /></ErrorBoundary>
           <p className="preview-note"><Shield size={14} /> Guild data is shared with authorized guild accounts and protected by Firestore rules.</p>
         </div>
       </main>

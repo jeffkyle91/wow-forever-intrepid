@@ -4,7 +4,7 @@ Thanks for helping. This is a guild tool with real data in production, so the ru
 
 ## Set up
 
-Node.js 20.19+ or 22.12+ (see the README).
+Use the Node.js version given in the README.
 
 ```bash
 npm install
@@ -28,7 +28,7 @@ Then click through every tab as each role (use VIEW AS as a Guild Leader to prev
 ## Pull requests
 
 - Keep them small and about one thing. A refactor and a feature are separate PRs.
-- Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json` and `package-lock.json`.
+- Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
 - A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, and a note about deploy order: rules first, then hosting.
 - Deploy only when you are asked to. Hosting and rules are deployed separately, so a rules change must be deployed before the hosting build that depends on it.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.

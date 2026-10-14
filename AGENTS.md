@@ -23,7 +23,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Shared files
 
-Changes to these need their own commit and a note in the PR: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`. Keep `./App.css` as the last import in `App.tsx`.
+Changes to these need their own commit and a note in the PR: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc`, and everything under `.github/`. Keep `./App.css` as the last import in `App.tsx`.
 
 ## Vocabulary
 

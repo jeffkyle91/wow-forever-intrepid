@@ -353,7 +353,7 @@
 .award-modal-item small { color: #879289; font-size: 9px; }
 .snapshot-callout { display: flex; align-items: flex-start; gap: 7px; padding: 9px; border-left: 2px solid #76a9cf; color: #62758a; background: #f0f7fc; font-size: 9px; line-height: 1.5; }
 .snapshot-callout svg { flex: 0 0 auto; color: #5487ad; }
-.stagger-row { animation: rise-in .28s both; animation-delay: calc(var(--row-index, 0) * 35ms); }
+.stagger-row { animation: rise-in .28s both; animation-delay: calc(min(var(--row-index, 0), 8) * 35ms); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 @keyframes rise-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -439,6 +439,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .stagger-row { animation: none; }
 }
 
 :root[data-theme='dark'] .main-content { color: #dce5ef; }

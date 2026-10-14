@@ -19,7 +19,13 @@ import './App.css'
 function App() {
   const session = useGuildSession()
   const actualRole = session.membership?.role ?? null
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => localStorage.getItem('intrepid-theme') === 'dark' ? 'dark' : 'light')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return localStorage.getItem('intrepid-theme') === 'dark' ? 'dark' : 'light'
+    } catch {
+      return 'light'
+    }
+  })
   const [selectedTab, setActiveTab] = useState<TabId>(DEFAULT_TAB_ID)
   const [raidView, setRaidView] = useState<RaidView>(10)
   const [query, setQuery] = useState('')
@@ -38,7 +44,11 @@ function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
-    localStorage.setItem('intrepid-theme', theme)
+    try {
+      localStorage.setItem('intrepid-theme', theme)
+    } catch {
+      // Storage can be blocked (private window, site data disabled): the theme still applies for this visit.
+    }
   }, [theme])
 
   useEffect(() => {

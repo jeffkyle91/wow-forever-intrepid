@@ -17,6 +17,14 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 - **Guild experience:** Use the app in light or dark theme, with WoW class and specialization artwork.
 - **Hosting:** The production app is served from [Firebase Hosting](https://intrepid-wow-forever.web.app/).
 
+## Code map
+
+- **Application shell and workflows:** [src/App.tsx](src/App.tsx) connects navigation, feature views, role-based controls, and dialogs; shared layout styling lives in [src/App.css](src/App.css).
+- **Raid Calendar:** [src/AfkCalendar.tsx](src/AfkCalendar.tsx) and [src/AfkCalendar.css](src/AfkCalendar.css) render the month, availability ranges, and scheduled raids. [src/guildApi.ts](src/guildApi.ts) defines and writes records, while [src/useGuildData.ts](src/useGuildData.ts) subscribes to live guild data.
+- **Authentication and role checks:** [src/useGuildSession.ts](src/useGuildSession.ts) resolves sign-in and membership; [src/security.ts](src/security.ts) controls which actions the UI presents.
+- **Authorization:** [firestore.rules](firestore.rules) is the backend permission boundary for guild records, raid scheduling, and member availability.
+- **Firebase configuration and hosting:** [src/firebase.ts](src/firebase.ts) initializes the client from environment values; [firebase.json](firebase.json) configures Firestore rules and Hosting rewrites; [vite.config.ts](vite.config.ts) configures the frontend build.
+
 ## Discussed future work
 
 These ideas have been discussed but are not implemented as part of this app yet:

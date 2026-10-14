@@ -2,7 +2,7 @@
 .access-brand { display: flex; align-items: center; gap: 10px; width: min(100%, 420px); color: #23364d; }
 .access-brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 6px; color: #17304b; background: #71bce8; }
 .access-brand-mark img { display: block; width: 100%; height: 100%; border: 1px solid #45617e; border-radius: 6px; object-fit: cover; }
-.access-brand > span:last-child { display: grid; gap: 1px; }
+.access-brand-text { display: grid; gap: 1px; }
 .access-brand strong { font-size: 12px; letter-spacing: 1px; }
 .access-brand small { color: #788b9e; font-size: 8px; letter-spacing: 1.2px; }
 .access-panel { width: min(100%, 420px); padding: 27px; border: 1px solid #dfe7ef; border-radius: 7px; background: #fff; box-shadow: 0 16px 48px #24324812; }

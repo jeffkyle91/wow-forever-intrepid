@@ -63,7 +63,7 @@ export function AccessScreen({ status, user, error, setError, offline, onRetry, 
   }
 
   return <main className="access-shell">
-    <header className="access-brand"><span className="access-brand-mark"><img src={guildCrest} alt="" /></span><span><strong>INTREPID</strong><small>GUILD RAID DESK</small></span><button className="icon-button access-theme-toggle" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={onToggleTheme}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button></header>
+    <header className="access-brand"><span className="access-brand-mark"><img src={guildCrest} alt="" /></span><span className="access-brand-text"><strong>INTREPID</strong><small>GUILD RAID DESK</small></span><button className="icon-button access-theme-toggle" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`} aria-pressed={theme === 'dark'} onClick={onToggleTheme}>{theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}</button></header>
     <section className="access-panel">
       <div className="access-emblem"><img src={shieldArt} alt="" /></div>
       {!firebaseConfigured || status === 'unconfigured' ? <>

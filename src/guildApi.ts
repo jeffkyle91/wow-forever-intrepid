@@ -41,8 +41,10 @@ export type CouncilStatus = 'deliberating' | 'live'
 export type GuildSettings = {
   currentPhase: string
   nextPhase: string
-  statusLabel: string
-  statusTone: StatusTone
+  currentStatusLabel: string
+  currentStatusTone: StatusTone
+  nextStatusLabel: string
+  nextStatusTone: StatusTone
   councilStatus: CouncilStatus
   teamNames: Record<TenManTeam, string>
 }

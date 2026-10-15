@@ -17,8 +17,10 @@ export const councilStatuses: { value: CouncilStatus; label: string; hint: strin
 export const defaultGuildSettings: GuildSettings = {
   currentPhase: 'Launch prep',
   nextPhase: 'To be announced',
-  statusLabel: 'Preparing',
-  statusTone: 'preparing',
+  currentStatusLabel: 'Preparing',
+  currentStatusTone: 'preparing',
+  nextStatusLabel: 'Not started',
+  nextStatusTone: 'paused',
   councilStatus: 'deliberating',
   teamNames: { blue: 'Blue', yellow: 'Yellow', red: 'Red', white: 'White' },
 }
@@ -33,8 +35,10 @@ export function resolveGuildSettings(data: Record<string, unknown> | null | unde
   return {
     currentPhase: label(source.currentPhase, defaults.currentPhase),
     nextPhase: label(source.nextPhase, defaults.nextPhase),
-    statusLabel: label(source.statusLabel, defaults.statusLabel),
-    statusTone: statusTones.some((tone) => tone.value === source.statusTone) ? (source.statusTone as StatusTone) : defaults.statusTone,
+    currentStatusLabel: label(source.currentStatusLabel, defaults.currentStatusLabel),
+    currentStatusTone: statusTones.some((tone) => tone.value === source.currentStatusTone) ? (source.currentStatusTone as StatusTone) : defaults.currentStatusTone,
+    nextStatusLabel: label(source.nextStatusLabel, defaults.nextStatusLabel),
+    nextStatusTone: statusTones.some((tone) => tone.value === source.nextStatusTone) ? (source.nextStatusTone as StatusTone) : defaults.nextStatusTone,
     councilStatus: councilStatuses.some((status) => status.value === source.councilStatus) ? (source.councilStatus as CouncilStatus) : defaults.councilStatus,
     teamNames: {
       blue: label(names.blue, defaults.teamNames.blue),

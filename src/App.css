@@ -332,7 +332,11 @@
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 11px; }
 .field-hint { color: #9aa39b; font-size: 9px; font-weight: 400; }
 label > small.field-hint { display: block; }
-.character-name-stack { display: grid; gap: 1px; }
+.character-name-stack { display: grid; min-width: 0; gap: 1px; }
+.roster-table td:first-child { overflow: hidden; }
+.roster-table .character-cell { display: flex; min-width: 0; }
+.roster-table .character-name-stack strong, .roster-table .character-name-stack small { overflow: hidden; text-overflow: ellipsis; }
+.roster-table .class-avatar { flex: none; }
 button.alt-toggle { display: inline-grid; width: 20px; height: 20px; min-height: 0; flex: none; place-items: center; padding: 0; border: 0; border-radius: 4px; color: #849087; background: transparent; cursor: pointer; }
 button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 .alt-toggle-spacer { display: inline-block; width: 20px; flex: none; }

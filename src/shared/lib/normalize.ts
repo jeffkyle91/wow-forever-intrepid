@@ -35,6 +35,7 @@ export function normalizePlayer(id: string, data: RawDoc): PlayerRecord | null {
   const player = { ...data, id, className: text(data.className), specialization: text(data.specialization), role: text(data.role) } as PlayerRecord
   if (data.linkedUid != null && !isText(data.linkedUid)) delete player.linkedUid
   if (data.mainId != null && !isText(data.mainId)) delete player.mainId
+  if (data.surname != null && !isText(data.surname)) delete player.surname
   return player
 }
 

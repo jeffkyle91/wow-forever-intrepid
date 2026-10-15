@@ -26,29 +26,30 @@ Status: proposal for review. Nothing here is built. It turns the decisions in `d
 
 **`priorities`** (`lootPriorities/{id}`) gain `rev`, `updatedBy`, `updatedAt` and are audited the same way, including reorders and deletes.
 
-**`auditLog/{entryId}`** (new, per guild), entry id = `{targetId}_{rev}`:
+**`auditLog/{entryId}`** (new, per guild), entry id = `{type}_{targetId}_{rev}` (for example `award_Xk3f_2`):
 
 | Field | Meaning |
 | --- | --- |
 | `at`, `by`, `byName` | server time, uid, display name at the time |
 | `targetType`, `targetId`, `rev` | `award` or `priority`, which document, which revision |
 | `action` | `create`, `edit`, `remove`, `reorder`, `delete` |
-| `item` | the item name, so the log reads without joins |
+| `item` | the item name as it was before the change (as created, for a create), so the log reads without joins |
 | `changed` | list of changed field names |
-| `before`, `after` | the old and new values of the changed fields |
+| `before`, `after` | the old and new values of the changed fields; a create has no `before`, a delete no `after` |
 | `reason` | optional text, up to 300 characters (required for `remove`) |
 
-The id comes from the target and its revision, so it needs no random ids, cannot be reused, and the rules can compute it.
+The id comes from the target type, the target and its revision, so it needs no random ids, cannot be reused, and the rules can compute it. The type keeps an award and a priority that share an id from sharing entry ids (otherwise a leader could permanently block corrections to an award by filing a priority entry under its next id). The revision has to be a whole number.
 
 ## Rules
 
 - `auditLog`: read for every guild role; create only by a Guild or Raid Leader with `by == request.auth.uid`, `at == request.time`, an allowed key list and size caps; **update and delete are denied for everyone.**
-- Awards: create and update require the audit entry in the same batch, checked with `getAfter()` and `exists()` (the entry must not exist before the batch, and must name this document, this revision, this actor and this time). Update also requires `rev == old rev + 1`, the immutable fields unchanged, and a reason when status becomes `removed`. Delete stays denied.
-- Priorities: same pattern for create, update and delete.
+- Awards: an update requires the audit entry in the same batch, checked with `getAfter()` (the entry must name this award and the next revision). The entry's own rule requires the award in the same batch to carry that revision, so each needs the other. Update also requires `rev == old rev + 1`, the immutable fields unchanged, and a reason when status becomes `removed`. Delete stays denied.
+- The entry has to describe the change truthfully, and the rules check it against the stored document: the fields in `changed` are exactly the fields that differ, `before` and `after` hold the stored old and new values, `item` is the award's item, a `remove` is a change to `status: removed` with the same reason the award carries, and a `reorder` changes only `rankedPlayers`.
+- Priorities: the same entry rules apply to an audited create, edit, reorder or delete (stage 1 does not yet require priority writes to carry an entry; see the rollout).
 - The Guild Leader exception in the award create rule (which skips the snapshot check) goes away together with the local-preview import, so there is one validated way to create an award.
-- What the rules cannot prove: the `before` and `after` values in an entry are written by the client. A leader with a modified browser could record wrong values, but could not make a change without an entry, hide who made it, or edit the entry afterwards. Comparing selected fields can be added later.
+- What the rules still cannot prove: that a leader's `byName` is a real name (it is the member's stored display name, which a Guild Leader can change), and that `reorder` is a pure reordering (a candidate added or removed can be filed as a reorder; the before and after lists show it). The uid in `by` is always the real actor.
 
-Each audited write is two documents in one atomic batch. The rules do 2 to 3 extra lookups per write, well inside Firestore's limit.
+Each audited write is two documents in one atomic batch. The rules do a handful of document lookups per write, and a batch is limited to 20: on the emulator 18 audited edits fit in one batch and 19 do not. A bulk import has to chunk its batches.
 
 ## Client
 
@@ -58,24 +59,30 @@ Each audited write is two documents in one atomic batch. The rules do 2 to 3 ext
 - Positional priority completion and filters ignore removed awards.
 - Order within one night: sort by `awardedAt`, then `createdAt`, then id.
 
-## Rollout
+## Rollout: expand, then client, then tighten
+
+The rules are shipped in stages so nothing breaks while the client catches up:
+
+1. **Stage 1, rules only (additive).** The `auditLog` collection and audited award edits are allowed. Creating an award and writing a priority still do not need an entry, so the current client keeps working and these rules can be deployed before any client change.
+2. **Stage 2, client.** The client writes audited creates, edits, removals, reorders and deletes through the helpers in `guildApi.ts`, and the new History and Audit log screens.
+3. **Stage 3, rules (tighten).** Once the client is live, the rules require an entry for award create and for every priority write, constrain award create (`rev` 1, `createdBy`, `createdAt`, a key list, field limits) and bound the priority fields, so the log can no longer be bypassed by writing through the old path. An old cached client is refused after this stage until its page reloads.
 
 - No migration: documents without the new fields keep working.
-- Rules and hosting must ship together: an old cached client that creates an award without an audit entry is refused by the new rules until the page reloads.
-- Docs that say awards are immutable (`AGENTS.md`, `README.md`, `ARCHITECTURE.md`, `.github/copilot-instructions.md`) change in the same pull request that changes the rules.
+- Docs that say awards cannot be updated change in the same pull request as the rules (this one: `AGENTS.md`). The statements that award snapshots are immutable stay true.
 
 ## Plan (small pull requests, tests first)
 
-1. Rules and tests: `auditLog` and the same-batch helper, proven on the emulator before any client code.
-2. Rules and tests: awards (create shape, edit, remove) and priorities.
-3. Client helpers in `guildApi.ts` (shared file, own commit).
-4. History edit and remove, priority audit.
-5. Audit log tab.
-6. Delete the local-preview import and update the docs.
+1. Rules and tests: `auditLog`, audited award edits and truthful entries (stage 1), proven on the emulator before any client code.
+2. Client helpers in `guildApi.ts` (shared file, own commit).
+3. History edit and remove; priority audit.
+4. Audit log tab.
+5. Rules stage 3, then delete the local-preview import and update the remaining docs.
 
-## Questions for review
+## Decisions from review
 
-1. Should Raid Leaders edit awards, or only Guild Leaders? Proposed: both (Raid Leaders make awards today).
-2. Is a reason required for edits? Proposed: required for removing, optional otherwise.
-3. Should every priority reorder be one log entry? Proposed: yes (simple); noisy, but easy to collapse in the view later.
-4. Should removed awards be hidden by default? Proposed: hidden, with a toggle.
+Answered by the guild leaders on the pull request that added this document:
+
+1. Raid Leaders may edit awards too, not only Guild Leaders.
+2. A reason is optional for edits and required only when removing an award.
+3. Every priority reorder is one log entry.
+4. Removed awards are hidden by default, with a toggle.

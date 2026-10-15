@@ -336,7 +336,9 @@ label > small.field-hint { display: block; }
 button.alt-toggle { display: inline-grid; width: 20px; height: 20px; min-height: 0; flex: none; place-items: center; padding: 0; border: 0; border-radius: 4px; color: #849087; background: transparent; cursor: pointer; }
 button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 .alt-toggle-spacer { display: inline-block; width: 20px; flex: none; }
-.alt-row .character-cell { padding-left: 29px; }
+.alt-row .character-cell { padding-left: 24px; }
+.alt-link-icon { width: 20px; flex: none; color: #b3bdb5; }
+:root[data-theme='dark'] .alt-link-icon { color: #5b7088; }
 :root[data-theme='dark'] button.alt-toggle { color: #a8b8c8; background: transparent; }
 :root[data-theme='dark'] button.alt-toggle:hover { color: #b7def7; background: #253b51; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 5px; }

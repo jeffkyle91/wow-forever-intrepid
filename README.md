@@ -68,6 +68,8 @@ npm run build
 npx firebase-tools@latest deploy --only hosting --project intrepid-wow-forever
 ```
 
+`npm run release` runs this whole sequence from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for.
+
 The deployed site is [intrepid-wow-forever.web.app](https://intrepid-wow-forever.web.app/). Hosting deployment does not deploy Firestore rules; deploy those separately when the rules change.
 
 ## Raid team building

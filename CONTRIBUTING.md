@@ -51,6 +51,8 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 - Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
 - A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, tests for it in `tests/rules/`, and a note about deploy order: rules first, then hosting.
 - Deploy only when you are asked to. Hosting and rules are deployed separately, so a rules change must be deployed before the hosting build that depends on it.
+- Opening a PR: `gh pr create --fill` (GitHub CLI). The merge is done in GitHub.
+- After the merge, a maintainer asks for the deploy and runs `npm run release` from a clean `main`. It pulls, builds, lints, runs the rules tests, deploys the rules only if `firestore.rules` changed since the `last-deploy` tag, then hosting, then moves the tag. `npm run release -- --dry-run` shows the plan without deploying.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
 
 ## Rules that protect the guild

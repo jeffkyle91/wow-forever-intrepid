@@ -15,7 +15,7 @@ export function Sidebar({ tabs, activeId, effectiveRole, ctx, onSelect }: { tabs
       <nav className="main-nav" aria-label="Guild tools">
         {tabs.map((entry) => isTabVisible(entry, effectiveRole) && <NavButton key={entry.id} active={activeId === entry.id} onClick={() => onSelect(entry.id)} icon={<ArtIcon src={entry.art} className="nav-art-icon" />} label={entry.label} count={entry.navCount?.(ctx)} />)}
       </nav>
-      <div className="sidebar-bottom"><div className="season-card"><span className="season-icon"><ArtIcon src={seasonArt} className="season-art-icon" /></span><span><small>SEASON</small><strong>Launch prep</strong></span><span className="season-dot" /></div><span className="version-label">SECURE WORKSPACE · 0.2.0</span></div>
+      <div className="sidebar-bottom"><div className="season-card"><span className="season-icon"><ArtIcon src={seasonArt} className="season-art-icon" /></span><span><small>CURRENT PHASE</small><strong>{ctx.data.settings.currentPhase}</strong><small>NEXT PHASE</small><strong>{ctx.data.settings.nextPhase}</strong></span><span className={`season-dot status-${ctx.data.settings.statusTone}`} role="img" aria-label={`Status: ${ctx.data.settings.statusLabel}`} title={ctx.data.settings.statusLabel} /></div><span className="version-label">SECURE WORKSPACE · 0.2.0</span></div>
     </aside>
   )
 }

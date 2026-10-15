@@ -30,6 +30,10 @@
 .season-card small { color: #8b9db1; font-size: 8px; letter-spacing: 1px; }
 .season-card strong { color: #e3edf7; font-size: 11px; font-weight: 600; }
 .season-dot { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--sky); box-shadow: 0 0 0 3px #304d6b; }
+.season-card small:nth-of-type(2) { margin-top: 4px; }
+.season-dot.status-active { background: #5fc98a; box-shadow: 0 0 0 3px #2a5a43; }
+.season-dot.status-preparing { background: #d79a41; box-shadow: 0 0 0 3px #5e4a2a; }
+.season-dot.status-paused { background: #d96b6b; box-shadow: 0 0 0 3px #5e3030; }
 .version-label { color: #8497ad; font-size: 9px; letter-spacing: .5px; text-align: center; }
 .main-content { flex: 1; min-width: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; height: 58px; padding: 0 36px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.7); }
@@ -69,6 +73,7 @@
 .stat-callout { display: grid; grid-template-columns: 12px auto; align-items: center; gap: 0 8px; padding: 0 19px; color: #8b958c; font-size: 8px; font-weight: 700; letter-spacing: .9px; }
 .stat-callout strong { grid-column: 2; margin-top: 4px; color: #425c7a; font-size: 11px; letter-spacing: 0; }
 .pulse-dot { grid-row: span 2; width: 10.5px; height: 10.5px; border-radius: 50%; background: #d79a41; box-shadow: 0 0 8px 2px rgba(215,154,65,.48); }
+.council-live .pulse-dot { background: #4fb877; box-shadow: 0 0 8px 2px rgba(79,184,119,.48); }
 .workspace-panel { overflow: hidden; border: 1px solid #e0e7ef; border-radius: 6px; background: #fff; box-shadow: 0 8px 26px rgba(31,49,64,.035); }
 .panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 67px; padding: 12px 19px; border-bottom: 1px solid #e9eee7; }
 .panel-heading { display: flex; align-items: baseline; gap: 10px; }

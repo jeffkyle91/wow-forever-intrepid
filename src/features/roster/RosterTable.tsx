@@ -12,7 +12,7 @@ export function RosterTable({ teams, players, allPlayers, assignments, canEdit, 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const { rows, mainNames } = groupAlts(players, allPlayers, collapsed)
   const toggle = (id: string) => setCollapsed((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next })
-  return <div className="table-scroll"><table className="data-table roster-table"><thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th className="team-column-heading">10-PLAYER TEAM</th><th>APP ACCESS</th>{canEdit && <th><span className="visually-hidden">Actions</span></th>}</tr></thead><tbody>
+  return <div className="table-scroll"><table className="data-table roster-table"><colgroup><col className="roster-col-character" /><col className="roster-col-class" /><col className="roster-col-spec" /><col className="roster-col-role" /><col className="roster-col-team" /><col className="roster-col-access" />{canEdit && <col className="roster-col-actions" />}</colgroup><thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th className="team-column-heading">10-PLAYER TEAM</th><th>APP ACCESS</th>{canEdit && <th><span className="visually-hidden">Actions</span></th>}</tr></thead><tbody>
     {rows.map(({ player, isAlt, altCount }, index) => {
       const assignedTeam = teams.find((team) => team.key === assignments[player.id])
       return <tr key={player.id} className={isAlt ? 'stagger-row alt-row' : 'stagger-row'} style={{ '--row-index': index } as CSSProperties}>

@@ -6,7 +6,7 @@ export const settingsTab = {
   id: 'settings',
   label: 'Settings',
   art: settingsArt,
-  hint: 'Change the phase, status and team names members see.',
+  hint: 'Change the phase, status and raid team names members see.',
   panelTitle: 'Guild settings',
   guildLeaderOnly: true,
   recordCount: () => 'Guild Leader only',

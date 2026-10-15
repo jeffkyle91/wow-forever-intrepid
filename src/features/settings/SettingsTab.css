@@ -7,6 +7,13 @@
 .settings-field input, .settings-field select { text-transform: none; letter-spacing: normal; padding: 9px 11px; border: 1px solid rgba(212, 175, 55, 0.28); border-radius: 6px; color: inherit; background: rgba(255, 255, 255, 0.06); font: inherit; }
 .settings-field input:focus-visible, .settings-field select:focus-visible { outline: 2px solid #d4af37; outline-offset: 1px; }
 .settings-team-label { display: inline-flex; align-items: center; gap: 8px; }
+.settings-team-group { display: grid; gap: 8px; }
+.settings-team-group h4 { margin: 0; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; }
+.settings-grid-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.settings-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-team-label .team-color-mark { height: 14px; flex-basis: 10px; }
+@media (max-width: 900px) { .settings-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .settings-grid-four, .settings-grid-two { grid-template-columns: 1fr; } }
 .settings-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .settings-choice-option { position: relative; display: grid; gap: 2px; padding: 12px 14px; border: 1px solid rgba(212, 175, 55, 0.22); border-radius: 8px; cursor: pointer; }
 .settings-choice-option input { position: absolute; opacity: 0; pointer-events: none; }

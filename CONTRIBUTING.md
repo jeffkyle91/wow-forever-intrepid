@@ -23,13 +23,33 @@ npm run build
 npm run lint
 ```
 
-Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. There are no automated tests yet, so say in the PR what you checked.
+If you changed `firestore.rules`, also run `npm run test:rules` (see "Testing the Firestore rules" below).
+
+Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. The only automated tests cover the Firestore rules, so say in the PR what you checked in the app.
+
+## Testing the Firestore rules
+
+The rules are the authorization boundary, so they have tests that run against the local Firestore emulator. You need a JDK, version 21 or newer, because the emulator is a Java program (check with `java -version`; Temurin from adoptium.net is fine, or `brew install openjdk@21` on macOS, which also needs adding to your `PATH`). Then:
+
+```bash
+npm run test:rules
+```
+
+It takes under a minute and needs no Firebase login, no Firebase project and no `.env.local`: it uses the demo project `demo-intrepid`, and the tests talk only to the emulator on `127.0.0.1`. The script runs `firebase-tools` through a version-pinned `npx` call (it is deliberately not a dependency of this repo, with install scripts turned off), and the first run downloads the emulator jar (about 137 MB) into your user cache. The emulator port is in `firebase.json` (`emulators.firestore.port`); change it there if it clashes with something on your machine.
+
+The tests are in `tests/rules/`, written in TypeScript and run by Node's built-in test runner. `access-matrix.test.ts` lists, per collection, which role may get, list, create, update and delete; the other files cover the rules that depend on the data (join requests, the account-to-character link, award snapshots, availability and raids, and how large a batch can be). A comment above each group says who may do what.
+
+- Change a rule and its tests in the same pull request. Add a case for every new branch, and for the thing it must still refuse.
+- Tests named "KNOWN GAP" record what the rules do today even though it is arguably wrong or weak. They are not approvals. When a rules change closes a gap, that test fails: flip it to expect a refusal and remove the label.
+- `tests/rules/support/client.ts` repeats the multi-document batches from `src/guildApi.ts`. If you change how `approveJoinRequest` or `updateMembershipAccess` build their batches, change the copy too.
+- Use invented names and uids in tests, as everywhere else in this repository.
+- `npm run build` does not compile the tests and `npm run lint` only lints them; `npx tsc -p tests/rules` type-checks them (CI does not run that).
 
 ## Pull requests
 
 - Keep them small and about one thing. A refactor and a feature are separate PRs.
 - Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
-- A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, and a note about deploy order: rules first, then hosting.
+- A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, tests for it in `tests/rules/`, and a note about deploy order: rules first, then hosting.
 - Deploy only when you are asked to. Hosting and rules are deployed separately, so a rules change must be deployed before the hosting build that depends on it.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
 

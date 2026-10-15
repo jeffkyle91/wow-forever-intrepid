@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint --deny-warnings",
+    "test:rules": "node tests/rules/require-java.mjs && npx --yes --ignore-scripts firebase-tools@15.31.0 emulators:exec --only firestore --project demo-intrepid --non-interactive \"node --test --test-concurrency=1 --test-reporter=spec tests/rules/*.test.ts\"",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

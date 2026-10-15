@@ -5,6 +5,8 @@ How the code is organised, and how to add to it without stepping on each other. 
 ## Layout
 
 ```text
+tests/
+  rules/                       Firestore rules tests, run on the emulator (npm run test:rules)
 src/
   main.tsx, index.css          entry point and design tokens
   App.tsx                      composition root: shared state, hooks, and the layout of the shell
@@ -67,7 +69,7 @@ Open a dialog with `ctx.openModal(({ close, live }) => <MyModal ... close={close
 
 ## Data and rules
 
-`useGuildData` subscribes to the guild's collections once and every tab reads them from `ctx.data`. Writes go through `guildApi.ts`. `navCount`, `recordCount` and `footer` are functions of `ctx.data`, so today a tab can only show counts for data the shell already loads. If a feature needs its own collection, agree on how it loads that data (a hook inside its content component, or a new shared subscription) before building it. Adding a new collection currently touches shared files: the record type and write helper in `guildApi.ts`, a subscription in `useGuildData.ts`, and a block in `firestore.rules` (Firebase deploys a single rules file). Do each in its own small commit and say so in the PR so a reviewer looks at the rules change on its own. Rules are the authorization boundary, so a feature that writes data needs a rules change and a rules deploy before the hosting build ships.
+`useGuildData` subscribes to the guild's collections once and every tab reads them from `ctx.data`. Writes go through `guildApi.ts`. `navCount`, `recordCount` and `footer` are functions of `ctx.data`, so today a tab can only show counts for data the shell already loads. If a feature needs its own collection, agree on how it loads that data (a hook inside its content component, or a new shared subscription) before building it. Adding a new collection currently touches shared files: the record type and write helper in `guildApi.ts`, a subscription in `useGuildData.ts`, and a block in `firestore.rules` (Firebase deploys a single rules file) with its tests in `tests/rules/` (see "Testing the Firestore rules" in `CONTRIBUTING.md`). Do each in its own small commit and say so in the PR so a reviewer looks at the rules change on its own. Rules are the authorization boundary, so a feature that writes data needs a rules change and a rules deploy before the hosting build ships.
 
 Award snapshots are immutable: the candidate order and council note are copied from the priority as it was when the award dialog opened (`features/loot/AwardModal.tsx`) and the rules compare them to the stored priority. Do not change that flow casually.
 

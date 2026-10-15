@@ -8,7 +8,7 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Current functionality
 
-- **Guild roster:** Add and edit characters with class, specialization, and a role derived from specialization. The complete guild roster remains separate from raid assignments. The Rogue spec is always **Combat**: anything called Rogue Outlaw (the name used by later game versions and some icon sets) is treated as Rogue Combat.
+- **Guild roster:** Add and edit characters with a first name, an optional surname, class, specialization, and a raid role (the specialization sets the default; a Guild Leader can change it). A character can be linked to a main as an alt; alts are listed under their main and can be collapsed, or hidden entirely with the All characters / Hide alts toggle (not saved between visits). The roster shows only the first name (the full name appears on hover, and search matches the surname); long names are cut off with an ellipsis so the columns stay fixed. Teams, loot and the calendar use the first name. The complete guild roster remains separate from raid assignments. The Rogue spec is always **Combat**: anything called Rogue Outlaw (the name used by later game versions and some icon sets) is treated as Rogue Combat.
 - **Raid teams:** Assign characters to four 10-player teams (Blue, Yellow, Red, and White). Green combines Blue and Yellow; Pink combines Red and White; Brown combines all four. A Guild Leader can rename all of these teams, including the 20- and 40-player ones, in Settings. View role composition and move characters with drag-and-drop or controls.
 - **Raid Calendar:** Guild members can add inclusive unavailable date ranges and remove their own entries. Guild and Raid Leaders can schedule 10-, 20-, and 40-player raids by date. Availability and raids appear together on the shared monthly calendar.
 - **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.
@@ -97,7 +97,7 @@ VITE_GUILD_ID=
 
 If a Guild Leader is shown "Request guild access" after signing in, `VITE_GUILD_ID` or the UID in `guilds/<VITE_GUILD_ID>/members/<UID>` is wrong. If the access check fails outright, the "Could not verify access" screen shows the Firestore error code and the guild ID the build is using.
 
-When approving a join request, a Guild Leader can optionally connect the account to an existing roster character. Existing accounts can also be linked or reassigned from Member Access. Links use stable roster document IDs, and Firestore rules require the roster and membership references to agree. A roster character can be linked to at most one account through the Guild Leader workflow.
+When approving a join request, a Guild Leader can optionally connect the account to an existing roster character. Existing accounts can also be linked or reassigned from Member Access. Links use stable roster document IDs, and Firestore rules require the roster and membership references to agree. A roster character can be linked to at most one account through the Guild Leader workflow. Only main characters are offered for linking; alts cannot be linked to an account (this is a UI filter, not a rules check).
 
 Without Firebase configuration, the app intentionally shows a setup-required screen. There is no client-side role selector that grants access.
 

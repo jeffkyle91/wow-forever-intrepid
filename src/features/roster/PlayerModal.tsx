@@ -14,9 +14,11 @@ export function PlayerModal({ existing, close, live }: { existing?: Player; clos
     const player: Player = {
       id: existing ? existing.id : crypto.randomUUID(),
       name: String(data.get('name')).trim(),
+      surname: String(data.get('surname') ?? '').trim() || undefined,
       className: String(data.get('className')).trim(),
       specialization: String(data.get('specialization')).trim(),
       role: String(data.get('role')) as Role,
+      mainId: String(data.get('mainId') ?? '') || undefined,
     }
     setBusy(true)
     try {
@@ -31,5 +33,5 @@ export function PlayerModal({ existing, close, live }: { existing?: Player; clos
     }
   }
 
-  return <Modal title={existing ? 'Edit member' : 'Add guild member'} onClose={close}><PlayerForm player={existing} busy={live.feedback.busy} onSubmit={savePlayer} onCancel={close} /></Modal>
+  return <Modal title={existing ? 'Edit member' : 'Add guild member'} onClose={close}><PlayerForm player={existing} roster={live.data.roster} busy={live.feedback.busy} onSubmit={savePlayer} onCancel={close} /></Modal>
 }

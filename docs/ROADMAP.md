@@ -20,8 +20,8 @@ Last updated 2026-10-14. This file records what the guild leaders decided, what 
 | Leavers | Runbook now (unlink the character, set role Member, disable the Auth user in the Firebase console, do not delete the member doc first). A one-click "Removed" status in Member Access is built before launch. |
 | Loot input | Paste an RCLootCouncil-format export (CSV) with a preview before anything is saved, plus manual entry. The format stays addon-agnostic because the guild may write its own addon. Item names and icons from Wowhead's unofficial tooltip endpoint are optional; manual entry must work without it. Warcraft Logs waits until it supports Forever. |
 | Positional priority and filters | A player listed twice for an item: the first receipt satisfies the first listing, the second the second. Filters: slot, boss, only items with a priority, hide completed, player and class. Both are important. |
-| Roles | **Guardian** is a Druid spec (feral tank, defaults to Tank) and **Feral** defaults to Melee. Done. A Guild Leader can set any character's role; the spec only supplies the default. Survival Hunter keeps Ranged as its default. |
-| Alts | The roster holds one entry per character. An alt can be linked to a main. For loot, alts are considered only after all mains, except in a run made up only of alts in 10 or 20 player content (to be recorded per raid). Attendance is per player, so linked alts roll up to the main. |
+| Roles | **Guardian** is a Druid spec (feral tank, defaults to Tank) and **Feral** defaults to Melee. Done. A Guild Leader can set any character's role; the spec only supplies the default (done). Survival Hunter keeps Ranged as its default. |
+| Alts | The roster holds one entry per character. An alt can be linked to a main (done: optional `mainId` on the roster entry, set in the Edit member dialog; the loot and attendance rules below are not built yet). For loot, alts are considered only after all mains, except in a run made up only of alts in 10 or 20 player content (to be recorded per raid). Attendance is per player, so linked alts roll up to the main. |
 | Attendance | Rolling 3 months. Members see their own percentage, leaders see everyone's. Voluntary and involuntary benches are recorded as different things. Open: how each counts (see Open questions). |
 | License | MIT for the code only. Crest and interface artwork were generated with ChatGPT; spec icons are Blizzard artwork from danetch/wowspecsemojis and stay non-commercial. |
 | Readability | One CSS pass that raises small text sizes and contrast, after the leaders have seen screenshots. |
@@ -39,7 +39,7 @@ The point of the module layout (see `ARCHITECTURE.md`) is that several people ca
 
 ### Order of work
 
-- **Before launch (11-04):** roster and organization: Guardian spec, editable role and alt link; the raid coverage checklist; the Removed status for leavers (item 7); raid edit and cancel (item 6).
+- **Before launch (11-04):** roster and organization: Guardian spec, editable role and alt link (done); the raid coverage checklist; the Removed status for leavers (item 7); raid edit and cancel (item 6).
 - **Before the first raids (12-09):** loot: audit-first loot (item 3), then roster-picked candidates (item 4), positional priority and filters, and loot import.
 
 ### Lane A: foundation (rules, data model, shared files)
@@ -62,7 +62,7 @@ Each is one feature folder plus the one-line registry or wiring change described
 
 - **Raid coverage checklist** (very important): a panel showing which buffs and debuffs a 10, 20 or 40 player team covers and what is missing. A design exists; ask for it. All game facts live in one editable data file with a source and confidence for each entry.
 - **Positional priority completion and loot filters**, in `src/features/loot/`. These read priorities and awards; they do not change how awards are written.
-- **Guardian spec (done), editable role and alt link** in `src/features/roster/` and `src/shared/game/classes.ts`. The alt link is an optional field on the roster entry (roster rules do not validate fields, so no rules change).
+- **Guardian spec, editable role and alt link (all done)** in `src/features/roster/` and `src/shared/game/classes.ts`. The alt link is an optional field on the roster entry (roster rules do not validate fields, so no rules change).
 
 ### Later, after the foundation
 

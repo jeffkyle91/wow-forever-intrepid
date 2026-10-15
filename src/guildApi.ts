@@ -19,7 +19,7 @@ import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
-export type PlayerRecord = { id: string; name: string; className: string; specialization: string; role: 'Tank' | 'Healer' | 'Melee' | 'Ranged'; linkedUid?: string }
+export type PlayerRecord = { id: string; name: string; className: string; specialization: string; role: 'Tank' | 'Healer' | 'Melee' | 'Ranged'; linkedUid?: string; mainId?: string; surname?: string }
 export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string }
 export type AwardRecord = {
   id: string
@@ -96,8 +96,10 @@ export async function submitJoinRequest(uid: string, email: string, displayName:
   })
 }
 
-export async function saveGuildRecord(collectionName: 'roster' | 'lootPriorities', id: string, data: object) {
-  await setDoc(doc(requireDb(), 'guilds', guildId, collectionName, id), data, { merge: true })
+// A field set to undefined is removed from the stored document (the write merges, so it would otherwise stay).
+export async function saveGuildRecord(collectionName: 'roster' | 'lootPriorities', id: string, data: Record<string, unknown>) {
+  const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === undefined ? deleteField() : value]))
+  await setDoc(doc(requireDb(), 'guilds', guildId, collectionName, id), fields, { merge: true })
 }
 
 export async function setTeamAssignment(playerId: string, team: TenManTeam | null) {

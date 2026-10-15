@@ -10,7 +10,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 ## Rules that must not be broken
 
 - Firestore security rules are the authorization boundary. UI role checks only hide controls, and the VIEW AS preview must never reach a data hook or a write helper.
-- Award snapshots (the candidate order and council note at decision time) are immutable. Awards and raids cannot be updated or deleted from the client.
+- Award snapshots (the candidate order and council note at decision time) are immutable. Raids cannot be updated or deleted from the client, and awards cannot be deleted. An award can be edited only by a Guild or Raid Leader in a batch that also writes its audit entry (see `docs/design/audit-first-loot.md`); audit entries can never be changed or deleted.
 - Do not imply that local browser data is shared. Only authenticated Firestore data is.
 - This repository is public. Never put real character names, account emails, keys or service-account files in code, fixtures, tests or screenshots; use invented names.
 

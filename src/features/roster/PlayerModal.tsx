@@ -17,6 +17,7 @@ export function PlayerModal({ existing, close, live }: { existing?: Player; clos
       className: String(data.get('className')).trim(),
       specialization: String(data.get('specialization')).trim(),
       role: String(data.get('role')) as Role,
+      mainId: String(data.get('mainId') ?? '') || undefined,
     }
     setBusy(true)
     try {
@@ -31,5 +32,5 @@ export function PlayerModal({ existing, close, live }: { existing?: Player; clos
     }
   }
 
-  return <Modal title={existing ? 'Edit member' : 'Add guild member'} onClose={close}><PlayerForm player={existing} busy={live.feedback.busy} onSubmit={savePlayer} onCancel={close} /></Modal>
+  return <Modal title={existing ? 'Edit member' : 'Add guild member'} onClose={close}><PlayerForm player={existing} roster={live.data.roster} busy={live.feedback.busy} onSubmit={savePlayer} onCancel={close} /></Modal>
 }

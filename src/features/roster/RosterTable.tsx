@@ -6,13 +6,15 @@ import type { TeamOption } from '../../shared/game/teams'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { EmptyRow } from '../../shared/ui/EmptyRow'
 import { RolePill } from '../../shared/ui/RolePill'
+import { mainNameByPlayer } from './filter'
 
-export function RosterTable({ teams, players, assignments, canEdit, onEdit }: { teams: TeamOption[]; players: Player[]; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void }) {
+export function RosterTable({ teams, players, allPlayers, assignments, canEdit, onEdit }: { teams: TeamOption[]; players: Player[]; allPlayers: Player[]; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void }) {
+  const mainNames = mainNameByPlayer(allPlayers)
   return <div className="table-scroll"><table className="data-table roster-table"><thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th className="team-column-heading">10-PLAYER TEAM</th><th>APP ACCESS</th>{canEdit && <th><span className="visually-hidden">Actions</span></th>}</tr></thead><tbody>
     {players.map((player, index) => {
       const assignedTeam = teams.find((team) => team.key === assignments[player.id])
       return <tr key={player.id} className="stagger-row" style={{ '--row-index': index } as CSSProperties}>
-        <td><span className="character-cell"><ClassAvatar player={player} /><strong>{player.name}</strong></span></td>
+        <td><span className="character-cell"><ClassAvatar player={player} /><span className="character-name-stack"><strong>{player.name}</strong>{mainNames.get(player.id) && <small className="table-subtext">Alt of {mainNames.get(player.id)}</small>}</span></span></td>
         <td><span className={`class-name class-color-${classColorKey(player.className)}`}>{player.className}</span></td>
         <td><span className={`specialization-name class-color-${classColorKey(player.className)}`}>{player.specialization || 'Not set'}</span></td>
         <td><RolePill role={player.role} /></td>

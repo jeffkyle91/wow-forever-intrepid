@@ -4,8 +4,8 @@ Last updated 2026-10-14. This file records what the guild leaders decided, what 
 
 ## Dates that drive the order
 
-- **2026-11-04** WoW: Forever launch. The guild runs dungeon dry-runs from day one, so recording loot (and correcting it) must work by then.
-- **2026-12-09** the first raids unlock (Barrow Deeps 10, Hyjal Summit 20, Onyxia 40).
+- **2026-11-04** WoW: Forever launch. Loot is not recorded at launch, so the app needs the roster, raid teams and calendar working, not loot.
+- **2026-12-09** the first raids unlock (Barrow Deeps 10, Hyjal Summit 20, Onyxia 40). Recording loot (and correcting it) must work by then.
 - **About 2026-10-21 and 22** the beta ends. Game data in the app (buffs, debuffs, scopes) must be re-checked then, in launch week, and on 12-09.
 
 ## Decisions
@@ -36,6 +36,11 @@ Last updated 2026-10-14. This file records what the guild leaders decided, what 
 ## Work lanes
 
 The point of the module layout (see `ARCHITECTURE.md`) is that several people can work at once. Lane A touches Firestore rules and shared files and is sequenced carefully; lane B is client-only feature work that does not wait for it.
+
+### Order of work
+
+- **Before launch (11-04):** roster and organization: Guardian spec, editable role and alt link; the raid coverage checklist; the Removed status for leavers (item 7); raid edit and cancel (item 6).
+- **Before the first raids (12-09):** loot: audit-first loot (item 3), then roster-picked candidates (item 4), positional priority and filters, and loot import.
 
 ### Lane A: foundation (rules, data model, shared files)
 

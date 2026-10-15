@@ -26,10 +26,11 @@
 .season-card { display: flex; align-items: center; gap: 9px; padding: 12px 9px; border-top: 1px solid #364b66; border-bottom: 1px solid #364b66; }
 .season-icon { display: grid; width: 30px; height: 30px; place-items: center; color: #acd5f0; background: #2b4260; border-radius: 5px; }
 .season-art-icon { display: block; width: 23px; height: 23px; object-fit: contain; }
-.season-card > span:nth-child(2) { display: grid; gap: 2px; }
+.season-card > span:nth-child(2) { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .season-card small { color: #8b9db1; font-size: 8px; letter-spacing: 1px; }
 .season-card strong { color: #e3edf7; font-size: 11px; font-weight: 600; }
-.season-dot { width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--sky); box-shadow: 0 0 0 3px #304d6b; }
+.phase-line { display: flex; align-items: center; gap: 8px; }
+.season-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--sky); box-shadow: 0 0 0 3px #304d6b; }
 .season-card small:nth-of-type(2) { margin-top: 4px; }
 .season-dot.status-active { background: #5fc98a; box-shadow: 0 0 0 3px #2a5a43; }
 .season-dot.status-preparing { background: #d79a41; box-shadow: 0 0 0 3px #5e4a2a; }

@@ -14,6 +14,7 @@ export function PlayerModal({ existing, close, live }: { existing?: Player; clos
     const player: Player = {
       id: existing ? existing.id : crypto.randomUUID(),
       name: String(data.get('name')).trim(),
+      surname: String(data.get('surname') ?? '').trim() || undefined,
       className: String(data.get('className')).trim(),
       specialization: String(data.get('specialization')).trim(),
       role: String(data.get('role')) as Role,

@@ -8,7 +8,7 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Current functionality
 
-- **Guild roster:** Add and edit characters with class, specialization, and a role derived from specialization. The complete guild roster remains separate from raid assignments. The Rogue spec is always **Combat**: anything called Rogue Outlaw (the name used by later game versions and some icon sets) is treated as Rogue Combat.
+- **Guild roster:** Add and edit characters with class, specialization, and a raid role (the specialization sets the default; a Guild Leader can change it). A character can be linked to a main as an alt. The complete guild roster remains separate from raid assignments. The Rogue spec is always **Combat**: anything called Rogue Outlaw (the name used by later game versions and some icon sets) is treated as Rogue Combat.
 - **Raid teams:** Assign characters to four 10-player teams (Blue, Yellow, Red, and White). Green combines Blue and Yellow; Pink combines Red and White; Brown combines all four. A Guild Leader can rename all of these teams, including the 20- and 40-player ones, in Settings. View role composition and move characters with drag-and-drop or controls.
 - **Raid Calendar:** Guild members can add inclusive unavailable date ranges and remove their own entries. Guild and Raid Leaders can schedule 10-, 20-, and 40-player raids by date. Availability and raids appear together on the shared monthly calendar.
 - **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.

@@ -131,6 +131,11 @@ export async function updateMembershipAccess(uid: string, role: GuildRole, playe
 
 export async function approveJoinRequest(request: JoinRequestRecord, role: GuildRole, playerId: string | null = null) {
   const database = requireDb()
+  // Approving writes the whole members doc, so approving someone who is already a member would overwrite their role.
+  // The rules refuse it too; this check only gives a readable message.
+  if ((await getDoc(doc(database, 'guilds', guildId, 'members', request.userId))).exists()) {
+    throw new Error('This person is already a guild member. Decline the request to dismiss it.')
+  }
   const batch = writeBatch(database)
   batch.set(doc(database, 'guilds', guildId, 'members', request.userId), {
     email: request.email,

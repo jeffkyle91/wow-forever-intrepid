@@ -2,15 +2,15 @@ import type { CSSProperties } from 'react'
 import { Pencil } from 'lucide-react'
 import type { PlayerRecord as Player, TenManTeam } from '../../guildApi'
 import { classColorKey } from '../../shared/game/classes'
-import { tenManTeams } from '../../shared/game/teams'
+import type { TeamOption } from '../../shared/game/teams'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { EmptyRow } from '../../shared/ui/EmptyRow'
 import { RolePill } from '../../shared/ui/RolePill'
 
-export function RosterTable({ players, assignments, canEdit, onEdit }: { players: Player[]; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void }) {
+export function RosterTable({ teams, players, assignments, canEdit, onEdit }: { teams: TeamOption[]; players: Player[]; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void }) {
   return <div className="table-scroll"><table className="data-table roster-table"><thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th className="team-column-heading">10-PLAYER TEAM</th><th>APP ACCESS</th>{canEdit && <th><span className="visually-hidden">Actions</span></th>}</tr></thead><tbody>
     {players.map((player, index) => {
-      const assignedTeam = tenManTeams.find((team) => team.key === assignments[player.id])
+      const assignedTeam = teams.find((team) => team.key === assignments[player.id])
       return <tr key={player.id} className="stagger-row" style={{ '--row-index': index } as CSSProperties}>
         <td><span className="character-cell"><ClassAvatar player={player} /><strong>{player.name}</strong></span></td>
         <td><span className={`class-name class-color-${classColorKey(player.className)}`}>{player.className}</span></td>

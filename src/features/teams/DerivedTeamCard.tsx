@@ -1,18 +1,19 @@
 import type { PlayerRecord as Player, TenManTeam } from '../../guildApi'
-import { tenManTeams } from '../../shared/game/teams'
+import type { TeamOption } from '../../shared/game/teams'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { TeamRoleComposition } from './TeamRoleComposition'
 
-export function DerivedTeamCard({ name, parts, players, assignments }: {
+export function DerivedTeamCard({ teams, name, parts, players, assignments }: {
+  teams: TeamOption[]
   name: string
   parts: TenManTeam[]
   players: Player[]
   assignments: Record<string, TenManTeam>
 }) {
-  const sourceTeams = parts.map((key) => tenManTeams.find((team) => team.key === key)!).filter(Boolean)
+  const sourceTeams = parts.map((key) => teams.find((team) => team.key === key)!).filter(Boolean)
   const members = players.filter((player) => parts.includes(assignments[player.id]))
   const memberCount = members.length
-  const equation = name === 'Green' ? 'Blue + Yellow' : name === 'Pink' ? 'Red + White' : 'Blue + Yellow + Red + White'
+  const equation = sourceTeams.map((team) => team.name).join(' + ')
 
   return <article className={`team-card derived-team team-card-${name.toLowerCase()}`}>
     <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${name.toLowerCase()}`} /><div><h3>{name}</h3><p>{name === 'Brown' ? '40-player raid team' : '20-player raid team'}</p></div></div><span className="team-capacity"><strong>{memberCount}</strong> / {name === 'Brown' ? 40 : 20}</span></header>

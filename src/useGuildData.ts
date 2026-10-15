@@ -36,7 +36,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
     const countUnreadable = (name: string, dropped: number) => setUnreadableByCollection((current) => current[name] === dropped ? current : { ...current, [name]: dropped })
     const unsubscribers = [
       subscribeGuildCollection<PlayerRecord>('roster', (records, dropped) => { setRoster(records); countUnreadable('roster', dropped) }, onError, normalizePlayer),
-      subscribeGuildCollection<GuildSettingsRecord>('settings', (records) => setSettings(resolveGuildSettings(records.find((record) => record.id === 'general'))), onError, normalizeSettings),
+      // Settings are cosmetic: if they cannot be read (rules not deployed yet), keep the defaults instead of showing an error.
+      subscribeGuildCollection<GuildSettingsRecord>('settings', (records) => setSettings(resolveGuildSettings(records.find((record) => record.id === 'general'))), (error) => console.warn(`settings: ${error.message}`), normalizeSettings),
       subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))), onError),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),

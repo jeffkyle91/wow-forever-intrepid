@@ -23,6 +23,7 @@ export const defaultGuildSettings: GuildSettings = {
   nextStatusTone: 'paused',
   councilStatus: 'deliberating',
   teamNames: { blue: 'Blue', yellow: 'Yellow', red: 'Red', white: 'White' },
+  groupNames: { green: 'Green', pink: 'Pink', brown: 'Brown' },
 }
 
 const label = (value: unknown, fallback: string) => (typeof value === 'string' && value.trim() ? value.slice(0, SETTINGS_LABEL_MAX) : fallback)
@@ -31,6 +32,7 @@ const label = (value: unknown, fallback: string) => (typeof value === 'string' &
 export function resolveGuildSettings(data: Record<string, unknown> | null | undefined): GuildSettings {
   const defaults = defaultGuildSettings
   const source = data ?? {}
+  const groups = source.groupNames && typeof source.groupNames === 'object' ? (source.groupNames as Record<string, unknown>) : {}
   const names = source.teamNames && typeof source.teamNames === 'object' ? (source.teamNames as Record<string, unknown>) : {}
   return {
     currentPhase: label(source.currentPhase, defaults.currentPhase),
@@ -45,6 +47,11 @@ export function resolveGuildSettings(data: Record<string, unknown> | null | unde
       yellow: label(names.yellow, defaults.teamNames.yellow),
       red: label(names.red, defaults.teamNames.red),
       white: label(names.white, defaults.teamNames.white),
+    },
+    groupNames: {
+      green: label(groups.green, defaults.groupNames.green),
+      pink: label(groups.pink, defaults.groupNames.pink),
+      brown: label(groups.brown, defaults.groupNames.brown),
     },
   }
 }

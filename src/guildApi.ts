@@ -18,6 +18,7 @@ import type { GuildRole } from './security'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
+export type RaidGroup = 'green' | 'pink' | 'brown'
 export type PlayerRecord = { id: string; name: string; className: string; specialization: string; role: 'Tank' | 'Healer' | 'Melee' | 'Ranged'; linkedUid?: string }
 export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string }
 export type AwardRecord = {
@@ -47,6 +48,7 @@ export type GuildSettings = {
   nextStatusTone: StatusTone
   councilStatus: CouncilStatus
   teamNames: Record<TenManTeam, string>
+  groupNames: Record<RaidGroup, string>
 }
 export type GuildSettingsRecord = GuildSettings & { id: string }
 

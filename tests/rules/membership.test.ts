@@ -206,31 +206,32 @@ describe('answering a join request', () => {
     await expectDenied(updateDoc(guildDoc(dbFor('guildLeader'), `joinRequests/${APPLICANT}`), { status: 'approved', assignedRole: 'Member', linkedPlayerId: null }))
   })
 
-  // KNOWN GAP: approving is a plain set() of the members doc with no check that the person is not already
-  // a member, so approving a stale or stray request overwrites their members doc. A Guild Leader or Raid
-  // Leader who files a request (allowed, see the matrix) and has it approved is demoted to the approved
-  // role. If the overwritten member is the only Guild Leader, the guild is left with none.
+  // Approving writes the whole members doc, so approving a request from someone who is already a member would
+  // overwrite their role (a Guild Leader or Raid Leader would be demoted, and the only Guild Leader would leave
+  // the guild with none). The rules refuse it, whatever role or character the approval records; the leader
+  // declines such a request instead.
   for (const existing of ['Guild Leader', 'Raid Leader'] as const) {
-    test(`KNOWN GAP: approving a request from an existing ${existing} as Member overwrites their role`, async () => {
+    test(`approving a request from an existing ${existing} is refused and their role stays`, async () => {
       await addMember(NEWCOMER, existing)
       await addJoinRequest(NEWCOMER)
-      await expectAllowed(approveJoinRequestBatch(dbFor('guildLeader'), requestOf(NEWCOMER), 'Member').commit())
-      assert.equal((await stored(`members/${NEWCOMER}`))?.role, 'Member')
+      await expectDenied(approveJoinRequestBatch(dbFor('guildLeader'), requestOf(NEWCOMER), 'Member').commit())
+      assert.equal((await stored(`members/${NEWCOMER}`))?.role, existing)
     })
   }
 
-  test('the overwrite is refused when the existing member is linked to a character and the approval would drop the link', async () => {
+  test('approving a request from an existing linked member is refused, whichever character the approval records', async () => {
     await addMember(NEWCOMER, 'Raid Leader', PLAYER_1)
     await addJoinRequest(NEWCOMER)
     await expectDenied(approveJoinRequestBatch(dbFor('guildLeader'), requestOf(NEWCOMER), 'Member', null).commit())
     await expectDenied(approveJoinRequestBatch(dbFor('guildLeader'), requestOf(NEWCOMER), 'Member', PLAYER_2).commit())
+    await expectDenied(approveJoinRequestBatch(dbFor('guildLeader'), requestOf(NEWCOMER), 'Member', PLAYER_1).commit())
+    assert.equal((await stored(`members/${NEWCOMER}`))?.role, 'Raid Leader')
   })
 
-  test('KNOWN GAP: approving over an existing linked member goes through when the approval keeps the same link', async () => {
-    await addMember(NEWCOMER, 'Raid Leader', PLAYER_1)
+  test('the request of an existing member can still be declined', async () => {
+    await addMember(NEWCOMER, 'Raid Leader')
     await addJoinRequest(NEWCOMER)
-    await expectAllowed(approveJoinRequestBatch(dbFor('guildLeader'), requestOf(NEWCOMER), 'Member', PLAYER_1).commit())
-    assert.equal((await stored(`members/${NEWCOMER}`))?.role, 'Member')
+    await expectAllowed(updateDoc(guildDoc(dbFor('guildLeader'), `joinRequests/${NEWCOMER}`), { status: 'rejected' }))
   })
 
   // KNOWN GAP: a request has no state machine. A leader can approve one that was already rejected, and

@@ -42,7 +42,7 @@ The point of the module layout (see `ARCHITECTURE.md`) is that several people ca
 In this order, each as its own small pull request:
 
 1. Rules tests and a CI job for them, tolerant reads and error boundaries, access-screen fixes, the dark-theme fix (pull requests being sent for review).
-2. Fix: approving a join request must not overwrite an existing member (found by the rules tests; pinned as a `KNOWN GAP` test today).
+2. Fix: approving a join request must not overwrite an existing member (found by the rules tests; done in the join-request overwrite fix).
 3. Audit-first loot: audit log collection and rules, who and when on every award, leader-editable awards and priorities, retire the local-preview import and the Guild Leader award exception. This replaces the "awards are immutable" rule in `AGENTS.md`, `README.md`, `ARCHITECTURE.md` and `.github/copilot-instructions.md`; those are updated in the same pull request, not before.
 4. Pick candidates from the roster (stable roster ids) instead of typing names.
 5. Phase, status, council status and team-name settings (10-, 20- and 40-player teams) (replaces the hardcoded "Launch prep" and "Preparing for launch"). Done: `settings/general`, the Guild Leader Settings tab and its rules tests.

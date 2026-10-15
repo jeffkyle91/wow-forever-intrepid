@@ -202,7 +202,8 @@ service cloud.firestore {
         allow update: if (isGuildLeader(guildId)
           && request.resource.data.status in ['approved', 'rejected']
           && request.resource.data.keys().hasOnly(['userId', 'email', 'displayName', 'status', 'requestedAt', 'assignedRole', 'linkedPlayerId'])
-          && (request.resource.data.status != 'approved' || (request.resource.data.assignedRole in ['Guild Leader', 'Raid Leader', 'Member']
+          && (request.resource.data.status != 'approved' || (!exists(memberPath(guildId, userId))
+            && request.resource.data.assignedRole in ['Guild Leader', 'Raid Leader', 'Member']
             && request.resource.data.get('linkedPlayerId', null) == getAfter(memberPath(guildId, userId)).data.get('playerId', null)
             && request.resource.data.assignedRole == getAfter(memberPath(guildId, userId)).data.role)))
           || (signedIn()

@@ -12,13 +12,14 @@ function trimmed(settings: GuildSettings): GuildSettings {
     ...settings,
     currentPhase: settings.currentPhase.trim(),
     nextPhase: settings.nextPhase.trim(),
-    statusLabel: settings.statusLabel.trim(),
+    currentStatusLabel: settings.currentStatusLabel.trim(),
+    nextStatusLabel: settings.nextStatusLabel.trim(),
     teamNames: Object.fromEntries(tenManTeams.map((team) => [team.key, settings.teamNames[team.key].trim()])) as Record<TenManTeam, string>,
   }
 }
 
 function hasBlank(settings: GuildSettings) {
-  return [settings.currentPhase, settings.nextPhase, settings.statusLabel, ...tenManTeams.map((team) => settings.teamNames[team.key])].some((value) => !value)
+  return [settings.currentPhase, settings.nextPhase, settings.currentStatusLabel, settings.nextStatusLabel, ...tenManTeams.map((team) => settings.teamNames[team.key])].some((value) => !value)
 }
 
 export function SettingsTab({ ctx }: { ctx: TabContext }) {
@@ -50,21 +51,19 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
     }
   }
 
-  const text = (label: string, key: 'currentPhase' | 'nextPhase' | 'statusLabel') => (
+  const text = (label: string, key: 'currentPhase' | 'nextPhase' | 'currentStatusLabel' | 'nextStatusLabel') => (
     <label className="settings-field">{label}<input value={draft[key]} maxLength={SETTINGS_LABEL_MAX} onChange={(event) => set(key, event.target.value)} disabled={busy} /></label>
+  )
+
+  const tone = (label: string, key: 'currentStatusTone' | 'nextStatusTone') => (
+    <label className="settings-field">{label}<select value={draft[key]} onChange={(event) => set(key, event.target.value as StatusTone)} disabled={busy}>{statusTones.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
   )
 
   return <form className="settings-form" onSubmit={save}>
     <section className="settings-section">
-      <header><h3>Phase</h3><p>Shown in the bottom left of the sidebar for every member.</p></header>
-      <div className="settings-grid">{text('Current phase', 'currentPhase')}{text('Next phase', 'nextPhase')}</div>
-    </section>
-    <section className="settings-section">
-      <header><h3>Status indicator</h3><p>The label and color of the dot beside the phase.</p></header>
-      <div className="settings-grid">
-        {text('Status label', 'statusLabel')}
-        <label className="settings-field">Indicator color<select value={draft.statusTone} onChange={(event) => set('statusTone', event.target.value as StatusTone)} disabled={busy}>{statusTones.map((tone) => <option key={tone.value} value={tone.value}>{tone.label}</option>)}</select></label>
-      </div>
+      <header><h3>Phase</h3><p>Shown in the bottom left of the sidebar for every member. Each phase has its own status indicator beside it.</p></header>
+      <div className="settings-grid">{text('Current phase', 'currentPhase')}{text('Current phase status label', 'currentStatusLabel')}{tone('Current phase indicator color', 'currentStatusTone')}</div>
+      <div className="settings-grid">{text('Next phase', 'nextPhase')}{text('Next phase status label', 'nextStatusLabel')}{tone('Next phase indicator color', 'nextStatusTone')}</div>
     </section>
     <section className="settings-section">
       <header><h3>Council status</h3><p>Tells members whether loot priorities are still being discussed or are set. It is informational and does not block awards.</p></header>

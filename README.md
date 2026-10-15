@@ -14,7 +14,7 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 - **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.
 - **Award history:** Review recipients, dates, and decision notes. Each award preserves a snapshot of the candidate order and council note at decision time.
 - **Guild access:** Members authenticate and request access. Guild Leaders approve requests, assign roles, and link accounts to roster characters. Firestore rules enforce permissions independently of the UI.
-- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, the status label and indicator color, the council status (Deliberating while priorities are being discussed, Live once they are set), and the names of the four 10-player teams. Stored in one document, `settings/general`, that every member reads and only a Guild Leader writes. Until it is saved, or if it cannot be read, the app shows built-in defaults.
+- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, a status label and indicator color for each phase, the council status (Deliberating while priorities are being discussed, Live once they are set), and the names of the four 10-player teams. Stored in one document, `settings/general`, that every member reads and only a Guild Leader writes. Until it is saved, or if it cannot be read, the app shows built-in defaults.
 - **Guild experience:** Use the app in light or dark theme, with WoW class and specialization artwork.
 - **Hosting:** The production app is served from [Firebase Hosting](https://intrepid-wow-forever.web.app/).
 

@@ -17,6 +17,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+!.env.emulator
 
 # Credentials that must never be committed
 *-adminsdk-*.json

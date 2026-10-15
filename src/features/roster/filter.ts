@@ -29,7 +29,7 @@ export function groupAlts(visible: Player[], roster: Player[], collapsed: Set<st
   return { rows, mainNames }
 }
 
-export function filterRoster(roster: Player[], query: string) {
+export function filterRoster(roster: Player[], query: string, hideAlts = false) {
   const mainNames = mainNameByPlayer(roster)
-  return roster.filter((player) => `${player.name} ${player.surname ?? ''} ${player.className} ${player.specialization ?? ''} ${player.role} ${mainNames.get(player.id) ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+  return roster.filter((player) => !(hideAlts && mainNames.has(player.id)) && `${player.name} ${player.surname ?? ''} ${player.className} ${player.specialization ?? ''} ${player.role} ${mainNames.get(player.id) ?? ''}`.toLowerCase().includes(query.toLowerCase()))
 }

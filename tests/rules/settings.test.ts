@@ -11,8 +11,10 @@ setUpGuildEmulator()
 const validSettings = () => ({
   currentPhase: 'Launch prep',
   nextPhase: 'Phase one',
-  statusLabel: 'Preparing',
-  statusTone: 'preparing',
+  currentStatusLabel: 'Preparing',
+  currentStatusTone: 'preparing',
+  nextStatusLabel: 'Not started',
+  nextStatusTone: 'paused',
   councilStatus: 'deliberating',
   teamNames: { blue: 'Blue', yellow: 'Yellow', red: 'Red', white: 'White' },
 })
@@ -72,7 +74,7 @@ describe('writing the guild settings', () => {
 describe('what a settings document must contain', () => {
   const leader = (data: Record<string, unknown>) => save('guildLeader', data)
 
-  for (const field of ['currentPhase', 'nextPhase', 'statusLabel', 'statusTone', 'councilStatus', 'teamNames']) {
+  for (const field of ['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames']) {
     test(`a document without ${field} is refused`, async () => {
       await expectDenied(leader(without(validSettings(), field)))
     })
@@ -82,7 +84,7 @@ describe('what a settings document must contain', () => {
     await expectDenied(leader({ ...validSettings(), note: 'hello' }))
   })
 
-  for (const field of ['currentPhase', 'nextPhase', 'statusLabel']) {
+  for (const field of ['currentPhase', 'nextPhase', 'currentStatusLabel', 'nextStatusLabel']) {
     test(`${field} must be 1 to 40 characters of text`, async () => {
       await expectAllowed(leader({ ...validSettings(), [field]: 'x'.repeat(40) }), '40 characters')
       await expectDenied(leader({ ...validSettings(), [field]: '' }), 'empty text')
@@ -91,10 +93,12 @@ describe('what a settings document must contain', () => {
     })
   }
 
-  test('the status indicator must be active, preparing or paused', async () => {
-    for (const statusTone of ['active', 'preparing', 'paused']) await expectAllowed(leader({ ...validSettings(), statusTone }), statusTone)
-    await expectDenied(leader({ ...validSettings(), statusTone: 'broken' }))
-  })
+  for (const field of ['currentStatusTone', 'nextStatusTone']) {
+    test(`the ${field} indicator must be active, preparing or paused`, async () => {
+      for (const tone of ['active', 'preparing', 'paused']) await expectAllowed(leader({ ...validSettings(), [field]: tone }), tone)
+      await expectDenied(leader({ ...validSettings(), [field]: 'broken' }))
+    })
+  }
 
   test('the council status must be deliberating or live', async () => {
     for (const councilStatus of ['deliberating', 'live']) await expectAllowed(leader({ ...validSettings(), councilStatus }), councilStatus)

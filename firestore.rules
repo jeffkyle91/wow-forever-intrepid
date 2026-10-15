@@ -74,12 +74,14 @@ service cloud.firestore {
 
     function validGuildSettings() {
       let data = request.resource.data;
-      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'statusLabel', 'statusTone', 'councilStatus', 'teamNames'])
-        && data.keys().hasAll(['currentPhase', 'nextPhase', 'statusLabel', 'statusTone', 'councilStatus', 'teamNames'])
+      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames'])
+        && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames'])
         && validLabel(data.currentPhase)
         && validLabel(data.nextPhase)
-        && validLabel(data.statusLabel)
-        && data.statusTone in ['active', 'preparing', 'paused']
+        && validLabel(data.currentStatusLabel)
+        && validLabel(data.nextStatusLabel)
+        && data.currentStatusTone in ['active', 'preparing', 'paused']
+        && data.nextStatusTone in ['active', 'preparing', 'paused']
         && data.councilStatus in ['deliberating', 'live']
         && data.teamNames is map
         && data.teamNames.keys().hasOnly(['blue', 'yellow', 'red', 'white'])

@@ -9,6 +9,11 @@ export const tenManTeams: { key: TenManTeam; name: string }[] = [
   { key: 'white', name: 'White' },
 ]
 
+export type TeamOption = { key: TenManTeam; name: string }
+
+// The four 10-player teams with the names a Guild Leader chose in Settings.
+export const namedTeams = (names: Record<TenManTeam, string>): TeamOption[] => tenManTeams.map((team) => ({ key: team.key, name: names[team.key] }))
+
 export const groups20 = [
   { name: 'Green', parts: ['blue', 'yellow'] as TenManTeam[] },
   { name: 'Pink', parts: ['red', 'white'] as TenManTeam[] },

@@ -1,6 +1,6 @@
 // The Raid Calendar: unavailable dates (afkEntries, called "AFK" in the code) and scheduled raids.
 //
-// Tests labelled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. When a
+// Tests labeled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. When a
 // rules change closes a gap, the matching test fails: flip it to expect a denial and drop the label.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'

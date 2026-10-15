@@ -9,18 +9,19 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 ## Current functionality
 
 - **Guild roster:** Add and edit characters with class, specialization, and a role derived from specialization. The complete guild roster remains separate from raid assignments.
-- **Raid teams:** Assign characters to four 10-player teams (Blue, Yellow, Red, and White). Green combines Blue and Yellow; Pink combines Red and White; Brown combines all four. View role composition and move characters with drag-and-drop or controls.
+- **Raid teams:** Assign characters to four 10-player teams (Blue, Yellow, Red, and White). Green combines Blue and Yellow; Pink combines Red and White; Brown combines all four. A Guild Leader can rename the four 10-player teams in Settings. View role composition and move characters with drag-and-drop or controls.
 - **Raid Calendar:** Guild members can add inclusive unavailable date ranges and remove their own entries. Guild and Raid Leaders can schedule 10-, 20-, and 40-player raids by date. Availability and raids appear together on the shared monthly calendar.
 - **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.
 - **Award history:** Review recipients, dates, and decision notes. Each award preserves a snapshot of the candidate order and council note at decision time.
 - **Guild access:** Members authenticate and request access. Guild Leaders approve requests, assign roles, and link accounts to roster characters. Firestore rules enforce permissions independently of the UI.
+- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, a status label and indicator color for each phase, the council status (Deliberating while priorities are being discussed, Live once they are set), and the names of the four 10-player teams. Stored in one document, `settings/general`, that every member reads and only a Guild Leader writes. Until it is saved, or if it cannot be read, the app shows built-in defaults.
 - **Guild experience:** Use the app in light or dark theme, with WoW class and specialization artwork.
 - **Hosting:** The production app is served from [Firebase Hosting](https://intrepid-wow-forever.web.app/).
 
 ## Code map
 
 - **Application shell:** [src/App.tsx](src/App.tsx) owns shared state and lays out the frame; [src/shell/](src/shell/) holds the sidebar, top bar, page heading, stat strip, workspace panel, dialog host, and the tab registry ([src/shell/tabs.ts](src/shell/tabs.ts)); shared layout styling lives in [src/App.css](src/App.css).
-- **Features:** each tab lives in its own folder under [src/features/](src/features/) (roster, teams, calendar, loot, access) with its views, dialogs, and actions. Shared building blocks (UI pieces, class and team data, the tab and dialog contracts) live in [src/shared/](src/shared/). See [ARCHITECTURE.md](ARCHITECTURE.md) for how to add a tab and [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution rules.
+- **Features:** each tab lives in its own folder under [src/features/](src/features/) (roster, teams, calendar, loot, access, settings) with its views, dialogs, and actions. Shared building blocks (UI pieces, class and team data, the tab and dialog contracts) live in [src/shared/](src/shared/). See [ARCHITECTURE.md](ARCHITECTURE.md) for how to add a tab and [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution rules.
 - **Raid Calendar:** [src/features/calendar/AfkCalendar.tsx](src/features/calendar/AfkCalendar.tsx) and [src/features/calendar/AfkCalendar.css](src/features/calendar/AfkCalendar.css) render the month, availability ranges, and scheduled raids. [src/guildApi.ts](src/guildApi.ts) defines and writes records, while [src/useGuildData.ts](src/useGuildData.ts) subscribes to live guild data.
 - **Authentication and role checks:** [src/useGuildSession.ts](src/useGuildSession.ts) resolves sign-in and membership; [src/security.ts](src/security.ts) controls which actions the UI presents.
 - **Authorization:** [firestore.rules](firestore.rules) is the backend permission boundary for guild records, raid scheduling, and member availability.
@@ -38,7 +39,6 @@ The decisions taken and the order of work are in [docs/ROADMAP.md](docs/ROADMAP.
 - Attendance Tracker: Ability to discern benched (voluntary/involuntary) and attendance %
     - Interfacing with warcraft logs to evaluate who contributed to a raid
     - Manual input in case a log is missed
-- Add a setting tool to update season and status indicators
 
 
 ## Local setup
@@ -50,6 +50,14 @@ npm install
 Copy-Item .env.example .env.local
 npm run dev
 ```
+
+### Try changes locally without touching production
+
+```powershell
+npm run dev:emulator
+```
+
+Starts the Firebase Auth and Firestore emulators with your current `firestore.rules`, seeds an invented guild, and runs the app against them (it ignores `.env.local`). It needs Java 21, the same as `npm run test:rules`. Sign in as `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader) or `member@example.test` (Member) with the password `password123`. Data is discarded when you stop it and nothing reaches the live Firebase project, so rules changes can be tried here before they are deployed.
 
 ## Firebase Hosting
 
@@ -103,11 +111,11 @@ Guild Leader impersonation only narrows the visible UI to preview a role. It doe
 
 A Guild Leader can import this browser's prior local preview records from Member Access when the shared guild collections are empty. The import carries roster assignments and award-time priority snapshots. Local browser data is not uploaded automatically.
 
-## Licence and credits
+## License and credits
 
 This is an unofficial fan project for a World of Warcraft guild. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft and the names, class and specialization artwork it refers to are trademarks or property of Blizzard Entertainment.
 
-- **Code:** [MIT](LICENSE). The licence covers the source code only, not the artwork below.
+- **Code:** [MIT](LICENSE). The license covers the source code only, not the artwork below.
 - **Specialization icons** (`wowspecsemojis-master/`): from [danetch/wowspecsemojis](https://github.com/danetch/wowspecsemojis), which shares the original Blizzard specialization icons as PNGs. They remain Blizzard artwork; they are used here for a non-commercial guild app and must not be used commercially.
 - **Guild crest and interface artwork** (`Art/`): generated with ChatGPT (OpenAI). They are not Blizzard artwork.
 

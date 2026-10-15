@@ -4,7 +4,7 @@
 // and nobody can change or delete it afterwards. A Raid Leader's award is only accepted when the snapshot
 // matches the stored priority exactly. A Guild Leader's award is accepted as it is.
 //
-// Tests labelled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. When a
+// Tests labeled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. When a
 // rules change closes a gap, the matching test fails: flip it to expect a denial and drop the label.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'

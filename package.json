@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint --deny-warnings",
+    "dev:emulator": "node tests/rules/require-java.mjs && npx --yes --ignore-scripts firebase-tools@15.31.0 emulators:exec --only auth,firestore --project demo-intrepid --non-interactive \"node scripts/seed-emulator.mjs && vite --mode emulator\"",
     "test:rules": "node tests/rules/require-java.mjs && npx --yes --ignore-scripts firebase-tools@15.31.0 emulators:exec --only firestore --project demo-intrepid --non-interactive \"node --test --test-concurrency=1 --test-reporter=spec tests/rules/*.test.ts\"",
     "preview": "vite preview"
   },

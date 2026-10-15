@@ -2,6 +2,7 @@ import { accessTab } from '../features/access/tab'
 import { calendarTab } from '../features/calendar/tab'
 import { historyTab, prioritiesTab } from '../features/loot/tab'
 import { rosterTab } from '../features/roster/tab'
+import { settingsTab } from '../features/settings/tab'
 import { teamsTab } from '../features/teams/tab'
 import type { GuildRole } from '../security'
 import type { TabDefinition } from '../shared/tabs/types'
@@ -16,6 +17,7 @@ const tabs = [
   prioritiesTab,
   historyTab,
   accessTab,
+  settingsTab,
 ] as const satisfies readonly TabDefinition[]
 
 export type TabId = (typeof tabs)[number]['id']

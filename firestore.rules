@@ -68,6 +68,30 @@ service cloud.firestore {
         && request.resource.data.recipient in get(priorityPath).data.rankedPlayers;
     }
 
+    function validLabel(value) {
+      return value is string && value.size() >= 1 && value.size() <= 40;
+    }
+
+    function validGuildSettings() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames'])
+        && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames'])
+        && validLabel(data.currentPhase)
+        && validLabel(data.nextPhase)
+        && validLabel(data.currentStatusLabel)
+        && validLabel(data.nextStatusLabel)
+        && data.currentStatusTone in ['active', 'preparing', 'paused']
+        && data.nextStatusTone in ['active', 'preparing', 'paused']
+        && data.councilStatus in ['deliberating', 'live']
+        && data.teamNames is map
+        && data.teamNames.keys().hasOnly(['blue', 'yellow', 'red', 'white'])
+        && data.teamNames.keys().hasAll(['blue', 'yellow', 'red', 'white'])
+        && validLabel(data.teamNames.blue)
+        && validLabel(data.teamNames.yellow)
+        && validLabel(data.teamNames.red)
+        && validLabel(data.teamNames.white);
+    }
+
     function validTeamAssignment() {
       return request.resource.data.keys().hasOnly(['team'])
         && request.resource.data.team in ['blue', 'yellow', 'red', 'white'];
@@ -115,6 +139,12 @@ service cloud.firestore {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create, update: if canManageRaid(guildId) && validTeamAssignment();
         allow delete: if canManageRaid(guildId);
+      }
+
+      match /settings/{settingId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings();
+        allow delete: if false;
       }
 
       match /lootPriorities/{priorityId} {

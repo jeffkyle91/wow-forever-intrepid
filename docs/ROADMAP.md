@@ -23,7 +23,7 @@ Last updated 2026-10-14. This file records what the guild leaders decided, what 
 | Roles | Add **Guardian** as a Druid spec (feral tank). **Feral** defaults to Melee. A Guild Leader can set any character's role; the spec only supplies the default. Survival Hunter keeps Ranged as its default. |
 | Alts | The roster holds one entry per character. An alt can be linked to a main. For loot, alts are considered only after all mains, except in a run made up only of alts in 10 or 20 player content (to be recorded per raid). Attendance is per player, so linked alts roll up to the main. |
 | Attendance | Rolling 3 months. Members see their own percentage, leaders see everyone's. Voluntary and involuntary benches are recorded as different things. Open: how each counts (see Open questions). |
-| Licence | MIT for the code only. Crest and interface artwork were generated with ChatGPT; spec icons are Blizzard artwork from danetch/wowspecsemojis and stay non-commercial. |
+| License | MIT for the code only. Crest and interface artwork were generated with ChatGPT; spec icons are Blizzard artwork from danetch/wowspecsemojis and stay non-commercial. |
 | Readability | One CSS pass that raises small text sizes and contrast, after the leaders have seen screenshots. |
 | Hosting plan | Move Firebase to Blaze with a small budget alert (the free plan allows 50,000 reads a day). |
 | Process | Node 24. Pull requests are merged with a merge commit. Rules changes come with rules tests. |

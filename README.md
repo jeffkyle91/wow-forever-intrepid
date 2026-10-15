@@ -14,7 +14,7 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 - **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.
 - **Award history:** Review recipients, dates, and decision notes. Each award preserves a snapshot of the candidate order and council note at decision time.
 - **Guild access:** Members authenticate and request access. Guild Leaders approve requests, assign roles, and link accounts to roster characters. Firestore rules enforce permissions independently of the UI.
-- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, the status label and indicator colour, the council status (Deliberating while priorities are being discussed, Live once they are set), and the names of the four 10-player teams. Stored in one document, `settings/general`, that every member reads and only a Guild Leader writes. Until it is saved, or if it cannot be read, the app shows built-in defaults.
+- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, the status label and indicator color, the council status (Deliberating while priorities are being discussed, Live once they are set), and the names of the four 10-player teams. Stored in one document, `settings/general`, that every member reads and only a Guild Leader writes. Until it is saved, or if it cannot be read, the app shows built-in defaults.
 - **Guild experience:** Use the app in light or dark theme, with WoW class and specialization artwork.
 - **Hosting:** The production app is served from [Firebase Hosting](https://intrepid-wow-forever.web.app/).
 
@@ -111,11 +111,11 @@ Guild Leader impersonation only narrows the visible UI to preview a role. It doe
 
 A Guild Leader can import this browser's prior local preview records from Member Access when the shared guild collections are empty. The import carries roster assignments and award-time priority snapshots. Local browser data is not uploaded automatically.
 
-## Licence and credits
+## License and credits
 
 This is an unofficial fan project for a World of Warcraft guild. It is not affiliated with or endorsed by Blizzard Entertainment. World of Warcraft and the names, class and specialization artwork it refers to are trademarks or property of Blizzard Entertainment.
 
-- **Code:** [MIT](LICENSE). The licence covers the source code only, not the artwork below.
+- **Code:** [MIT](LICENSE). The license covers the source code only, not the artwork below.
 - **Specialization icons** (`wowspecsemojis-master/`): from [danetch/wowspecsemojis](https://github.com/danetch/wowspecsemojis), which shares the original Blizzard specialization icons as PNGs. They remain Blizzard artwork; they are used here for a non-commercial guild app and must not be used commercially.
 - **Guild crest and interface artwork** (`Art/`): generated with ChatGPT (OpenAI). They are not Blizzard artwork.
 

@@ -1,6 +1,6 @@
 # Architecture
 
-How the code is organised, and how to add to it without stepping on each other. Read this before adding a feature.
+How the code is organized, and how to add to it without stepping on each other. Read this before adding a feature.
 
 ## Layout
 

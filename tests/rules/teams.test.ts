@@ -1,7 +1,7 @@
 // Raid team assignments: the teamAssignments block of firestore.rules. Who may write is in access-matrix.test.ts;
 // this file is about what they may write.
 //
-// Tests labelled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. When a
+// Tests labeled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. When a
 // rules change closes a gap, the matching test fails: flip it to expect a denial and drop the label.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
@@ -12,7 +12,7 @@ import { dbFor, expectAllowed, expectDenied, guildDoc, setUpGuildEmulator, store
 setUpGuildEmulator()
 
 // match /teamAssignments/{playerId}: create and update
-// Guild and Raid Leaders write an assignment, and it holds exactly one field, `team`, which is one of the four colours.
+// Guild and Raid Leaders write an assignment, and it holds exactly one field, `team`, which is one of the four colors.
 describe('assigning a character to a team', () => {
   const assign = (data: Record<string, unknown>, id = PLAYER_2) => setDoc(guildDoc(dbFor('raidLeader'), `teamAssignments/${id}`), data)
 
@@ -24,7 +24,7 @@ describe('assigning a character to a team', () => {
   }
 
   const refused: [string, Record<string, unknown>][] = [
-    ['a colour that is not one of the four', { team: 'green' }],
+    ['a color that is not one of the four', { team: 'green' }],
     ['a team that is not a string', { team: 1 }],
     ['no team', {}],
     ['an extra field', { team: 'blue', note: 'tank' }],

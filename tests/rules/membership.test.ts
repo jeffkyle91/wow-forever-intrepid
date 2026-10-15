@@ -1,6 +1,6 @@
 // Getting into the guild and holding a role: the joinRequests and members blocks of firestore.rules.
 //
-// Tests labelled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. They
+// Tests labeled "KNOWN GAP" pin what the rules do today even though it is arguably wrong or weak. They
 // are not endorsements. When a rules change closes a gap, the matching test fails: flip it to expect a
 // denial, and drop the label.
 import assert from 'node:assert/strict'

@@ -6,7 +6,7 @@
 // same batch is not charged again, and exists() and get() of one document are charged separately. So a
 // batch of awards from a Raid Leader costs two calls for the members doc plus two per distinct priority,
 // and it runs out at the tenth distinct priority. Whether production counts identically is not verified:
-// this is the emulator's behaviour. A change to a rule that adds lookups can move these limits, which is
+// this is the emulator's behavior. A change to a rule that adds lookups can move these limits, which is
 // what these tests are for.
 import { describe, test } from 'node:test'
 import { doc, setDoc, writeBatch, type Firestore } from 'firebase/firestore'

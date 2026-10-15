@@ -36,6 +36,17 @@ export type RaidRecord = { id: string; date: string; name: string; size: 10 | 20
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
+export type StatusTone = 'active' | 'preparing' | 'paused'
+export type CouncilStatus = 'deliberating' | 'live'
+export type GuildSettings = {
+  currentPhase: string
+  nextPhase: string
+  statusLabel: string
+  statusTone: StatusTone
+  councilStatus: CouncilStatus
+  teamNames: Record<TenManTeam, string>
+}
+export type GuildSettingsRecord = GuildSettings & { id: string }
 
 function requireDb(): Firestore {
   if (!db || !guildId) throw new Error('Firebase is not configured for this guild.')
@@ -89,6 +100,11 @@ export async function setTeamAssignment(playerId: string, team: TenManTeam | nul
   const assignmentRef = doc(requireDb(), 'guilds', guildId, 'teamAssignments', playerId)
   if (team) await setDoc(assignmentRef, { team })
   else await deleteDoc(assignmentRef)
+}
+
+// Guild Leaders only: the rules refuse everyone else, and refuse a document that is not exactly this shape.
+export async function saveGuildSettings(settings: GuildSettings) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'general'), settings)
 }
 
 export async function createAward(data: Omit<AwardRecord, 'id'>) {

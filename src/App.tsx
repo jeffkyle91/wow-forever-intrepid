@@ -62,7 +62,7 @@ function App() {
   }
 
   if (session.status !== 'active' || !session.membership) {
-    return <AccessScreen status={session.status} user={session.user} error={session.error} setError={session.setError} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
+    return <AccessScreen status={session.status} user={session.user} error={session.error} setError={session.setError} offline={session.offline} onRetry={session.retry} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />
   }
 
   const ctx: TabContext = {

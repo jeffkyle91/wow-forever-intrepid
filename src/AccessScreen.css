@@ -2,7 +2,7 @@
 .access-brand { display: flex; align-items: center; gap: 10px; width: min(100%, 420px); color: #23364d; }
 .access-brand-mark { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 6px; color: #17304b; background: #71bce8; }
 .access-brand-mark img { display: block; width: 100%; height: 100%; border: 1px solid #45617e; border-radius: 6px; object-fit: cover; }
-.access-brand > span:last-child { display: grid; gap: 1px; }
+.access-brand-text { display: grid; gap: 1px; }
 .access-brand strong { font-size: 12px; letter-spacing: 1px; }
 .access-brand small { color: #788b9e; font-size: 8px; letter-spacing: 1.2px; }
 .access-theme-toggle { margin-left: auto; }
@@ -23,8 +23,12 @@
 .access-submit.secondary { width: 100%; margin-top: 18px; color: #526478; border-color: #dce5ee; background: #fff; }
 .access-switch { display: block; margin: 15px auto 0; padding: 4px; border: 0; color: #4878a2; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
 .access-switch:hover { text-decoration: underline; }
+.access-switch:disabled { opacity: .55; cursor: wait; text-decoration: none; }
+.access-switch + .access-switch { margin-top: 2px; }
 .access-error { display: flex; align-items: flex-start; gap: 6px; margin-top: 15px; padding: 9px; border: 1px solid #eedbd4; border-radius: 4px; color: #a55342 !important; background: #fff8f5; font-size: 10px !important; }
 .access-error svg { flex: 0 0 auto; margin-top: 1px; }
+.access-panel .access-notice { display: flex; align-items: flex-start; gap: 6px; margin-top: 15px; padding: 9px; border: 1px solid #cfe2f1; border-radius: 4px; color: #2f5f86; background: #f1f8fd; font-size: 10px; }
+.access-notice svg { flex: 0 0 auto; margin-top: 1px; }
 .access-footnote { color: #8292a3; font-size: 9px; text-align: center; }
 @media (max-width: 480px) { .access-shell { padding: 18px; } .access-panel { padding: 21px; } }
 
@@ -43,4 +47,5 @@
 :root[data-theme='dark'] .access-submit.secondary { color: #d1deeb; border-color: #40556d; background: #26374c; }
 :root[data-theme='dark'] .access-switch { color: #99c9ed; }
 :root[data-theme='dark'] .access-error { border-color: #69484a; color: #f0b8ae !important; background: #36282e; }
+:root[data-theme='dark'] .access-panel .access-notice { border-color: #3b5b78; color: #c4e0f5; background: #21384f; }
 :root[data-theme='dark'] .access-footnote { color: #9babbc; }

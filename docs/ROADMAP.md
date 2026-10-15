@@ -45,7 +45,7 @@ In this order, each as its own small pull request:
 2. Fix: approving a join request must not overwrite an existing member (found by the rules tests; pinned as a `KNOWN GAP` test today).
 3. Audit-first loot: audit log collection and rules, who and when on every award, leader-editable awards and priorities, retire the local-preview import and the Guild Leader award exception. This replaces the "awards are immutable" rule in `AGENTS.md`, `README.md`, `ARCHITECTURE.md` and `.github/copilot-instructions.md`; those are updated in the same pull request, not before.
 4. Pick candidates from the roster (stable roster ids) instead of typing names.
-5. Season and status setting (replaces the hardcoded "Launch prep" and "Preparing for launch").
+5. Phase, status, council status and team-name settings (replaces the hardcoded "Launch prep" and "Preparing for launch"). Done: `settings/general`, the Guild Leader Settings tab and its rules tests.
 6. Raid edit, cancel and correction, with audit entries.
 7. "Removed" status for leavers, with a no-access screen.
 

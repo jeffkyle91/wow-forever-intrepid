@@ -30,6 +30,8 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 These ideas have been discussed but are not implemented as part of this app yet:
 
+The decisions taken and the order of work are in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 - Loot Priorities and Award History: Reworking the existing [loot-council app](https://intrepid-reforged-p2-loot-tracker.netlify.app/) and selectively adapt useful workflows if its source repository becomes available. This project was started independently while waiting for that repository.
     - Interfacing loot from an outside source to populate the items in the loot priority list.
 - Raid Optimziation: Add a raid optimization tool to evaluate buffs and debuffs by class to ensure raids (10/20/40) have the best use of classes/specs available.

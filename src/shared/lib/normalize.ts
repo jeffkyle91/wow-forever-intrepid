@@ -1,0 +1,95 @@
+import type { AwardRecord, JoinRequestRecord, MembershipRecord, PlayerRecord, PriorityRecord } from '../../guildApi'
+import { guildRoles, type GuildRole } from '../../security'
+
+// Tolerant readers for the five collections whose documents the Firestore rules do not validate:
+// roster, lootPriorities, awards, members and joinRequests. A document is read as `{ ...data, id }`,
+// exactly as before, and then only the fields the UI dereferences are checked: a missing or wrongly
+// typed text field becomes '', a missing or wrongly typed list becomes [] and non-string list entries
+// are dropped. Every other field (extra, unknown, optional) passes through untouched, so a valid
+// document comes back deep-equal to what it was. A normalizer returns null for a document it cannot
+// salvage; the caller skips it and counts it (see normalizeDocs). Normalizers never throw.
+//
+// When a feature starts reading a new field from one of these collections, add it here.
+
+export type RawDoc = Record<string, unknown>
+export type Normalizer<T> = (id: string, data: RawDoc) => T | null
+
+const isText = (value: unknown): value is string => typeof value === 'string'
+const text = (value: unknown) => (typeof value === 'string' ? value : '')
+
+function strings(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.every(isText) ? value : value.filter(isText)
+}
+
+const isGuildRole = (value: unknown): value is GuildRole => guildRoles.includes(value as GuildRole)
+const requestStatuses: readonly unknown[] = ['pending', 'approved', 'rejected'] satisfies JoinRequestRecord['status'][]
+
+// A character whose name is missing or not text is dropped: every list, team card and dropdown is keyed on
+// it. A name that is text is kept as it is even when blank, because the Add and Edit dialogs can save one
+// (they trim the input, but the required check runs before the trim).
+// A role the UI does not know (anything but Tank, Healer, Melee or Ranged) is passed through as a string.
+export function normalizePlayer(id: string, data: RawDoc): PlayerRecord | null {
+  if (!id || !isText(data.name)) return null
+  const player = { ...data, id, className: text(data.className), specialization: text(data.specialization), role: text(data.role) } as PlayerRecord
+  if (data.linkedUid != null && !isText(data.linkedUid)) delete player.linkedUid
+  return player
+}
+
+// A priority whose item is missing or not text is dropped. A blank item text is kept (the Add dialog can save one).
+export function normalizePriority(id: string, data: RawDoc): PriorityRecord | null {
+  if (!id || !isText(data.item)) return null
+  return { ...data, id, encounter: text(data.encounter), rankedPlayers: strings(data.rankedPlayers), councilNote: text(data.councilNote) } as PriorityRecord
+}
+
+// An award whose item is missing or not text is dropped. A blank item text is kept: awards are the permanent
+// record and are copied from a priority, so one with a blank item can exist. A missing or non-string awardedAt
+// becomes '' and the history row shows an invalid date instead of the whole list failing.
+export function normalizeAward(id: string, data: RawDoc): AwardRecord | null {
+  if (!id || !isText(data.item)) return null
+  return {
+    ...data,
+    id,
+    priorityId: text(data.priorityId),
+    encounter: text(data.encounter),
+    recipient: text(data.recipient),
+    awardedAt: text(data.awardedAt),
+    prioritySnapshot: strings(data.prioritySnapshot),
+    councilNoteSnapshot: text(data.councilNoteSnapshot),
+    awardNote: text(data.awardNote),
+  } as AwardRecord
+}
+
+// A member whose role is not one of the three guild roles is dropped: the access table would otherwise
+// show the first role in the list for it, and the rules give such an account no access anyway.
+export function normalizeMember(id: string, data: RawDoc): MembershipRecord | null {
+  if (!id || !isGuildRole(data.role)) return null
+  const member = { ...data, id, email: text(data.email), displayName: text(data.displayName) } as MembershipRecord
+  if (data.playerId != null && !isText(data.playerId)) member.playerId = null
+  return member
+}
+
+// A request whose status is not pending, approved or rejected is dropped. userId is always the document
+// id: the rules make the two equal, and approving or declining acts on that uid.
+export function normalizeJoinRequest(id: string, data: RawDoc): JoinRequestRecord | null {
+  if (!id || !requestStatuses.includes(data.status)) return null
+  return { ...data, id, userId: id, email: text(data.email), displayName: text(data.displayName) } as JoinRequestRecord
+}
+
+// Applies a normalizer to a snapshot's documents. Returns the records that could be read and the ids of
+// the documents that could not (a normalizer returning null, or throwing despite the promise above).
+export function normalizeDocs<T>(docs: Iterable<{ id: string; data: () => RawDoc }>, normalize: Normalizer<T>) {
+  const records: T[] = []
+  const droppedIds: string[] = []
+  for (const doc of docs) {
+    let record: T | null = null
+    try {
+      record = normalize(doc.id, doc.data())
+    } catch {
+      record = null
+    }
+    if (record === null) droppedIds.push(doc.id)
+    else records.push(record)
+  }
+  return { records, droppedIds }
+}

@@ -15,3 +15,6 @@
 .settings-choice-option small { opacity: 0.75; }
 .settings-error { margin: 0; color: #ff8a80; }
 .settings-actions { display: flex; justify-content: flex-end; gap: 10px; }
+:root[data-theme='dark'] .settings-field input, :root[data-theme='dark'] .settings-field select { color-scheme: dark; border-color: #3a4b61; color: #e0e8f1; background-color: #172435; }
+:root[data-theme='dark'] .settings-field select option { color: #e0e8f1; background-color: #172435; }
+:root[data-theme='light'] .settings-field input, :root[data-theme='light'] .settings-field select { color-scheme: light; }

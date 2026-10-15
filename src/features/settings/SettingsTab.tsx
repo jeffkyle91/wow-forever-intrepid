@@ -60,10 +60,10 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
       <div className="settings-grid">{text('Current phase', 'currentPhase')}{text('Next phase', 'nextPhase')}</div>
     </section>
     <section className="settings-section">
-      <header><h3>Status indicator</h3><p>The label and colour of the dot beside the phase.</p></header>
+      <header><h3>Status indicator</h3><p>The label and color of the dot beside the phase.</p></header>
       <div className="settings-grid">
         {text('Status label', 'statusLabel')}
-        <label className="settings-field">Indicator colour<select value={draft.statusTone} onChange={(event) => set('statusTone', event.target.value as StatusTone)} disabled={busy}>{statusTones.map((tone) => <option key={tone.value} value={tone.value}>{tone.label}</option>)}</select></label>
+        <label className="settings-field">Indicator color<select value={draft.statusTone} onChange={(event) => set('statusTone', event.target.value as StatusTone)} disabled={busy}>{statusTones.map((tone) => <option key={tone.value} value={tone.value}>{tone.label}</option>)}</select></label>
       </div>
     </section>
     <section className="settings-section">
@@ -73,7 +73,7 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
       </div>
     </section>
     <section className="settings-section">
-      <header><h3>Raid team names</h3><p>Renames the four 10-player teams. Their colours stay the same, and the 20 and 40 player teams keep their names.</p></header>
+      <header><h3>Raid team names</h3><p>Renames the four 10-player teams. Their colors stay the same, and the 20 and 40 player teams keep their names.</p></header>
       <div className="settings-grid">{tenManTeams.map((team) => <label className="settings-field" key={team.key}><span className="settings-team-label"><span className={`team-color-mark mark-${team.key}`} aria-hidden="true" />{defaultGuildSettings.teamNames[team.key]} team</span><input value={draft.teamNames[team.key]} maxLength={SETTINGS_LABEL_MAX} onChange={(event) => setDraft((current) => ({ ...current, teamNames: { ...current.teamNames, [team.key]: event.target.value } }))} disabled={busy} /></label>)}</div>
     </section>
     {blank && <p className="settings-error" role="alert">Every field needs a value.</p>}

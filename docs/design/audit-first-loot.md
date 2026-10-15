@@ -1,6 +1,6 @@
 # Design: audit-first loot (issue A2)
 
-Status: proposal for review. Nothing here is built. It turns the decisions in `docs/ROADMAP.md` into a data model and rules so the first dungeon awards (launch, 2026-11-04) are saved in the shape we keep.
+Status: proposal for review. Nothing here is built. It turns the decisions in `docs/ROADMAP.md` into a data model and rules so the first awards (needed by the first raids, 2026-12-09) are saved in the shape we keep.
 
 ## What it must do
 

@@ -1,5 +1,6 @@
-import type { AwardRecord, JoinRequestRecord, MembershipRecord, PlayerRecord, PriorityRecord } from '../../guildApi'
+import type { AwardRecord, GuildSettingsRecord, JoinRequestRecord, MembershipRecord, PlayerRecord, PriorityRecord } from '../../guildApi'
 import { guildRoles, type GuildRole } from '../../security'
+import { resolveGuildSettings } from '../game/settings'
 
 // Tolerant readers for the five collections whose documents the Firestore rules do not validate:
 // roster, lootPriorities, awards, members and joinRequests. A document is read as `{ ...data, id }`,
@@ -74,6 +75,11 @@ export function normalizeMember(id: string, data: RawDoc): MembershipRecord | nu
 export function normalizeJoinRequest(id: string, data: RawDoc): JoinRequestRecord | null {
   if (!id || !requestStatuses.includes(data.status)) return null
   return { ...data, id, userId: id, email: text(data.email), displayName: text(data.displayName) } as JoinRequestRecord
+}
+
+// A settings document is never dropped: any field that cannot be read falls back to its default.
+export function normalizeSettings(id: string, data: RawDoc): GuildSettingsRecord {
+  return { ...resolveGuildSettings(data), id }
 }
 
 // Applies a normalizer to a snapshot's documents. Returns the records that could be read and the ids of

@@ -3,6 +3,8 @@ import {
   subscribeGuildCollection,
   type AfkEntryRecord,
   type AwardRecord,
+  type GuildSettings,
+  type GuildSettingsRecord,
   type JoinRequestRecord,
   type MembershipRecord,
   type PlayerRecord,
@@ -11,7 +13,8 @@ import {
   type TeamAssignmentRecord,
 } from './guildApi'
 import type { GuildRole } from './security'
-import { normalizeAward, normalizeJoinRequest, normalizeMember, normalizePlayer, normalizePriority } from './shared/lib/normalize'
+import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
+import { normalizeAward, normalizeJoinRequest, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 
 export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
   const [roster, setRoster] = useState<PlayerRecord[]>([])
@@ -23,6 +26,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
   const [members, setMembers] = useState<MembershipRecord[]>([])
   const [joinRequests, setJoinRequests] = useState<JoinRequestRecord[]>([])
   const [dataError, setDataError] = useState('')
+  const [settings, setSettings] = useState<GuildSettings>(defaultGuildSettings)
   // How many documents each normalized collection skipped in its latest snapshot.
   const [unreadableByCollection, setUnreadableByCollection] = useState<Record<string, number>>({})
 
@@ -32,6 +36,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
     const countUnreadable = (name: string, dropped: number) => setUnreadableByCollection((current) => current[name] === dropped ? current : { ...current, [name]: dropped })
     const unsubscribers = [
       subscribeGuildCollection<PlayerRecord>('roster', (records, dropped) => { setRoster(records); countUnreadable('roster', dropped) }, onError, normalizePlayer),
+      subscribeGuildCollection<GuildSettingsRecord>('settings', (records) => setSettings(resolveGuildSettings(records.find((record) => record.id === 'general'))), onError, normalizeSettings),
       subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))), onError),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),
@@ -55,6 +60,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
     awards,
     afkEntries,
     raids,
+    settings,
     members: actualRole === 'Guild Leader' ? members : [],
     joinRequests: actualRole === 'Guild Leader' ? joinRequests : [],
     dataError,

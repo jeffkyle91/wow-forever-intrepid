@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
-import { saveGuildSettings, type CouncilStatus, type GuildSettings, type StatusTone, type TenManTeam } from '../../guildApi'
+import { saveGuildSettings, type CouncilStatus, type GuildSettings, type RaidGroup, type StatusTone, type TenManTeam } from '../../guildApi'
 import { SETTINGS_LABEL_MAX, councilStatuses, defaultGuildSettings, statusTones } from '../../shared/game/settings'
-import { tenManTeams } from '../../shared/game/teams'
+import { group40, groups20, tenManTeams } from '../../shared/game/teams'
 import type { TabContext } from '../../shared/tabs/types'
 import './SettingsTab.css'
+
+const allGroups = [...groups20, group40]
 
 const sameSettings = (a: GuildSettings, b: GuildSettings) => JSON.stringify(a) === JSON.stringify(b)
 
@@ -15,11 +17,12 @@ function trimmed(settings: GuildSettings): GuildSettings {
     currentStatusLabel: settings.currentStatusLabel.trim(),
     nextStatusLabel: settings.nextStatusLabel.trim(),
     teamNames: Object.fromEntries(tenManTeams.map((team) => [team.key, settings.teamNames[team.key].trim()])) as Record<TenManTeam, string>,
+    groupNames: Object.fromEntries(allGroups.map((group) => [group.key, settings.groupNames[group.key].trim()])) as Record<RaidGroup, string>,
   }
 }
 
 function hasBlank(settings: GuildSettings) {
-  return [settings.currentPhase, settings.nextPhase, settings.currentStatusLabel, settings.nextStatusLabel, ...tenManTeams.map((team) => settings.teamNames[team.key])].some((value) => !value)
+  return [settings.currentPhase, settings.nextPhase, settings.currentStatusLabel, settings.nextStatusLabel, ...tenManTeams.map((team) => settings.teamNames[team.key]), ...allGroups.map((group) => settings.groupNames[group.key])].some((value) => !value)
 }
 
 export function SettingsTab({ ctx }: { ctx: TabContext }) {
@@ -59,6 +62,10 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
     <label className="settings-field">{label}<select value={draft[key]} onChange={(event) => set(key, event.target.value as StatusTone)} disabled={busy}>{statusTones.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
   )
 
+  const teamField = (key: string, fallbackName: string, value: string, onChange: (value: string) => void) => (
+    <label className="settings-field" key={key}><span className="settings-team-label"><span className={`team-color-mark mark-${key}`} aria-hidden="true" />{fallbackName}</span><input value={value} maxLength={SETTINGS_LABEL_MAX} onChange={(event) => onChange(event.target.value)} disabled={busy} /></label>
+  )
+
   return <form className="settings-form" onSubmit={save}>
     <section className="settings-section">
       <header><h3>Phase</h3><p>Shown in the bottom left of the sidebar for every member. Each phase has its own status indicator beside it.</p></header>
@@ -72,8 +79,19 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
       </div>
     </section>
     <section className="settings-section">
-      <header><h3>Raid team names</h3><p>Renames the four 10-player teams. Their colors stay the same, and the 20 and 40 player teams keep their names.</p></header>
-      <div className="settings-grid">{tenManTeams.map((team) => <label className="settings-field" key={team.key}><span className="settings-team-label"><span className={`team-color-mark mark-${team.key}`} aria-hidden="true" />{defaultGuildSettings.teamNames[team.key]} team</span><input value={draft.teamNames[team.key]} maxLength={SETTINGS_LABEL_MAX} onChange={(event) => setDraft((current) => ({ ...current, teamNames: { ...current.teamNames, [team.key]: event.target.value } }))} disabled={busy} /></label>)}</div>
+      <header><h3>Raid team names</h3><p>Rename the raid teams. Each team keeps its color, and the 20 and 40 player teams combine the 10 player teams.</p></header>
+      <div className="settings-team-group">
+        <h4>10-player teams</h4>
+        <div className="settings-grid settings-grid-four">{tenManTeams.map((team) => teamField(team.key, defaultGuildSettings.teamNames[team.key], draft.teamNames[team.key], (value) => setDraft((current) => ({ ...current, teamNames: { ...current.teamNames, [team.key]: value } }))))}</div>
+      </div>
+      <div className="settings-team-group">
+        <h4>20-player teams</h4>
+        <div className="settings-grid settings-grid-two">{groups20.map((group) => teamField(group.key, defaultGuildSettings.groupNames[group.key], draft.groupNames[group.key], (value) => setDraft((current) => ({ ...current, groupNames: { ...current.groupNames, [group.key]: value } }))))}</div>
+      </div>
+      <div className="settings-team-group">
+        <h4>40-player team</h4>
+        <div className="settings-grid settings-grid-two">{teamField(group40.key, defaultGuildSettings.groupNames[group40.key], draft.groupNames[group40.key], (value) => setDraft((current) => ({ ...current, groupNames: { ...current.groupNames, [group40.key]: value } })))}</div>
+      </div>
     </section>
     {blank && <p className="settings-error" role="alert">Every field needs a value.</p>}
     <div className="settings-actions">

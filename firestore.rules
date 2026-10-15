@@ -74,8 +74,8 @@ service cloud.firestore {
 
     function validGuildSettings() {
       let data = request.resource.data;
-      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames'])
-        && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames'])
+      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames'])
+        && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames'])
         && validLabel(data.currentPhase)
         && validLabel(data.nextPhase)
         && validLabel(data.currentStatusLabel)
@@ -89,7 +89,13 @@ service cloud.firestore {
         && validLabel(data.teamNames.blue)
         && validLabel(data.teamNames.yellow)
         && validLabel(data.teamNames.red)
-        && validLabel(data.teamNames.white);
+        && validLabel(data.teamNames.white)
+        && data.groupNames is map
+        && data.groupNames.keys().hasOnly(['green', 'pink', 'brown'])
+        && data.groupNames.keys().hasAll(['green', 'pink', 'brown'])
+        && validLabel(data.groupNames.green)
+        && validLabel(data.groupNames.pink)
+        && validLabel(data.groupNames.brown);
     }
 
     function validTeamAssignment() {

@@ -1,11 +1,13 @@
-import type { PlayerRecord as Player, TenManTeam } from '../../guildApi'
+import type { PlayerRecord as Player, RaidGroup, TenManTeam } from '../../guildApi'
 import type { TeamOption } from '../../shared/game/teams'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { TeamRoleComposition } from './TeamRoleComposition'
 
-export function DerivedTeamCard({ teams, name, parts, players, assignments }: {
+export function DerivedTeamCard({ teams, groupKey, name, size, parts, players, assignments }: {
   teams: TeamOption[]
+  groupKey: RaidGroup
   name: string
+  size: 20 | 40
   parts: TenManTeam[]
   players: Player[]
   assignments: Record<string, TenManTeam>
@@ -15,8 +17,8 @@ export function DerivedTeamCard({ teams, name, parts, players, assignments }: {
   const memberCount = members.length
   const equation = sourceTeams.map((team) => team.name).join(' + ')
 
-  return <article className={`team-card derived-team team-card-${name.toLowerCase()}`}>
-    <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${name.toLowerCase()}`} /><div><h3>{name}</h3><p>{name === 'Brown' ? '40-player raid team' : '20-player raid team'}</p></div></div><span className="team-capacity"><strong>{memberCount}</strong> / {name === 'Brown' ? 40 : 20}</span></header>
+  return <article className={`team-card derived-team team-card-${groupKey}`}>
+    <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${groupKey}`} /><div><h3>{name}</h3><p>{size}-player raid team</p></div></div><span className="team-capacity"><strong>{memberCount}</strong> / {size}</span></header>
     <TeamRoleComposition members={members} />
     <div className="derived-equation">{equation} <span>= {name}</span></div>
     <div className="derived-groups">{sourceTeams.map((team) => {

@@ -17,6 +17,7 @@ const validSettings = () => ({
   nextStatusTone: 'paused',
   councilStatus: 'deliberating',
   teamNames: { blue: 'Blue', yellow: 'Yellow', red: 'Red', white: 'White' },
+  groupNames: { green: 'Green', pink: 'Pink', brown: 'Brown' },
 })
 
 const save = (who: Persona, data: Record<string, unknown>, id = 'general') => setDoc(guildDoc(dbFor(who), `settings/${id}`), data)
@@ -74,7 +75,7 @@ describe('writing the guild settings', () => {
 describe('what a settings document must contain', () => {
   const leader = (data: Record<string, unknown>) => save('guildLeader', data)
 
-  for (const field of ['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames']) {
+  for (const field of ['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames']) {
     test(`a document without ${field} is refused`, async () => {
       await expectDenied(leader(without(validSettings(), field)))
     })
@@ -108,9 +109,26 @@ describe('what a settings document must contain', () => {
   test('team names need all four teams and nothing else', async () => {
     const { blue, yellow, red } = validSettings().teamNames
     await expectDenied(leader({ ...validSettings(), teamNames: { blue, yellow, red } }), 'a missing team')
-    await expectDenied(leader({ ...validSettings(), teamNames: { ...validSettings().teamNames, green: 'Green' } }), 'an extra team')
+    await expectDenied(leader({ ...validSettings(), teamNames: { ...validSettings().teamNames, brown: 'Brown' } }), 'an extra team')
     await expectDenied(leader({ ...validSettings(), teamNames: 'Blue' }), 'text instead of a map')
   })
+
+  test('group names need green, pink and brown and nothing else', async () => {
+    const { green, pink } = validSettings().groupNames
+    await expectDenied(leader({ ...validSettings(), groupNames: { green, pink } }), 'a missing group')
+    await expectDenied(leader({ ...validSettings(), groupNames: { ...validSettings().groupNames, blue: 'Blue' } }), 'an extra group')
+    await expectDenied(leader({ ...validSettings(), groupNames: 'Green' }), 'text instead of a map')
+  })
+
+  for (const group of ['green', 'pink', 'brown']) {
+    test(`the ${group} group name must be 1 to 40 characters of text`, async () => {
+      const withName = (name: unknown) => leader({ ...validSettings(), groupNames: { ...validSettings().groupNames, [group]: name } })
+      await expectAllowed(withName('Renamed'))
+      await expectDenied(withName(''), 'empty text')
+      await expectDenied(withName('x'.repeat(41)), '41 characters')
+      await expectDenied(withName(5), 'a number')
+    })
+  }
 
   for (const team of ['blue', 'yellow', 'red', 'white']) {
     test(`the ${team} team name must be 1 to 40 characters of text`, async () => {

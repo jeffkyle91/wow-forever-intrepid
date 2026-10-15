@@ -31,5 +31,5 @@ export function TeamsTab({ ctx }: { ctx: TabContext }) {
     }
   }
 
-  return <RaidTeamsView teams={teams} players={roster} assignments={assignments} view={ctx.shell.raidView} canEdit={ctx.identity.canEditRaidData} onAssign={assignMember} onRemove={removeMemberFromTeams} />
+  return <RaidTeamsView teams={teams} groupNames={ctx.data.settings.groupNames} players={roster} assignments={assignments} view={ctx.shell.raidView} canEdit={ctx.identity.canEditRaidData} onAssign={assignMember} onRemove={removeMemberFromTeams} />
 }

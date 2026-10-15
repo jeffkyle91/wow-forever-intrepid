@@ -49,7 +49,8 @@ export const classSpecializations: Record<string, SpecializationOption[]> = {
   ],
   Druid: [
     { name: 'Balance', role: 'Ranged' },
-    { name: 'Feral', role: 'Tank' },
+    { name: 'Feral', role: 'Melee' },
+    { name: 'Guardian', role: 'Tank' },
     { name: 'Restoration', role: 'Healer' },
   ],
 }

@@ -29,6 +29,8 @@ Changes to these need their own commit and a note in the PR: `src/shared/**`, `s
 
 The code calls unavailable dates "AFK" (`afkEntries`, `AfkCalendar`, the tab id `afk`). Keep those names; the interface says "Raid Calendar" and "unavailable dates".
 
+The Rogue spec is **Combat** everywhere (code, data, docs, UI), never "Outlaw". The spec icons come from a later game version that renamed it; map them to `rogue|combat` in `src/specIcons.ts` and do not rename the spec.
+
 ## Do not
 
 - Reformat code you are not changing, or add dependencies without saying why.

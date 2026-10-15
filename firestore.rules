@@ -68,6 +68,128 @@ service cloud.firestore {
         && request.resource.data.recipient in get(priorityPath).data.rankedPlayers;
     }
 
+    // Audit log. A change to an award is accepted only together with its audit entry, written in the same batch;
+    // the entry's own rule (validAuditEntry) ties it back to the change, so each needs the other, and the entry has
+    // to describe the change truthfully (which fields, their old and new values, whether it was a removal).
+    // The entry id is {targetType}_{targetId}_{rev}. Every edit raises rev by one, so an id can be used once, and the
+    // type keeps an award and a priority with the same id from sharing entry ids.
+    function auditEntryPath(guildId, targetType, targetId, rev) {
+      return /databases/$(database)/documents/guilds/$(guildId)/auditLog/$(targetType + '_' + targetId + '_' + string(rev));
+    }
+
+    function unchanged(before, after, field) {
+      return (field in after) == (field in before) && after.get(field, null) == before.get(field, null);
+    }
+
+    function validAwardEdit(guildId, awardId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let rev = before.get('rev', 0) + 1;
+      let entryPath = auditEntryPath(guildId, 'award', awardId, rev);
+      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
+        && before.get('rev', 0) is int
+        && after.rev is int
+        && after.rev == rev
+        && getAfter(entryPath).data.targetType == 'award'
+        && getAfter(entryPath).data.targetId == awardId
+        && unchanged(before, after, 'priorityId')
+        && unchanged(before, after, 'prioritySnapshot')
+        && unchanged(before, after, 'councilNoteSnapshot')
+        && unchanged(before, after, 'createdBy')
+        && unchanged(before, after, 'createdAt')
+        && after.updatedBy == request.auth.uid
+        && after.updatedAt == request.time
+        && after.item is string && after.item.size() >= 1 && after.item.size() <= 120
+        && after.encounter is string && after.encounter.size() <= 120
+        && after.recipient is string && after.recipient.size() >= 1 && after.recipient.size() <= 60
+        && (after.get('recipientId', null) == null || (after.recipientId is string && after.recipientId.size() <= 100))
+        && validIsoDate(after.awardedAt)
+        && after.awardNote is string && after.awardNote.size() <= 500
+        && after.get('status', 'active') in ['active', 'removed']
+        && (!('removedReason' in after) || (after.removedReason is string && after.removedReason.size() <= 300))
+        && (after.get('status', 'active') != 'removed' || (after.get('removedReason', null) is string && after.removedReason.trim().size() >= 1));
+    }
+
+    // get() and getAfter() of a document that is not there are errors, and an error denies the request. So the
+    // checks below that read the target (or the entry) also prove it exists, and are not repeated as exists() calls:
+    // every lookup counts against the limit of 20 per batch.
+    //
+    // One field of an entry: if the entry lists it as changed, its before and after values must be what the stored
+    // document had and has.
+    function auditFieldLogged(data, oldDoc, newDoc, field) {
+      return !(field in data.changed)
+        || (data.get('before', {}).get(field, null) == oldDoc.get(field, null)
+          && data.get('after', {}).get(field, null) == newDoc.get(field, null));
+    }
+
+    // The item label is the item as it was before the change (as created, for a create).
+    // The entry has to say exactly what happened to the target: the fields that differ between the document before
+    // and after the batch (a created document has no "before", a deleted one no "after"), with their old and new values.
+    function auditDescribesChange(data, oldDoc, newDoc) {
+      let award = data.targetType == 'award';
+      let fields = award
+        ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
+        : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
+      let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
+      return touched.hasOnly(fields)
+        && data.changed.toSet() == touched
+        && data.changed.size() == touched.size()
+        && data.get('before', {}).keys().hasOnly(data.changed)
+        && data.get('after', {}).keys().hasOnly(data.changed)
+        && auditFieldLogged(data, oldDoc, newDoc, 'item')
+        && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
+        && auditFieldLogged(data, oldDoc, newDoc, 'recipient')
+        && auditFieldLogged(data, oldDoc, newDoc, 'recipientId')
+        && auditFieldLogged(data, oldDoc, newDoc, 'awardedAt')
+        && auditFieldLogged(data, oldDoc, newDoc, 'awardNote')
+        && auditFieldLogged(data, oldDoc, newDoc, 'status')
+        && auditFieldLogged(data, oldDoc, newDoc, 'removedReason')
+        && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
+        && auditFieldLogged(data, oldDoc, newDoc, 'prioritySnapshot')
+        && auditFieldLogged(data, oldDoc, newDoc, 'councilNoteSnapshot')
+        && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
+        && auditFieldLogged(data, oldDoc, newDoc, 'councilNote')
+        && data.item == (data.action == 'create' ? newDoc.get('item', '') : oldDoc.get('item', ''))
+        && (data.action == 'remove') == (newDoc.get('status', 'active') == 'removed' && oldDoc.get('status', 'active') != 'removed')
+        && (data.action != 'remove' || data.get('reason', '') == newDoc.get('removedReason', ''))
+        && (data.action != 'reorder' || data.changed == ['rankedPlayers']);
+    }
+
+    function validAuditEntry(guildId, entryId) {
+      let data = request.resource.data;
+      let targetPath = data.targetType == 'award'
+        ? /databases/$(database)/documents/guilds/$(guildId)/awards/$(data.targetId)
+        : /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(data.targetId);
+      return data.keys().hasOnly(['at', 'by', 'byName', 'targetType', 'targetId', 'rev', 'action', 'item', 'changed', 'before', 'after', 'reason'])
+        && data.keys().hasAll(['at', 'by', 'byName', 'targetType', 'targetId', 'rev', 'action', 'item', 'changed'])
+        && data.at == request.time
+        && data.by == request.auth.uid
+        && data.byName is string && data.byName.size() <= 100
+        && data.byName == get(memberPath(guildId, request.auth.uid)).data.get('displayName', '')
+        && data.targetType in ['award', 'priority']
+        && data.targetId is string && data.targetId.matches('^[A-Za-z0-9_-]{1,100}$')
+        && data.rev is int && data.rev >= 1
+        && entryId == data.targetType + '_' + data.targetId + '_' + string(data.rev)
+        && data.action in ['create', 'edit', 'remove', 'reorder', 'delete']
+        && (data.targetType == 'priority' || data.action in ['create', 'edit', 'remove'])
+        && data.item is string && data.item.size() <= 120
+        && data.changed is list && data.changed.size() <= 20
+        && (!('before' in data) || data.before is map)
+        && (!('after' in data) || data.after is map)
+        && (!('reason' in data) || (data.reason is string && data.reason.size() <= 300))
+        && (data.action != 'remove' || ('reason' in data && data.reason.trim().size() >= 1))
+        && (data.action == 'create'
+          ? data.rev == 1 && !exists(targetPath) && getAfter(targetPath).data.get('rev', 0) is int && getAfter(targetPath).data.get('rev', 0) == 1
+            && (data.targetType != 'award' || getAfter(targetPath).data.get('createdBy', data.by) == data.by)
+            && auditDescribesChange(data, {}, getAfter(targetPath).data)
+          : data.action == 'delete'
+            ? !existsAfter(targetPath) && data.rev == get(targetPath).data.get('rev', 0) + 1
+              && auditDescribesChange(data, get(targetPath).data, {})
+            : data.rev == get(targetPath).data.get('rev', 0) + 1
+              && getAfter(targetPath).data.get('rev', 0) == data.rev
+              && auditDescribesChange(data, get(targetPath).data, getAfter(targetPath).data));
+    }
+
     function validLabel(value) {
       return value is string && value.size() >= 1 && value.size() <= 40;
     }
@@ -161,6 +283,13 @@ service cloud.firestore {
       match /awards/{awardId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create: if isGuildLeader(guildId) || (canManageRaid(guildId) && hasPrioritySnapshot(guildId));
+        allow update: if canManageRaid(guildId) && validAwardEdit(guildId, awardId);
+        allow delete: if false;
+      }
+
+      match /auditLog/{entryId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create: if canManageRaid(guildId) && validAuditEntry(guildId, entryId);
         allow update, delete: if false;
       }
 

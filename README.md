@@ -51,6 +51,14 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
+### Try changes locally without touching production
+
+```powershell
+npm run dev:emulator
+```
+
+Starts the Firebase Auth and Firestore emulators with your current `firestore.rules`, seeds an invented guild, and runs the app against them (it ignores `.env.local`). It needs Java 21, the same as `npm run test:rules`. Sign in as `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader) or `member@example.test` (Member) with the password `password123`. Data is discarded when you stop it and nothing reaches the live Firebase project, so rules changes can be tried here before they are deployed.
+
 ## Firebase Hosting
 
 The Firebase Hosting target serves the Vite production build from `dist` and rewrites app routes to `index.html`. Configure the Firebase values in `.env.local`, then build and deploy the hosting target:

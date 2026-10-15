@@ -331,6 +331,8 @@
 .modal-form input::placeholder, .modal-form textarea::placeholder { color: #a0a9a1; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
 .field-hint { color: #9aa39b; font-size: 9px; font-weight: 400; }
+label > small.field-hint { display: block; }
+.character-name-stack { display: grid; gap: 1px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 5px; }
 .award-modal-item { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding: 10px; border: 1px solid #edf0eb; border-radius: 5px; background: #fafbf9; }
 .award-modal-item > span:last-child { display: grid; gap: 3px; }

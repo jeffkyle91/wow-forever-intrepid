@@ -86,7 +86,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <button type="button" className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <RaidSignupModal raidId={raid.id} close={close} live={live} />)}>Sign-up / roster</button>
         {isRaidCancelled(raid) ? <span className="dash-tag dash-tag-warn">Cancelled</span> : unavailable && <span className="dash-tag dash-tag-warn">You marked unavailable</span>}
       </li>)}</ul> : <p className="dash-muted">No upcoming raids are scheduled.</p>}
-      <p className="dash-note">Choose a character and response under Sign-up / roster. Responses close at raid start; unavailable dates do not submit a sign-up.</p>
+      <p className="dash-note">Choose a character and response under Sign-up / roster. Responses close at raid start. Unavailable dates set your response to Absent; remove the overlapping events before choosing another response.</p>
     </Panel>
 
     <Panel icon={<CalendarOff size={15} />} title="Upcoming absences" action={<button className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <AbsenceModal today={today} close={close} live={live} />)}><Plus size={14} /> Add absence</button>}>

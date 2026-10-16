@@ -57,6 +57,8 @@ The raid-zone catalog, multi-zone scheduling, member sign-ups and live raid-team
 
 ## Local setup
 
+For on-request Discord backlog publishing from a developer terminal, see [the publisher guide](docs/discord-backlog.md). This is separate from planned raid-bot integration and stores its credential outside the repository.
+
 Requires Node.js 24.12 or newer (`.nvmrc` selects Node 24; get it from nodejs.org or a version manager such as nvm or fnm). Node 22.12+ also builds, but npm prints unsupported-engine warnings for the Firebase packages.
 
 ```powershell

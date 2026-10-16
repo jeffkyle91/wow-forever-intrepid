@@ -1,6 +1,8 @@
 # Design: audit-first loot (issue A2)
 
-Status: proposal for review. Nothing here is built. It turns the decisions in `docs/ROADMAP.md` into a data model and rules so the first awards (needed by the first raids, 2026-12-09) are saved in the shape we keep.
+Status: partially implemented. Stage 1 rules support audited award edits and append-only audit entries. The full client correction/removal workflow, audit-log reader, audited award creates/priority writes and tightened stage 3 rules remain planned. This document describes the target design, not the complete current behavior.
+
+Rollout follows [the roadmap](../ROADMAP.md): target recording loot from the first raid on December 9, 2026, independently of priority listings; adopt priorities around December 15; target full audits and all remaining functionality by December 22. If recording is not ready for December 9, use need-before-greed rolls and a spreadsheet, followed by a validated upload. That upload and priority-independent recording path still need implementation; do not fabricate a candidate-order or council-note snapshot for an award decided by rolls. Preserve the actual raid/award date separately from later entry/audit timestamps.
 
 ## What it must do
 

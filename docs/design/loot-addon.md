@@ -8,7 +8,11 @@ An in-game addon, written for this guild, that works with the Raid Desk:
 
 - the priority lists are set in the app ahead of time;
 - when an item drops, the council decides who gets it using the priority and other factors;
-- the award is recorded in a form the app can import, with the audit trail the app already requires (see `audit-first-loot.md`).
+- the award is recorded in a form the app can import, with the planned complete audit trail (see [audit-first-loot.md](audit-first-loot.md); only the initial rules stage is implemented).
+
+### Rollout target
+
+Follow [the roadmap](../ROADMAP.md): app scheduling/sign-ups and the first starting snapshot are required for December 9, 2026, independently of addon readiness. Target loot recording from that raid, using need-before-greed rolls without priorities at first; if necessary, record in a spreadsheet for later validated upload. Priority adoption is expected around December 15. The production addon, Discord and advanced automation are included in the December 22 full-rollout target, not the earlier core-web rollout gate. The stages below describe dependencies, not work deferred indefinitely beyond December 22; raise scope/date risks explicitly. The probe is research tooling, not a production loot addon.
 
 It is **not** a fork of RCLootCouncil or a repurposed Gargul. We read how they work and write our own, with only what the Raid Desk needs. RCLootCouncil is GPL-3.0 (copying its code would make ours GPL-3.0) and Gargul is "All Rights Reserved". Ace3 and similar libraries are separately licensed and can be embedded.
 

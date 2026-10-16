@@ -173,13 +173,13 @@ defineMatrix('afkEntries', [
 ])
 
 // match /raids/{raidId}
-// Any role can read the calendar's raids. Guild and Raid Leaders can schedule one. A raid is never
-// edited or deleted.
+// Any role can read the calendar's raids. Guild and Raid Leaders can schedule one. An edit needs its audit
+// entry (raid-edits.test.ts), so a bare update is refused for everyone; a raid is never deleted.
 defineMatrix('raids', [
   { op: 'get', what: 'read a raid', allow: ANY_ROLE, run: (db) => getDoc(guildDoc(db, 'raids/raid-1')) },
   { op: 'list', what: 'list the raids', allow: ANY_ROLE, run: (db) => getDocs(guildCollection(db, 'raids')) },
   { op: 'create', what: 'schedule a raid', allow: RAID_STAFF, run: (db, who) => addDoc(guildCollection(db, 'raids'), raidDoc(uidOf(who))) },
-  { op: 'update', what: 'edit a raid', allow: 'nobody', run: (db) => updateDoc(guildDoc(db, 'raids/raid-1'), { name: 'Renamed' }) },
+  { op: 'update', what: 'edit a raid without its audit entry', allow: 'nobody', run: (db) => updateDoc(guildDoc(db, 'raids/raid-1'), { name: 'Renamed' }) },
   { op: 'delete', what: 'delete a raid', allow: 'nobody', run: (db) => deleteDoc(guildDoc(db, 'raids/raid-1')) },
 ])
 

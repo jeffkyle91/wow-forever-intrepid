@@ -108,6 +108,8 @@ describe('scheduling a raid', () => {
 
   test('a name of exactly 80 characters is accepted', async () => {
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { name: 'x'.repeat(80) })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { description: 'x'.repeat(500) })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { time: '21:00' })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -120,6 +122,11 @@ describe('scheduling a raid', () => {
     ['a date in the wrong format', raidDoc(UID.raidLeader, { date: '09/12/2026' })],
     ['a createdBy that is someone else', raidDoc(UID.guildLeader)],
     ['an extra field', raidDoc(UID.raidLeader, { notes: 'bring flasks' })],
+    ['a description of 501 characters', raidDoc(UID.raidLeader, { description: 'x'.repeat(501) })],
+    ['a time without a leading zero', raidDoc(UID.raidLeader, { time: '9:00' })],
+    ['a time of 24:00', raidDoc(UID.raidLeader, { time: '24:00' })],
+    ['a time that is a number', raidDoc(UID.raidLeader, { time: 2100 })],
+    ['an empty description', raidDoc(UID.raidLeader, { description: '' })],
     ['a createdAt chosen by the client', raidDoc(UID.raidLeader, { createdAt: CLIENT_TIME })],
     ['no createdAt', without(raidDoc(UID.raidLeader), 'createdAt')],
   ]
@@ -136,10 +143,11 @@ describe('scheduling a raid', () => {
 })
 
 // match /raids/{raidId}: update and delete
-// Always false: a raid cannot be edited or removed from the client, even by the leader who scheduled it.
-describe('raids cannot be changed once scheduled', () => {
+// A raid is never deleted. Editing and cancelling are covered in raid-edits.test.ts; here only that the
+// creator cannot change it without the audit entry that goes with every edit.
+describe('raids cannot be changed without an audit entry, or deleted', () => {
   for (const who of ['raidLeader', 'guildLeader'] as const) {
-    test(`the creator (${who}) cannot edit or delete their own raid`, async () => {
+    test(`the creator (${who}) cannot edit their own raid on its own, or delete it`, async () => {
       const db = dbFor(who)
       const ref = await addDoc(guildCollection(db, 'raids'), raidDoc(UID[who]))
       await expectDenied(updateDoc(ref, { name: 'Renamed' }), 'editing')

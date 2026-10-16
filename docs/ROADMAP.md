@@ -41,7 +41,7 @@ The point of the module layout (see `ARCHITECTURE.md`) is that several people ca
 
 ### Order of work
 
-- **Before launch (11-04):** roster and organization: Guardian spec, editable role and alt link (done); the raid coverage checklist; the Removed status for leavers (item 7); raid edit and cancel (item 6).
+- **Before launch (11-04):** roster and organization: Guardian spec, editable role and alt link (done); the raid coverage checklist; the Removed status for leavers (item 7); raid edit and cancel (item 6, done).
 - **Before the first raids (12-09):** loot: audit-first loot (item 3), then roster-picked candidates (item 4), positional priority and filters, and loot import.
 
 ### Lane A: foundation (rules, data model, shared files)
@@ -53,7 +53,7 @@ In this order, each as its own small pull request:
 3. Audit-first loot: audit log collection and rules, who and when on every award, leader-editable awards and priorities, retire the local-preview import and the Guild Leader award exception. This replaces the "awards are immutable" rule in `AGENTS.md`, `README.md`, `ARCHITECTURE.md` and `.github/copilot-instructions.md`; those are updated in the same pull request, not before.
 4. Pick candidates from the roster (stable roster ids) instead of typing names.
 5. Phase, status, council status and team-name settings (10-, 20- and 40-player teams) (replaces the hardcoded "Launch prep" and "Preparing for launch"). Done: `settings/general`, the Guild Leader Settings tab and its rules tests.
-6. Raid edit, cancel and correction, with audit entries.
+6. Raid edit, cancel and correction, with audit entries. Done: leaders click a raid on the calendar to edit, cancel (reason required, raid stays visible as Cancelled) or restore it; the rules require a `raid_{id}_{rev}` audit entry in the same batch; tests in `tests/rules/raid-edits.test.ts`. Not built yet: a screen to read the audit log.
 7. "Removed" status for leavers, with a no-access screen.
 
 Lane A files: `firestore.rules`, `firebase.json`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/features/loot/**` for the award and priority write paths.
@@ -69,7 +69,7 @@ Each is one feature folder plus the one-line registry or wiring change described
 ### Later, after the foundation
 
 - Loot import (CSV paste with preview, manual entry): needs the new award shape and roster ids.
-- Attendance: needs raid edit and cancel, roster ids and the alt link.
+- Attendance: needs raid edit and cancel (done), roster ids and the alt link.
 - Readability pass: after screenshots are approved.
 - **Member dashboard.** Stage 1 is built (landing tab in `src/features/dashboard/`); the rest is not started. In order:
   1. Done: read-only landing tab for members with a linked character: characters (main and alts), upcoming raids, raid team, loot priorities and awards. Client-only; reads existing data, no rules change. Members without a linked character get a short "ask a Guild Leader to link your character" note and keep the normal tabs.
@@ -79,7 +79,7 @@ Each is one feature folder plus the one-line registry or wiring change described
   4. Attendance percentage and unavailable dates on the dashboard, then notifications.
   - Leader Management tabs (for example access requests, pending change requests, raids missing sign-ups, coverage gaps) are added to the same app for the Guild Leader role.
   - Open: whether a role-only change needs approval; whether over-capacity benching is automatic (first come first served) or always a leader decision; how a self-bench counts for attendance (see Open questions).
-- **Discord sign-ups and notifications.** Not started; needs raid edit and cancel (item 6) first. In order:
+- **Discord sign-ups and notifications.** Not started; needs raid edit and cancel (item 6, done) first. In order:
   1. A Discord user ID on members, set by a Guild Leader in Member Access, so a sign-up maps to a roster character and its main.
   2. Announcements through a channel webhook (a Cloud Function) when a raid is scheduled, changed or cancelled. One-way.
   3. Sign-up buttons (Accept, Tentative, Decline, and a role or spec choice) on a bot-posted message. Discord calls an HTTPS interactions endpoint (a Cloud Function) that verifies Discord's request signature, writes the sign-up to a `signups` subcollection of the raid, and edits the message to show the current roster. Members can read sign-ups but cannot write them; only the function does, so the Firestore rules stay the authorization boundary.

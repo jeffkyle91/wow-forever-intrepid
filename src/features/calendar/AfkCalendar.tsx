@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
-import type { AfkEntryRecord, PlayerRecord, RaidRecord } from '../../guildApi'
+import { formatRaidTime, isRaidCancelled, raidTimeOf, type AfkEntryRecord, type PlayerRecord, type RaidRecord } from '../../guildApi'
 import calendarArt from '../../../Art/icons-split/calendar.png'
 import './AfkCalendar.css'
 
@@ -23,7 +23,7 @@ function displayName(entry: AfkEntryRecord, roster: PlayerRecord[]) {
   return roster.find((player) => player.linkedUid === entry.userId)?.name || entry.displayName
 }
 
-export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd, onRemove }: {
+export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd, onRemove, onEditRaid, focusRaidId }: {
   entries: AfkEntryRecord[]
   raids: RaidRecord[]
   roster: PlayerRecord[]
@@ -31,10 +31,13 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
   busy: boolean
   onAdd: (startDate: string, endDate: string) => Promise<boolean>
   onRemove: (entryId: string) => Promise<boolean>
+  onEditRaid?: (raid: RaidRecord) => void
+  focusRaidId?: string
 }) {
   const [visibleMonth, setVisibleMonth] = useState(() => {
-    const today = new Date()
-    return new Date(today.getFullYear(), today.getMonth(), 1)
+    const focused = focusRaidId ? raids.find((raid) => raid.id === focusRaidId) : undefined
+    const start = focused ? parseDate(focused.date) : new Date()
+    return new Date(start.getFullYear(), start.getMonth(), 1)
   })
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -88,16 +91,23 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
           {calendarDays.map((date) => {
             const key = dateKey(date)
             const dayEntries = entries.filter((entry) => entry.startDate <= key && entry.endDate >= key)
-            const dayRaids = raids.filter((raid) => raid.date === key)
+            const dayRaids = raids.filter((raid) => raid.date === key).sort((a, b) => raidTimeOf(a).localeCompare(raidTimeOf(b)))
             const dayLabels = [
-              ...dayRaids.map((raid) => `${raid.name}, ${raid.size}-player raid`),
+              ...dayRaids.map((raid) => isRaidCancelled(raid) ? `${raid.name}, cancelled` : `${raid.name}, ${raid.size}-player raid`),
               ...dayEntries.map((entry) => `${displayName(entry, roster)} unavailable`),
             ]
             return <div className={`afk-day${date.getMonth() === visibleMonth.getMonth() ? '' : ' outside-month'}${key === todayKey ? ' today' : ''}`} role="gridcell" aria-label={`${date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}${dayLabels.length ? `, ${dayLabels.join(', ')}` : ''}`} key={key}>
               <time className="afk-day-number" dateTime={key}>{date.getDate()}</time>
-              <div className="afk-day-entries">{dayRaids.map((raid) => <span className="raid-calendar-event" title={`${raid.name} · ${raid.size}-player raid`} key={raid.id}>
-                <span>{raid.name}</span><small>{raid.size}-player</small>
-              </span>)}{dayEntries.map((entry) => <span className={`afk-calendar-entry${entry.userId === currentUserId ? ' own-entry' : ''}`} title={`${displayName(entry, roster)} unavailable ${formatDate(entry.startDate)}–${formatDate(entry.endDate)}`} key={entry.id}>
+              <div className="afk-day-entries">{dayRaids.map((raid) => {
+                const cancelled = isRaidCancelled(raid)
+                const content = <><span>{raid.name}</span><small>{cancelled ? 'Cancelled' : `${raid.size}-player · ${formatRaidTime(raidTimeOf(raid))}`}</small></>
+                const title = cancelled ? `${raid.name} · cancelled: ${raid.cancelReason ?? ''}` : `${raid.name} · ${raid.size}-player raid · ${formatRaidTime(raidTimeOf(raid))}${raid.description ? `\n${raid.description}` : ''}`
+                const className = `raid-calendar-event${cancelled ? ' cancelled' : ''}${raid.id === focusRaidId ? ' focused' : ''}`
+                const focusRef = raid.id === focusRaidId ? (node: HTMLElement | null) => node?.scrollIntoView({ block: 'center' }) : undefined
+                return onEditRaid
+                  ? <button type="button" className={className} ref={focusRef} title={`${title} · click to edit`} onClick={() => onEditRaid(raid)} key={raid.id}>{content}</button>
+                  : <span className={className} ref={focusRef} title={title} key={raid.id}>{content}</span>
+              })}{dayEntries.map((entry) => <span className={`afk-calendar-entry${entry.userId === currentUserId ? ' own-entry' : ''}`} title={`${displayName(entry, roster)} unavailable ${formatDate(entry.startDate)}–${formatDate(entry.endDate)}`} key={entry.id}>
                 <span>{displayName(entry, roster)}</span>
               </span>)}</div>
             </div>

@@ -1,5 +1,6 @@
 import { accessTab } from '../features/access/tab'
 import { calendarTab } from '../features/calendar/tab'
+import { dashboardTab } from '../features/dashboard/tab'
 import { historyTab, prioritiesTab } from '../features/loot/tab'
 import { rosterTab } from '../features/roster/tab'
 import { settingsTab } from '../features/settings/tab'
@@ -11,6 +12,7 @@ import type { TabDefinition } from '../shared/tabs/types'
 // with a tab.tsx, plus one import above and one line below. Declare each tab with
 // `as const satisfies TabDefinition` (do not annotate it) so its id stays a literal.
 const tabs = [
+  dashboardTab,
   rosterTab,
   teamsTab,
   calendarTab,
@@ -31,7 +33,7 @@ export const tabList: readonly (TabDefinition & { readonly id: TabId })[] = tabs
 export type TabEntry = (typeof tabList)[number]
 
 // The tab shown on load.
-export const DEFAULT_TAB_ID: TabId = 'priorities'
+export const DEFAULT_TAB_ID: TabId = 'dashboard'
 // Where a tab the current role may not see sends the user.
 export const FALLBACK_TAB_ID: TabId = 'roster'
 

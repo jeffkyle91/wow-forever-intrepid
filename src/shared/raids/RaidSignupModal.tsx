@@ -103,7 +103,7 @@ function SignupForm({ raidId, live, characters, mine, closed }: { raidId: string
     </select></label>
     <div className="raid-signup-responses" role="group" aria-label="Save your raid response">
       {signupStatuses.map((status) => <button type="button" key={status}
-        className="button button-secondary"
+        className="button button-secondary raid-response-button"
         data-response={status}
         aria-pressed={mine?.characterId === characterId && mine.status === status}
         disabled={busy || closed || !characterValid}

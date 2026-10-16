@@ -4,11 +4,12 @@
 .raid-signup [role='alert'] { color: #a02f2f; }
 .raid-signup-form { display: grid; gap: 12px; }
 .raid-signup-responses { display: flex; flex-wrap: wrap; gap: 8px; }
-.raid-signup-responses [data-response='accept'] { --response-color: #166534; }
-.raid-signup-responses [data-response='tentative'] { --response-color: #854d0e; }
-.raid-signup-responses [data-response='absent'] { --response-color: #991b1b; }
-.raid-signup-responses [data-response='late'] { --response-color: #6b21a8; }
-.raid-signup-responses [data-response='bench'] { --response-color: #475569; }
+.raid-response-button[data-response='accept'] { --response-color: #166534; }
+.raid-response-button[data-response='tentative'] { --response-color: #854d0e; }
+.raid-response-button[data-response='absent'] { --response-color: #991b1b; }
+.raid-response-button[data-response='late'] { --response-color: #6b21a8; }
+.raid-response-button[data-response='bench'] { --response-color: #475569; }
+.button.button-secondary.raid-response-summary[data-response] { color: #fff; border-color: var(--response-color); background: var(--response-color); }
 .raid-signup .raid-signup-responses .button:hover:not(:disabled),
 .raid-signup .raid-signup-responses .button[aria-pressed='true'] { color: #fff; border-color: var(--response-color); background: var(--response-color); }
 .raid-signup .raid-signup-responses .button[aria-pressed='true'] { outline: 2px solid var(--response-color); outline-offset: 2px; }

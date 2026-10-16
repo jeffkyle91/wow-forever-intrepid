@@ -1,9 +1,11 @@
 import { lootArt, trophyArt } from '../../shared/art'
 import type { TabDefinition } from '../../shared/tabs/types'
-import { filterAwards, filterPriorities } from './filters'
+import { filterAwards } from './filters'
 import { HistoryTab } from './HistoryTab'
+import { PrioritiesFooter } from './PrioritiesFooter'
 import { PrioritiesHeadingActions } from './PrioritiesHeadingActions'
 import { PrioritiesTab } from './PrioritiesTab'
+import { PrioritiesToolbar } from './PrioritiesToolbar'
 
 export const prioritiesTab = {
   id: 'priorities',
@@ -14,8 +16,9 @@ export const prioritiesTab = {
   search: { placeholder: 'Find item or player...' },
   navCount: (ctx) => ctx.data.priorities.length,
   recordCount: (ctx) => `${ctx.data.priorities.length} records`,
-  footer: (ctx) => <>Showing <strong>{filterPriorities(ctx.data.priorities, ctx.query).length}</strong> of <strong>{ctx.data.priorities.length}</strong></>,
+  footer: (ctx) => <PrioritiesFooter ctx={ctx} />,
   HeadingActions: PrioritiesHeadingActions,
+  Toolbar: PrioritiesToolbar,
   Content: PrioritiesTab,
 } as const satisfies TabDefinition
 

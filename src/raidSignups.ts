@@ -5,7 +5,7 @@ export const signupStatuses = ['accept', 'tentative', 'absent', 'late', 'bench']
 export type SignupStatus = typeof signupStatuses[number]
 export type RaidSignup = { id: string; characterId: string; status: SignupStatus; benchKind?: 'self' }
 export const signupLabels: Record<SignupStatus, string> = {
-  accept: 'Accept', tentative: 'Tentative', absent: 'Absent', late: 'Late', bench: 'Bench (self)',
+  accept: 'Accept', tentative: 'Tentative', absent: 'Absent', late: 'Late', bench: 'Bench (voluntary)',
 }
 
 function signupsCollection(raidId: string) {

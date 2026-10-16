@@ -2,7 +2,17 @@
 .raid-signup p, .raid-signup h3, .raid-signup h4 { margin: 0; line-height: 1.5; }
 .raid-signup > button { justify-self: start; }
 .raid-signup [role='alert'] { color: #a02f2f; }
-.raid-signup-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.raid-signup-form { display: grid; gap: 12px; }
+.raid-signup-responses { display: flex; flex-wrap: wrap; gap: 8px; }
+.raid-signup-responses [data-response='accept'] { --response-color: #166534; }
+.raid-signup-responses [data-response='tentative'] { --response-color: #854d0e; }
+.raid-signup-responses [data-response='absent'] { --response-color: #991b1b; }
+.raid-signup-responses [data-response='late'] { --response-color: #6b21a8; }
+.raid-signup-responses [data-response='bench'] { --response-color: #475569; }
+.raid-signup .raid-signup-responses .button:hover:not(:disabled),
+.raid-signup .raid-signup-responses .button[aria-pressed='true'] { color: #fff; border-color: var(--response-color); background: var(--response-color); }
+.raid-signup .raid-signup-responses .button[aria-pressed='true'] { outline: 2px solid var(--response-color); outline-offset: 2px; }
+.raid-signup .raid-signup-responses .button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 .raid-signup-form label { display: grid; gap: 4px; font-weight: 600; }
 .raid-signup-form select { width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 4px; color: inherit; background: var(--surface, #fff); font: inherit; }
 .raid-signup-group { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line); }

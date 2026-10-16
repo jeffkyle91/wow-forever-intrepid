@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { raidStartDate } from '../src/shared/lib/raidStart.ts'
-import { raidPreviewGroups, signupCharacters } from '../src/shared/raids/roster.ts'
+import { canViewRaidTeam, raidSignupTeam, signupCharacters } from '../src/shared/raids/roster.ts'
 import { defaultGuildSettings } from '../src/shared/game/settings.ts'
-import type { PlayerRecord, RaidRecord } from '../src/guildApi.ts'
+import type { PlayerRecord } from '../src/guildApi.ts'
+import type { RaidSignup } from '../src/raidSignups.ts'
 
 describe('Eastern raid start instants', () => {
   for (const [date, time, expected] of [
@@ -41,21 +42,41 @@ describe('sign-up character choices', () => {
     assert.deepEqual(signupCharacters(roster, 'test-other-member'), [])
   })
 })
-const raid: RaidRecord = { id: 'test-raid', date: '2026-12-09', name: 'Test Raid', size: 20, createdBy: 'test-leader' }
-describe('zone sizes automatically include the corresponding groups', () => {
-  for (const [size, expected] of [[10, ['blue', 'yellow', 'red', 'white']], [20, ['green', 'pink']], [40, ['brown']]] as const) {
-    test(`${size}-player includes every corresponding group`, () => {
-      assert.deepEqual(raidPreviewGroups({ ...raid, size }, defaultGuildSettings).map((group) => group.key), expected)
+describe('signed-up character team preview', () => {
+  const roster = [
+    character('main', { linkedUid: 'test-member' }),
+    character('alt', { mainId: 'main' }),
+    character('teammate'),
+    character('other-team'),
+    character('unassigned'),
+  ]
+  const assignments = { main: 'blue', alt: 'yellow', teammate: 'yellow', 'other-team': 'red' } as const
+  const signup: RaidSignup = { id: 'test-member', characterId: 'alt', status: 'accept' }
+  for (const status of ['accept', 'tentative', 'late', 'absent', 'bench'] as const) {
+    test(`${status} ${['absent', 'bench'].includes(status) ? 'hides' : 'allows'} team preview`, () => {
+      const response = { ...signup, status }
+      const expected = !['absent', 'bench'].includes(status)
+      assert.equal(canViewRaidTeam(response), expected)
+      assert.equal(Boolean(raidSignupTeam(response, roster, assignments, defaultGuildSettings)), expected)
     })
   }
-  test('mixed zones include each required group once and respect customized names', () => {
-    const groups = raidPreviewGroups({ ...raid, zones: [
-      { id: 'zone-a', name: 'Zone A', size: 10 }, { id: 'zone-b', name: 'Zone B', size: 20 },
-      { id: 'zone-c', name: 'Zone C', size: 10 }, { id: 'zone-d', name: 'Zone D', size: 40 },
-    ] }, { ...defaultGuildSettings, teamNames: { ...defaultGuildSettings.teamNames, blue: 'Azure' } })
-    assert.equal(groups.length, 7)
-    assert.equal(groups[0].name, 'Azure')
-    assert.deepEqual(groups.find((group) => group.key === 'green')?.parts, ['blue', 'yellow'])
-    assert.deepEqual(groups.find((group) => group.key === 'brown')?.parts, ['blue', 'yellow', 'red', 'white'])
+  test('no saved response cannot preview', () => {
+    assert.equal(canViewRaidTeam(undefined), false)
+    assert.equal(raidSignupTeam(undefined, roster, assignments, defaultGuildSettings), undefined)
+  })
+  test("shows only the saved character's 10-player team, respecting its custom name", () => {
+    const team = raidSignupTeam(signup, roster, assignments, {
+      ...defaultGuildSettings, teamNames: { ...defaultGuildSettings.teamNames, yellow: 'Gold' },
+    })
+    assert.equal(team?.key, 'yellow')
+    assert.equal(team?.name, 'Gold')
+    assert.deepEqual(team?.players.map((player) => player.id), ['alt', 'teammate'])
+  })
+  test("unassigned alt does not inherit the main's team", () => {
+    assert.equal(raidSignupTeam(signup, roster, { main: 'blue' }, defaultGuildSettings), undefined)
+  })
+  test('preview follows live assignments', () => {
+    const team = raidSignupTeam(signup, roster, { ...assignments, alt: 'red' }, defaultGuildSettings)
+    assert.deepEqual(team?.players.map((player) => player.id), ['alt', 'other-team'])
   })
 })

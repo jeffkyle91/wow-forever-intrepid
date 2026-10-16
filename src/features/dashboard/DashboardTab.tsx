@@ -81,7 +81,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
 
     <Panel icon={<CalendarDays size={15} />} title="Upcoming raids">
       {raidList.length ? <ul className="dash-list">{raidList.map(({ raid, unavailable }) => <li key={raid.id}>
-        <span><strong>{raid.name}</strong><small>{dateLabel(raid.date)} · {formatRaidTime(raidTimeOf(raid))} · {raid.size}-player{isRaidCancelled(raid) && raid.cancelReason ? ` · ${raid.cancelReason}` : ''}</small>{raid.description && <small>{raid.description}</small>}<button type="button" className="dash-link" onClick={() => ctx.navigate('afk', raid.id)}>View on calendar</button></span>
+        <span><strong>{raid.name}</strong><small>{dateLabel(raid.date)} · {formatRaidTime(raidTimeOf(raid))} · {raid.zones?.length ? raid.zones.map((zone) => `${zone.name} (${zone.size})`).join(', ') : `${raid.size}-player`}{isRaidCancelled(raid) && raid.cancelReason ? ` · ${raid.cancelReason}` : ''}</small>{raid.description && <small>{raid.description}</small>}<button type="button" className="dash-link" onClick={() => ctx.navigate('afk', raid.id)}>View on calendar</button></span>
         {isRaidCancelled(raid) ? <span className="dash-tag dash-tag-warn">Cancelled</span> : unavailable && <span className="dash-tag dash-tag-warn">You marked unavailable</span>}
       </li>)}</ul> : <p className="dash-muted">No upcoming raids are scheduled.</p>}
       <p className="dash-note">Raid sign-ups are coming. For now, mark dates you cannot raid under Upcoming absences.</p>

@@ -1,6 +1,6 @@
 # Roadmap, decisions and work lanes
 
-Last updated 2026-10-15. This file records what the guild leaders decided, what is being built, and who can work on what in parallel. It does not replace the "Discussed future work" list in the README; it turns it into an order of work. Keep it short and update it when a decision changes.
+Last updated 2026-10-16. This file records what the guild leaders decided, what is being built, and who can work on what in parallel. It does not replace the "Discussed future work" list in the README; it turns it into an order of work. Keep it short and update it when a decision changes.
 
 ## Dates that drive the order
 
@@ -17,6 +17,10 @@ Last updated 2026-10-15. This file records what the guild leaders decided, what 
 | Rules must enforce it | The audit entry is written in the same atomic batch as the change and the rules require it, so a modified browser cannot skip it. Rules tests (`npm run test:rules`) come with the change. |
 | Old local-preview import | Never used. Delete the "Import local data" feature and the Guild Leader exception in the award rule, so there is one validated way to create an award. |
 | Raids | Leaders can edit and cancel upcoming raids and correct the details of past ones (for example who actually showed up). Raids are never hard-deleted, and every change is audited. |
+| Raid teams and scheduled raids | One scheduled raid night can include multiple zones, each with its own 10-, 20-, or 40-player size. The corresponding groups are included automatically: all four 10-player teams, both 20-player groups, or the single 40-player group. Assignments are live until the scheduled start time. A server-side job automatically locks a snapshot of assigned teams and sign-ups at the start; later changes to the Raid Teams tool do not change that raid. Guild and Raid Leaders may make audited changes to the locked raid team while it is in progress. Attendance is recorded against the raid snapshot. |
+| Sign-up character | Members can choose among their linked characters for each raid; the main is selected by default. The selected character inherits its current Raid Teams assignment until the raid starts. |
+| Raid zones | Leaders maintain the zone catalog and each zone's 10-, 20-, or 40-player size in Settings. They select one or more zones when scheduling a raid night; each selected zone snapshots its name and size so later catalog edits do not rewrite scheduled raids. |
+| Raid notifications | Send reminders when a raid is created, 24 hours before, and 1 hour before. Delivery channel and server implementation are to be decided; scheduled server work is required for reliable timing and automatic roster locking. |
 | Leavers | Runbook now (unlink the character, set role Member, disable the Auth user in the Firebase console, do not delete the member doc first). A one-click "Removed" status in Member Access is built before launch. |
 | Loot input | Paste an RCLootCouncil-format export (CSV) with a preview before anything is saved, plus manual entry. The format stays addon-agnostic because the guild may write its own addon. Item names and icons from Wowhead's unofficial tooltip endpoint are optional; manual entry must work without it. Warcraft Logs waits until it supports Forever. |
 | Positional priority and filters | A player listed twice for an item: the first receipt satisfies the first listing, the second the second. Filters: slot, boss, only items with a priority, hide completed, player and class. Both are important. |
@@ -33,7 +37,7 @@ Last updated 2026-10-15. This file records what the guild leaders decided, what 
 ## Open questions
 
 - **Bench counting.** Both kinds of bench were chosen to count as absence, and the two kinds must be told apart. Confirm whether an involuntary bench (the leader asked someone to sit) should also count against that player, or only be recorded.
-- **Alt-only runs.** The exception to "mains first" needs a per-raid flag; confirm the wording and where it is set when raids become editable.
+- **Alt-only runs.** The exception to "mains first" needs a per-raid flag; confirm the wording and where it is set when raid sign-ups are built.
 
 ## Work lanes
 
@@ -42,7 +46,7 @@ The point of the module layout (see `ARCHITECTURE.md`) is that several people ca
 ### Order of work
 
 - **Before launch (11-04):** roster and organization: Guardian spec, editable role and alt link (done); the raid coverage checklist; the Removed status for leavers (item 7); raid edit and cancel (item 6, done).
-- **Before the first raids (12-09):** loot: audit-first loot (item 3), then roster-picked candidates (item 4), positional priority and filters, and loot import.
+- **Before the first raids (12-09):** complete the raid lifecycle work below and the loot flow: audit-first loot (item 3), roster-picked candidates (item 4), positional priority and filters, and loot import.
 
 ### Lane A: foundation (rules, data model, shared files)
 
@@ -69,21 +73,23 @@ Each is one feature folder plus the one-line registry or wiring change described
 ### Later, after the foundation
 
 - Loot import (CSV paste with preview, manual entry): needs the new award shape and roster ids.
-- Attendance: needs raid edit and cancel (done), roster ids and the alt link.
+- **Raid lifecycle (before first raids, 12-09):** The Guild Leader-managed zone catalog and multi-zone scheduling are implemented. Each scheduled raid snapshots the selected zone names and sizes. Next, add member sign-ups (defaulting to the linked main, with linked-character choice) and connect each zone to its corresponding raid teams. Assignments and sign-ups stay live until start, when server-side work will lock their snapshot; later changes in the Raid Teams tool will not affect that snapshot. Guild and Raid Leaders may make audited team changes during the raid. Add reminders at raid creation, 24 hours before and 1 hour before, then record attendance against the locked snapshot.
+- Attendance: needs raid edit and cancel (done), roster ids, the alt link, and the raid-start snapshot.
 - Readability pass: after screenshots are approved.
 - **Member dashboard.** Stage 1 is built (landing tab in `src/features/dashboard/`); the rest is not started. In order:
   1. Done: read-only landing tab for members with a linked character: characters (main and alts), upcoming raids, raid team, loot priorities and awards. Client-only; reads existing data, no rules change. Members without a linked character get a short "ask a Guild Leader to link your character" note and keep the normal tabs.
      Also done: upcoming absences with an Add absence button (reuses the calendar's `afkEntries`), and a Comments section with Public and Leadership notes (rules `publicComments` and `leaderComments`, tests in `tests/rules/comments.test.ts`). Raider type (Casual or Hardcore, `raiderTypes`, tests in `tests/rules/raider-types.test.ts`) and the attendance placeholder sit in the header. Not built yet: using raider type for raid-spot priority, and showing other people's comments, for example on the roster or a leader Management tab.
   2. Self-service character changes, with rules and tests: a member can request a new alt and change spec and role on their own linked characters, but never the name. A change of class or spec is a request that a Guild Leader approves; whether a role-only change also needs approval is open. Members cannot put themselves on a team.
-  3. Raid sign-ups from the dashboard, sharing one `signups` subcollection with the Discord work so it is designed once. States: Accept, Tentative, Absent, Late, Bench. Bench is recorded as self-benched or leader-benched (for example when a raid is over capacity), which feeds the voluntary and involuntary bench in Attendance.
-  4. Attendance percentage and unavailable dates on the dashboard, then notifications.
+  3. Raid sign-ups from the dashboard, sharing one `signups` subcollection with the Discord work so it is designed once. States: Accept, Tentative, Absent, Late, Bench. Bench is recorded as self-benched or leader-benched (for example when a raid is over capacity), which feeds the voluntary and involuntary bench in Attendance. Members choose a linked character, defaulting to their main; the sign-up and raid-team assignment remain live until start.
+  4. Server-side reminders at raid creation, 24 hours before, and 1 hour before; automatic roster lock and immutable starting snapshot at the scheduled start. A leader can make audited team changes during the raid without changing the start snapshot.
+  5. Attendance percentage and unavailable dates on the dashboard, recorded against the locked roster; reminder delivery is part of the server-side raid work above.
   - Leader Management tabs (for example access requests, pending change requests, raids missing sign-ups, coverage gaps) are added to the same app for the Guild Leader role.
   - Open: whether a role-only change needs approval; whether over-capacity benching is automatic (first come first served) or always a leader decision; how a self-bench counts for attendance (see Open questions).
-- **Discord sign-ups and notifications.** Not started; needs raid edit and cancel (item 6, done) first. In order:
+- **Discord sign-ups and notifications.** Not started; needs raid edit and cancel (item 6, done) first. Discord is a possible delivery channel, but the reminder channel is not yet decided. In order:
   1. A Discord user ID on members, set by a Guild Leader in Member Access, so a sign-up maps to a roster character and its main.
   2. Announcements through a channel webhook (a Cloud Function) when a raid is scheduled, changed or cancelled. One-way.
   3. Sign-up buttons (Accept, Tentative, Decline, and a role or spec choice) on a bot-posted message. Discord calls an HTTPS interactions endpoint (a Cloud Function) that verifies Discord's request signature, writes the sign-up to a `signups` subcollection of the raid, and edits the message to show the current roster. Members can read sign-ups but cannot write them; only the function does, so the Firestore rules stay the authorization boundary.
-  4. Reminders (for example 24 hours and 1 hour before a raid) to people who have not answered, from a scheduled function; attendance rolls up to the main.
+  4. Reminders at raid creation, 24 hours before and 1 hour before, from scheduled server work; attendance rolls up to the main.
   - Needs: the Blaze plan (already planned) for Cloud Functions and Cloud Scheduler; the bot token, the Discord public key and any webhook URL kept in function secrets, never in the repo or the client (the repo is public); a Discord server admin to create the application and invite the bot with narrow permissions (post and edit messages in one channel); server-side role checks in each function.
   - Open: whether sign-ups made in the app should also update the Discord message (two-way), and how a sign-up counts toward the coverage checklist.
 

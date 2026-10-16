@@ -135,12 +135,35 @@ service cloud.firestore {
       return value is string && value.size() >= 1 && value.size() <= 500;
     }
 
+    function validRaidZoneSnapshot(zone) {
+      return zone is map
+        && zone.keys().hasOnly(['id', 'name', 'size'])
+        && zone.keys().hasAll(['id', 'name', 'size'])
+        && zone.id is string && zone.id.size() >= 1 && zone.id.size() <= 100
+        && zone.name is string && zone.name.trim().size() >= 1 && zone.name.size() <= 80
+        && zone.size in [10, 20, 40];
+    }
+
+    function validRaidZones(zones) {
+      return zones is list && zones.size() >= 1 && zones.size() <= 10
+        && validRaidZoneSnapshot(zones[0])
+        && (zones.size() < 2 || validRaidZoneSnapshot(zones[1]))
+        && (zones.size() < 3 || validRaidZoneSnapshot(zones[2]))
+        && (zones.size() < 4 || validRaidZoneSnapshot(zones[3]))
+        && (zones.size() < 5 || validRaidZoneSnapshot(zones[4]))
+        && (zones.size() < 6 || validRaidZoneSnapshot(zones[5]))
+        && (zones.size() < 7 || validRaidZoneSnapshot(zones[6]))
+        && (zones.size() < 8 || validRaidZoneSnapshot(zones[7]))
+        && (zones.size() < 9 || validRaidZoneSnapshot(zones[8]))
+        && (zones.size() < 10 || validRaidZoneSnapshot(zones[9]));
+    }
+
     function validRaidEdit(guildId, raidId) {
       let before = resource.data;
       let after = request.resource.data;
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'raid', raidId, rev);
-      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy', 'updatedAt', 'status', 'cancelReason', 'description', 'time'])
+      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy', 'updatedAt', 'status', 'cancelReason', 'description', 'time', 'zones'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -155,6 +178,7 @@ service cloud.firestore {
         && after.size in [10, 20, 40]
         && (!('description' in after) || validRaidDescription(after.description))
         && (!('time' in after) || validRaidTime(after.time))
+        && (!('zones' in after) || validRaidZones(after.zones))
         && after.get('status', 'scheduled') in ['scheduled', 'cancelled']
         && (!('cancelReason' in after) || (after.cancelReason is string && after.cancelReason.size() <= 300))
         && (after.get('status', 'scheduled') != 'cancelled' || (after.get('cancelReason', null) is string && after.cancelReason.trim().size() >= 1))
@@ -186,7 +210,7 @@ service cloud.firestore {
       let reasonField = raid ? 'cancelReason' : 'removedReason';
       let labelField = raid ? 'name' : 'item';
       let fields = raid
-        ? ['name', 'date', 'time', 'size', 'description', 'status', 'cancelReason']
+        ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason']
         : award
           ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
           : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
@@ -214,6 +238,7 @@ service cloud.firestore {
         && auditFieldLogged(data, oldDoc, newDoc, 'size')
         && auditFieldLogged(data, oldDoc, newDoc, 'cancelReason')
         && auditFieldLogged(data, oldDoc, newDoc, 'description')
+        && (!raid || auditFieldLogged(data, oldDoc, newDoc, 'zones'))
         && auditFieldLogged(data, oldDoc, newDoc, 'time')
         && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
         && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
@@ -337,6 +362,18 @@ service cloud.firestore {
         allow delete: if canManageRaid(guildId);
       }
 
+      match /raidZones/{zoneId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update: if isGuildLeader(guildId)
+          && request.resource.data.keys().hasOnly(['name', 'size'])
+          && request.resource.data.keys().hasAll(['name', 'size'])
+          && request.resource.data.name is string
+          && request.resource.data.name.trim().size() >= 1
+          && request.resource.data.name.size() <= 80
+          && request.resource.data.size in [10, 20, 40];
+        allow delete: if isGuildLeader(guildId);
+      }
+
       match /settings/{settingId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings();
@@ -407,9 +444,10 @@ service cloud.firestore {
       match /raids/{raidId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create: if canManageRaid(guildId)
-          && request.resource.data.keys().hasOnly(['date', 'time', 'name', 'size', 'createdBy', 'createdAt', 'description'])
+          && request.resource.data.keys().hasOnly(['date', 'time', 'name', 'size', 'createdBy', 'createdAt', 'description', 'zones'])
           && (!('description' in request.resource.data) || validRaidDescription(request.resource.data.description))
           && (!('time' in request.resource.data) || validRaidTime(request.resource.data.time))
+          && (!('zones' in request.resource.data) || validRaidZones(request.resource.data.zones))
           && validIsoDate(request.resource.data.date)
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0

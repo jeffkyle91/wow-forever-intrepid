@@ -3,6 +3,7 @@ import { saveGuildSettings, type CouncilStatus, type GuildSettings, type RaidGro
 import { SETTINGS_LABEL_MAX, councilStatuses, defaultGuildSettings, statusTones } from '../../shared/game/settings'
 import { group40, groups20, tenManTeams } from '../../shared/game/teams'
 import type { TabContext } from '../../shared/tabs/types'
+import { RaidZoneCatalog } from './RaidZoneCatalog'
 import './SettingsTab.css'
 
 const allGroups = [...groups20, group40]
@@ -28,7 +29,7 @@ function hasBlank(settings: GuildSettings) {
 export function SettingsTab({ ctx }: { ctx: TabContext }) {
   const saved = ctx.data.settings
   // Restart the draft from what is stored whenever the stored settings change (after a save, or an edit by another leader).
-  return <SettingsForm key={JSON.stringify(saved)} saved={saved} ctx={ctx} />
+  return <><SettingsForm key={JSON.stringify(saved)} saved={saved} ctx={ctx} /><RaidZoneCatalog zones={ctx.data.raidZones} ctx={ctx} /></>
 }
 
 function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext }) {

@@ -100,8 +100,9 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
               <time className="afk-day-number" dateTime={key}>{date.getDate()}</time>
               <div className="afk-day-entries">{dayRaids.map((raid) => {
                 const cancelled = isRaidCancelled(raid)
-                const content = <><span>{raid.name}</span><small>{cancelled ? 'Cancelled' : `${raid.size}-player · ${formatRaidTime(raidTimeOf(raid))}`}</small></>
-                const title = cancelled ? `${raid.name} · cancelled: ${raid.cancelReason ?? ''}` : `${raid.name} · ${raid.size}-player raid · ${formatRaidTime(raidTimeOf(raid))}${raid.description ? `\n${raid.description}` : ''}`
+                const zoneLabel = raid.zones?.length ? raid.zones.map((zone) => `${zone.name} (${zone.size})`).join(', ') : `${raid.size}-player`
+                const content = <><span>{raid.name}</span><small>{cancelled ? 'Cancelled' : `${zoneLabel} · ${formatRaidTime(raidTimeOf(raid))}`}</small></>
+                const title = cancelled ? `${raid.name} · cancelled: ${raid.cancelReason ?? ''}` : `${raid.name} · ${zoneLabel} · ${formatRaidTime(raidTimeOf(raid))}${raid.description ? `\n${raid.description}` : ''}`
                 const className = `raid-calendar-event${cancelled ? ' cancelled' : ''}${raid.id === focusRaidId ? ' focused' : ''}`
                 const focusRef = raid.id === focusRaidId ? (node: HTMLElement | null) => node?.scrollIntoView({ block: 'center' }) : undefined
                 return onEditRaid

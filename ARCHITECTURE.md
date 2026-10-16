@@ -39,7 +39,7 @@ The shell passes each tab one `TabContext`:
 
 | Field | What it is |
 | --- | --- |
-| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `settings`, `members`, `joinRequests`) and `unreadable`, how many documents were skipped because they could not be read |
+| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `raidZones`, `settings`, `members`, `joinRequests`) and `unreadable`, how many documents were skipped because they could not be read |
 | `query` | the current search text |
 | `identity` | `uid`, `displayName`, `canEditRoster`, `canEditRaidData` |
 | `shell` | `raidView` and `setRaidView` (the 10/20/40 selector lives in the shell so it survives tab switches) |

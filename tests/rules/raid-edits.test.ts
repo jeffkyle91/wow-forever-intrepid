@@ -73,6 +73,13 @@ describe('editing a raid', () => {
     assert.equal((await stored(`auditLog/raid_${RAID}_2`))?.item, 'Renamed Raid')
   })
 
+  test('a zone selection is saved with its exact audit snapshot', async () => {
+    const zones = [{ id: 'barrow-deeps', name: 'Barrow Deeps', size: 10 }, { id: 'hyjal-summit', name: 'Hyjal Summit', size: 20 }]
+    await expectAllowed(changeRaid({ changes: { zones } }))
+    assert.deepEqual((await stored(`raids/${RAID}`))?.zones, zones)
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.after, { zones })
+  })
+
   test('a member cannot edit a raid, even with an honest entry', async () => {
     await expectDenied(changeRaid({ who: 'member' }))
     assert.equal((await stored(`raids/${RAID}`))?.name, 'Test Raid')
@@ -89,6 +96,7 @@ describe('editing a raid', () => {
     ['an empty name', { changes: { name: '' } }],
     ['a name of 81 characters', { changes: { name: 'x'.repeat(81) } }],
     ['a size of 25', { changes: { size: 25 } }],
+    ['a malformed zone snapshot', { changes: { zones: [{ id: 'barrow-deeps', name: 'Barrow Deeps', size: 25 }] } }],
     ['a date in the wrong format', { changes: { date: '09/12/2026' } }],
     ['an extra field', { changes: { name: 'Renamed Raid', notes: 'bring flasks' } }],
     ['an entry that lists a field that did not change', { entry: { changed: ['name', 'size'], before: { name: 'Test Raid', size: 20 }, after: { name: 'Renamed Raid', size: 20 } } }],

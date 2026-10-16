@@ -1,6 +1,6 @@
 # Roadmap, decisions and work lanes
 
-Last updated 2026-10-14. This file records what the guild leaders decided, what is being built, and who can work on what in parallel. It does not replace the "Discussed future work" list in the README; it turns it into an order of work. Keep it short and update it when a decision changes.
+Last updated 2026-10-15. This file records what the guild leaders decided, what is being built, and who can work on what in parallel. It does not replace the "Discussed future work" list in the README; it turns it into an order of work. Keep it short and update it when a decision changes.
 
 ## Dates that drive the order
 
@@ -23,6 +23,7 @@ Last updated 2026-10-14. This file records what the guild leaders decided, what 
 | Roles | **Guardian** is a Druid spec (feral tank, defaults to Tank) and **Feral** defaults to Melee. Done. A Guild Leader can set any character's role; the spec only supplies the default (done). Survival Hunter keeps Ranged as its default. |
 | Alts | The roster holds one entry per character. An alt can be linked to a main (done: optional `mainId` on the roster entry, set in the Edit member dialog; the loot and attendance rules below are not built yet). For loot, alts are considered only after all mains, except in a run made up only of alts in 10 or 20 player content (to be recorded per raid). Attendance is per player, so linked alts roll up to the main. |
 | Attendance | Rolling 3 months. Members see their own percentage, leaders see everyone's. Voluntary and involuntary benches are recorded as different things. Open: how each counts (see Open questions). |
+| Discord | Raids are managed in the app; Discord is where people sign up and get notified. The app connects directly to a guild-owned Discord bot through Cloud Functions, with no third-party raid tool. See Discord sign-ups under Later. |
 | License | MIT for the code only. Crest and interface artwork were generated with ChatGPT; spec icons are Blizzard artwork from danetch/wowspecsemojis and stay non-commercial. |
 | Readability | One CSS pass that raises small text sizes and contrast, after the leaders have seen screenshots. |
 | Hosting plan | Move Firebase to Blaze with a small budget alert (the free plan allows 50,000 reads a day). |
@@ -69,6 +70,13 @@ Each is one feature folder plus the one-line registry or wiring change described
 - Loot import (CSV paste with preview, manual entry): needs the new award shape and roster ids.
 - Attendance: needs raid edit and cancel, roster ids and the alt link.
 - Readability pass: after screenshots are approved.
+- **Discord sign-ups and notifications.** Not started; needs raid edit and cancel (item 6) first. In order:
+  1. A Discord user ID on members, set by a Guild Leader in Member Access, so a sign-up maps to a roster character and its main.
+  2. Announcements through a channel webhook (a Cloud Function) when a raid is scheduled, changed or cancelled. One-way.
+  3. Sign-up buttons (Accept, Tentative, Decline, and a role or spec choice) on a bot-posted message. Discord calls an HTTPS interactions endpoint (a Cloud Function) that verifies Discord's request signature, writes the sign-up to a `signups` subcollection of the raid, and edits the message to show the current roster. Members can read sign-ups but cannot write them; only the function does, so the Firestore rules stay the authorization boundary.
+  4. Reminders (for example 24 hours and 1 hour before a raid) to people who have not answered, from a scheduled function; attendance rolls up to the main.
+  - Needs: the Blaze plan (already planned) for Cloud Functions and Cloud Scheduler; the bot token, the Discord public key and any webhook URL kept in function secrets, never in the repo or the client (the repo is public); a Discord server admin to create the application and invite the bot with narrow permissions (post and edit messages in one channel); server-side role checks in each function.
+  - Open: whether sign-ups made in the app should also update the Discord message (two-way), and how a sign-up counts toward the coverage checklist.
 
 ## How to avoid stepping on each other
 

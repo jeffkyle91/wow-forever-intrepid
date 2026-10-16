@@ -8,11 +8,12 @@ Use the Node.js version given in the README.
 
 ```bash
 npm install
+npm ci --prefix functions --ignore-scripts
 cp .env.example .env.local   # then fill in your own Firebase values
 npm run dev
 ```
 
-Use your **own** Firebase project for development: a free (Spark) project with Email/Password sign-in, a Firestore database in production mode, the rules from `firestore.rules`, and your own `VITE_GUILD_ID`. Follow "Firebase project setup" in the README. Never point `.env.local` at the production project, and never commit `.env.local`.
+Prefer `npm run dev:emulator` for local work: Auth, Firestore and Functions run against `demo-intrepid` without billing. For cloud development use your **own** Firebase project with Email/Password sign-in, Firestore, rules, Functions and your own `VITE_GUILD_ID`. Cloud Functions requires the Blaze plan; Spark no longer supports the complete sign-up/availability write flow. Follow "Firebase project setup" in the README. Never point `.env.local` at the production project, and never commit `.env.local`.
 
 Awards and raids cannot be deleted from the app (unavailable dates can only be removed by their owner), so test on your own project and not on the live guild.
 
@@ -45,21 +46,21 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 - `tests/rules/support/client.ts` repeats the multi-document batches from `src/guildApi.ts`. If you change how `approveJoinRequest` or `updateMembershipAccess` build their batches, change the copy too.
 - Use invented names and uids in tests, as everywhere else in this repository.
 - `npm run build` does not compile the tests and `npm run lint` only lints them; `npx tsc -p tests/rules` and `npx tsc -p tests/unit` type-check them (CI does not run that).
-- `npm run test:rules` also runs the pure raid-preview checks in `tests/raid-preview.test.ts` (outside the rules-only TypeScript config). Run those alone without an emulator using `node --test tests/raid-preview.test.ts`.
+- `npm run test:rules` also runs pure raid-preview/availability checks in `tests/raid-preview.test.ts` and server-handler integration checks in `functions/raids.test.js`. Install `functions/` dependencies first. Server tests use the Admin SDK only against the local emulator and test authorization, ownership, inclusive/overlapping ranges, retained Absent after removal, concurrent mutations and idempotent synchronization. Run pure checks alone with `node --test tests/raid-preview.test.ts`.
 
 ## Pull requests
 
 - Keep them small and about one thing. A refactor and a feature are separate PRs.
 - Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
 - A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, tests for it in `tests/rules/`, and a note about deploy order: rules first, then hosting.
-- Deploy only when you are asked to. Hosting and rules are deployed separately, so a rules change must be deployed before the hosting build that depends on it.
+- Deploy only when you are asked to. For this server-side write transition deploy Functions first, then rules, then hosting. Functions requires Blaze billing and Node 24. After the first release a Guild Leader runs Settings > Synchronize raid absences to backfill existing unavailable dates. Old tabs must refresh: direct response/availability writes are now denied.
 - Opening a PR: `gh pr create --fill` (GitHub CLI). The merge is done in GitHub.
-- After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs the rules tests, deploys the Firestore rules (the CLI skips them if unchanged), then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy.
+- After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs server/rules tests, deploys Functions, Firestore rules, then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
 
 ## Rules that protect the guild
 
-- Firestore security rules are the authorization boundary. UI role checks only hide controls.
+- Firestore security rules are the direct-client authorization boundary. Availability and raid-response writes are denied by the rules and go through authenticated server callables that enforce membership, ownership and availability. UI role checks only hide controls; never relax direct-write rules to work around a callable failure.
 - The VIEW AS preview only changes what the UI shows. Do not pass a previewed role to data hooks or write helpers.
 - Award snapshots (candidate order and council note at decision time) are immutable. Do not alter how they are built or stored without discussing it first.
 - Do not imply that local browser data is shared. Only authenticated Firestore data is.

@@ -1,4 +1,4 @@
-// Deploys main to the live Firebase project: checks, build, lint and rules tests, then the Firestore rules, then hosting.
+// Deploys main: checks, build, lint and server/rules tests, then Functions, Firestore rules and hosting.
 //
 //   npm run release              prints the plan and runs the read-only checks; deploys nothing
 //   npm run release -- --deploy  does all of it
@@ -50,7 +50,7 @@ if (env.VITE_FIREBASE_PROJECT_ID !== PROJECT) fail(`the build would use project 
 if (!env.VITE_GUILD_ID) fail('VITE_GUILD_ID is not set for the build. Check .env.local (and .env.production).')
 
 const head = run('git rev-parse --short HEAD', { quiet: true }).out
-console.log(`Release of ${head} to ${PROJECT} (guild ${env.VITE_GUILD_ID}). Steps: build, lint, rules tests, deploy the Firestore rules (the CLI skips them if they have not changed), deploy hosting.`)
+console.log(`Release of ${head} to ${PROJECT} (guild ${env.VITE_GUILD_ID}). Steps: build, lint, server/rules tests, deploy Functions, deploy Firestore rules, deploy hosting. Firebase Functions requires the Blaze plan. After the first release, a Guild Leader must run Settings > Synchronize raid absences.`)
 if (!deploy) {
   console.log('Checks passed. Nothing was built or deployed. Run again with --deploy to release.')
   process.exit(0)
@@ -68,6 +68,7 @@ function step(command) {
 step('npm run build')
 step('npm run lint')
 step('npm run test:rules')
+step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only functions --project ${PROJECT} --non-interactive`)
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only firestore:rules --project ${PROJECT} --non-interactive`)
 rulesDeployed = true
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only hosting --project ${PROJECT} --non-interactive`)

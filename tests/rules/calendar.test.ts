@@ -12,23 +12,16 @@ setUpGuildEmulator()
 
 const CLIENT_TIME = Timestamp.fromDate(new Date('2020-01-01T00:00:00Z'))
 
-// match /afkEntries/{entryId}: create
-// A member, Raid Leader or Guild Leader adds an entry for themselves. The entry may hold exactly userId,
-// displayName, startDate, endDate and createdAt; userId is the caller; displayName is the one in their
-// members doc; createdAt is the server's time; and the dates are YYYY-MM-DD strings with start on or before end.
+// Direct availability writes are closed. Server validation and side effects are tested in functions/raids.test.js.
 describe('adding unavailable dates', () => {
   const add = (data: Record<string, unknown>) => addDoc(guildCollection(dbFor('member'), 'afkEntries'), data)
 
-  test('a valid entry is accepted and stores what was sent', async () => {
-    const ref = await addDoc(guildCollection(dbFor('member'), 'afkEntries'), afkDoc(UID.member))
-    const entry = await stored(`afkEntries/${ref.id}`)
-    assert.equal(entry?.userId, UID.member)
-    assert.equal(entry?.startDate, '2026-12-10')
-    assert.equal(entry?.endDate, '2026-12-12')
+  test('even a valid entry must use the authenticated callable', async () => {
+    await expectDenied(add(afkDoc(UID.member)))
   })
 
-  test('a single day is allowed: the start may equal the end', async () => {
-    await expectAllowed(add(afkDoc(UID.member, { startDate: '2026-12-10', endDate: '2026-12-10' })))
+  test('single-day entries cannot bypass the callable', async () => {
+    await expectDenied(add(afkDoc(UID.member, { startDate: '2026-12-10', endDate: '2026-12-10' })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -66,30 +59,28 @@ describe('adding unavailable dates', () => {
     })
   }
 
-  // KNOWN GAP: dates are checked with a pattern only (four digits, two, two), not as real calendar dates,
-  // and a range has no limit. Entries like these reach the calendar, which has to cope with them.
+  // Invalid dates cannot bypass the callable, which also validates real calendar dates.
   const impossible: [string, string, string][] = [
     ['February 30th', '2026-02-30', '2026-03-01'],
     ['month 13', '2026-13-01', '2026-13-02'],
     ['year 0000 to year 9999', '0000-00-00', '9999-99-99'],
   ]
   for (const [what, startDate, endDate] of impossible) {
-    test(`KNOWN GAP: a range using ${what} is accepted`, async () => {
-      await expectAllowed(add(afkDoc(UID.member, { startDate, endDate })))
+    test(`a direct range using ${what} is refused`, async () => {
+      await expectDenied(add(afkDoc(UID.member, { startDate, endDate })))
     })
   }
 })
 
 // match /afkEntries/{entryId}: update and delete
-// Entries are never edited. Only the person named in the entry can delete it, and only while they are
-// still a member of the guild; a Guild Leader cannot delete someone else's (the matrix checks this per role).
+// Entries are never edited. Removal must go through the callable so Absent persists.
 describe('changing or removing unavailable dates', () => {
   test('an owner cannot edit their own entry, only delete it', async () => {
     const ref = guildDoc(dbFor('member'), 'afkEntries/afk-member')
     await expectDenied(updateDoc(ref, { endDate: '2026-12-30' }), 'editing')
     await expectDenied(setDoc(ref, afkDoc(UID.member, { endDate: '2026-12-30' })), 'replacing')
-    await expectAllowed(deleteDoc(ref), 'deleting')
-    assert.equal(await stored('afkEntries/afk-member'), undefined)
+    await expectDenied(deleteDoc(ref), 'deleting without the callable')
+    assert.equal((await stored('afkEntries/afk-member'))?.userId, UID.member)
   })
 })
 

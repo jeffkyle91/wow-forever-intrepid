@@ -14,10 +14,12 @@ import {
   Timestamp,
   type Firestore,
 } from 'firebase/firestore'
-import { auth, db, guildId } from './firebase'
+import { auth, db, functions, guildId } from './firebase'
+import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
+import { sameRaidZones } from './shared/raids/zoneSnapshots'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
@@ -157,11 +159,19 @@ export async function createAward(data: Omit<AwardRecord, 'id'>) {
 }
 
 export async function createAfkEntry(data: Omit<AfkEntryRecord, 'id' | 'createdAt'>) {
-  await addDoc(guildCollection('afkEntries'), { ...data, createdAt: serverTimestamp() })
+  if (!functions || !auth?.currentUser || data.userId !== auth.currentUser.uid) throw new Error('Sign in as the owner to add unavailable dates.')
+  await httpsCallable(functions, 'addUnavailableDates')({ guildId, startDate: data.startDate, endDate: data.endDate })
 }
 
 export async function deleteAfkEntry(id: string) {
-  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'afkEntries', id))
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to remove unavailable dates.')
+  await httpsCallable(functions, 'removeUnavailableDates')({ guildId, entryId: id })
+}
+
+export async function synchronizeRaidAbsences() {
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to synchronize raid absences.')
+  const result = await httpsCallable<{ guildId: string }, { checkedRaids: number }>(functions, 'synchronizeRaidAbsences', { timeout: 540000 })({ guildId })
+  return result.data.checkedRaids
 }
 
 const commentCollection = (kind: CommentKind) => (kind === 'public' ? 'publicComments' : 'leaderComments')
@@ -244,7 +254,7 @@ export async function updateRaidEvent(raid: RaidRecord, edit: RaidEdit, who: Rai
   const startsAt = Timestamp.fromDate(raidStartDate(edit.date ?? raid.date, edit.time ?? raidTimeOf(raid)))
   if (!raid.startsAt?.isEqual(startsAt)) changes.startsAt = startsAt
   for (const key of ['name', 'date', 'size'] as const) if (edit[key] !== undefined && edit[key] !== raid[key]) changes[key] = edit[key]
-  if (edit.zones !== undefined && JSON.stringify(edit.zones) !== JSON.stringify(raid.zones ?? [])) changes.zones = edit.zones
+  if (edit.zones !== undefined && !sameRaidZones(edit.zones, raid.zones ?? [])) changes.zones = edit.zones
   if (edit.time !== undefined && edit.time !== raidTimeOf(raid)) changes.time = edit.time
   if (edit.description !== undefined) {
     const text = edit.description.trim()

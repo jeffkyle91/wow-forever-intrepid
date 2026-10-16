@@ -88,6 +88,31 @@ describe('editing a raid', () => {
     assert.ok((await stored(`auditLog/raid_${RAID}_1`))?.after.startsAt.isEqual(startsAt))
   })
 
+  test('unchanged zones must not be reported as changed when initializing a raid', async () => {
+    const zones = [{ id: 'test-summit', name: 'Test Summit', size: 20 }, { id: 'test-lair', name: 'Test Lair', size: 40 }]
+    await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
+    const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+    await expectDenied(changeRaid({ changes: { zones: zones.map(({ id, name, size }) => ({ size, name, id })), startsAt } }))
+    await expectAllowed(changeRaid({ changes: { startsAt } }))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.changed, ['startsAt'])
+  })
+
+  for (const count of [2]) {
+    test(`initializing a legacy raid with ${count} selected zones preserves its snapshots`, async () => {
+      const zones = Array.from({ length: count }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: index % 2 ? 40 : 20 }))
+      await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
+      const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+      await expectAllowed(changeRaid({ changes: { startsAt } }))
+      assert.deepEqual((await stored(`raids/${RAID}`))?.zones, zones)
+    })
+    test(`saving a legacy raid with ${count} reordered zone snapshots and a start instant succeeds`, async () => {
+      const zones = Array.from({ length: count }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: index % 2 ? 40 : 20 }))
+      await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
+      const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+      await expectAllowed(changeRaid({ changes: { zones: [...zones].reverse(), startsAt } }))
+    })
+  }
+
   test('rescheduling preserves the server cutoff and its audit truth', async () => {
     const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
     await seed(raidDoc(UID.raidLeader, { startsAt }))

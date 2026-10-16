@@ -1,4 +1,4 @@
-import { CalendarDays, Gem, Shield, Swords, Users } from 'lucide-react'
+import { CalendarDays, ClipboardCheck, Gem, Shield, Swords, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { TenManTeam } from '../../guildApi'
 import { group40, groups20 } from '../../shared/game/teams'
@@ -81,6 +81,14 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <span className="dash-character"><ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
         <RolePill role={character.role} />
       </li>)}</ul>
+    </Panel>
+
+    <Panel icon={<ClipboardCheck size={15} />} title="Raid attendance">
+      <div className="dash-attendance">
+        <strong>--</strong>
+        <small>Rolling 3 months</small>
+      </div>
+      <p className="dash-note">Attendance tracking is coming. Your percentage will appear here.</p>
     </Panel>
   </div>
 }

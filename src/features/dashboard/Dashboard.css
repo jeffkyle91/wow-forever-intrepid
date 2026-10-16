@@ -14,6 +14,9 @@
 .dash-tag-warn { color: #8c5a2a; background: #f8ebdc; }
 .dash-muted, .dash-note { margin: 0; color: #7a8a9a; font-size: 11px; line-height: 1.5; }
 .dash-note { margin-top: 10px; font-style: italic; }
+.dash-attendance { display: flex; align-items: baseline; gap: 10px; }
+.dash-attendance strong { color: #40566b; font: 600 26px/1 var(--display); }
+.dash-attendance small { color: #7a8a9a; font-size: 10px; }
 .dash-empty { display: grid; justify-items: center; gap: 6px; max-width: 520px; margin: 0 auto; padding: 38px 20px; color: #5d7388; text-align: center; }
 .dash-empty h3 { margin: 4px 0 0; color: #3b5065; font: 600 15px/1.3 var(--display); }
 .dash-empty p { margin: 0; font-size: 12px; line-height: 1.55; }
@@ -22,7 +25,8 @@
 :root[data-theme='dark'] .dash-card { background: rgba(30, 44, 62, 0.55); }
 :root[data-theme='dark'] .dash-card h3, :root[data-theme='dark'] .dash-empty h3 { color: #c9d8e6; }
 :root[data-theme='dark'] .dash-card h4, :root[data-theme='dark'] .dash-empty, :root[data-theme='dark'] .dash-muted, :root[data-theme='dark'] .dash-note, :root[data-theme='dark'] .dash-list small { color: #93a6b8; }
-:root[data-theme='dark'] .dash-list strong { color: #dbe6f0; }
+:root[data-theme='dark'] .dash-list strong, :root[data-theme='dark'] .dash-attendance strong { color: #dbe6f0; }
+:root[data-theme='dark'] .dash-attendance small { color: #93a6b8; }
 :root[data-theme='dark'] .dash-tag { color: #bcd6ea; background: #24384e; }
 :root[data-theme='dark'] .dash-tag-warn { color: #f0c9a0; background: #4a3623; }
 

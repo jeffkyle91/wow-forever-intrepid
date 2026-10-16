@@ -1,4 +1,4 @@
-import { Award, CalendarDays, CalendarOff, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
+import { Award, CalendarDays, CalendarOff, CornerDownRight, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, type TenManTeam } from '../../guildApi'
 import { group40, groups20 } from '../../shared/game/teams'
@@ -64,7 +64,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   return <div className="dash-grid">
     <Panel icon={<Swords size={15} />} title="My characters">
       <ul className="dash-list">{characters.map((character, index) => <li key={character.id}>
-        <span className="dash-character"><ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
+        <span className="dash-character">{index > 0 && <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" />}<ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
         <RolePill role={character.role} />
       </li>)}</ul>
     </Panel>

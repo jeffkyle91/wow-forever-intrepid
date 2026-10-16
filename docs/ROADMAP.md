@@ -71,8 +71,8 @@ Each is one feature folder plus the one-line registry or wiring change described
 - Loot import (CSV paste with preview, manual entry): needs the new award shape and roster ids.
 - Attendance: needs raid edit and cancel, roster ids and the alt link.
 - Readability pass: after screenshots are approved.
-- **Member dashboard.** Not started. In order:
-  1. Read-only landing tab for members with a linked character: characters (main and alts), upcoming raids, raid team, loot priorities and awards. Client-only; reads existing data, no rules change. Members without a linked character get a short "ask a Guild Leader to link your character" note and keep the normal tabs.
+- **Member dashboard.** Stage 1 is built (read-only landing tab in `src/features/dashboard/`); the rest is not started. In order:
+  1. Done: read-only landing tab for members with a linked character: characters (main and alts), upcoming raids, raid team, loot priorities and awards. Client-only; reads existing data, no rules change. Members without a linked character get a short "ask a Guild Leader to link your character" note and keep the normal tabs.
   2. Self-service character changes, with rules and tests: a member can request a new alt and change spec and role on their own linked characters, but never the name. A change of class or spec is a request that a Guild Leader approves; whether a role-only change also needs approval is open. Members cannot put themselves on a team.
   3. Raid sign-ups from the dashboard, sharing one `signups` subcollection with the Discord work so it is designed once. States: Accept, Tentative, Absent, Late, Bench. Bench is recorded as self-benched or leader-benched (for example when a raid is over capacity), which feeds the voluntary and involuntary bench in Attendance.
   4. Attendance percentage and unavailable dates on the dashboard, then notifications.

@@ -66,10 +66,10 @@ The Firebase Hosting target serves the Vite production build from `dist` and rew
 
 ```powershell
 npm run build
-npx firebase-tools@latest deploy --only hosting --project intrepid-wow-forever
+npx firebase-tools@15.31.0 deploy --only hosting --project intrepid-wow-forever
 ```
 
-`npm run release` runs this whole sequence from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for.
+`npm run release -- --deploy` runs this whole sequence, plus the rules tests and the rules deploy, from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for. `npm run release` on its own only prints the plan.
 
 The deployed site is [intrepid-wow-forever.web.app](https://intrepid-wow-forever.web.app/). Hosting deployment does not deploy Firestore rules; deploy those separately when the rules change.
 

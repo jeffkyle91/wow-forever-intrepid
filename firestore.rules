@@ -335,6 +335,20 @@ service cloud.firestore {
         allow delete: if userId == request.auth.uid && hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
       }
 
+      // A member's own raider type (casual or hardcore), one document per member (the id is the uid).
+      // Every member can read them; only the owner writes or removes theirs.
+      match /raiderTypes/{userId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update: if userId == request.auth.uid
+          && hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+          && request.resource.data.keys().hasOnly(['userId', 'type', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['userId', 'type', 'updatedAt'])
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.type in ['casual', 'hardcore']
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if userId == request.auth.uid && hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+      }
+
       match /raids/{raidId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create: if canManageRaid(guildId)

@@ -57,6 +57,19 @@ service cloud.firestore {
         || getAfter(memberPath(guildId, previousUid)).data.get('playerId', null) != playerId;
     }
 
+    function validMemberComment(guildId) {
+      let data = request.resource.data;
+      return hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+        && data.keys().hasOnly(['userId', 'displayName', 'text', 'updatedAt'])
+        && data.keys().hasAll(['userId', 'displayName', 'text', 'updatedAt'])
+        && data.userId == request.auth.uid
+        && data.displayName == get(memberPath(guildId, request.auth.uid)).data.displayName
+        && data.text is string
+        && data.text.trim().size() >= 1
+        && data.text.size() <= 300
+        && data.updatedAt == request.time;
+    }
+
     function hasPrioritySnapshot(guildId) {
       let priorityPath = /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(request.resource.data.priorityId);
       return request.resource.data.priorityId is string
@@ -304,6 +317,22 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
           && resource.data.userId == request.auth.uid;
+      }
+
+      // A member's own comment, one document per author (the id is the uid) so each member has one of each
+      // kind to edit. publicComments can be read by every member; leaderComments only by Guild and Raid
+      // Leaders and the author. Only the author writes or deletes, and nobody else, leaders included.
+      match /publicComments/{userId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update: if userId == request.auth.uid && validMemberComment(guildId);
+        allow delete: if userId == request.auth.uid && hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+      }
+
+      match /leaderComments/{userId} {
+        allow read: if canManageRaid(guildId)
+          || (userId == request.auth.uid && hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']));
+        allow create, update: if userId == request.auth.uid && validMemberComment(guildId);
+        allow delete: if userId == request.auth.uid && hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
       }
 
       match /raids/{raidId} {

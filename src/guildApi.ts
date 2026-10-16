@@ -42,13 +42,14 @@ export type RaidRecord = {
   date: string
   name: string
   size: 10 | 20 | 40
+  description?: string
   createdBy: string
   createdAt?: unknown
   rev?: number
   status?: RaidStatus
   cancelReason?: string
 }
-export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'size'>>
+export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'size' | 'description'>>
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
@@ -174,6 +175,7 @@ export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' 
 }
 
 export const RAID_REASON_MAX_LENGTH = 300
+export const RAID_DESCRIPTION_MAX_LENGTH = 500
 export const isRaidCancelled = (raid: Pick<RaidRecord, 'status'>) => raid.status === 'cancelled'
 
 type RaidWho = { uid: string; displayName: string }
@@ -209,6 +211,10 @@ async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown
 export async function updateRaidEvent(raid: RaidRecord, edit: RaidEdit, who: RaidWho) {
   const changes: Record<string, unknown> = {}
   for (const key of ['name', 'date', 'size'] as const) if (edit[key] !== undefined && edit[key] !== raid[key]) changes[key] = edit[key]
+  if (edit.description !== undefined) {
+    const text = edit.description.trim()
+    if (text !== (raid.description ?? '')) changes.description = text || REMOVE_FIELD
+  }
   await writeRaidChange(raid, changes, 'edit', who)
 }
 

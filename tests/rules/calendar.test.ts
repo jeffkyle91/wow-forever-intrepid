@@ -110,6 +110,7 @@ describe('scheduling a raid', () => {
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { name: 'x'.repeat(80) })))
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { description: 'x'.repeat(500) })))
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { time: '21:00' })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { zones: [{ id: 'zone-1', name: 'Barrow Deeps', size: 10 }, { id: 'zone-2', name: 'Hyjal Summit', size: 20 }] })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -126,6 +127,9 @@ describe('scheduling a raid', () => {
     ['a time without a leading zero', raidDoc(UID.raidLeader, { time: '9:00' })],
     ['a time of 24:00', raidDoc(UID.raidLeader, { time: '24:00' })],
     ['a time that is a number', raidDoc(UID.raidLeader, { time: 2100 })],
+    ['a zone without a valid size', raidDoc(UID.raidLeader, { zones: [{ id: 'zone-1', name: 'Barrow Deeps', size: 25 }] })],
+    ['a zone without an id', raidDoc(UID.raidLeader, { zones: [{ name: 'Barrow Deeps', size: 10 }] })],
+    ['an empty zone list', raidDoc(UID.raidLeader, { zones: [] })],
     ['an empty description', raidDoc(UID.raidLeader, { description: '' })],
     ['a createdAt chosen by the client', raidDoc(UID.raidLeader, { createdAt: CLIENT_TIME })],
     ['no createdAt', without(raidDoc(UID.raidLeader), 'createdAt')],

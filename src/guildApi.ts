@@ -37,12 +37,15 @@ export type CommentKind = 'public' | 'leadership'
 export const COMMENT_MAX_LENGTH = 300
 export type RaiderType = 'casual' | 'hardcore'
 export type RaidStatus = 'scheduled' | 'cancelled'
+export type RaidSize = 10 | 20 | 40
+export type RaidZoneRecord = { id: string; name: string; size: RaidSize }
 export type RaidRecord = {
   id: string
   date: string
   time?: string
   name: string
   size: 10 | 20 | 40
+  zones?: RaidZoneRecord[]
   description?: string
   createdBy: string
   createdAt?: unknown
@@ -50,7 +53,7 @@ export type RaidRecord = {
   status?: RaidStatus
   cancelReason?: string
 }
-export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'time' | 'size' | 'description'>>
+export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'time' | 'size' | 'description' | 'zones'>>
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
@@ -123,6 +126,22 @@ export async function setTeamAssignment(playerId: string, team: TenManTeam | nul
   const assignmentRef = doc(requireDb(), 'guilds', guildId, 'teamAssignments', playerId)
   if (team) await setDoc(assignmentRef, { team })
   else await deleteDoc(assignmentRef)
+}
+
+export async function saveRaidZone(zone: Omit<RaidZoneRecord, 'id'>, id: string = crypto.randomUUID()) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'raidZones', id), zone)
+  return id
+}
+
+export async function deleteRaidZone(id: string) {
+  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'raidZones', id))
+}
+
+export function subscribeRaidZones(onData: (zones: RaidZoneRecord[]) => void, onError: (error: Error) => void) {
+  return subscribeGuildCollection<RaidZoneRecord>('raidZones', onData, onError, (id, data) => {
+    if (typeof data.name !== 'string' || ![10, 20, 40].includes(data.size as number)) return null
+    return { id, name: data.name, size: data.size as RaidSize }
+  })
 }
 
 // Guild Leaders only: the rules refuse everyone else, and refuse a document that is not exactly this shape.
@@ -210,7 +229,7 @@ async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown
     item: raid.name,
     changed,
     before: Object.fromEntries(changed.map((key) => [key, current[key] ?? null])),
-    after: Object.fromEntries(changed.map((key) => [key, typeof changes[key] === 'object' ? null : changes[key]])),
+    after: Object.fromEntries(changed.map((key) => [key, changes[key] === REMOVE_FIELD ? null : changes[key]])),
     ...(reason ? { reason } : {}),
   })
   await batch.commit()
@@ -219,6 +238,7 @@ async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown
 export async function updateRaidEvent(raid: RaidRecord, edit: RaidEdit, who: RaidWho) {
   const changes: Record<string, unknown> = {}
   for (const key of ['name', 'date', 'size'] as const) if (edit[key] !== undefined && edit[key] !== raid[key]) changes[key] = edit[key]
+  if (edit.zones !== undefined && JSON.stringify(edit.zones) !== JSON.stringify(raid.zones ?? [])) changes.zones = edit.zones
   if (edit.time !== undefined && edit.time !== raidTimeOf(raid)) changes.time = edit.time
   if (edit.description !== undefined) {
     const text = edit.description.trim()

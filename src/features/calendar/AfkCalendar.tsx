@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
-import type { AfkEntryRecord, PlayerRecord, RaidRecord } from '../../guildApi'
+import { isRaidCancelled, type AfkEntryRecord, type PlayerRecord, type RaidRecord } from '../../guildApi'
 import calendarArt from '../../../Art/icons-split/calendar.png'
 import './AfkCalendar.css'
 
@@ -23,7 +23,7 @@ function displayName(entry: AfkEntryRecord, roster: PlayerRecord[]) {
   return roster.find((player) => player.linkedUid === entry.userId)?.name || entry.displayName
 }
 
-export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd, onRemove }: {
+export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd, onRemove, onEditRaid }: {
   entries: AfkEntryRecord[]
   raids: RaidRecord[]
   roster: PlayerRecord[]
@@ -31,6 +31,7 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
   busy: boolean
   onAdd: (startDate: string, endDate: string) => Promise<boolean>
   onRemove: (entryId: string) => Promise<boolean>
+  onEditRaid?: (raid: RaidRecord) => void
 }) {
   const [visibleMonth, setVisibleMonth] = useState(() => {
     const today = new Date()
@@ -90,14 +91,20 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
             const dayEntries = entries.filter((entry) => entry.startDate <= key && entry.endDate >= key)
             const dayRaids = raids.filter((raid) => raid.date === key)
             const dayLabels = [
-              ...dayRaids.map((raid) => `${raid.name}, ${raid.size}-player raid`),
+              ...dayRaids.map((raid) => isRaidCancelled(raid) ? `${raid.name}, cancelled` : `${raid.name}, ${raid.size}-player raid`),
               ...dayEntries.map((entry) => `${displayName(entry, roster)} unavailable`),
             ]
             return <div className={`afk-day${date.getMonth() === visibleMonth.getMonth() ? '' : ' outside-month'}${key === todayKey ? ' today' : ''}`} role="gridcell" aria-label={`${date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}${dayLabels.length ? `, ${dayLabels.join(', ')}` : ''}`} key={key}>
               <time className="afk-day-number" dateTime={key}>{date.getDate()}</time>
-              <div className="afk-day-entries">{dayRaids.map((raid) => <span className="raid-calendar-event" title={`${raid.name} · ${raid.size}-player raid`} key={raid.id}>
-                <span>{raid.name}</span><small>{raid.size}-player</small>
-              </span>)}{dayEntries.map((entry) => <span className={`afk-calendar-entry${entry.userId === currentUserId ? ' own-entry' : ''}`} title={`${displayName(entry, roster)} unavailable ${formatDate(entry.startDate)}–${formatDate(entry.endDate)}`} key={entry.id}>
+              <div className="afk-day-entries">{dayRaids.map((raid) => {
+                const cancelled = isRaidCancelled(raid)
+                const content = <><span>{raid.name}</span><small>{cancelled ? 'Cancelled' : `${raid.size}-player`}</small></>
+                const title = cancelled ? `${raid.name} · cancelled: ${raid.cancelReason ?? ''}` : `${raid.name} · ${raid.size}-player raid`
+                const className = cancelled ? 'raid-calendar-event cancelled' : 'raid-calendar-event'
+                return onEditRaid
+                  ? <button type="button" className={className} title={`${title} · click to edit`} onClick={() => onEditRaid(raid)} key={raid.id}>{content}</button>
+                  : <span className={className} title={title} key={raid.id}>{content}</span>
+              })}{dayEntries.map((entry) => <span className={`afk-calendar-entry${entry.userId === currentUserId ? ' own-entry' : ''}`} title={`${displayName(entry, roster)} unavailable ${formatDate(entry.startDate)}–${formatDate(entry.endDate)}`} key={entry.id}>
                 <span>{displayName(entry, roster)}</span>
               </span>)}</div>
             </div>

@@ -22,6 +22,15 @@
 .raid-calendar-event { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; padding: 3px 4px; overflow: hidden; border-left: 2px solid #a77c34; border-radius: 2px; color: #695127; background: #f8f1e2; font-size: 8px; line-height: 1.25; }
 .raid-calendar-event span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .raid-calendar-event small { flex: 0 0 auto; color: #8c6b31; font-size: 7px; font-weight: 700; }
+button.raid-calendar-event { width: 100%; border-top: 0; border-right: 0; border-bottom: 0; font-family: inherit; text-align: left; cursor: pointer; }
+button.raid-calendar-event:hover, button.raid-calendar-event:focus-visible { background: #f2e6cc; }
+.raid-calendar-event.cancelled { border-left-color: #b9625a; color: #85463f; background: #f8e9e7; }
+.raid-calendar-event.cancelled > span { text-decoration: line-through; }
+.raid-calendar-event.cancelled small { color: #a1534b; }
+.raid-modal-note { margin: 0; padding: 8px 10px; border-left: 3px solid #b9625a; border-radius: 2px; color: #85463f; background: #f8e9e7; font-size: 12px; }
+.raid-cancel-section { margin-top: 4px; padding-top: 14px; border-top: 1px solid #dce5ee; }
+.raid-cancel-button:not(:disabled) { border-color: #d9a39d; color: #a1403a; }
+.raid-cancel-section label { display: grid; gap: 6px; }
 .afk-calendar-entry { display: block; min-width: 0; padding: 3px 4px; overflow: hidden; border-left: 2px solid #7c9fb8; border-radius: 2px; color: #4f687d; background: #edf4f8; font-size: 8px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .afk-calendar-entry.own-entry { border-left-color: #3c78a5; color: #315d7d; background: #e5f0f7; font-weight: 700; }
 .afk-calendar-entry span { display: block; overflow: hidden; text-overflow: ellipsis; }
@@ -57,6 +66,12 @@
 :root[data-theme='dark'] .afk-day.outside-month .afk-day-number { color: #78899b; }
 :root[data-theme='dark'] .raid-calendar-event { border-left-color: #d0a351; color: #f0dba8; background: #403828; }
 :root[data-theme='dark'] .raid-calendar-event small { color: #d7ba77; }
+:root[data-theme='dark'] button.raid-calendar-event:hover, :root[data-theme='dark'] button.raid-calendar-event:focus-visible { background: #4c4230; }
+:root[data-theme='dark'] .raid-calendar-event.cancelled { border-left-color: #d17b72; color: #f0b9b2; background: #3d2a2d; }
+:root[data-theme='dark'] .raid-calendar-event.cancelled small { color: #e09d96; }
+:root[data-theme='dark'] .raid-modal-note { border-left-color: #d17b72; color: #f0b9b2; background: #3d2a2d; }
+:root[data-theme='dark'] .raid-cancel-section { border-top-color: #34465c; }
+:root[data-theme='dark'] .raid-cancel-button:not(:disabled) { border-color: #7a4a47; color: #f0a79f; }
 :root[data-theme='dark'] .afk-calendar-entry { border-left-color: #7097b3; color: #c1d5e4; background: #263b50; }
 :root[data-theme='dark'] .afk-calendar-entry.own-entry { border-left-color: #82b9dc; color: #d5eafa; background: #2b4860; }
 :root[data-theme='dark'] .afk-calendar-sidebar { border-color: #34465c; }

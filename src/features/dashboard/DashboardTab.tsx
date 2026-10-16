@@ -69,6 +69,16 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
       </li>)}</ul>
     </Panel>
 
+    <Panel icon={<Users size={15} />} title="My raid team">
+      <ul className="dash-list">{characters.map((character) => {
+        const team = assignments[character.id]
+        return <li key={character.id}>
+          <span><strong>{character.name}</strong><small>{team ? `${teamName(team)} team` : 'Not assigned to a team'}</small></span>
+          {team && <span className="dash-tag">{groupLabel(team)}</span>}
+        </li>
+      })}</ul>
+    </Panel>
+
     <Panel icon={<CalendarDays size={15} />} title="Upcoming raids">
       {raidList.length ? <ul className="dash-list">{raidList.map(({ raid, unavailable }) => <li key={raid.id}>
         <span><strong>{raid.name}</strong><small>{dateLabel(raid.date)} · {raid.size}-player</small></span>
@@ -82,16 +92,6 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <span><strong>{entry.startDate === entry.endDate ? dateLabel(entry.startDate) : `${dateLabel(entry.startDate)} – ${dateLabel(entry.endDate)}`}</strong></span>
         <button className="dash-icon-button" aria-label="Remove absence" title="Remove absence" disabled={ctx.feedback.busy} onClick={() => removeAbsence(entry.id)}><Trash2 size={14} /></button>
       </li>)}</ul> : <p className="dash-muted">No upcoming absences.</p>}
-    </Panel>
-
-    <Panel icon={<Users size={15} />} title="My raid team">
-      <ul className="dash-list">{characters.map((character) => {
-        const team = assignments[character.id]
-        return <li key={character.id}>
-          <span><strong>{character.name}</strong><small>{team ? `${teamName(team)} team` : 'Not assigned to a team'}</small></span>
-          {team && <span className="dash-tag">{groupLabel(team)}</span>}
-        </li>
-      })}</ul>
     </Panel>
 
     <Panel icon={<Gem size={15} />} title="My loot priorities">

@@ -29,6 +29,7 @@ jobs:
       - run: npm ci --prefix functions --ignore-scripts
       - run: npm run lint
       - run: npm run build
+      - run: npm run test:unit
 
   rules:
     name: Firestore rules tests

@@ -7,6 +7,7 @@ How the code is organized, and how to add to it without stepping on each other. 
 ```text
 tests/
   rules/                       Firestore rules tests, run on the emulator (npm run test:rules)
+  unit/                        Tests of pure functions, run by Node directly (npm run test:unit)
 src/
   main.tsx, index.css          entry point and design tokens
   App.tsx                      composition root: shared state, hooks, and the layout of the shell

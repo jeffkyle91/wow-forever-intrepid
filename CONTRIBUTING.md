@@ -22,11 +22,12 @@ Awards and raids cannot be deleted from the app (unavailable dates can only be r
 ```bash
 npm run build
 npm run lint
+npm run test:unit
 ```
 
 If you changed `firestore.rules`, also run `npm run test:rules` (see "Testing the Firestore rules" below).
 
-Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. Automated checks cover the Firestore rules and pure raid-preview helpers, not the rendered UI, so say in the PR what you checked in the app.
+Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. Automated checks cover the Firestore rules, the pure raid-preview helpers and the pure functions in `tests/unit/` (`npm run test:unit`, run directly by Node, no emulator), not the rendered UI, so say in the PR what you checked in the app.
 
 ## Testing the Firestore rules
 
@@ -44,7 +45,7 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 - Tests named "KNOWN GAP" record what the rules do today even though it is arguably wrong or weak. They are not approvals. When a rules change closes a gap, that test fails: flip it to expect a refusal and remove the label.
 - `tests/rules/support/client.ts` repeats the multi-document batches from `src/guildApi.ts`. If you change how `approveJoinRequest` or `updateMembershipAccess` build their batches, change the copy too.
 - Use invented names and uids in tests, as everywhere else in this repository.
-- `npm run build` does not compile the tests and `npm run lint` only lints them; `npx tsc -p tests/rules` type-checks them (CI does not run that).
+- `npm run build` does not compile the tests and `npm run lint` only lints them; `npx tsc -p tests/rules` and `npx tsc -p tests/unit` type-check them (CI does not run that).
 - `npm run test:rules` also runs pure raid-preview/availability checks in `tests/raid-preview.test.ts` and server-handler integration checks in `functions/raids.test.js`. Install `functions/` dependencies first. Server tests use the Admin SDK only against the local emulator and test authorization, ownership, inclusive/overlapping ranges, retained Absent after removal, concurrent mutations and idempotent synchronization. Run pure checks alone with `node --test tests/raid-preview.test.ts`.
 
 ## Pull requests

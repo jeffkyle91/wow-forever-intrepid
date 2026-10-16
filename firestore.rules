@@ -126,12 +126,16 @@ service cloud.firestore {
     // A raid edit or cancellation is accepted only together with its audit entry (type 'raid'), like an award edit.
     // A cancelled raid stays on the calendar with status 'cancelled' and a reason; it can be put back to
     // 'scheduled', which clears the reason. Raids made before this change have no rev or status (scheduled).
+    function validRaidDescription(value) {
+      return value is string && value.size() >= 1 && value.size() <= 500;
+    }
+
     function validRaidEdit(guildId, raidId) {
       let before = resource.data;
       let after = request.resource.data;
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'raid', raidId, rev);
-      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy', 'updatedAt', 'status', 'cancelReason'])
+      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy',       'updatedAt', 'status', 'cancelReason', 'description'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -144,6 +148,7 @@ service cloud.firestore {
         && validIsoDate(after.date)
         && after.name is string && after.name.size() >= 1 && after.name.size() <= 80
         && after.size in [10, 20, 40]
+        && (!('description' in after) || validRaidDescription(after.description))
         && after.get('status', 'scheduled') in ['scheduled', 'cancelled']
         && (!('cancelReason' in after) || (after.cancelReason is string && after.cancelReason.size() <= 300))
         && (after.get('status', 'scheduled') != 'cancelled' || (after.get('cancelReason', null) is string && after.cancelReason.trim().size() >= 1))
@@ -175,7 +180,7 @@ service cloud.firestore {
       let reasonField = raid ? 'cancelReason' : 'removedReason';
       let labelField = raid ? 'name' : 'item';
       let fields = raid
-        ? ['name', 'date', 'size', 'status', 'cancelReason']
+        ? [        'name', 'date', 'size', 'description', 'status', 'cancelReason']
         : award
           ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
           : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
@@ -202,6 +207,7 @@ service cloud.firestore {
         && auditFieldLogged(data, oldDoc, newDoc, 'date')
         && auditFieldLogged(data, oldDoc, newDoc, 'size')
         && auditFieldLogged(data, oldDoc, newDoc, 'cancelReason')
+        && auditFieldLogged(data, oldDoc, newDoc, 'description')
         && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
         && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
         && (data.action != ending || data.get('reason', '') == newDoc.get(reasonField, ''))
@@ -394,8 +400,9 @@ service cloud.firestore {
       match /raids/{raidId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create: if canManageRaid(guildId)
-          && request.resource.data.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt'])
-          && validIsoDate(request.resource.data.date)
+          && request.resource.data.keys().          hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'description'])
+                    && (!('description' in request.resource.data) || validRaidDescription(request.resource.data.description))
+                    && validIsoDate(request.resource.data.date)
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 80

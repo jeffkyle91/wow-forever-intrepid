@@ -116,6 +116,40 @@ describe('editing a raid', () => {
   })
 })
 
+describe('a raid description', () => {
+  test('can be added, changed and cleared, each with an entry', async () => {
+    await expectAllowed(changeRaid({ changes: { description: 'Bring flasks.' } }))
+    assert.equal((await stored(`raids/${RAID}`))?.description, 'Bring flasks.')
+    await expectAllowed(changeRaid({ changes: { description: 'x'.repeat(500) } }))
+    await expectAllowed(changeRaid({ changes: { description: deleteField() } }))
+    const raid = await stored(`raids/${RAID}`)
+    assert.equal(raid?.description, undefined)
+    assert.equal(raid?.rev, 3)
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_3`))?.changed, ['description'])
+  })
+
+  test('is kept when the raid is cancelled', async () => {
+    await seed(raidDoc(UID.raidLeader, { rev: 1, description: 'Bring flasks.', updatedBy: UID.raidLeader, updatedAt: new Date('2026-12-01T00:00:00Z') }))
+    await expectAllowed(changeRaid({ action: 'cancel', changes: { status: 'cancelled', cancelReason: 'Tank unavailable' } }))
+    assert.equal((await stored(`raids/${RAID}`))?.description, 'Bring flasks.')
+  })
+
+  const refused: [string, Change][] = [
+    ['a description of 501 characters', { changes: { description: 'x'.repeat(501) } }],
+    ['an empty description', { changes: { description: '' } }],
+    ['a description that is a number', { changes: { description: 7 } }],
+    ['a description change by a member', { who: 'member', changes: { description: 'Hi' } }],
+    ['a description change the entry does not list', { changes: { description: 'Hi' }, entry: { changed: ['name'], before: { name: 'Test Raid' }, after: { name: 'Renamed Raid' } } }],
+    ['a description change with a wrong after value', { changes: { description: 'Hi' }, entry: { after: { description: 'Other' } } }],
+  ]
+  for (const [what, change] of refused) {
+    test(`${what} is refused`, async () => {
+      await expectDenied(changeRaid(change))
+      assert.equal((await stored(`raids/${RAID}`))?.description, undefined)
+    })
+  }
+})
+
 describe('cancelling a raid', () => {
   const cancel = (overrides: Change = {}) => changeRaid({ action: 'cancel', changes: { status: 'cancelled', cancelReason: 'Tank unavailable' }, ...overrides })
 

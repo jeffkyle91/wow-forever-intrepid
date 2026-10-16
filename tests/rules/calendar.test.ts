@@ -108,6 +108,7 @@ describe('scheduling a raid', () => {
 
   test('a name of exactly 80 characters is accepted', async () => {
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { name: 'x'.repeat(80) })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { description: 'x'.repeat(500) })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -120,6 +121,8 @@ describe('scheduling a raid', () => {
     ['a date in the wrong format', raidDoc(UID.raidLeader, { date: '09/12/2026' })],
     ['a createdBy that is someone else', raidDoc(UID.guildLeader)],
     ['an extra field', raidDoc(UID.raidLeader, { notes: 'bring flasks' })],
+    ['a description of 501 characters', raidDoc(UID.raidLeader, { description: 'x'.repeat(501) })],
+    ['an empty description', raidDoc(UID.raidLeader, { description: '' })],
     ['a createdAt chosen by the client', raidDoc(UID.raidLeader, { createdAt: CLIENT_TIME })],
     ['no createdAt', without(raidDoc(UID.raidLeader), 'createdAt')],
   ]

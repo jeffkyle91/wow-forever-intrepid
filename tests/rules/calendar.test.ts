@@ -136,10 +136,11 @@ describe('scheduling a raid', () => {
 })
 
 // match /raids/{raidId}: update and delete
-// Always false: a raid cannot be edited or removed from the client, even by the leader who scheduled it.
-describe('raids cannot be changed once scheduled', () => {
+// A raid is never deleted. Editing and cancelling are covered in raid-edits.test.ts; here only that the
+// creator cannot change it without the audit entry that goes with every edit.
+describe('raids cannot be changed without an audit entry, or deleted', () => {
   for (const who of ['raidLeader', 'guildLeader'] as const) {
-    test(`the creator (${who}) cannot edit or delete their own raid`, async () => {
+    test(`the creator (${who}) cannot edit their own raid on its own, or delete it`, async () => {
       const db = dbFor(who)
       const ref = await addDoc(guildCollection(db, 'raids'), raidDoc(UID[who]))
       await expectDenied(updateDoc(ref, { name: 'Renamed' }), 'editing')

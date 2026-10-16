@@ -123,6 +123,33 @@ service cloud.firestore {
         && (after.get('status', 'active') != 'removed' || (after.get('removedReason', null) is string && after.removedReason.trim().size() >= 1));
     }
 
+    // A raid edit or cancellation is accepted only together with its audit entry (type 'raid'), like an award edit.
+    // A cancelled raid stays on the calendar with status 'cancelled' and a reason; it can be put back to
+    // 'scheduled', which clears the reason. Raids made before this change have no rev or status (scheduled).
+    function validRaidEdit(guildId, raidId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let rev = before.get('rev', 0) + 1;
+      let entryPath = auditEntryPath(guildId, 'raid', raidId, rev);
+      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy', 'updatedAt', 'status', 'cancelReason'])
+        && before.get('rev', 0) is int
+        && after.rev is int
+        && after.rev == rev
+        && getAfter(entryPath).data.targetType == 'raid'
+        && getAfter(entryPath).data.targetId == raidId
+        && unchanged(before, after, 'createdBy')
+        && unchanged(before, after, 'createdAt')
+        && after.updatedBy == request.auth.uid
+        && after.updatedAt == request.time
+        && validIsoDate(after.date)
+        && after.name is string && after.name.size() >= 1 && after.name.size() <= 80
+        && after.size in [10, 20, 40]
+        && after.get('status', 'scheduled') in ['scheduled', 'cancelled']
+        && (!('cancelReason' in after) || (after.cancelReason is string && after.cancelReason.size() <= 300))
+        && (after.get('status', 'scheduled') != 'cancelled' || (after.get('cancelReason', null) is string && after.cancelReason.trim().size() >= 1))
+        && (after.get('status', 'scheduled') != 'scheduled' || !('cancelReason' in after));
+    }
+
     // get() and getAfter() of a document that is not there are errors, and an error denies the request. So the
     // checks below that read the target (or the entry) also prove it exists, and are not repeated as exists() calls:
     // every lookup counts against the limit of 20 per batch.
@@ -140,9 +167,18 @@ service cloud.firestore {
     // and after the batch (a created document has no "before", a deleted one no "after"), with their old and new values.
     function auditDescribesChange(data, oldDoc, newDoc) {
       let award = data.targetType == 'award';
-      let fields = award
-        ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
-        : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
+      let raid = data.targetType == 'raid';
+      // What the entry's action, status and reason are called for this target: an award is removed, a raid cancelled.
+      let ending = raid ? 'cancel' : 'remove';
+      let endStatus = raid ? 'cancelled' : 'removed';
+      let startStatus = raid ? 'scheduled' : 'active';
+      let reasonField = raid ? 'cancelReason' : 'removedReason';
+      let labelField = raid ? 'name' : 'item';
+      let fields = raid
+        ? ['name', 'date', 'size', 'status', 'cancelReason']
+        : award
+          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
+          : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
         && data.changed.toSet() == touched
@@ -162,9 +198,13 @@ service cloud.firestore {
         && auditFieldLogged(data, oldDoc, newDoc, 'councilNoteSnapshot')
         && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
         && auditFieldLogged(data, oldDoc, newDoc, 'councilNote')
-        && data.item == (data.action == 'create' ? newDoc.get('item', '') : oldDoc.get('item', ''))
-        && (data.action == 'remove') == (newDoc.get('status', 'active') == 'removed' && oldDoc.get('status', 'active') != 'removed')
-        && (data.action != 'remove' || data.get('reason', '') == newDoc.get('removedReason', ''))
+        && auditFieldLogged(data, oldDoc, newDoc, 'name')
+        && auditFieldLogged(data, oldDoc, newDoc, 'date')
+        && auditFieldLogged(data, oldDoc, newDoc, 'size')
+        && auditFieldLogged(data, oldDoc, newDoc, 'cancelReason')
+        && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
+        && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
+        && (data.action != ending || data.get('reason', '') == newDoc.get(reasonField, ''))
         && (data.action != 'reorder' || data.changed == ['rankedPlayers']);
     }
 
@@ -172,25 +212,27 @@ service cloud.firestore {
       let data = request.resource.data;
       let targetPath = data.targetType == 'award'
         ? /databases/$(database)/documents/guilds/$(guildId)/awards/$(data.targetId)
-        : /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(data.targetId);
+        : data.targetType == 'raid'
+          ? /databases/$(database)/documents/guilds/$(guildId)/raids/$(data.targetId)
+          : /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(data.targetId);
       return data.keys().hasOnly(['at', 'by', 'byName', 'targetType', 'targetId', 'rev', 'action', 'item', 'changed', 'before', 'after', 'reason'])
         && data.keys().hasAll(['at', 'by', 'byName', 'targetType', 'targetId', 'rev', 'action', 'item', 'changed'])
         && data.at == request.time
         && data.by == request.auth.uid
         && data.byName is string && data.byName.size() <= 100
         && data.byName == get(memberPath(guildId, request.auth.uid)).data.get('displayName', '')
-        && data.targetType in ['award', 'priority']
+        && data.targetType in ['award', 'priority', 'raid']
         && data.targetId is string && data.targetId.matches('^[A-Za-z0-9_-]{1,100}$')
         && data.rev is int && data.rev >= 1
         && entryId == data.targetType + '_' + data.targetId + '_' + string(data.rev)
-        && data.action in ['create', 'edit', 'remove', 'reorder', 'delete']
-        && (data.targetType == 'priority' || data.action in ['create', 'edit', 'remove'])
+        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
+        && (data.targetType != 'award' || data.action in ['create', 'edit', 'remove'])
         && data.item is string && data.item.size() <= 120
         && data.changed is list && data.changed.size() <= 20
         && (!('before' in data) || data.before is map)
         && (!('after' in data) || data.after is map)
         && (!('reason' in data) || (data.reason is string && data.reason.size() <= 300))
-        && (data.action != 'remove' || ('reason' in data && data.reason.trim().size() >= 1))
+        && (!(data.action in ['remove', 'cancel']) || ('reason' in data && data.reason.trim().size() >= 1))
         && (data.action == 'create'
           ? data.rev == 1 && !exists(targetPath) && getAfter(targetPath).data.get('rev', 0) is int && getAfter(targetPath).data.get('rev', 0) == 1
             && (data.targetType != 'award' || getAfter(targetPath).data.get('createdBy', data.by) == data.by)
@@ -360,7 +402,8 @@ service cloud.firestore {
           && request.resource.data.size in [10, 20, 40]
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdAt == request.time;
-        allow update, delete: if false;
+        allow update: if canManageRaid(guildId) && validRaidEdit(guildId, raidId);
+        allow delete: if false;
       }
 
       match /joinRequests/{userId} {

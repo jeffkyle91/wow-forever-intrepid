@@ -36,7 +36,19 @@ export type AfkEntryRecord = { id: string; userId: string; displayName: string; 
 export type CommentKind = 'public' | 'leadership'
 export const COMMENT_MAX_LENGTH = 300
 export type RaiderType = 'casual' | 'hardcore'
-export type RaidRecord = { id: string; date: string; name: string; size: 10 | 20 | 40; createdBy: string; createdAt?: unknown }
+export type RaidStatus = 'scheduled' | 'cancelled'
+export type RaidRecord = {
+  id: string
+  date: string
+  name: string
+  size: 10 | 20 | 40
+  createdBy: string
+  createdAt?: unknown
+  rev?: number
+  status?: RaidStatus
+  cancelReason?: string
+}
+export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'size'>>
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
@@ -159,6 +171,57 @@ export async function saveMyRaiderType(uid: string, type: RaiderType) {
 
 export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {
   await addDoc(guildCollection('raids'), { ...data, createdBy: uid, createdAt: serverTimestamp() })
+}
+
+export const RAID_REASON_MAX_LENGTH = 300
+export const isRaidCancelled = (raid: Pick<RaidRecord, 'status'>) => raid.status === 'cancelled'
+
+type RaidWho = { uid: string; displayName: string }
+const REMOVE_FIELD = deleteField()
+
+// Every raid change is one batch: the raid update and its audit entry (raid_{id}_{rev}). The rules accept
+// neither without the other, and check that the entry tells the truth about what changed.
+async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown>, action: 'edit' | 'cancel', who: RaidWho, reason?: string) {
+  const database = requireDb()
+  const rev = (raid.rev ?? 0) + 1
+  const current = raid as unknown as Record<string, unknown>
+  const changed = Object.keys(changes).filter((key) => (changes[key] === REMOVE_FIELD ? current[key] !== undefined : changes[key] !== current[key]))
+  if (!changed.length) throw new Error('Nothing was changed.')
+  const batch = writeBatch(database)
+  batch.update(doc(database, 'guilds', guildId, 'raids', raid.id), { ...changes, rev, updatedBy: who.uid, updatedAt: serverTimestamp() })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `raid_${raid.id}_${rev}`), {
+    at: serverTimestamp(),
+    by: who.uid,
+    byName: who.displayName,
+    targetType: 'raid',
+    targetId: raid.id,
+    rev,
+    action,
+    item: raid.name,
+    changed,
+    before: Object.fromEntries(changed.map((key) => [key, current[key] ?? null])),
+    after: Object.fromEntries(changed.map((key) => [key, typeof changes[key] === 'object' ? null : changes[key]])),
+    ...(reason ? { reason } : {}),
+  })
+  await batch.commit()
+}
+
+export async function updateRaidEvent(raid: RaidRecord, edit: RaidEdit, who: RaidWho) {
+  const changes: Record<string, unknown> = {}
+  for (const key of ['name', 'date', 'size'] as const) if (edit[key] !== undefined && edit[key] !== raid[key]) changes[key] = edit[key]
+  await writeRaidChange(raid, changes, 'edit', who)
+}
+
+export async function cancelRaidEvent(raid: RaidRecord, reason: string, who: RaidWho) {
+  const text = reason.trim()
+  if (!text) throw new Error('Enter a reason for cancelling the raid.')
+  if (isRaidCancelled(raid)) throw new Error('This raid is already cancelled.')
+  await writeRaidChange(raid, { status: 'cancelled', cancelReason: text }, 'cancel', who, text)
+}
+
+export async function restoreRaidEvent(raid: RaidRecord, who: RaidWho) {
+  if (!isRaidCancelled(raid)) throw new Error('This raid is not cancelled.')
+  await writeRaidChange(raid, { status: 'scheduled', cancelReason: REMOVE_FIELD }, 'edit', who)
 }
 
 export async function updateMembershipRole(uid: string, role: GuildRole) {

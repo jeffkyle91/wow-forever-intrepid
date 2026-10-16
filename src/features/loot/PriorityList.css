@@ -1,0 +1,7 @@
+.received-tag { display: inline-flex; align-items: center; gap: 3px; color: #5f8a6d; font-size: 7px; font-weight: 700; letter-spacing: .5px; }
+.complete-tag { margin-left: 6px; color: #5f8a6d; font-size: 7px; font-weight: 700; letter-spacing: .5px; }
+.priority-ranking li.listing-received .ranked-name { color: #98a39a; text-decoration: line-through; }
+.priority-ranking li.listing-received .rank-number { opacity: .6; }
+:root[data-theme='dark'] .received-tag,
+:root[data-theme='dark'] .complete-tag { color: #8fc9a3; }
+:root[data-theme='dark'] .priority-ranking li.listing-received .ranked-name { color: #7f8fa1; }

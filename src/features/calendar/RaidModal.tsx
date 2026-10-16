@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { DEFAULT_RAID_TIME, RAID_DESCRIPTION_MAX_LENGTH, createRaidEvent, type RaidRecord } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
+import { TimePicker } from './TimePicker'
 
 export function RaidModal({ date: defaultDate, close, live }: { date: string; close: () => void; live: TabContext }) {
   const { setBusy, setMutationError, setNotice } = live.feedback
@@ -35,8 +36,8 @@ export function RaidModal({ date: defaultDate, close, live }: { date: string; cl
 
   return <Modal title="Add Raid" onClose={close}><form className="modal-form" onSubmit={saveRaid}>
     <label>Raid name<input name="name" placeholder="e.g. Karazhan" maxLength={80} required autoFocus /></label>
-    <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={defaultDate} required /></label><label>Start time (ET)<input name="time" type="time" defaultValue={DEFAULT_RAID_TIME} required /></label></div>
-    <div className="form-grid"><label>Raid size<select name="size" defaultValue="10"><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
+    <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={defaultDate} required /></label><label>Raid size<select name="size" defaultValue="10"><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
+    <div className="time-picker-field"><span>Start time (ET)</span><TimePicker name="time" defaultValue={DEFAULT_RAID_TIME} /></div>
     <label>Description (optional)<textarea name="description" rows={3} maxLength={RAID_DESCRIPTION_MAX_LENGTH} placeholder="e.g. Bring flasks. Summons at 7:45 pm." /></label>
     <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close}>Cancel</button><button className="button button-primary" disabled={live.feedback.busy}><Plus size={15} /> Add Raid</button></div>
   </form></Modal>

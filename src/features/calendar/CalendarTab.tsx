@@ -42,5 +42,5 @@ export function CalendarTab({ ctx }: { ctx: TabContext }) {
     ? (raid: RaidRecord) => ctx.openModal(({ close, live }) => <EditRaidModal raidId={raid.id} close={close} live={live} />)
     : undefined
 
-  return <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={ctx.identity.uid} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} onEditRaid={openRaid} />
+  return <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={ctx.identity.uid} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} onEditRaid={openRaid} focusRaidId={ctx.navParam} />
 }

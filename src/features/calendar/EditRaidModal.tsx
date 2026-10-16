@@ -3,6 +3,7 @@ import { Ban, RotateCcw, Save } from 'lucide-react'
 import { RAID_DESCRIPTION_MAX_LENGTH, RAID_REASON_MAX_LENGTH, cancelRaidEvent, isRaidCancelled, raidTimeOf, restoreRaidEvent, updateRaidEvent, type RaidRecord } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
+import { TimePicker } from './TimePicker'
 
 export function EditRaidModal({ raidId, close, live }: { raidId: string; close: () => void; live: TabContext }) {
   const { busy, setBusy, setMutationError, setNotice } = live.feedback
@@ -47,8 +48,8 @@ export function EditRaidModal({ raidId, close, live }: { raidId: string; close: 
     <form className="modal-form" onSubmit={saveRaid}>
       {cancelled && <p className="raid-modal-note"><strong>Cancelled:</strong> {raid.cancelReason}</p>}
       <label>Raid name<input name="name" defaultValue={raid.name} maxLength={80} required autoFocus /></label>
-      <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={raid.date} required /></label><label>Start time (ET)<input name="time" type="time" defaultValue={raidTimeOf(raid)} required /></label></div>
-      <div className="form-grid"><label>Raid size<select name="size" defaultValue={String(raid.size)}><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
+      <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={raid.date} required /></label><label>Raid size<select name="size" defaultValue={String(raid.size)}><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
+      <div className="time-picker-field"><span>Start time (ET)</span><TimePicker name="time" defaultValue={raidTimeOf(raid)} /></div>
       <label>Description (optional)<textarea name="description" rows={3} defaultValue={raid.description ?? ''} maxLength={RAID_DESCRIPTION_MAX_LENGTH} /></label>
       <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close}>Close</button><button className="button button-primary" disabled={busy}><Save size={15} /> Save changes</button></div>
     </form>

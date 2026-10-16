@@ -27,6 +27,19 @@ button.raid-calendar-event:hover, button.raid-calendar-event:focus-visible { bac
 .raid-calendar-event.cancelled { border-left-color: #b9625a; color: #85463f; background: #f8e9e7; }
 .raid-calendar-event.cancelled > span { text-decoration: line-through; }
 .raid-calendar-event.cancelled small { color: #a1534b; }
+.raid-calendar-event.focused { outline: 2px solid #a77c34; outline-offset: 1px; }
+.time-picker-field { display: grid; gap: 6px; color: #526158; font-size: 10px; font-weight: 700; }
+.time-picker { display: grid; grid-template-columns: repeat(3, 64px); gap: 8px; }
+.time-picker-column { overflow-y: auto; scrollbar-width: thin; border: 1px solid #dfe6dc; border-radius: 4px; background: #fff; }
+.modal-form .time-picker-column button { display: block; width: 100%; padding: 0; border: 0; color: #34463a; background: none; font: inherit; font-size: 12px; cursor: pointer; }
+.modal-form .time-picker-column button:hover { background: #eef3f7; }
+.modal-form .time-picker-column button.selected { color: #fff; background: #4a6a85; font-weight: 700; }
+:root[data-theme='dark'] .time-picker-field { color: #c0cede; }
+:root[data-theme='dark'] .time-picker-column { border-color: #3a4b61; background: #172435; }
+:root[data-theme='dark'] .modal-form .time-picker-column button { color: #e0e8f1; }
+:root[data-theme='dark'] .modal-form .time-picker-column button:hover { background: #24384e; }
+:root[data-theme='dark'] .modal-form .time-picker-column button.selected { color: #fff; background: #3f6a94; }
+:root[data-theme='dark'] .raid-calendar-event.focused { outline-color: #d0a351; }
 .raid-modal-note { margin: 0; padding: 8px 10px; border-left: 3px solid #b9625a; border-radius: 2px; color: #85463f; background: #f8e9e7; font-size: 12px; }
 .raid-cancel-section { margin-top: 4px; padding-top: 14px; border-top: 1px solid #dce5ee; }
 .raid-cancel-button:not(:disabled) { border-color: #d9a39d; color: #a1403a; }

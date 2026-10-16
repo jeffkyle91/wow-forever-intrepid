@@ -8,6 +8,8 @@
 .dash-list li > span:first-child { display: grid; gap: 1px; min-width: 0; }
 .dash-list strong { overflow: hidden; color: #40566b; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .dash-list small { overflow: hidden; color: #7a8a9a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.dash-link { justify-self: start; padding: 0; border: 0; color: #4a6a85; background: none; font-size: 10px; font-weight: 600; font-family: inherit; text-decoration: underline; cursor: pointer; }
+.dash-link:hover, .dash-link:focus-visible { color: #2f5273; }
 .dash-list li > span.dash-character:first-child { display: flex; align-items: center; gap: 10px; }
 .dash-character > .alt-link-icon { width: 14px; margin-left: 8px; margin-right: -4px; }
 .dash-character > span { display: grid; gap: 1px; min-width: 0; }
@@ -48,6 +50,7 @@
 :root[data-theme='dark'] .dash-attendance small { color: #93a6b8; }
 :root[data-theme='dark'] .dash-tag { color: #bcd6ea; background: #24384e; }
 :root[data-theme='dark'] .dash-tag-warn { color: #f0c9a0; background: #4a3623; }
+:root[data-theme='dark'] .dash-link { color: #9cc3e3; }
 
 @media (max-width: 900px) { .dash-grid { grid-template-columns: minmax(0, 1fr); } }
 

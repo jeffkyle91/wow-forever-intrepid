@@ -150,6 +150,31 @@ describe('a raid description', () => {
   }
 })
 
+describe('a raid start time', () => {
+  test('can be set and changed, each with an entry', async () => {
+    await expectAllowed(changeRaid({ changes: { time: '19:30' } }))
+    assert.equal((await stored(`raids/${RAID}`))?.time, '19:30')
+    await expectAllowed(changeRaid({ changes: { time: '00:00' } }))
+    await expectAllowed(changeRaid({ changes: { time: '23:59' } }))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_3`))?.changed, ['time'])
+  })
+
+  for (const bad of ['9:00', '24:00', '21:60', '21:00:00', '', 2100, '9pm']) {
+    test(`${JSON.stringify(bad)} is refused`, async () => {
+      await expectDenied(changeRaid({ changes: { time: bad } }))
+      assert.equal((await stored(`raids/${RAID}`))?.time, undefined)
+    })
+  }
+
+  test('a time change by a member is refused', async () => {
+    await expectDenied(changeRaid({ who: 'member', changes: { time: '20:00' } }))
+  })
+
+  test('a time change the entry does not list is refused', async () => {
+    await expectDenied(changeRaid({ changes: { time: '20:00' }, entry: { changed: ['name'], before: { name: 'Test Raid' }, after: { name: 'Renamed Raid' } } }))
+  })
+})
+
 describe('cancelling a raid', () => {
   const cancel = (overrides: Change = {}) => changeRaid({ action: 'cancel', changes: { status: 'cancelled', cancelReason: 'Tank unavailable' }, ...overrides })
 

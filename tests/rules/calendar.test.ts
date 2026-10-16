@@ -94,9 +94,9 @@ describe('changing or removing unavailable dates', () => {
 })
 
 // match /raids/{raidId}: create
-// A Guild Leader or Raid Leader schedules a raid. It may hold exactly date, name, size, createdBy and
-// createdAt; the date is a YYYY-MM-DD string; the name is 1 to 80 characters; the size is 10, 20 or 40;
-// createdBy is the caller; createdAt is the server's time.
+// A Guild Leader or Raid Leader schedules a raid, optionally including a description, time, zones and
+// a UTC startsAt timestamp. The date is YYYY-MM-DD, the name 1 to 80 characters, the size 10, 20 or 40;
+// createdBy is the caller and createdAt is the server's time. Legacy raids can omit startsAt.
 describe('scheduling a raid', () => {
   const schedule = (data: Record<string, unknown>) => addDoc(guildCollection(dbFor('raidLeader'), 'raids'), data)
 
@@ -111,6 +111,7 @@ describe('scheduling a raid', () => {
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { description: 'x'.repeat(500) })))
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { time: '21:00' })))
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { zones: [{ id: 'zone-1', name: 'Barrow Deeps', size: 10 }, { id: 'zone-2', name: 'Hyjal Summit', size: 20 }] })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { startsAt: new Date('2026-12-10T02:00:00Z') })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -127,6 +128,7 @@ describe('scheduling a raid', () => {
     ['a time without a leading zero', raidDoc(UID.raidLeader, { time: '9:00' })],
     ['a time of 24:00', raidDoc(UID.raidLeader, { time: '24:00' })],
     ['a time that is a number', raidDoc(UID.raidLeader, { time: 2100 })],
+    ['a non-timestamp start instant', raidDoc(UID.raidLeader, { startsAt: '2026-12-10T02:00:00Z' })],
     ['a zone without a valid size', raidDoc(UID.raidLeader, { zones: [{ id: 'zone-1', name: 'Barrow Deeps', size: 25 }] })],
     ['a zone without an id', raidDoc(UID.raidLeader, { zones: [{ name: 'Barrow Deeps', size: 10 }] })],
     ['an empty zone list', raidDoc(UID.raidLeader, { zones: [] })],

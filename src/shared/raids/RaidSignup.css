@@ -1,0 +1,13 @@
+.raid-signup { display: grid; gap: 12px; padding: 20px; color: #40566b; font-size: 12px; }
+.raid-signup p, .raid-signup h3, .raid-signup h4 { margin: 0; line-height: 1.5; }
+.raid-signup > button { justify-self: start; }
+.raid-signup [role='alert'] { color: #a02f2f; }
+.raid-signup-form { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.raid-signup-form label { display: grid; gap: 4px; font-weight: 600; }
+.raid-signup-form select { width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 4px; color: inherit; background: var(--surface, #fff); font: inherit; }
+.raid-signup-group { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line); }
+.raid-signup ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.raid-signup li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; }
+:root[data-theme='dark'] .raid-signup { color: #dbe6f0; }
+:root[data-theme='dark'] .raid-signup-form select { background: #18283a; }
+:root[data-theme='dark'] .raid-signup [role='alert'] { color: #f0b4b4; }

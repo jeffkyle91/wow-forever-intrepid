@@ -11,11 +11,13 @@ import {
   setDoc,
   updateDoc,
   writeBatch,
+  Timestamp,
   type Firestore,
 } from 'firebase/firestore'
 import { auth, db, guildId } from './firebase'
 import type { GuildRole } from './security'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
+import { raidStartDate } from './shared/lib/raidStart'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
@@ -43,6 +45,7 @@ export type RaidRecord = {
   id: string
   date: string
   time?: string
+  startsAt?: Timestamp
   name: string
   size: 10 | 20 | 40
   zones?: RaidZoneRecord[]
@@ -191,7 +194,8 @@ export async function saveMyRaiderType(uid: string, type: RaiderType) {
 }
 
 export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {
-  await addDoc(guildCollection('raids'), { ...data, createdBy: uid, createdAt: serverTimestamp() })
+  const startsAt = Timestamp.fromDate(raidStartDate(data.date, raidTimeOf(data)))
+  await addDoc(guildCollection('raids'), { ...data, startsAt, createdBy: uid, createdAt: serverTimestamp() })
 }
 
 export const RAID_REASON_MAX_LENGTH = 300
@@ -237,6 +241,8 @@ async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown
 
 export async function updateRaidEvent(raid: RaidRecord, edit: RaidEdit, who: RaidWho) {
   const changes: Record<string, unknown> = {}
+  const startsAt = Timestamp.fromDate(raidStartDate(edit.date ?? raid.date, edit.time ?? raidTimeOf(raid)))
+  if (!raid.startsAt?.isEqual(startsAt)) changes.startsAt = startsAt
   for (const key of ['name', 'date', 'size'] as const) if (edit[key] !== undefined && edit[key] !== raid[key]) changes[key] = edit[key]
   if (edit.zones !== undefined && JSON.stringify(edit.zones) !== JSON.stringify(raid.zones ?? [])) changes.zones = edit.zones
   if (edit.time !== undefined && edit.time !== raidTimeOf(raid)) changes.time = edit.time

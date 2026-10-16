@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { awardsForPriority, listingProgress, nameKey, recipientChoices } from '../../src/features/loot/completion.ts'
+
+// Every name here is invented: this repository is public.
+const priority = (rankedPlayers: string[], overrides: Partial<{ id: string; item: string }> = {}) => ({ id: 'p1', item: 'Signet of the Deep Earth', rankedPlayers, ...overrides })
+const award = (recipient: string, overrides: Partial<{ priorityId: string; item: string; status: string }> = {}) => ({ priorityId: 'p1', item: 'Signet of the Deep Earth', recipient, ...overrides })
+
+describe('listingProgress', () => {
+  it('has nothing received and the first listing next when there are no awards', () => {
+    const progress = listingProgress(priority(['Morrow', 'Aurelia', 'Vex']), [])
+    assert.deepEqual(progress.received, [false, false, false])
+    assert.equal(progress.next, 0)
+    assert.equal(progress.complete, false)
+  })
+
+  it('marks the receiving player and moves next to the first open listing', () => {
+    const progress = listingProgress(priority(['Morrow', 'Aurelia', 'Vex']), [award('Morrow')])
+    assert.deepEqual(progress.received, [true, false, false])
+    assert.equal(progress.next, 1)
+  })
+
+  it('does not require the receivers to be in order', () => {
+    const progress = listingProgress(priority(['Morrow', 'Aurelia', 'Vex']), [award('Vex')])
+    assert.deepEqual(progress.received, [false, false, true])
+    assert.equal(progress.next, 0)
+  })
+
+  it('satisfies a player listed twice one receipt at a time, first listing first', () => {
+    const list = priority(['Morrow', 'Vex', 'Morrow'])
+    assert.deepEqual(listingProgress(list, [award('Morrow')]).received, [true, false, false])
+    assert.deepEqual(listingProgress(list, [award('Morrow'), award('Morrow')]).received, [true, false, true])
+    assert.deepEqual(listingProgress(list, [award('Morrow'), award('Morrow'), award('Vex')]).complete, true)
+  })
+
+  it('ignores receipts beyond a player\'s listings', () => {
+    const progress = listingProgress(priority(['Morrow', 'Vex']), [award('Morrow'), award('Morrow'), award('Morrow')])
+    assert.deepEqual(progress.received, [true, false])
+  })
+
+  it('ignores awards to players who are not listed', () => {
+    const progress = listingProgress(priority(['Morrow']), [award('Stranger')])
+    assert.deepEqual(progress.received, [false])
+  })
+
+  it('ignores awards of other priorities and of other items', () => {
+    const list = priority(['Morrow'])
+    assert.deepEqual(listingProgress(list, [award('Morrow', { priorityId: 'p2' })]).received, [false])
+    assert.deepEqual(listingProgress(list, [award('Morrow', { priorityId: '', item: 'Another Item' })]).received, [false])
+  })
+
+  it('counts an award with no priority by its item name', () => {
+    const list = priority(['Morrow'])
+    assert.deepEqual(listingProgress(list, [award('Morrow', { priorityId: '', item: '  signet of the DEEP earth ' })]).received, [true])
+  })
+
+  it('stops counting a removed award', () => {
+    const list = priority(['Morrow', 'Morrow'])
+    assert.deepEqual(listingProgress(list, [award('Morrow'), award('Morrow', { status: 'removed' })]).received, [true, false])
+    assert.deepEqual(listingProgress(list, [award('Morrow', { status: 'active' })]).received, [true, false])
+  })
+
+  it('matches names ignoring case and spacing', () => {
+    const progress = listingProgress(priority(['Morrow', 'Vex']), [award('  morrow ')])
+    assert.deepEqual(progress.received, [true, false])
+  })
+
+  it('is complete only when every listing is received', () => {
+    const list = priority(['Morrow', 'Vex'])
+    assert.equal(listingProgress(list, [award('Morrow')]).complete, false)
+    const done = listingProgress(list, [award('Morrow'), award('Vex')])
+    assert.equal(done.complete, true)
+    assert.equal(done.next, -1)
+  })
+
+  it('is never complete with an empty list', () => {
+    const progress = listingProgress(priority([]), [award('Morrow')])
+    assert.equal(progress.complete, false)
+    assert.equal(progress.next, -1)
+  })
+
+  it('does not depend on the order of the awards', () => {
+    const list = priority(['Morrow', 'Vex', 'Morrow'])
+    const one = [award('Vex'), award('Morrow')]
+    assert.deepEqual(listingProgress(list, one).received, listingProgress(list, [...one].reverse()).received)
+  })
+})
+
+describe('awardsForPriority', () => {
+  it('keeps awards recorded from the priority and unlinked awards for the same item', () => {
+    const list = priority(['Morrow'])
+    const mine = award('Morrow')
+    const unlinked = award('Vex', { priorityId: '' })
+    const other = award('Vex', { priorityId: 'p2' })
+    assert.deepEqual(awardsForPriority(list, [mine, unlinked, other]), [mine, unlinked])
+  })
+})
+
+describe('recipientChoices', () => {
+  it('lists a player listed twice once, with how many listings are received', () => {
+    const list = priority(['Morrow', 'Vex', 'morrow'])
+    const choices = recipientChoices(list, listingProgress(list, [award('Morrow')]))
+    assert.deepEqual(choices, [{ name: 'Morrow', listed: 2, received: 1 }, { name: 'Vex', listed: 1, received: 0 }])
+  })
+})
+
+describe('nameKey', () => {
+  it('trims, collapses spaces and ignores case', () => {
+    assert.equal(nameKey('  Dun   Morogh '), 'dun morogh')
+  })
+})

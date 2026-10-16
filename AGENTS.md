@@ -4,7 +4,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Commands
 
-- `npm run build` and `npm run lint` must both pass. If you change `firestore.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests, so check the app by hand in your own Firebase project.
+- `npm run build`, `npm run lint` and `npm run test:unit` must all pass. If you change `firestore.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests (`test:unit` covers pure functions only), so check the app by hand in your own Firebase project.
 - Deploy to Firebase only when you are asked to.
 
 ## Rules that must not be broken

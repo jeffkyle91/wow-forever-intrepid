@@ -3,7 +3,7 @@
 // the calendar with status 'cancelled' and a reason. Guild Leaders and Raid Leaders may do it; nobody else.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { deleteField, serverTimestamp, setDoc, writeBatch, type DocumentData } from 'firebase/firestore'
+import { deleteField, FieldValue, serverTimestamp, setDoc, Timestamp, writeBatch, type DocumentData } from 'firebase/firestore'
 import { UID, displayNameOf, raidDoc } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
 
@@ -33,7 +33,7 @@ async function changeRaid({ who = 'raidLeader', changes = { name: 'Renamed Raid'
   const rev = (current?.rev ?? 0) + 1
   const logged = entryRev ?? rev
   const keys = Object.keys(changes)
-  const after = Object.fromEntries(keys.map((key) => [key, changes[key] instanceof Object && 'isEqual' in changes[key] ? null : changes[key]]))
+  const after = Object.fromEntries(keys.map((key) => [key, changes[key] instanceof FieldValue ? null : changes[key]]))
   const batch = writeBatch(db)
   if (!skipRaid) batch.update(guildDoc(db, `raids/${raid}`), clean({ ...changes, rev, updatedBy: UID[who], updatedAt: serverTimestamp(), ...stamp }))
   if (!skipEntry) {
@@ -78,6 +78,25 @@ describe('editing a raid', () => {
     await expectAllowed(changeRaid({ changes: { zones } }))
     assert.deepEqual((await stored(`raids/${RAID}`))?.zones, zones)
     assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.after, { zones })
+  })
+
+  test('a legacy raid gets an audited start instant', async () => {
+    const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+    await expectAllowed(changeRaid({ changes: { startsAt } }))
+    assert.ok((await stored(`raids/${RAID}`))?.startsAt.isEqual(startsAt))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.before, { startsAt: null })
+    assert.ok((await stored(`auditLog/raid_${RAID}_1`))?.after.startsAt.isEqual(startsAt))
+  })
+
+  test('rescheduling preserves the server cutoff and its audit truth', async () => {
+    const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+    await seed(raidDoc(UID.raidLeader, { startsAt }))
+    await expectDenied(changeRaid({ changes: { date: '2026-12-11' } }))
+    await expectDenied(changeRaid({ changes: { startsAt: deleteField() } }))
+    await expectDenied(changeRaid({ changes: { startsAt: 'not-a-timestamp' } }))
+    const next = Timestamp.fromDate(new Date('2026-12-12T02:00:00Z'))
+    await expectDenied(changeRaid({ changes: { date: '2026-12-11', startsAt: next }, entry: { after: { date: '2026-12-11', startsAt } } }))
+    await expectAllowed(changeRaid({ changes: { date: '2026-12-11', startsAt: next } }))
   })
 
   test('a member cannot edit a raid, even with an honest entry', async () => {

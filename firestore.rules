@@ -163,7 +163,10 @@ service cloud.firestore {
       let after = request.resource.data;
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'raid', raidId, rev);
-      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy', 'updatedAt', 'status', 'cancelReason', 'description', 'time', 'zones'])
+      return after.keys().hasOnly(['date', 'name', 'size', 'createdBy', 'createdAt', 'rev', 'updatedBy', 'updatedAt', 'status', 'cancelReason', 'description', 'time', 'zones', 'startsAt'])
+        && (!('startsAt' in after) || after.startsAt is timestamp)
+        && (!('startsAt' in before) || 'startsAt' in after)
+        && (!('startsAt' in before) || (unchanged(before, after, 'date') && unchanged(before, after, 'time')) || after.startsAt != before.startsAt)
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -210,7 +213,7 @@ service cloud.firestore {
       let reasonField = raid ? 'cancelReason' : 'removedReason';
       let labelField = raid ? 'name' : 'item';
       let fields = raid
-        ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason']
+        ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
           ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
           : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
@@ -220,26 +223,32 @@ service cloud.firestore {
         && data.changed.size() == touched.size()
         && data.get('before', {}).keys().hasOnly(data.changed)
         && data.get('after', {}).keys().hasOnly(data.changed)
-        && auditFieldLogged(data, oldDoc, newDoc, 'item')
-        && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
-        && auditFieldLogged(data, oldDoc, newDoc, 'recipient')
-        && auditFieldLogged(data, oldDoc, newDoc, 'recipientId')
-        && auditFieldLogged(data, oldDoc, newDoc, 'awardedAt')
-        && auditFieldLogged(data, oldDoc, newDoc, 'awardNote')
-        && auditFieldLogged(data, oldDoc, newDoc, 'status')
-        && auditFieldLogged(data, oldDoc, newDoc, 'removedReason')
-        && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
-        && auditFieldLogged(data, oldDoc, newDoc, 'prioritySnapshot')
-        && auditFieldLogged(data, oldDoc, newDoc, 'councilNoteSnapshot')
-        && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
-        && auditFieldLogged(data, oldDoc, newDoc, 'councilNote')
-        && auditFieldLogged(data, oldDoc, newDoc, 'name')
-        && auditFieldLogged(data, oldDoc, newDoc, 'date')
-        && auditFieldLogged(data, oldDoc, newDoc, 'size')
-        && auditFieldLogged(data, oldDoc, newDoc, 'cancelReason')
-        && auditFieldLogged(data, oldDoc, newDoc, 'description')
-        && (!raid || auditFieldLogged(data, oldDoc, newDoc, 'zones'))
-        && auditFieldLogged(data, oldDoc, newDoc, 'time')
+        && (raid
+          ? auditFieldLogged(data, oldDoc, newDoc, 'name')
+            && auditFieldLogged(data, oldDoc, newDoc, 'date')
+            && auditFieldLogged(data, oldDoc, newDoc, 'size')
+            && auditFieldLogged(data, oldDoc, newDoc, 'status')
+            && auditFieldLogged(data, oldDoc, newDoc, 'cancelReason')
+            && auditFieldLogged(data, oldDoc, newDoc, 'description')
+            && auditFieldLogged(data, oldDoc, newDoc, 'zones')
+            && auditFieldLogged(data, oldDoc, newDoc, 'time')
+            && auditFieldLogged(data, oldDoc, newDoc, 'startsAt')
+          : award
+            ? auditFieldLogged(data, oldDoc, newDoc, 'item')
+              && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
+              && auditFieldLogged(data, oldDoc, newDoc, 'recipient')
+              && auditFieldLogged(data, oldDoc, newDoc, 'recipientId')
+              && auditFieldLogged(data, oldDoc, newDoc, 'awardedAt')
+              && auditFieldLogged(data, oldDoc, newDoc, 'awardNote')
+              && auditFieldLogged(data, oldDoc, newDoc, 'status')
+              && auditFieldLogged(data, oldDoc, newDoc, 'removedReason')
+              && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
+              && auditFieldLogged(data, oldDoc, newDoc, 'prioritySnapshot')
+              && auditFieldLogged(data, oldDoc, newDoc, 'councilNoteSnapshot')
+            : auditFieldLogged(data, oldDoc, newDoc, 'item')
+              && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
+              && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
+              && auditFieldLogged(data, oldDoc, newDoc, 'councilNote'))
         && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
         && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
         && (data.action != ending || data.get('reason', '') == newDoc.get(reasonField, ''))
@@ -320,6 +329,31 @@ service cloud.firestore {
 
     function validIsoDate(date) {
       return date is string && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function ownsSignupCharacter(guildId, characterId) {
+      let mainId = get(memberPath(guildId, request.auth.uid)).data.playerId;
+      let main = get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(mainId)).data;
+      let character = get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(characterId)).data;
+      return mainId is string
+        && main.get('mainId', null) == null
+        && main.linkedUid == request.auth.uid
+        && (characterId == mainId || (character.get('mainId', null) == mainId
+          && character.get('linkedUid', null) in [null, request.auth.uid]));
+    }
+
+    function validRaidSignup(guildId, raidId) {
+      let data = request.resource.data;
+      let raid = getAfter(/databases/$(database)/documents/guilds/$(guildId)/raids/$(raidId)).data;
+      return data.keys().hasOnly(['characterId', 'status', 'benchKind', 'updatedAt'])
+        && data.keys().hasAll(['characterId', 'status', 'updatedAt'])
+        && data.characterId is string && data.characterId.size() >= 1 && data.characterId.size() <= 100
+        && data.status in ['accept', 'tentative', 'absent', 'late', 'bench']
+        && (data.status == 'bench' ? data.get('benchKind', '') == 'self' : !('benchKind' in data))
+        && data.updatedAt == request.time
+        && raid.get('status', 'scheduled') == 'scheduled'
+        && raid.startsAt is timestamp && request.time < raid.startsAt
+        && ownsSignupCharacter(guildId, data.characterId);
     }
 
     function validAfkDateRange() {
@@ -444,7 +478,8 @@ service cloud.firestore {
       match /raids/{raidId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create: if canManageRaid(guildId)
-          && request.resource.data.keys().hasOnly(['date', 'time', 'name', 'size', 'createdBy', 'createdAt', 'description', 'zones'])
+          && request.resource.data.keys().hasOnly(['date', 'time', 'name', 'size', 'createdBy', 'createdAt', 'description', 'zones', 'startsAt'])
+          && (!('startsAt' in request.resource.data) || request.resource.data.startsAt is timestamp)
           && (!('description' in request.resource.data) || validRaidDescription(request.resource.data.description))
           && (!('time' in request.resource.data) || validRaidTime(request.resource.data.time))
           && (!('zones' in request.resource.data) || validRaidZones(request.resource.data.zones))
@@ -457,6 +492,13 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time;
         allow update: if canManageRaid(guildId) && validRaidEdit(guildId, raidId);
         allow delete: if false;
+
+        match /signups/{userId} {
+          allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+          allow create, update: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+            && request.auth.uid == userId && validRaidSignup(guildId, raidId);
+          allow delete: if false;
+        }
       }
 
       match /joinRequests/{userId} {

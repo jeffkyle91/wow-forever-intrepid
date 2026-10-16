@@ -99,7 +99,7 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
               <div className="afk-day-entries">{dayRaids.map((raid) => {
                 const cancelled = isRaidCancelled(raid)
                 const content = <><span>{raid.name}</span><small>{cancelled ? 'Cancelled' : `${raid.size}-player`}</small></>
-                const title = cancelled ? `${raid.name} · cancelled: ${raid.cancelReason ?? ''}` : `${raid.name} · ${raid.size}-player raid`
+                const title = cancelled ? `${raid.name} · cancelled: ${raid.cancelReason ?? ''}` : `${raid.name} · ${raid.size}-player raid${raid.description ? `\n${raid.description}` : ''}`
                 const className = cancelled ? 'raid-calendar-event cancelled' : 'raid-calendar-event'
                 return onEditRaid
                   ? <button type="button" className={className} title={`${title} · click to edit`} onClick={() => onEditRaid(raid)} key={raid.id}>{content}</button>

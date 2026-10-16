@@ -1,5 +1,6 @@
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
-import { db, guildId } from './firebase'
+import { collection, onSnapshot } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
+import { auth, db, functions, guildId } from './firebase'
 
 export const signupStatuses = ['accept', 'tentative', 'absent', 'late', 'bench'] as const
 export type SignupStatus = typeof signupStatuses[number]
@@ -31,8 +32,6 @@ export function subscribeRaidSignups(raidId: string, onData: (signups: RaidSignu
 }
 
 export async function saveRaidSignup(raidId: string, uid: string, characterId: string, status: SignupStatus) {
-  if (!uid || !characterId) throw new Error('Choose one of your linked characters.')
-  await setDoc(doc(signupsCollection(raidId), uid), {
-    characterId, status, ...(status === 'bench' ? { benchKind: 'self' } : {}), updatedAt: serverTimestamp(),
-  })
+  if (!functions || !auth?.currentUser || uid !== auth.currentUser.uid || !characterId) throw new Error('Sign in and choose one of your linked characters.')
+  await httpsCallable(functions, 'saveRaidResponse')({ guildId, raidId, characterId, status })
 }

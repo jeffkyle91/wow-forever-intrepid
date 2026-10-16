@@ -331,39 +331,6 @@ service cloud.firestore {
       return date is string && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
     }
 
-    function ownsSignupCharacter(guildId, characterId) {
-      let mainId = get(memberPath(guildId, request.auth.uid)).data.playerId;
-      let main = get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(mainId)).data;
-      let character = get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(characterId)).data;
-      return mainId is string
-        && main.get('mainId', null) == null
-        && main.linkedUid == request.auth.uid
-        && (characterId == mainId || (character.get('mainId', null) == mainId
-          && character.get('linkedUid', null) in [null, request.auth.uid]));
-    }
-
-    function validRaidSignup(guildId, raidId) {
-      let data = request.resource.data;
-      let raid = getAfter(/databases/$(database)/documents/guilds/$(guildId)/raids/$(raidId)).data;
-      return data.keys().hasOnly(['characterId', 'status', 'benchKind', 'updatedAt'])
-        && data.keys().hasAll(['characterId', 'status', 'updatedAt'])
-        && data.characterId is string && data.characterId.size() >= 1 && data.characterId.size() <= 100
-        && data.status in ['accept', 'tentative', 'absent', 'late', 'bench']
-        && (data.status == 'bench' ? data.get('benchKind', '') == 'self' : !('benchKind' in data))
-        && data.updatedAt == request.time
-        && raid.get('status', 'scheduled') == 'scheduled'
-        && raid.startsAt is timestamp && request.time < raid.startsAt
-        && ownsSignupCharacter(guildId, data.characterId);
-    }
-
-    function validAfkDateRange() {
-      let startDate = request.resource.data.startDate;
-      let endDate = request.resource.data.endDate;
-      return validIsoDate(startDate)
-        && validIsoDate(endDate)
-        && startDate <= endDate;
-    }
-
     match /guilds/{guildId} {
       allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
       allow write: if false;
@@ -434,15 +401,8 @@ service cloud.firestore {
 
       match /afkEntries/{entryId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
-          && request.resource.data.keys().hasOnly(['userId', 'displayName', 'startDate', 'endDate', 'createdAt'])
-          && request.resource.data.userId == request.auth.uid
-          && request.resource.data.displayName == get(memberPath(guildId, request.auth.uid)).data.displayName
-          && request.resource.data.createdAt == request.time
-          && validAfkDateRange();
-        allow update: if false;
-        allow delete: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
-          && resource.data.userId == request.auth.uid;
+        // Authenticated callables serialize availability and response changes on the server.
+        allow write: if false;
       }
 
       // A member's own comment, one document per author (the id is the uid) so each member has one of each
@@ -495,9 +455,7 @@ service cloud.firestore {
 
         match /signups/{userId} {
           allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-          allow create, update: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
-            && request.auth.uid == userId && validRaidSignup(guildId, raidId);
-          allow delete: if false;
+          allow write: if false;
         }
       }
 

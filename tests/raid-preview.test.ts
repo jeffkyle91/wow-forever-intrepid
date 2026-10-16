@@ -5,6 +5,8 @@ import { canViewRaidTeam, raidSignupTeam, signupCharacters } from '../src/shared
 import { defaultGuildSettings } from '../src/shared/game/settings.ts'
 import type { PlayerRecord } from '../src/guildApi.ts'
 import type { RaidSignup } from '../src/raidSignups.ts'
+import { effectiveRaidSignups, unavailableOn } from '../src/shared/raids/availability.ts'
+import { sameRaidZones } from '../src/shared/raids/zoneSnapshots.ts'
 
 describe('Eastern raid start instants', () => {
   for (const [date, time, expected] of [
@@ -25,8 +27,40 @@ describe('Eastern raid start instants', () => {
   }
 })
 
-const character = (id: string, extra: Partial<PlayerRecord> = {}): PlayerRecord => ({
-  id, name: id, className: 'Warrior', specialization: 'Arms', role: 'Melee', ...extra,
+function character(id: string, extra: Partial<PlayerRecord> = {}): PlayerRecord {
+  return { id, name: id, className: 'Warrior', specialization: 'Arms', role: 'Melee', ...extra }
+}
+describe('effective unavailable responses', () => {
+  const entries = [{ id: 'absence', userId: 'test-member', displayName: 'Invented Member', startDate: '2090-06-10', endDate: '2090-06-12' }]
+  const roster = [character('main', { linkedUid: 'test-member' }), character('alt', { mainId: 'main' })]
+  test('inclusive ranges affect only their owner and covered dates', () => {
+    for (const date of ['2090-06-10', '2090-06-11', '2090-06-12']) assert.equal(unavailableOn(entries, 'test-member', date), true)
+    for (const date of ['2090-06-09', '2090-06-13']) assert.equal(unavailableOn(entries, 'test-member', date), false)
+    assert.equal(unavailableOn(entries, 'someone-else', '2090-06-11'), false)
+  })
+
+  describe('raid zone snapshot equality', () => {
+    const zones = [{ id: 'test-zone', name: 'Test Zone', size: 20 as const }]
+    test('Firestore map key order does not create a false zone change', () => {
+      assert.equal(sameRaidZones(zones, [{ size: 20, name: 'Test Zone', id: 'test-zone' }]), true)
+    })
+    test('real snapshot changes are detected', () => {
+      assert.equal(sameRaidZones(zones, []), false)
+      assert.equal(sameRaidZones(zones, [{ ...zones[0], id: 'another-zone' }]), false)
+      assert.equal(sameRaidZones(zones, [{ ...zones[0], name: 'Renamed Zone' }]), false)
+      assert.equal(sameRaidZones(zones, [{ ...zones[0], size: 40 }]), false)
+      assert.equal(sameRaidZones([...zones, { ...zones[0], id: 'second' }], [{ ...zones[0], id: 'second' }, ...zones]), false)
+    })
+  })
+  test('an existing alt response is Absent immediately, without mutating the input', () => {
+    const saved: RaidSignup[] = [{ id: 'test-member', characterId: 'alt', status: 'accept' }]
+    assert.deepEqual(effectiveRaidSignups(saved, entries, roster, '2090-06-11'), [{ ...saved[0], status: 'absent' }])
+    assert.equal(saved[0].status, 'accept')
+  })
+  test('no saved response uses the main, not every alt, and does not duplicate overlapping events', () => {
+    assert.deepEqual(effectiveRaidSignups([], [...entries, ...entries], roster, '2090-06-11'), [{ id: 'test-member', characterId: 'main', status: 'absent' }])
+    assert.deepEqual(effectiveRaidSignups([], entries, [], '2090-06-11'), [])
+  })
 })
 describe('sign-up character choices', () => {
   test('main comes first, followed only by owned direct alts', () => {

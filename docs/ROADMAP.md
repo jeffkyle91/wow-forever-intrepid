@@ -24,6 +24,7 @@ Last updated 2026-10-15. This file records what the guild leaders decided, what 
 | Alts | The roster holds one entry per character. An alt can be linked to a main (done: optional `mainId` on the roster entry, set in the Edit member dialog; the loot and attendance rules below are not built yet). For loot, alts are considered only after all mains, except in a run made up only of alts in 10 or 20 player content (to be recorded per raid). Attendance is per player, so linked alts roll up to the main. |
 | Attendance | Rolling 3 months. Members see their own percentage, leaders see everyone's. Voluntary and involuntary benches are recorded as different things. Open: how each counts (see Open questions). |
 | Discord | Raids are managed in the app; Discord is where people sign up and get notified. The app connects directly to a guild-owned Discord bot through Cloud Functions, with no third-party raid tool. See Discord sign-ups under Later. |
+| Member dashboard | A landing tab for signed-in members who have a linked character. It shows their characters (main and alts), raid sign-ups, raid team, loot priorities, loot and upcoming raids, in that order of importance. Members without a linked character still see the app and the tools they see today. Access stays guild members only; nothing is opened to the public. Leaders get extra Management tabs in the same app, not a separate dashboard, and can see what members see. See Member dashboard under Later. |
 | License | MIT for the code only. Crest and interface artwork were generated with ChatGPT; spec icons are Blizzard artwork from danetch/wowspecsemojis and stay non-commercial. |
 | Readability | One CSS pass that raises small text sizes and contrast, after the leaders have seen screenshots. |
 | Hosting plan | Move Firebase to Blaze with a small budget alert (the free plan allows 50,000 reads a day). |
@@ -70,6 +71,13 @@ Each is one feature folder plus the one-line registry or wiring change described
 - Loot import (CSV paste with preview, manual entry): needs the new award shape and roster ids.
 - Attendance: needs raid edit and cancel, roster ids and the alt link.
 - Readability pass: after screenshots are approved.
+- **Member dashboard.** Not started. In order:
+  1. Read-only landing tab for members with a linked character: characters (main and alts), upcoming raids, raid team, loot priorities and awards. Client-only; reads existing data, no rules change. Members without a linked character get a short "ask a Guild Leader to link your character" note and keep the normal tabs.
+  2. Self-service character changes, with rules and tests: a member can request a new alt and change spec and role on their own linked characters, but never the name. A change of class or spec is a request that a Guild Leader approves; whether a role-only change also needs approval is open. Members cannot put themselves on a team.
+  3. Raid sign-ups from the dashboard, sharing one `signups` subcollection with the Discord work so it is designed once. States: Accept, Tentative, Absent, Late, Bench. Bench is recorded as self-benched or leader-benched (for example when a raid is over capacity), which feeds the voluntary and involuntary bench in Attendance.
+  4. Attendance percentage and unavailable dates on the dashboard, then notifications.
+  - Leader Management tabs (for example access requests, pending change requests, raids missing sign-ups, coverage gaps) are added to the same app for the Guild Leader role.
+  - Open: whether a role-only change needs approval; whether over-capacity benching is automatic (first come first served) or always a leader decision; how a self-bench counts for attendance (see Open questions).
 - **Discord sign-ups and notifications.** Not started; needs raid edit and cancel (item 6) first. In order:
   1. A Discord user ID on members, set by a Guild Leader in Member Access, so a sign-up maps to a roster character and its main.
   2. Announcements through a channel webhook (a Cloud Function) when a raid is scheduled, changed or cancelled. One-way.

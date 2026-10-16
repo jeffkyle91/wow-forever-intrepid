@@ -64,9 +64,9 @@ Probe data from two clients in one party. Raw saved-variable files contain chara
 
 Three windows modelled on RCLootCouncil's flow, with the app's priority lists in every row. Layout is a first guess.
 
-1. **Loot session window (loot master; v0).** Lists the dropped items, each with its priority order and received marks, and an Award button. The boss comes from the corpse's NPC id.
-2. **Raider response popup (v1).** A few buttons per item (Need, Upgrade, Off-spec, Pass) and an optional note, plus what the player has equipped in that slot.
-3. **Council voting window (v1).** One tab per item, one row per candidate: player, priority position and how many of their listings are received, response, equipped item, votes and note. Council members get a Vote button, the loot master gets Award.
+1. **Session builder (loot master; v0).** When a boss dies the addon lists the items that dropped (the boss named from the corpse's NPC id). The loot master edits the list (remove items, add items from bags) and starts the session.
+2. **Response popup (every raider with the addon).** Everyone in the raid sees the session; only raiders who can use an item get the buttons (default Best in slot, Upgrade, Off-spec, Pass, configurable) and an optional note. Someone without the addon whispers the loot master, who enters the response (as LootReserve allows).
+3. **Voting window (v1).** Everyone sees it; only council members (the leadership roles plus a rotating group chosen per raid) get a Vote button. One tab per item, one row per candidate: name, guild rank, response, item level and difference, equipped items, priority position and how many of that player's listings are received, attendance, raider type, main or alt, recent receipts, votes (hover shows who voted), notes and roll. A header shows "N out of M have voted" and a countdown (60 seconds by default, configurable). Ties are broken with `/roll`. The loot master awards; Disenchant and Guild bank are also award choices.
 
 Left out: RCLootCouncil's many options, translations, version checks, council settings sync, GDKP-style extras. Voting stays in the game. If addon messages are blocked, window 3 takes votes from whisper or chat commands read by the loot master's addon instead of from the council members' addons.
 

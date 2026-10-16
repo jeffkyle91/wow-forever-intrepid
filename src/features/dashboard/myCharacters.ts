@@ -39,3 +39,7 @@ export function upcomingRaids(raids: RaidRecord[], afkEntries: AfkEntryRecord[],
     .slice(0, limit)
     .map((raid) => ({ raid, unavailable: afkEntries.some((entry) => entry.userId === uid && entry.startDate <= raid.date && raid.date <= entry.endDate) }))
 }
+
+export function myAbsences(afkEntries: AfkEntryRecord[], uid: string, today: string): AfkEntryRecord[] {
+  return afkEntries.filter((entry) => entry.userId === uid && entry.endDate >= today).sort((a, b) => a.startDate.localeCompare(b.startDate))
+}

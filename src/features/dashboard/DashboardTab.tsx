@@ -1,18 +1,21 @@
-import { CalendarDays, ClipboardCheck, Gem, Shield, Swords, Users } from 'lucide-react'
+import { Award, CalendarDays, CalendarOff, ClipboardCheck, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import type { TenManTeam } from '../../guildApi'
+import { deleteAfkEntry, type TenManTeam } from '../../guildApi'
 import { group40, groups20 } from '../../shared/game/teams'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
-import { findMyCharacters, myAwards, myPriorities, upcomingRaids } from './myCharacters'
+import { AbsenceModal } from './AbsenceModal'
+import { CommentsPanel } from './CommentsPanel'
+import { findMyCharacters, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
 import './Dashboard.css'
 
 const dateLabel = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
-function Panel({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
-  return <section className="dash-card"><h3>{icon}{title}</h3>{children}</section>
+function Panel({ icon, title, action, children }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {
+  const heading = <h3>{icon}{title}</h3>
+  return <section className="dash-card">{action ? <div className="dash-card-head">{heading}{action}</div> : heading}{children}</section>
 }
 
 export function DashboardTab({ ctx }: { ctx: TabContext }) {
@@ -37,19 +40,56 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   const raidList = upcomingRaids(raids, afkEntries, ctx.identity.uid, today)
   const prios = myPriorities(priorities, characters)
   const loot = myAwards(awards, characters)
+  const absences = myAbsences(afkEntries, ctx.identity.uid, today)
   const teamName = (team: TenManTeam) => settings.teamNames[team]
   const groupLabel = (team: TenManTeam) => {
     const group = groups20.find((entry) => entry.parts.includes(team))
     return `${group ? `${settings.groupNames[group.key]} (20) · ` : ''}${settings.groupNames[group40.key]} (40)`
   }
 
+  async function removeAbsence(entryId: string) {
+    const { setBusy, setMutationError, setNotice } = ctx.feedback
+    setBusy(true)
+    try {
+      await deleteAfkEntry(entryId)
+      setMutationError('')
+      setNotice('Unavailable dates removed.')
+    } catch (error) {
+      setMutationError(error instanceof Error ? error.message : 'Could not remove unavailable dates.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return <div className="dash-grid">
+    <Panel icon={<Swords size={15} />} title="My characters">
+      <ul className="dash-list">{characters.map((character, index) => <li key={character.id}>
+        <span className="dash-character"><ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
+        <RolePill role={character.role} />
+      </li>)}</ul>
+    </Panel>
+
+    <Panel icon={<ClipboardCheck size={15} />} title="Raid attendance">
+      <div className="dash-attendance">
+        <strong>--</strong>
+        <small>Rolling 3 months</small>
+      </div>
+      <p className="dash-note">Attendance tracking is coming. Your percentage will appear here.</p>
+    </Panel>
+
     <Panel icon={<CalendarDays size={15} />} title="Upcoming raids">
       {raidList.length ? <ul className="dash-list">{raidList.map(({ raid, unavailable }) => <li key={raid.id}>
         <span><strong>{raid.name}</strong><small>{dateLabel(raid.date)} · {raid.size}-player</small></span>
         {unavailable && <span className="dash-tag dash-tag-warn">You marked unavailable</span>}
       </li>)}</ul> : <p className="dash-muted">No upcoming raids are scheduled.</p>}
-      <p className="dash-note">Raid sign-ups are coming. For now, mark dates you cannot raid in the Raid Calendar.</p>
+      <p className="dash-note">Raid sign-ups are coming. For now, mark dates you cannot raid under Upcoming absences.</p>
+    </Panel>
+
+    <Panel icon={<CalendarOff size={15} />} title="Upcoming absences" action={<button className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <AbsenceModal today={today} close={close} live={live} />)}><Plus size={14} /> Add absence</button>}>
+      {absences.length ? <ul className="dash-list">{absences.map((entry) => <li key={entry.id}>
+        <span><strong>{entry.startDate === entry.endDate ? dateLabel(entry.startDate) : `${dateLabel(entry.startDate)} – ${dateLabel(entry.endDate)}`}</strong></span>
+        <button className="dash-icon-button" aria-label="Remove absence" title="Remove absence" disabled={ctx.feedback.busy} onClick={() => removeAbsence(entry.id)}><Trash2 size={14} /></button>
+      </li>)}</ul> : <p className="dash-muted">No upcoming absences.</p>}
     </Panel>
 
     <Panel icon={<Users size={15} />} title="My raid team">
@@ -67,28 +107,17 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <span><strong>{priority.item}</strong><small>{priority.encounter || 'No encounter'} · {character.name}</small></span>
         <span className="dash-tag">#{position}</span>
       </li>)}</ul> : <p className="dash-muted">None of your characters are on a loot priority list yet.</p>}
-      {loot.length > 0 && <>
-        <h4>Loot received</h4>
-        <ul className="dash-list">{loot.slice(0, 5).map((award) => <li key={award.id}>
-          <span><strong>{award.item}</strong><small>{award.encounter || 'No encounter'} · {award.awardedAt}</small></span>
-          <span className="dash-tag">{award.recipient}</span>
-        </li>)}</ul>
-      </>}
     </Panel>
 
-    <Panel icon={<Swords size={15} />} title="My characters">
-      <ul className="dash-list">{characters.map((character, index) => <li key={character.id}>
-        <span className="dash-character"><ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
-        <RolePill role={character.role} />
-      </li>)}</ul>
+    <Panel icon={<Award size={15} />} title="My awarded loot">
+      {loot.length ? <ul className="dash-list">{loot.slice(0, 5).map((award) => <li key={award.id}>
+        <span><strong>{award.item}</strong><small>{award.encounter || 'No encounter'} · {award.awardedAt}</small></span>
+        <span className="dash-tag">{award.recipient}</span>
+      </li>)}</ul> : <p className="dash-muted">No loot has been awarded to your characters yet.</p>}
     </Panel>
 
-    <Panel icon={<ClipboardCheck size={15} />} title="Raid attendance">
-      <div className="dash-attendance">
-        <strong>--</strong>
-        <small>Rolling 3 months</small>
-      </div>
-      <p className="dash-note">Attendance tracking is coming. Your percentage will appear here.</p>
+    <Panel icon={<MessageSquare size={15} />} title="Comments">
+      <CommentsPanel ctx={ctx} />
     </Panel>
   </div>
 }

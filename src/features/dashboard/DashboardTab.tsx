@@ -6,6 +6,7 @@ import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
+import { RaidSignupModal } from '../../shared/raids/RaidSignupModal'
 import { AbsenceModal } from './AbsenceModal'
 import { CommentsPanel } from './CommentsPanel'
 import { findMyCharacters, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
@@ -82,9 +83,10 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
     <Panel icon={<CalendarDays size={15} />} title="Upcoming raids">
       {raidList.length ? <ul className="dash-list">{raidList.map(({ raid, unavailable }) => <li key={raid.id}>
         <span><strong>{raid.name}</strong><small>{dateLabel(raid.date)} · {formatRaidTime(raidTimeOf(raid))} · {raid.zones?.length ? raid.zones.map((zone) => `${zone.name} (${zone.size})`).join(', ') : `${raid.size}-player`}{isRaidCancelled(raid) && raid.cancelReason ? ` · ${raid.cancelReason}` : ''}</small>{raid.description && <small>{raid.description}</small>}<button type="button" className="dash-link" onClick={() => ctx.navigate('afk', raid.id)}>View on calendar</button></span>
+        <button type="button" className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <RaidSignupModal raidId={raid.id} close={close} live={live} />)}>Sign-up / roster</button>
         {isRaidCancelled(raid) ? <span className="dash-tag dash-tag-warn">Cancelled</span> : unavailable && <span className="dash-tag dash-tag-warn">You marked unavailable</span>}
       </li>)}</ul> : <p className="dash-muted">No upcoming raids are scheduled.</p>}
-      <p className="dash-note">Raid sign-ups are coming. For now, mark dates you cannot raid under Upcoming absences.</p>
+      <p className="dash-note">Choose a character and response under Sign-up / roster. Responses close at raid start; unavailable dates do not submit a sign-up.</p>
     </Panel>
 
     <Panel icon={<CalendarOff size={15} />} title="Upcoming absences" action={<button className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <AbsenceModal today={today} close={close} live={live} />)}><Plus size={14} /> Add absence</button>}>

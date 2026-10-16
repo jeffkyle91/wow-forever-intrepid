@@ -1,7 +1,8 @@
 // Seeds the local emulators with a small invented guild and three sign-ins. Run by `npm run dev:emulator`
 // after the emulators start. Every name and address is made up: this repository is public.
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, setDoc } from 'firebase/firestore'
+import { doc, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore'
+import { raidStartDate } from '../src/shared/lib/raidStart.ts'
 
 const PROJECT_ID = 'demo-intrepid'
 const GUILD = 'guild-local'
@@ -29,9 +30,11 @@ await env.withSecurityRulesDisabled(async (context) => {
   const set = (path, data) => setDoc(doc(db, path), data)
   const g = `guilds/${GUILD}`
   await set(g, { name: 'Local Guild' })
+  const uids = {}
   for (const user of USERS) {
     const uid = await createUser(user.email)
-    await set(`${g}/members/${uid}`, { email: user.email, displayName: user.displayName, role: user.role, playerId: null })
+    uids[user.role] = uid
+    await set(`${g}/members/${uid}`, { email: user.email, displayName: user.displayName, role: user.role, playerId: user.role === 'Member' ? 'player-1' : null })
   }
   const roster = [
     ['Aldric', 'Warrior', 'Protection', 'Tank'],
@@ -39,9 +42,21 @@ await env.withSecurityRulesDisabled(async (context) => {
     ['Cormac', 'Mage', 'Fire', 'Ranged'],
     ['Delia', 'Rogue', 'Combat', 'Melee'],
   ]
-  for (const [i, [name, className, specialization, role]] of roster.entries()) await set(`${g}/roster/player-${i + 1}`, { name, className, specialization, role })
+  for (const [i, [name, className, specialization, role]] of roster.entries()) await set(`${g}/roster/player-${i + 1}`, { name, className, specialization, role, ...(i === 0 ? { linkedUid: uids.Member } : {}) })
+  await set(`${g}/roster/player-alt`, { name: 'Elowen', className: 'Druid', specialization: 'Restoration', role: 'Healer', mainId: 'player-1' })
   await set(`${g}/teamAssignments/player-1`, { team: 'blue' })
   await set(`${g}/teamAssignments/player-2`, { team: 'blue' })
+  await set(`${g}/teamAssignments/player-alt`, { team: 'red' })
+  const date = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+  const zones = [{ id: 'zone-a', name: 'Test Deeps', size: 10 }, { id: 'zone-b', name: 'Test Summit', size: 20 }, { id: 'zone-c', name: 'Test Lair', size: 40 }]
+  for (const { id, ...zone } of zones) await set(`${g}/raidZones/${id}`, zone)
+  await set(`${g}/raids/raid-preview`, {
+    name: 'Test raid night', date, time: '21:00', size: 40, zones,
+    startsAt: Timestamp.fromDate(raidStartDate(date, '21:00')), createdBy: uids['Guild Leader'], createdAt: serverTimestamp(),
+  })
+  await set(`${g}/raids/raid-legacy`, {
+    name: 'Test legacy raid', date, size: 20, createdBy: uids['Guild Leader'], createdAt: serverTimestamp(),
+  })
 })
 await env.cleanup()
 console.log(`\nSeeded guild "${GUILD}". Sign in with ${USERS.map((u) => `${u.email} (${u.role})`).join(', ')}; password: ${PASSWORD}\n`)

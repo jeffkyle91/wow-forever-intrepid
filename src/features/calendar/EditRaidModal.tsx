@@ -49,6 +49,7 @@ export function EditRaidModal({ raidId, close, live }: { raidId: string; close: 
 
   return <Modal title="Edit Raid" onClose={close}>
     <form className="modal-form" onSubmit={saveRaid}>
+      {!raid.startsAt && <p className="raid-modal-note">Save this raid once to enable sign-ups with a server-enforced start-time cutoff.</p>}
       {cancelled && <p className="raid-modal-note"><strong>Cancelled:</strong> {raid.cancelReason}</p>}
       <label>Raid night name<input name="name" defaultValue={raid.name} maxLength={80} required autoFocus /></label>
       <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={raid.date} required /></label></div>

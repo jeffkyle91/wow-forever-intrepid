@@ -2,6 +2,7 @@ import { createAfkEntry, deleteAfkEntry, type RaidRecord } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { AfkCalendar } from './AfkCalendar'
 import { EditRaidModal } from './EditRaidModal'
+import { RaidSignupModal } from '../../shared/raids/RaidSignupModal'
 
 export function CalendarTab({ ctx }: { ctx: TabContext }) {
   const { roster, afkEntries, raids } = ctx.data
@@ -38,9 +39,8 @@ export function CalendarTab({ ctx }: { ctx: TabContext }) {
     }
   }
 
-  const openRaid = ctx.identity.canEditRaidData
-    ? (raid: RaidRecord) => ctx.openModal(({ close, live }) => <EditRaidModal raidId={raid.id} close={close} live={live} />)
-    : undefined
+  const openRaid = (raid: RaidRecord) => ctx.openModal(({ close, live }) => <RaidSignupModal raidId={raid.id} close={close} live={live}
+    onEdit={() => live.openModal(({ close, live }) => <EditRaidModal raidId={raid.id} close={close} live={live} />)} />)
 
-  return <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={ctx.identity.uid} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} onEditRaid={openRaid} focusRaidId={ctx.navParam} />
+  return <AfkCalendar entries={afkEntries} raids={raids} roster={roster} currentUserId={ctx.identity.uid} busy={busy} onAdd={addAfkEntry} onRemove={removeAfkEntry} onOpenRaid={openRaid} focusRaidId={ctx.navParam} />
 }

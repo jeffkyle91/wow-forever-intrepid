@@ -7,7 +7,7 @@ export const calendarTab = {
   id: 'afk',
   label: 'Raid Calendar',
   art: calendarArt,
-  hint: 'Share dates when you are unavailable to raid.',
+  hint: 'Share unavailable dates, respond to raids and preview raid teams.',
   panelTitle: 'Raid Calendar',
   navCount: (ctx) => ctx.data.raids.length + ctx.data.afkEntries.length,
   recordCount: (ctx) => `${ctx.data.raids.length} raids · ${ctx.data.afkEntries.length} date ranges`,

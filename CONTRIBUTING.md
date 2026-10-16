@@ -25,7 +25,7 @@ npm run lint
 
 If you changed `firestore.rules`, also run `npm run test:rules` (see "Testing the Firestore rules" below).
 
-Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. The only automated tests cover the Firestore rules, so say in the PR what you checked in the app.
+Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. Automated checks cover the Firestore rules and pure raid-preview helpers, not the rendered UI, so say in the PR what you checked in the app.
 
 ## Testing the Firestore rules
 
@@ -44,6 +44,7 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 - `tests/rules/support/client.ts` repeats the multi-document batches from `src/guildApi.ts`. If you change how `approveJoinRequest` or `updateMembershipAccess` build their batches, change the copy too.
 - Use invented names and uids in tests, as everywhere else in this repository.
 - `npm run build` does not compile the tests and `npm run lint` only lints them; `npx tsc -p tests/rules` type-checks them (CI does not run that).
+- `npm run test:rules` also runs the pure raid-preview checks in `tests/raid-preview.test.ts` (outside the rules-only TypeScript config). Run those alone without an emulator using `node --test tests/raid-preview.test.ts`.
 
 ## Pull requests
 

@@ -39,8 +39,10 @@ export type TabContext = {
   }
   openModal: (render: ModalRenderer) => void
   // Ids are matched as strings: an unknown id is ignored (and logged in development).
-  // Does not clear the search query.
-  navigate: (id: string) => void
+  // Does not clear the search query. The optional param (for example a raid id) is handed to the target tab
+  // as ctx.navParam, until the user picks a tab from the sidebar or navigates again.
+  navigate: (id: string, param?: string) => void
+  navParam?: string
 }
 
 // Rendered by the shell's ModalHost after <main>. Capture whatever is being edited (an award's

@@ -29,6 +29,7 @@ function App() {
   const [selectedTab, setActiveTab] = useState<TabId>(DEFAULT_TAB_ID)
   const [raidView, setRaidView] = useState<RaidView>(10)
   const [query, setQuery] = useState('')
+  const [navParam, setNavParam] = useState<string | undefined>()
   const [modal, setModal] = useState<ActiveModal | null>(null)
   const [impersonatedRole, setImpersonatedRole] = useState<GuildRole | null>(null)
   const [mutationError, setMutationError] = useState('')
@@ -66,10 +67,12 @@ function App() {
     setModal((current) => ({ render, key: (current?.key ?? 0) + 1 }))
   }
 
-  function navigate(id: string) {
+  function navigate(id: string, param?: string) {
     const target = tabList.find((entry) => entry.id === id)
-    if (target) setActiveTab(target.id)
-    else if (import.meta.env.DEV) console.warn(`navigate: unknown tab id "${id}"`)
+    if (target) {
+      setActiveTab(target.id)
+      setNavParam(param)
+    } else if (import.meta.env.DEV) console.warn(`navigate: unknown tab id "${id}"`)
   }
 
   if (session.status !== 'active' || !session.membership) {
@@ -84,11 +87,12 @@ function App() {
     feedback: { busy, setBusy, setMutationError, setNotice },
     openModal,
     navigate,
+    navParam,
   }
 
   return (
     <div className="app-shell">
-      <Sidebar tabs={tabList} activeId={tab.id} effectiveRole={effectiveRole} ctx={ctx} onSelect={(id) => { setActiveTab(id); setQuery('') }} />
+      <Sidebar tabs={tabList} activeId={tab.id} effectiveRole={effectiveRole} ctx={ctx} onSelect={(id) => { setActiveTab(id); setNavParam(undefined); setQuery('') }} />
 
       <main className="main-content" id="top">
         <Topbar title={tab.label} actualRole={actualRole} effectiveRole={effectiveRole} impersonatedRole={impersonatedRole} onImpersonate={setImpersonatedRole} email={session.user?.email ?? ''} displayName={session.membership.displayName} theme={theme} onToggleTheme={() => setTheme((current) => current === 'dark' ? 'light' : 'dark')} />

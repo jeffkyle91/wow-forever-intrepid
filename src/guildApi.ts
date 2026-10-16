@@ -35,6 +35,7 @@ export type AwardRecord = {
 export type AfkEntryRecord = { id: string; userId: string; displayName: string; startDate: string; endDate: string; createdAt?: unknown }
 export type CommentKind = 'public' | 'leadership'
 export const COMMENT_MAX_LENGTH = 300
+export type RaiderType = 'casual' | 'hardcore'
 export type RaidRecord = { id: string; date: string; name: string; size: 10 | 20 | 40; createdBy: string; createdAt?: unknown }
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
@@ -143,6 +144,17 @@ export async function saveMyComment(kind: CommentKind, uid: string, displayName:
 
 export async function deleteMyComment(kind: CommentKind, uid: string) {
   await deleteDoc(doc(requireDb(), 'guilds', guildId, commentCollection(kind), uid))
+}
+
+export function subscribeMyRaiderType(uid: string, onType: (type: RaiderType | null) => void, onError: (error: Error) => void) {
+  return onSnapshot(doc(requireDb(), 'guilds', guildId, 'raiderTypes', uid), (snapshot) => {
+    const type = snapshot.exists() ? snapshot.data().type : null
+    onType(type === 'casual' || type === 'hardcore' ? type : null)
+  }, onError)
+}
+
+export async function saveMyRaiderType(uid: string, type: RaiderType) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'raiderTypes', uid), { userId: uid, type, updatedAt: serverTimestamp() })
 }
 
 export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {

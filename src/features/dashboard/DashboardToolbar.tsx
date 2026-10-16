@@ -8,7 +8,7 @@ const TYPES: { type: RaiderType; label: string; hint: string }[] = [
   { type: 'hardcore', label: 'Hardcore', hint: 'Want to push myself and be more involved.' },
 ]
 
-export function DashboardHeadingActions({ ctx }: { ctx: TabContext }) {
+export function DashboardToolbar({ ctx }: { ctx: TabContext }) {
   const { uid } = ctx.identity
   const { busy, setBusy, setMutationError, setNotice } = ctx.feedback
   const [current, setCurrent] = useState<RaiderType | null>(null)

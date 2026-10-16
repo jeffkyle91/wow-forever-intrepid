@@ -33,6 +33,9 @@ export type AwardRecord = {
   awardNote: string
 }
 export type AfkEntryRecord = { id: string; userId: string; displayName: string; startDate: string; endDate: string; createdAt?: unknown }
+export type CommentKind = 'public' | 'leadership'
+export const COMMENT_MAX_LENGTH = 300
+export type RaiderType = 'casual' | 'hardcore'
 export type RaidRecord = { id: string; date: string; name: string; size: 10 | 20 | 40; createdBy: string; createdAt?: unknown }
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
@@ -123,6 +126,35 @@ export async function createAfkEntry(data: Omit<AfkEntryRecord, 'id' | 'createdA
 
 export async function deleteAfkEntry(id: string) {
   await deleteDoc(doc(requireDb(), 'guilds', guildId, 'afkEntries', id))
+}
+
+const commentCollection = (kind: CommentKind) => (kind === 'public' ? 'publicComments' : 'leaderComments')
+
+// A member's own comment of one kind (one document per author, id = uid). null when there is none.
+export function subscribeMyComment(kind: CommentKind, uid: string, onText: (text: string | null) => void, onError: (error: Error) => void) {
+  return onSnapshot(doc(requireDb(), 'guilds', guildId, commentCollection(kind), uid), (snapshot) => {
+    const text = snapshot.exists() ? snapshot.data().text : null
+    onText(typeof text === 'string' ? text : null)
+  }, onError)
+}
+
+export async function saveMyComment(kind: CommentKind, uid: string, displayName: string, text: string) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, commentCollection(kind), uid), { userId: uid, displayName, text, updatedAt: serverTimestamp() })
+}
+
+export async function deleteMyComment(kind: CommentKind, uid: string) {
+  await deleteDoc(doc(requireDb(), 'guilds', guildId, commentCollection(kind), uid))
+}
+
+export function subscribeMyRaiderType(uid: string, onType: (type: RaiderType | null) => void, onError: (error: Error) => void) {
+  return onSnapshot(doc(requireDb(), 'guilds', guildId, 'raiderTypes', uid), (snapshot) => {
+    const type = snapshot.exists() ? snapshot.data().type : null
+    onType(type === 'casual' || type === 'hardcore' ? type : null)
+  }, onError)
+}
+
+export async function saveMyRaiderType(uid: string, type: RaiderType) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'raiderTypes', uid), { userId: uid, type, updatedAt: serverTimestamp() })
 }
 
 export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {

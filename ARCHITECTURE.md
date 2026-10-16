@@ -5,6 +5,7 @@ How the code is organized, and how to add to it without stepping on each other. 
 ## Layout
 
 ```text
+addon/                         In-game Lua addon work, not part of the web build (see docs/design/loot-addon.md)
 tests/
   rules/                       Firestore rules tests, run on the emulator (npm run test:rules)
   unit/                        Tests of pure functions, run by Node directly (npm run test:unit)

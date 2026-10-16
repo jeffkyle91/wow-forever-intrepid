@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Ban, RotateCcw, Save } from 'lucide-react'
-import { RAID_DESCRIPTION_MAX_LENGTH, RAID_REASON_MAX_LENGTH, cancelRaidEvent, isRaidCancelled, restoreRaidEvent, updateRaidEvent, type RaidRecord } from '../../guildApi'
+import { RAID_DESCRIPTION_MAX_LENGTH, RAID_REASON_MAX_LENGTH, cancelRaidEvent, isRaidCancelled, raidTimeOf, restoreRaidEvent, updateRaidEvent, type RaidRecord } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 
@@ -35,18 +35,20 @@ export function EditRaidModal({ raidId, close, live }: { raidId: string; close: 
     const name = String(data.get('name') ?? '').trim()
     const size = Number(data.get('size'))
     const description = String(data.get('description') ?? '')
-    if (!who.uid || !date || !name || ![10, 20, 40].includes(size)) {
+    const time = String(data.get('time') ?? '')
+    if (!who.uid || !date || !time || !name || ![10, 20, 40].includes(size)) {
       setMutationError('Enter a raid name, date, and a valid raid size.')
       return
     }
-    void run(() => updateRaidEvent(raid as RaidRecord, { date, name, size: size as RaidRecord['size'], description }, who), 'Raid updated.', 'Could not update raid.')
+    void run(() => updateRaidEvent(raid as RaidRecord, { date, time, name, size: size as RaidRecord['size'], description }, who), 'Raid updated.', 'Could not update raid.')
   }
 
   return <Modal title="Edit Raid" onClose={close}>
     <form className="modal-form" onSubmit={saveRaid}>
       {cancelled && <p className="raid-modal-note"><strong>Cancelled:</strong> {raid.cancelReason}</p>}
       <label>Raid name<input name="name" defaultValue={raid.name} maxLength={80} required autoFocus /></label>
-      <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={raid.date} required /></label><label>Raid size<select name="size" defaultValue={String(raid.size)}><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
+      <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={raid.date} required /></label><label>Start time (ET)<input name="time" type="time" defaultValue={raidTimeOf(raid)} required /></label></div>
+      <div className="form-grid"><label>Raid size<select name="size" defaultValue={String(raid.size)}><option value="10">10-player</option><option value="20">20-player</option><option value="40">40-player</option></select></label></div>
       <label>Description (optional)<textarea name="description" rows={3} defaultValue={raid.description ?? ''} maxLength={RAID_DESCRIPTION_MAX_LENGTH} /></label>
       <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close}>Close</button><button className="button button-primary" disabled={busy}><Save size={15} /> Save changes</button></div>
     </form>

@@ -278,9 +278,6 @@
 .panel-footer strong { color: #59675d; }
 .footer-right { display: inline-flex; align-items: center; gap: 6px; }
 .save-indicator { width: 6px; height: 6px; border-radius: 50%; background: #5d9dca; }
-.history-table { min-width: 950px; }
-.history-table td { height: 70px; }
-.history-item { display: block; margin-bottom: 4px; color: #34463a; font-size: 11px; }
 .table-subtext { display: block; max-width: 220px; overflow: hidden; color: #929c94; font-size: 9px; line-height: 1.45; text-overflow: ellipsis; }
 .date-cell { display: inline-flex; align-items: center; gap: 6px; color: #67766c; white-space: nowrap; }
 .recipient-avatar { color: #426d97; border-color: #dce8f2; background: #edf5fb; }
@@ -500,7 +497,6 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 :root[data-theme='dark'] .access-section-heading h3,
 :root[data-theme='dark'] .panel-footer strong,
 :root[data-theme='dark'] .ranked-name,
-:root[data-theme='dark'] .history-item,
 :root[data-theme='dark'] .award-modal-item strong { color: #e0e8f1; }
 :root[data-theme='dark'] .rank-number { color: #c5d1de; background: #263649; }
 :root[data-theme='dark'] .rank-number.first { color: #b9dcf5; background: #2a4058; }

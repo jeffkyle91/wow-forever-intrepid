@@ -1,32 +1,11 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
+import { id, input, membership } from './access.js'
 
-const roles = ['Guild Leader', 'Raid Leader', 'Member']
 const statuses = ['accept', 'tentative', 'absent', 'late', 'bench']
 const todayEastern = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 const overlaps = (entry, date) => entry.startDate <= date && date <= entry.endDate
 const upcoming = (raid) => (!raid.status || raid.status === 'scheduled') && (raid.startsAt instanceof Timestamp ? raid.startsAt.toMillis() > Date.now() : raid.date >= todayEastern())
-
-function id(value) {
-  if (typeof value !== 'string' || !value || value.includes('/') || value.length > 1500) throw new HttpsError('invalid-argument', 'A valid document id is required.')
-  return value
-}
-
-function input(request, keys) {
-  if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in to continue.')
-  const data = request.data
-  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some((key) => !keys.includes(key))) {
-    throw new HttpsError('invalid-argument', 'Unsupported request fields.')
-  }
-  id(data.guildId)
-  return { ...data, uid: request.auth.uid }
-}
-
-async function membership(tx, guild, uid) {
-  const member = (await tx.get(guild.collection('members').doc(uid))).data()
-  if (!member || !roles.includes(member.role)) throw new HttpsError('permission-denied', 'Guild membership is required.')
-  return member
-}
 
 // All availability and response mutations for an account share this server-only transaction lock.
 async function lockMember(tx, guild, uid) {

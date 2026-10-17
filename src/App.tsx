@@ -36,7 +36,7 @@ function App() {
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [previousStatus, setPreviousStatus] = useState(session.status)
-  const data = useGuildData(session.status === 'active', actualRole)
+  const data = useGuildData(session.status === 'active', actualRole, session.user?.uid ?? '')
   const { roster, priorities, awards, dataError } = data
   const effectiveRole = actualRole === 'Guild Leader' ? impersonatedRole ?? actualRole : actualRole
   const selectedDef = tabList.find((entry) => entry.id === selectedTab) ?? tabList[0]

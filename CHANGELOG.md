@@ -6,6 +6,9 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Members can submit and withdraw character-change requests on My dashboard, including new or existing alts, renames, class/spec changes and alt-to-main promotion. Guild Leaders review requests and optional notes in Member access. Approval preserves character IDs, team assignments and historical snapshots; spec changes apply the default raid role. Request history is private to the requester and Guild Leaders. Pending merge and Functions/rules/Hosting deployment (MEMBER-002).
+- Character requests use class-colored character cards and specialization icons, defined current/requested sections, highlighted field changes and separate member-note and leader-review areas in light and dark themes (MEMBER-002).
+- Character-request lists identify the member by their main character, with the affected character shown underneath, including requests for new alts (MEMBER-002).
 - Guild Leaders can remove and restore guild access with confirmation. Removal unlinks the account and blocks guild access without deleting characters or history; restoration grants unlinked Member access. Removed accounts see a dedicated no-access screen. Pending merge and rules/Hosting deployment.
 - Right-aligned the My dashboard raider-type, help and attendance controls on mobile, including when they wrap.
 - Fixed raid edits with ten selected zones being rejected by Firestore's rule-expression limit, while preserving complete zone validation and truthful, atomic audit entries. Pending merge and rules deployment.

@@ -50,6 +50,7 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 - Use invented names and uids in tests, as everywhere else in this repository.
 - `npm run build` does not compile the tests and `npm run lint` only lints them; `npx tsc -p tests/rules` and `npx tsc -p tests/unit` type-check them (CI does not run that).
 - `npm run test:rules` also runs pure raid-preview/availability checks in `tests/raid-preview.test.ts` and server-handler integration checks in `functions/raids.test.js`. Install `functions/` dependencies first. Server tests use the Admin SDK only against the local emulator and test authorization, ownership, inclusive/overlapping ranges, retained Absent after removal, concurrent mutations and idempotent synchronization. Run pure checks alone with `node --test tests/raid-preview.test.ts`.
+- The same runner includes `functions/characters.test.js`: request ownership, Guild Leader-only review, stale approvals, default roles, withdrawal/rejection and atomic main swaps. Request privacy and direct-write denials are tested in `tests/rules/character-requests.test.ts`. Client and server share `functions/characterClasses.json`; change it once and keep the role-default regressions passing.
 
 ## Pull requests
 

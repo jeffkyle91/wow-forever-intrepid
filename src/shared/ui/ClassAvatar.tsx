@@ -14,7 +14,7 @@ const classIcons: Record<string, LucideIcon> = {
   druid: Leaf,
 }
 
-export function ClassAvatar({ player }: { player: Player }) {
+export function ClassAvatar({ player }: { player: Pick<Player, 'name' | 'className' | 'specialization'> }) {
   const Icon = classIcons[player.className.toLowerCase()] ?? CircleUserRound
   const specializationIcon = getSpecializationIcon(player.className, player.specialization)
   return <span className={`class-avatar ${player.className.toLowerCase()}${specializationIcon ? ' spec-icon-avatar' : ''}`} title={`${player.name} · ${player.specialization || player.className}`}>

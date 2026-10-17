@@ -1,7 +1,7 @@
 import { phaseNoOf } from '../../shared/game/phases.ts'
 
 // Structural types, so this file can be tested directly by Node. PriorityRecord and AwardRecord (guildApi.ts) satisfy them.
-type LootPriority = { id: string; item: string; rankedPlayers: string[]; phaseNo?: number }
+type LootPriority = { id: string; item: string; rankedPlayers: string[]; phaseNo?: number; carriedFrom?: string }
 type Award = { priorityId?: string; item: string; recipient: string; phaseNo?: number }
 
 // Positional completion: a player listed twice for an item is satisfied once per receipt. Only the number of
@@ -13,12 +13,39 @@ export function nameKey(name: string) {
   return name.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-// An award counts toward a priority when it was recorded from that priority, or, when it has no priority at all
-// (a later manual entry or import), when it is for an item of the same name in the same phase.
-export function awardsForPriority<A extends Award>(priority: LootPriority, awards: A[]): A[] {
+// Finds a priority by id, for following where an item was carried over from.
+export type PriorityLookup = (id: string) => LootPriority | undefined
+export const priorityLookup = <T extends LootPriority>(priorities: T[]): PriorityLookup => {
+  const byId = new Map(priorities.map((priority) => [priority.id, priority]))
+  return (id) => byId.get(id)
+}
+
+// A priority carried over from an earlier phase keeps what that phase's awards said: the priorities it came from, the one before that, and so on
+// (at most MAX_CARRY steps, and never twice the same one). Their ids and phases are what awards are matched against.
+const MAX_CARRY = 20
+function carriedFrom(priority: LootPriority, lookup?: PriorityLookup) {
+  const ids = new Set([priority.id])
+  const phases = new Set([phaseNoOf(priority)])
+  let current = priority
+  for (let step = 0; step < MAX_CARRY; step++) {
+    const from = current.carriedFrom
+    if (!from || ids.has(from)) break
+    ids.add(from)
+    const source = lookup?.(from)
+    if (!source) break
+    phases.add(phaseNoOf(source))
+    current = source
+  }
+  return { ids, phases }
+}
+
+// An award counts toward a priority when it was recorded from that priority (or from one it was carried over from), or, when it has no priority
+// at all (a later manual entry or import), when it is for an item of the same name in the same phase (or in a phase it was carried over from).
+// Without a lookup, only the priority itself counts.
+export function awardsForPriority<A extends Award>(priority: LootPriority, awards: A[], lookup?: PriorityLookup): A[] {
   const itemKey = nameKey(priority.item)
-  const phase = phaseNoOf(priority)
-  return awards.filter((award) => award.priorityId ? award.priorityId === priority.id : nameKey(award.item) === itemKey && phaseNoOf(award) === phase)
+  const from = carriedFrom(priority, lookup)
+  return awards.filter((award) => award.priorityId ? from.ids.has(award.priorityId) : nameKey(award.item) === itemKey && from.phases.has(phaseNoOf(award)))
 }
 
 // The client does not write a status yet; the rules already allow `status: 'removed'` on an award.
@@ -35,9 +62,9 @@ export type ListingProgress = {
   complete: boolean
 }
 
-export function listingProgress(priority: LootPriority, awards: Award[]): ListingProgress {
+export function listingProgress(priority: LootPriority, awards: Award[], lookup?: PriorityLookup): ListingProgress {
   const credits = new Map<string, number>()
-  for (const award of awardsForPriority(priority, awards)) {
+  for (const award of awardsForPriority(priority, awards, lookup)) {
     if (isRemovedAward(award)) continue
     const key = nameKey(award.recipient)
     credits.set(key, (credits.get(key) ?? 0) + 1)

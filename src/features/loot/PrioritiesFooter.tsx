@@ -7,6 +7,6 @@ import { useSlotOf } from './useSlotOf'
 export function PrioritiesFooter({ ctx }: { ctx: TabContext }) {
   const filters = usePriorityFilters()
   const slotOf = useSlotOf()
-  const { priorities } = usePhaseView(ctx)
-  return <>Showing <strong>{visiblePriorities(priorities, ctx.data.awards, ctx.query, filters, slotOf).length}</strong> of <strong>{priorities.length}</strong></>
+  const { priorities, lookup } = usePhaseView(ctx)
+  return <>Showing <strong>{visiblePriorities(priorities, ctx.data.awards, ctx.query, filters, slotOf, lookup).length}</strong> of <strong>{priorities.length}</strong></>
 }

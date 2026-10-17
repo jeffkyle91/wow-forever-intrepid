@@ -6,14 +6,14 @@ import type { TabContext } from '../../shared/tabs/types'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
 import { Modal } from '../../shared/ui/Modal'
 import { phaseNoOf } from '../../shared/game/phases'
-import { listingProgress, nameKey, recipientChoices } from './completion'
+import { listingProgress, nameKey, priorityLookup, recipientChoices } from './completion'
 
 // The award snapshot (candidate order and council note at decision time) is built here,
 // from the `priority` captured when the modal was opened, never from live data.
 export function AwardModal({ priority, awardedAt, close, live }: { priority: LootPriority; awardedAt: string; close: () => void; live: TabContext }) {
   const { setBusy, setMutationError } = live.feedback
   // Offer the first listing that is still open, so a player who already received the item is not the default again.
-  const progress = listingProgress(priority, live.data.awards)
+  const progress = listingProgress(priority, live.data.awards, priorityLookup(live.data.allPriorities))
   const choices = recipientChoices(priority, progress)
   const nextName = priority.rankedPlayers[progress.next] ?? ''
   const defaultRecipient = choices.find((choice) => nameKey(choice.name) === nameKey(nextName))?.name ?? choices[0]?.name ?? ''

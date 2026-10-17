@@ -1,0 +1,13 @@
+.modal:has(.carry-over) { width: min(100%, 720px); }
+.carry-over { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; padding-top: 14px; }
+.carry-intro { margin: 0; color: #526158; font-size: 11px; line-height: 1.5; }
+.carry-dungeon-group { display: grid; gap: 8px; }
+.carry-dungeon { margin: 6px 0 0; padding-bottom: 4px; border-bottom: 2px solid #e3e8e0; color: #29372f; font: 600 13px/1.3 var(--display); }
+.carry-list { flex-direction: column; }
+.carry-item { flex-wrap: wrap; }
+.carry-name { color: #29372f; font-size: 12px; font-weight: 600; }
+.carry-meta { color: #626e7b; font-size: 10px; }
+:root[data-theme='dark'] .carry-intro { color: #bfccd9; }
+:root[data-theme='dark'] .carry-dungeon { border-bottom-color: #33465c; color: #e8edf3; }
+:root[data-theme='dark'] .carry-name { color: #e8edf3; }
+:root[data-theme='dark'] .carry-meta { color: #9fb0c3; }

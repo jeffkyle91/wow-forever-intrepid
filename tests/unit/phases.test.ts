@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, isPhaseNo, phaseLabel, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
+import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, isPhaseNo, phaseLabel, phaseName, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
 
 // Invented phase names.
 const fresh = { currentPhase: 'Launch', nextPhase: 'Second' }
@@ -37,6 +37,12 @@ describe('phaseOptions', () => {
   })
   it('labels the current and next phase and leaves a finished one as it is named', () => {
     assert.deepEqual(phaseOptions(later, true).map(phaseLabel), ['Fourth (next)', 'Third (current)', 'Second', 'Launch'])
+  })
+})
+
+describe('phaseName', () => {
+  it('names a finished, the current and the next phase, and falls back to a number for any other', () => {
+    assert.deepEqual([0, 1, 2, 3, 9].map((no) => phaseName(later, no)), ['Launch', 'Second', 'Third', 'Fourth', 'Phase 9'])
   })
 })
 

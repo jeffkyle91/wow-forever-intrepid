@@ -6,7 +6,9 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   where,
   serverTimestamp,
@@ -19,6 +21,7 @@ import {
 import { auth, db, functions, guildId } from './firebase'
 import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
+import { awardCreateFields, describeCreate, describeDelete, describeEdit, priorityAuditFields, readAuditEntry, type AuditEntry } from './shared/game/lootAudit'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
@@ -32,7 +35,7 @@ export type RaidGroup = 'green' | 'pink' | 'brown'
 // in data/loot and the creature that drops it. A priority typed by hand has none of them.
 // phaseNo is the phase the priority belongs to (see shared/game/phases.ts); none means the first phase. carriedFrom is the id of the
 // priority an item was carried over from, in an earlier phase.
-export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string }
+export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string; rev?: number }
 export type AwardRecord = {
   id: string
   priorityId: string
@@ -259,7 +262,9 @@ export function formatRaidTime(time: string) {
 }
 export const isRaidCancelled = (raid: Pick<RaidRecord, 'status'>) => raid.status === 'cancelled'
 
-type RaidWho = { uid: string; displayName: string }
+// Who is making a change that is logged: the signed-in leader. The name has to be the one on their guild account (the rules check it).
+export type AuditWho = { uid: string; displayName: string }
+type RaidWho = AuditWho
 const REMOVE_FIELD = deleteField()
 
 // Every raid change is one batch: the raid update and its audit entry (raid_{id}_{rev}). The rules accept
@@ -313,6 +318,93 @@ export async function cancelRaidEvent(raid: RaidRecord, reason: string, who: Rai
 export async function restoreRaidEvent(raid: RaidRecord, who: RaidWho) {
   if (!isRaidCancelled(raid)) throw new Error('This raid is not cancelled.')
   await writeRaidChange(raid, { status: 'scheduled', cancelReason: REMOVE_FIELD }, 'edit', who)
+}
+
+// ---- Loot priorities and awards. Every change is one batch of the change and its audit entry (`priority_{id}_{rev}` or `award_{id}_1`).
+// The rules accept neither without the other and check that the entry tells the truth (docs/design/audit-first-loot.md), so nothing here can
+// skip the log. A batch has a limit on the document lookups the rules may make, so a long list is written in batches of AUDITED_BATCH_SIZE;
+// each batch is all or nothing, and `onWritten` is told which ids a batch wrote, so a caller can show progress and report where it stopped.
+export const AUDITED_BATCH_SIZE = 10
+
+export type NewPriority = { item: string; encounter: string; rankedPlayers: string[]; councilNote: string; phaseNo: number; itemId?: number; zoneId?: number; npcId?: number; carriedFrom?: string }
+// A field set to undefined is taken away.
+export type PriorityChanges = Partial<Pick<PriorityRecord, 'item' | 'encounter' | 'rankedPlayers' | 'councilNote' | 'itemId' | 'zoneId' | 'npcId'>>
+export type NewAward = { priorityId: string; item: string; encounter: string; recipient: string; awardedAt: string; prioritySnapshot: string[]; councilNoteSnapshot: string; awardNote: string; phaseNo: number }
+
+// A fresh id for every new priority: an entry id (`priority_{id}_{rev}`) can be used only once, so the id of a deleted priority cannot be created again.
+export const newPriorityId = () => crypto.randomUUID()
+
+function auditEntry(who: AuditWho, targetType: 'priority' | 'award', targetId: string, rev: number, action: string, item: string, description: Record<string, unknown>) {
+  return { at: serverTimestamp(), by: who.uid, byName: who.displayName, targetType, targetId, rev, action, item, ...description }
+}
+
+function inBatches<T>(items: T[]): T[][] {
+  const groups: T[][] = []
+  for (let start = 0; start < items.length; start += AUDITED_BATCH_SIZE) groups.push(items.slice(start, start + AUDITED_BATCH_SIZE))
+  return groups
+}
+
+export async function createPriorities(items: { id: string; fields: NewPriority }[], who: AuditWho, onWritten?: (ids: string[]) => void) {
+  const database = requireDb()
+  for (const group of inBatches(items)) {
+    const batch = writeBatch(database)
+    for (const { id, fields } of group) {
+      const record = Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined))
+      batch.set(doc(database, 'guilds', guildId, 'lootPriorities', id), { ...record, rev: 1, updatedBy: who.uid, updatedAt: serverTimestamp() })
+      batch.set(doc(database, 'guilds', guildId, 'auditLog', `priority_${id}_1`), auditEntry(who, 'priority', id, 1, 'create', fields.item, describeCreate(record, priorityAuditFields)))
+    }
+    await batch.commit()
+    onWritten?.(group.map((entry) => entry.id))
+  }
+}
+
+/** Changes a priority and logs it. Returns false, writing nothing, when no field would differ. `reorder` is for a change of `rankedPlayers` alone. */
+export async function editPriority(existing: PriorityRecord, changes: PriorityChanges, who: AuditWho, action: 'edit' | 'reorder' = 'edit') {
+  const description = describeEdit(existing as unknown as Record<string, unknown>, changes, priorityAuditFields)
+  if (!description) return false
+  const database = requireDb()
+  const rev = (existing.rev ?? 0) + 1
+  const update = Object.fromEntries(description.changed.map((key) => [key, changes[key as keyof PriorityChanges] === undefined ? deleteField() : changes[key as keyof PriorityChanges]]))
+  const batch = writeBatch(database)
+  batch.update(doc(database, 'guilds', guildId, 'lootPriorities', existing.id), { ...update, rev, updatedBy: who.uid, updatedAt: serverTimestamp() })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `priority_${existing.id}_${rev}`), auditEntry(who, 'priority', existing.id, rev, action, existing.item, description))
+  await batch.commit()
+  return true
+}
+
+// Removes priorities. The awards that were recorded from one keep their own copy of the candidate order, so history is not touched.
+export async function deletePriorities(priorities: PriorityRecord[], who: AuditWho, onDeleted?: (ids: string[]) => void) {
+  const database = requireDb()
+  for (const group of inBatches(priorities)) {
+    const batch = writeBatch(database)
+    for (const priority of group) {
+      const rev = (priority.rev ?? 0) + 1
+      batch.delete(doc(database, 'guilds', guildId, 'lootPriorities', priority.id))
+      batch.set(doc(database, 'guilds', guildId, 'auditLog', `priority_${priority.id}_${rev}`), auditEntry(who, 'priority', priority.id, rev, 'delete', priority.item, describeDelete(priority as unknown as Record<string, unknown>, priorityAuditFields)))
+    }
+    await batch.commit()
+    onDeleted?.(group.map((priority) => priority.id))
+  }
+}
+
+/** Records an award made from a priority, with its entry. Returns the new award's id. */
+export async function recordAward(award: NewAward, who: AuditWho) {
+  const database = requireDb()
+  const ref = doc(guildCollection('awards'))
+  const batch = writeBatch(database)
+  batch.set(ref, { ...award, rev: 1, createdBy: who.uid, createdAt: serverTimestamp() })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `award_${ref.id}_1`), auditEntry(who, 'award', ref.id, 1, 'create', award.item, describeCreate(award, awardCreateFields)))
+  await batch.commit()
+  return ref.id
+}
+
+/** The newest `max` entries of the audit log, live. Every guild member can read it; nobody can change or delete an entry. */
+export function subscribeAuditLog(max: number, onData: (entries: AuditEntry[]) => void, onError: (error: Error) => void) {
+  return onSnapshot(
+    query(guildCollection('auditLog'), orderBy('at', 'desc'), limit(max)),
+    (snapshot) => onData(snapshot.docs.flatMap((entry) => { const read = readAuditEntry(entry.id, entry.data({ serverTimestamps: 'estimate' })); return read ? [read] : [] })),
+    (error) => onError(error),
+  )
 }
 
 export async function updateMembershipRole(uid: string, role: GuildRole) {

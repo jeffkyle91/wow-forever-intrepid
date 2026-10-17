@@ -53,6 +53,13 @@ export function viewedPhase(settings: PhaseSettings, wanted: number | null, incl
   return options.find((option) => option.no === wanted) ?? options.find((option) => option.kind === 'current')!
 }
 
+// The name of a phase by number: a finished phase's name from the history, the current and next phase's from the settings. A number nothing
+// names (an entry from before the history was edited, say) reads as "Phase <n>".
+export function phaseName(settings: PhaseSettings, no: number): string {
+  const options = phaseOptions(settings, true)
+  return options.find((option) => option.no === no)?.name ?? `Phase ${no}`
+}
+
 export const phaseLabel = (option: PhaseOption) => (option.kind === 'past' ? option.name : `${option.name} (${option.kind})`)
 
 // Starting and reopening a phase. Both are one save of the settings document, so nothing about a priority or an award changes: the lists of

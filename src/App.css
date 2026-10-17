@@ -616,6 +616,6 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
    row. A stripe on the left edge, a fade across the block and a coloured name. Stripe width and fade strength come from
    --class-stripe-width and --class-fade. Do not use the background shorthand in this element's hover or selected states: it
    resets the fade. */
-.class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); border-radius: 4px; background-image: linear-gradient(color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 20%), transparent), color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 20%), transparent)); box-shadow: inset var(--class-stripe-width, 6px) 0 0 var(--wow-class-exact, transparent), inset calc(var(--class-stripe-width, 6px) + 1px) 0 0 rgba(23, 38, 59, .35); }
-.class-accent strong { color: var(--wow-class-color); }
-:root[data-theme='dark'] .class-accent strong { color: var(--wow-class-dark-color); }
+.class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); border-radius: 4px; background-image: linear-gradient(color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent), color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent)); box-shadow: inset var(--class-stripe-width, 6px) 0 0 var(--wow-class-exact, transparent), inset calc(var(--class-stripe-width, 6px) + 1px) 0 0 rgba(23, 38, 59, .35); }
+.class-accent strong, .class-accent .ranked-name { color: var(--wow-class-color); }
+:root[data-theme='dark'] .class-accent strong, :root[data-theme='dark'] .class-accent .ranked-name { color: var(--wow-class-dark-color); }

@@ -105,6 +105,28 @@ describe('scheduling a raid', () => {
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { startsAt: new Date('2026-12-10T02:00:00Z') })))
   })
 
+  test('ten zone snapshots at their text limits are accepted', async () => {
+    const zones = Array.from({ length: 10 }, (_, index) => ({ id: `${index}${'x'.repeat(99)}`, name: 'x'.repeat(80), size: [10, 20, 40][index % 3] }))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { zones })))
+  })
+
+  test('eleven zone snapshots are refused', async () => {
+    const zones = Array.from({ length: 11 }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: 10 }))
+    await expectDenied(schedule(raidDoc(UID.raidLeader, { zones })))
+  })
+
+  for (const id of ['\n', '\u00e9'.repeat(100), '\u{1f600}'.repeat(100)]) {
+    test(`zone IDs preserve existing string-length behavior for ${JSON.stringify(id)}`, async () => {
+      await expectAllowed(schedule(raidDoc(UID.raidLeader, { zones: [{ id, name: 'Test Zone', size: 10 }] })))
+    })
+  }
+
+  for (const id of ['\u00e9'.repeat(101), '\u{1f600}'.repeat(101)]) {
+    test(`zone IDs over 100 Unicode characters are refused (${id.codePointAt(0)})`, async () => {
+      await expectDenied(schedule(raidDoc(UID.raidLeader, { zones: [{ id, name: 'Test Zone', size: 10 }] })))
+    })
+  }
+
   const refused: [string, Record<string, unknown>][] = [
     ['a size of 25', raidDoc(UID.raidLeader, { size: 25 })],
     ['a size sent as the string "20"', raidDoc(UID.raidLeader, { size: '20' })],

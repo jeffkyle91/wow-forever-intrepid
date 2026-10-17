@@ -136,26 +136,27 @@ service cloud.firestore {
     }
 
     function validRaidZoneSnapshot(zone) {
-      return zone is map
-        && zone.keys().hasOnly(['id', 'name', 'size'])
-        && zone.keys().hasAll(['id', 'name', 'size'])
-        && zone.id is string && zone.id.size() >= 1 && zone.id.size() <= 100
-        && zone.name is string && zone.name.trim().size() >= 1 && zone.name.size() <= 80
+      // Keep ten-zone audited edits within the expression budget. These methods also enforce
+      // map/string types and required fields; the ID pattern includes newlines and Unicode.
+      return zone.keys().hasOnly(['id', 'name', 'size'])
+        && zone.id.matches('^[\\s\\S]{1,100}$')
+        && zone.name.size() <= 80 && zone.name.trim() != ''
         && zone.size in [10, 20, 40];
     }
 
     function validRaidZones(zones) {
-      return zones is list && zones.size() >= 1 && zones.size() <= 10
+      let count = zones.size();
+      return zones is list && count >= 1 && count <= 10
         && validRaidZoneSnapshot(zones[0])
-        && (zones.size() < 2 || validRaidZoneSnapshot(zones[1]))
-        && (zones.size() < 3 || validRaidZoneSnapshot(zones[2]))
-        && (zones.size() < 4 || validRaidZoneSnapshot(zones[3]))
-        && (zones.size() < 5 || validRaidZoneSnapshot(zones[4]))
-        && (zones.size() < 6 || validRaidZoneSnapshot(zones[5]))
-        && (zones.size() < 7 || validRaidZoneSnapshot(zones[6]))
-        && (zones.size() < 8 || validRaidZoneSnapshot(zones[7]))
-        && (zones.size() < 9 || validRaidZoneSnapshot(zones[8]))
-        && (zones.size() < 10 || validRaidZoneSnapshot(zones[9]));
+        && (count < 2 || validRaidZoneSnapshot(zones[1]))
+        && (count < 3 || validRaidZoneSnapshot(zones[2]))
+        && (count < 4 || validRaidZoneSnapshot(zones[3]))
+        && (count < 5 || validRaidZoneSnapshot(zones[4]))
+        && (count < 6 || validRaidZoneSnapshot(zones[5]))
+        && (count < 7 || validRaidZoneSnapshot(zones[6]))
+        && (count < 8 || validRaidZoneSnapshot(zones[7]))
+        && (count < 9 || validRaidZoneSnapshot(zones[8]))
+        && (count < 10 || validRaidZoneSnapshot(zones[9]));
     }
 
     function validRaidEdit(guildId, raidId) {

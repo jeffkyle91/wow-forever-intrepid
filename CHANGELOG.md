@@ -6,7 +6,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
-No member-facing changes queued. Developer tools and planning documentation do not imply a production feature release.
+- Fixed raid edits with ten selected zones being rejected by Firestore's rule-expression limit, while preserving complete zone validation and truthful, atomic audit entries. Pending merge and rules deployment.
 
 ## 2026-10-16 - f42a14d
 

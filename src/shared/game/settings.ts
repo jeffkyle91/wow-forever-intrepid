@@ -15,6 +15,7 @@ export const councilStatuses: { value: CouncilStatus; label: string; hint: strin
 ]
 
 // What the app shows until a Guild Leader saves settings, and for any field that cannot be read.
+// The rules (validPhaseHistory) name currentPhase's default as the one phase a first save of the settings may close, so keep the two together.
 export const defaultGuildSettings: GuildSettings = {
   currentPhase: 'Launch prep',
   nextPhase: 'To be announced',

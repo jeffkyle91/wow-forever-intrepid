@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { currentPhaseNo, isPhaseNo, phaseLabel, phaseNoOf, phaseOptions, readPhaseHistory, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
+import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, isPhaseNo, phaseLabel, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
 
 // Invented phase names.
 const fresh = { currentPhase: 'Launch', nextPhase: 'Second' }
@@ -79,5 +79,66 @@ describe('withoutBadPhaseFields', () => {
     const given = { ...base, phaseNo: -1 }
     withoutBadPhaseFields(given)
     assert.equal(given.phaseNo, -1)
+  })
+})
+
+describe('starting and reopening a phase', () => {
+  const status = { currentStatusLabel: 'Active', currentStatusTone: 'active', nextStatusLabel: 'Soon', nextStatusTone: 'preparing' }
+  const guild = { currentPhase: 'Launch', nextPhase: 'Second', ...status }
+  const later = { ...guild, currentPhase: 'Third', nextPhase: 'Fourth', phaseHistory: ['Launch', 'Second'] }
+
+  it('refuses a name that is blank, too long, the placeholder or already used, and accepts any other', () => {
+    assert.match(startPhaseProblem(guild, '   ')!, /Enter a name/)
+    assert.match(startPhaseProblem(guild, 'x'.repeat(41))!, /40 characters/)
+    assert.equal(startPhaseProblem(guild, 'x'.repeat(40)), undefined)
+    assert.match(startPhaseProblem(guild, NEXT_PHASE_PLACEHOLDER)!, /real name/)
+    assert.match(startPhaseProblem(guild, '  to be   ANNOUNCED ')!, /real name/)
+    assert.match(startPhaseProblem(guild, 'launch')!, /already exists/)
+    assert.match(startPhaseProblem(later, ' second ')!, /already exists/)
+    assert.equal(startPhaseProblem(guild, 'Second'), undefined)
+  })
+  it('refuses a 31st finished phase', () => {
+    const full = { ...guild, phaseHistory: Array.from({ length: 30 }, (_, index) => `P${index}`) }
+    assert.match(startPhaseProblem(full, 'One more')!, /up to 30/)
+  })
+
+  it('starts a phase: the current name goes on the history, the new name is current and Active', () => {
+    const next = startNextPhase(guild, '  Second  ')
+    assert.deepEqual(next, { currentPhase: 'Second', nextPhase: NEXT_PHASE_PLACEHOLDER, currentStatusLabel: 'Active', currentStatusTone: 'active', nextStatusLabel: 'Not started', nextStatusTone: 'paused', phaseHistory: ['Launch'] })
+    assert.equal(currentPhaseNo(next), 1)
+  })
+  it('appends to an existing history without changing it, and does not change what it was given', () => {
+    const next = startNextPhase(later, 'Fifth')
+    assert.deepEqual(next.phaseHistory, ['Launch', 'Second', 'Third'])
+    assert.deepEqual(later.phaseHistory, ['Launch', 'Second'])
+  })
+
+  it('reopens the last phase: its name is current again and the phase being left is next', () => {
+    const back = reopenPhase(later)
+    assert.equal(back.currentPhase, 'Second')
+    assert.equal(back.nextPhase, 'Third')
+    assert.deepEqual(back.phaseHistory, ['Launch'])
+    assert.equal(back.currentStatusLabel, 'Active')
+    assert.equal(back.nextStatusLabel, 'Not started')
+  })
+  it('leaves the history out when the last finished phase is reopened', () => {
+    const back = reopenPhase({ ...guild, currentPhase: 'Second', phaseHistory: ['Launch'] })
+    assert.equal('phaseHistory' in back, false)
+    assert.equal(back.currentPhase, 'Launch')
+    assert.equal(currentPhaseNo(back), 0)
+  })
+  it('undoes a start: reopening right after starting gives back the names', () => {
+    const back = reopenPhase(startNextPhase(guild, 'Second'))
+    assert.equal(back.currentPhase, 'Launch')
+    assert.equal(back.nextPhase, 'Second')
+    assert.equal('phaseHistory' in back, false)
+  })
+
+  it('cannot be reopened when there is nothing finished, loot was awarded in the current phase, or a later list exists', () => {
+    assert.match(reopenProblem(guild, [], [])!, /no finished phase/)
+    assert.equal(reopenProblem(later, [], []), undefined)
+    assert.equal(reopenProblem(later, [{ phaseNo: 1 }, {}], [{ phaseNo: 2 }, { phaseNo: 1 }]), undefined)
+    assert.match(reopenProblem(later, [{ phaseNo: 2 }], [])!, /awarded in Third/)
+    assert.match(reopenProblem(later, [], [{ phaseNo: 3 }])!, /Remove it first/)
   })
 })

@@ -54,3 +54,65 @@ export function viewedPhase(settings: PhaseSettings, wanted: number | null, incl
 }
 
 export const phaseLabel = (option: PhaseOption) => (option.kind === 'past' ? option.name : `${option.name} (${option.kind})`)
+
+// Starting and reopening a phase. Both are one save of the settings document, so nothing about a priority or an award changes: the lists of
+// the next phase are already filed under the number that becomes the current one. The rules (validPhaseHistory) accept exactly these two moves.
+
+export const NEXT_PHASE_PLACEHOLDER = 'To be announced'
+export const PHASE_NAME_MAX = 40
+
+type PhaseStatus = { currentStatusLabel: string; currentStatusTone: string; nextStatusLabel: string; nextStatusTone: string }
+export type RollableSettings = PhaseSettings & PhaseStatus
+
+const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
+
+// Why a name cannot be the next phase's, or undefined when it can. A name already used is refused so two phases never look alike in the list.
+export function startPhaseProblem(settings: PhaseSettings, name: string): string | undefined {
+  const trimmed = name.trim()
+  if (!trimmed) return 'Enter a name for the new phase.'
+  if (trimmed.length > PHASE_NAME_MAX) return `A phase name can be up to ${PHASE_NAME_MAX} characters.`
+  if (sameName(trimmed, NEXT_PHASE_PLACEHOLDER)) return `Give the phase a real name, not "${NEXT_PHASE_PLACEHOLDER}".`
+  if ([settings.currentPhase, ...(settings.phaseHistory ?? [])].some((used) => sameName(used, trimmed))) return 'A phase with this name already exists.'
+  if ((settings.phaseHistory?.length ?? 0) >= PHASE_HISTORY_MAX) return `A guild can have up to ${PHASE_HISTORY_MAX} finished phases.`
+  return undefined
+}
+
+// The settings after the current phase closes: its name goes on the end of the history, the new name becomes current and Active, and the
+// next phase is blank again. A leader can change the status label and color in Settings.
+export function startNextPhase<T extends RollableSettings>(settings: T, name: string): T {
+  return {
+    ...settings,
+    phaseHistory: [...(settings.phaseHistory ?? []), settings.currentPhase],
+    currentPhase: name.trim(),
+    nextPhase: NEXT_PHASE_PLACEHOLDER,
+    currentStatusLabel: 'Active',
+    currentStatusTone: 'active',
+    nextStatusLabel: 'Not started',
+    nextStatusTone: 'paused',
+  }
+}
+
+// The settings after the last finished phase is reopened: its name is current again and the phase being left is the next one. The current
+// status stays as it is (the reopened phase is live) and the next phase's status is blank. A history that becomes empty is left out.
+export function reopenPhase<T extends RollableSettings>(settings: T): T {
+  const history = settings.phaseHistory ?? []
+  const { phaseHistory: _dropped, ...rest } = settings
+  return {
+    ...rest,
+    ...(history.length > 1 ? { phaseHistory: history.slice(0, -1) } : {}),
+    currentPhase: history[history.length - 1],
+    nextPhase: settings.currentPhase,
+    nextStatusLabel: 'Not started',
+    nextStatusTone: 'paused',
+  } as T
+}
+
+// Why the last phase cannot be reopened, or undefined when it can. Awards recorded in the current phase would end up in the next one, and a
+// list prepared for the phase after the next would end up two phases ahead, where nothing can reach it.
+export function reopenProblem(settings: PhaseSettings, awards: { phaseNo?: unknown }[], priorities: { phaseNo?: unknown }[]): string | undefined {
+  const current = currentPhaseNo(settings)
+  if (current === 0) return 'There is no finished phase to reopen.'
+  if (awards.some((award) => phaseNoOf(award) === current)) return `Loot has been awarded in ${settings.currentPhase}, so it cannot be undone.`
+  if (priorities.some((priority) => phaseNoOf(priority) > current)) return `A list has been prepared for the phase after ${settings.currentPhase}. Remove it first.`
+  return undefined
+}

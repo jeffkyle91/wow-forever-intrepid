@@ -37,7 +37,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
       await recordAward(award, { uid: live.identity.uid, displayName: live.identity.displayName })
       setMutationError('')
       close()
-      live.navigate('history')
+      live.feedback.setNotice(`${award.item} awarded to ${award.recipient}. It is in the Log.`)
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'Could not record loot award.')
     } finally {

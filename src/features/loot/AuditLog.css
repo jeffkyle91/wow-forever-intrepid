@@ -1,7 +1,9 @@
 .modal:has(.audit-log) { width: min(100%, 720px); }
 .audit-log { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding-top: 12px; }
 .audit-intro { margin: 0; color: #526158; font-size: 11px; line-height: 1.45; }
-.audit-toggle { justify-self: start; }
+.audit-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.audit-toggle { flex: none; }
+.audit-search { flex: 1 1 180px; min-width: 0; height: 31px; box-sizing: border-box; padding: 0 9px; border: 1px solid #dfe7ef; border-radius: 4px; color: #33443a; background: #fff; font: inherit; font-size: 11px; }
 .audit-list { margin: 0; padding: 0; list-style: none; border: 1px solid #e3e8e0; border-radius: 4px; overflow: hidden; }
 .audit-entry { border-bottom: 1px solid #edf0eb; border-left: 3px solid #8eb7d7; background: #fff; }
 .audit-entry:last-child { border-bottom: 0; }
@@ -30,3 +32,4 @@
 :root[data-theme='dark'] .audit-when, :root[data-theme='dark'] .audit-body p, :root[data-theme='dark'] .audit-empty { color: #9fb0c3; }
 :root[data-theme='dark'] .audit-body { color: #c8d5e3; }
 :root[data-theme='dark'] .audit-error { color: #f0a090; }
+:root[data-theme='dark'] .audit-search { border-color: #3a4b61; color: #e8edf3; background: #182536; }

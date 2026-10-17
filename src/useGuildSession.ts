@@ -3,8 +3,9 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { doc, onSnapshot, type DocumentSnapshot, type FirestoreError } from 'firebase/firestore'
 import { auth, db, firebaseConfigured, guildId } from './firebase'
 import type { JoinRequestRecord, MembershipRecord } from './guildApi'
+import { normalizeMember } from './shared/lib/normalize'
 
-export type GuildSessionStatus = 'unconfigured' | 'loading' | 'signed-out' | 'request-access' | 'pending' | 'rejected' | 'active' | 'error'
+export type GuildSessionStatus = 'unconfigured' | 'loading' | 'signed-out' | 'request-access' | 'pending' | 'rejected' | 'removed' | 'active' | 'error'
 
 // A snapshot of a missing document that came only from the local cache means the server has not answered yet (offline or unreachable), not that the document does not exist.
 const notReached = (snapshot: DocumentSnapshot) => snapshot.metadata.fromCache && !snapshot.exists()
@@ -53,9 +54,17 @@ export function useGuildSession() {
       let membershipWaiting = false
       let requestWaiting = false
       let hasMembership = false
+      let removed = false
       let failed = false
       let currentRequest: JoinRequestRecord | null = null
       const updateStatus = () => {
+        if (removed) {
+          stopOfflineTimer()
+          setOffline(false)
+          setError('')
+          setStatus('removed')
+          return
+        }
         if (failed) return
         if (hasMembership) setStatus('active')
         else if (membershipLoaded && requestLoaded) setStatus(currentRequest?.status === 'pending' ? 'pending' : currentRequest?.status === 'rejected' ? 'rejected' : 'request-access')
@@ -65,6 +74,7 @@ export function useGuildSession() {
       }
       const onError = (cause: FirestoreError) => {
         if (!current) return
+        if (removed) { updateStatus(); return }
         // A listener that has failed is dead, so the status stays "error" until retry() or a new sign-in; later snapshots from the other listener must not hide it.
         failed = true
         stopOfflineTimer()
@@ -79,8 +89,20 @@ export function useGuildSession() {
         membershipWaiting = notReached(snapshot)
         if (membershipWaiting) { updateStatus(); return }
         membershipLoaded = true
-        hasMembership = snapshot.exists()
-        setMembership(snapshot.exists() ? ({ ...snapshot.data(), id: snapshot.id } as MembershipRecord) : null)
+        const member = snapshot.exists() ? normalizeMember(snapshot.id, snapshot.data()) : null
+        if (snapshot.exists() && !member) {
+          failed = true
+          stopOfflineTimer()
+          console.error('Guild membership has an unsupported role or invalid shape.')
+          setMembership(null)
+          setError('Your guild access record is invalid. Contact a Guild Leader.')
+          setStatus('error')
+          setOffline(false)
+          return
+        }
+        removed = member?.role === 'Removed'
+        hasMembership = member !== null && !removed
+        setMembership(member)
         updateStatus()
       }, onError)
       unsubscribeRequest = onSnapshot(doc(firestore, 'guilds', guildId, 'joinRequests', currentUser.uid), { includeMetadataChanges: true }, (snapshot) => {

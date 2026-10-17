@@ -20,6 +20,7 @@ import type { GuildRole } from './security'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
+import { setMembershipRemoved as writeMembershipRemoved } from './shared/members/access'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
@@ -59,7 +60,8 @@ export type RaidRecord = {
   cancelReason?: string
 }
 export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'time' | 'size' | 'description' | 'zones'>>
-export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
+export type MembershipRole = GuildRole | 'Removed'
+export type MembershipRecord = { id: string; email: string; displayName: string; role: MembershipRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
 export type StatusTone = 'active' | 'preparing' | 'paused'
@@ -295,6 +297,10 @@ export async function updateMembershipAccess(uid: string, role: GuildRole, playe
   }
   batch.update(membershipRef, { role, playerId })
   await batch.commit()
+}
+
+export async function setMembershipRemoved(uid: string, removed: boolean) {
+  await writeMembershipRemoved(requireDb(), guildId, uid, removed)
 }
 
 export async function approveJoinRequest(request: JoinRequestRecord, role: GuildRole, playerId: string | null = null) {

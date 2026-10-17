@@ -63,10 +63,10 @@ export function normalizeAward(id: string, data: RawDoc): AwardRecord | null {
   } as AwardRecord
 }
 
-// A member whose role is not one of the three guild roles is dropped: the access table would otherwise
+// A member whose role is not a guild role or Removed is dropped: the access table would otherwise
 // show the first role in the list for it, and the rules give such an account no access anyway.
 export function normalizeMember(id: string, data: RawDoc): MembershipRecord | null {
-  if (!id || !isGuildRole(data.role)) return null
+  if (!id || (!isGuildRole(data.role) && data.role !== 'Removed')) return null
   const member = { ...data, id, email: text(data.email), displayName: text(data.displayName) } as MembershipRecord
   if (data.playerId != null && !isText(data.playerId)) member.playerId = null
   return member

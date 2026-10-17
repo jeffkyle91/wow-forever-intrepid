@@ -56,6 +56,17 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
     }
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe())
+      setRoster([])
+      setAssignments({})
+      setPriorities([])
+      setAwards([])
+      setAfkEntries([])
+      setRaids([])
+      setRaidZones([])
+      setMembers([])
+      setJoinRequests([])
+      setSettings(defaultGuildSettings)
+      setDataError('')
       setUnreadableByCollection({})
     }
   }, [enabled, actualRole])

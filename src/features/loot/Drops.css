@@ -1,6 +1,7 @@
 /* The Browse drops dialog on Loot priorities. Every class starts with drops-. */
 .modal:has(.drops-browser) { width: min(100%, 720px); }
 .drops-browser { display: grid; gap: 12px; padding-top: 16px; }
+.drops-mode { display: flex; justify-content: flex-end; padding-top: 12px; }
 .drops-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .drops-search { flex: 1 1 200px; min-width: 0; height: 31px; box-sizing: border-box; padding: 0 9px; border: 1px solid #dfe7ef; border-radius: 4px; color: #33443a; background: #fff; font: inherit; font-size: 11px; }
 .drops-count { margin: 0; color: #526158; font-size: 10px; }

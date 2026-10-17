@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { createPriorities, newPriorityId, type PriorityRecord } from '../../guildApi'
+import { lootCaptureItemIds } from '../../shared/game/lootTables'
 import { phaseNoOf, phaseOptions, type PhaseOption } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import { Modal } from '../../shared/ui/Modal'
-import { bossOrder } from './bossOrder'
 import { carryOverFields, onTargetList } from './carryOver'
 import { listingProgress, priorityLookup } from './completion'
 import { groupPriorities } from './groupPriorities'
+import { useBossOrder, useDropTables } from './useDropTables'
 import './Drops.css'
 import './CarryOver.css'
 
@@ -21,6 +22,9 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
   // Earlier phases that have something to carry, newest first.
   const sources = phaseOptions(settings, false).filter((option) => option.no < target.no && allPriorities.some((priority) => phaseNoOf(priority) === option.no))
   const [sourceNo, setSourceNo] = useState(sources[0]?.no ?? -1)
+  const bossOrder = useBossOrder(live.data.lootTables, Math.max(0, sourceNo)) // the lists of the phase the items come from
+  // The drop lists of the phase the items go to: an item or zone it does not have cannot be ticked off again in Browse drops (only in its last group).
+  const targetItems = new Set(useDropTables(live.data.lootTables, target.no).flatMap(lootCaptureItemIds))
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
 
@@ -31,14 +35,15 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
   const text = query.trim().toLowerCase()
   const shown = fromSource.filter((priority) => !text || `${priority.item} ${priority.encounter} ${priority.rankedPlayers.join(' ')}`.toLowerCase().includes(text))
   const canPick = (priority: PriorityRecord) => !onTargetList(targetList, priority)
-  const pickable = shown.filter(canPick)
+  const missing = (priority: PriorityRecord) => priority.itemId !== undefined && !targetItems.has(priority.itemId)
+  const pickable = shown.filter((priority) => canPick(priority) && !missing(priority))
   const staged = fromSource.filter((priority) => picked.has(priority.id) && canPick(priority))
   const sourceName = sources.find((option) => option.no === sourceNo)?.name ?? ''
 
   const toggle = (id: string) => setPicked((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next })
   const toggleAll = (list: PriorityRecord[]) => setPicked((current) => {
     const next = new Set(current)
-    const ids = list.filter(canPick).map((priority) => priority.id)
+    const ids = list.filter((priority) => canPick(priority) && !missing(priority)).map((priority) => priority.id)
     if (ids.every((id) => next.has(id))) ids.forEach((id) => next.delete(id))
     else ids.forEach((id) => next.add(id))
     return next
@@ -74,7 +79,7 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
       {groupPriorities(shown, bossOrder).map((dungeon) => <div key={dungeon.key} className="carry-dungeon-group">
         <p className="carry-dungeon">{dungeon.dungeon || 'Other priorities'}</p>
         {dungeon.bosses.map((boss) => {
-          const open = boss.priorities.filter(canPick)
+          const open = boss.priorities.filter((priority) => canPick(priority) && !missing(priority))
           return <section key={boss.key} className="drops-group drops-boss">
             <header>
               <h3>{boss.boss || 'No encounter noted'}</h3>
@@ -89,6 +94,7 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
                 {priority.itemId ? <ItemTooltip itemId={priority.itemId} fallbackName={priority.item} /> : <span className="carry-name">{priority.item}</span>}
                 <small className="carry-meta">{priority.rankedPlayers.length ? `${priority.rankedPlayers.length} listed, ${received} received` : 'nobody listed'}</small>
                 {already && <span className="drops-listed">On the list</span>}
+                {!already && missing(priority) && <span className="drops-parked" title={`Its zone or item is not in ${target.name}'s drop lists. You can carry it over, but it will sit in the last group of Browse drops (On the list, but not in the drop lists) until it is taken off.`}>Not in {target.name}'s drop lists</span>}
               </li>
             })}</ul>
           </section>

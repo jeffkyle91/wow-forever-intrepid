@@ -5,7 +5,7 @@ import type { TabContext } from '../../shared/tabs/types'
 import { AwardModal } from './AwardModal'
 import { classLookup } from './classLookup'
 import { visiblePriorities } from './filters'
-import { bossOrder } from './bossOrder'
+import { useBossOrder } from './useDropTables'
 import { PriorityList } from './PriorityList'
 import { PriorityModal } from './PriorityModal'
 import { usePriorityFilters } from './priorityFilters'
@@ -17,6 +17,7 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const { busy, setMutationError } = ctx.feedback
   const filters = usePriorityFilters()
   const { view, priorities, canEdit, canAward, lookup } = usePhaseView(ctx)
+  const bossOrder = useBossOrder(ctx.data.lootTables, view.no)
   const slotOf = useSlotOf()
   // Look up every priority's item, not only the rows on screen, so that the slot filter can tell which ones match.
   useEffect(() => { priorities.forEach((priority) => { if (priority.itemId) requestItem(priority.itemId) }) }, [priorities])

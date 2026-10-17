@@ -1,10 +1,10 @@
 import { currentPhaseNo, phaseLabel, phaseOptions } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
-import { bossOrder } from './bossOrder'
 import { filterOptions } from './filters'
 import { encounterOptions } from './groupPriorities'
 import { clearPriorityFilters, filtersActive, setPriorityFilters, usePriorityFilters } from './priorityFilters'
 import { slotChoices } from './slots'
+import { useBossOrder } from './useDropTables'
 import { usePhaseView } from './usePhaseView'
 import './LootFilters.css'
 
@@ -14,6 +14,7 @@ const indent = '\u00a0\u00a0\u00a0\u00a0'
 export function PrioritiesToolbar({ ctx }: { ctx: TabContext }) {
   const filters = usePriorityFilters()
   const { view, priorities } = usePhaseView(ctx)
+  const bossOrder = useBossOrder(ctx.data.lootTables, view.no)
   const phases = phaseOptions(ctx.data.settings, ctx.identity.canEditRaidData)
   const options = filterOptions(priorities, filters)
   // Each dungeon, then its bosses below it. The current choice is always offered, so it can be cleared if its priorities are gone.

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { createPriorities, deletePriorities, newPriorityId, setPrioritiesHidden } from '../../guildApi'
 import { lootCaptureItemIds } from '../../shared/game/lootTables'
-import { phaseLabel, phaseNoOf, phaseOptions, type PhaseOption } from '../../shared/game/phases'
+import { phaseLabel, phaseNoOf, phaseOptions } from '../../shared/game/phases'
 import { peekItem, requestItem, retryItem, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
-import { dropTables } from './dropTables'
+import { useDropTables } from './useDropTables'
 import { countItems, dropEncounter, dropPriorityRecord, filterGroups, kindLabels, prioritiesForItem, type DropPick } from './dropsFilter'
 import './Drops.css'
 
@@ -15,24 +15,28 @@ import './Drops.css'
 // Guild and Raid Leaders get a tick box on every item. A ticked box means "this item is on the priority list of the phase picked above": ticking
 // one that is not on the list marks it to be added (a priority with its item id, dungeon and creature and an empty candidate list, "Needs players"),
 // and unticking one that is on the list marks it to be taken off. Nothing changes until the bar at the bottom is used, so a whole zone can be added
-// or taken off ("Add all", "Remove all") and checked first. Only the current phase and the next one can be changed (a finished phase is a record),
-// so only they are offered. Taking off an item that already has priorities asks once more, and **keeps them**: the priority is hidden, not deleted,
+// or taken off ("Add all", "Remove all") and checked first. Only the current phase and the next one can be changed (a finished phase is a record):
+// everyone can look at a finished phase's lists, read-only. The drop lists themselves belong to a phase too (shared/game/guildTables.ts), so the zones
+// and items shown are those of the phase picked here. Taking off an item that already has priorities asks once more, and **keeps them**: the priority is hidden, not deleted,
 // with its candidates and the awards recorded from it, and ticking the item again brings it back as it was. There is one priority per item per phase.
-export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOption }) {
+// The phase picked is kept by the dialog (DropsModal), so the drop list editor opens on the phase being looked at.
+export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; phaseNo: number; onPhaseNo: (no: number) => void }) {
   const [zoneId, setZoneId] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState<Map<number, DropPick>>(new Map())
   const [removing, setRemoving] = useState<Set<number>>(new Set())
   const [confirming, setConfirming] = useState(false)
   useItemInfoVersion() // so that the list filters again when item names arrive
-  const table = dropTables.find((candidate) => candidate.zoneId === zoneId) ?? dropTables[0]
   const { busy, setBusy, setMutationError, setNotice } = live.feedback
   const canAdd = live.identity.canEditRaidData
-  // The phases whose list can be looked at here: the current one, and for leaders the next one. The dialog opens on the phase being looked at,
-  // or on the current one when that is a finished phase.
-  const phases = phaseOptions(live.data.settings, canAdd).filter((option) => option.kind !== 'past')
-  const [phaseNo, setPhaseNo] = useState(phase.no)
-  const selected = phases.find((option) => option.no === phaseNo) ?? phases.find((option) => option.kind === 'current') ?? phase
+  // The phases whose lists can be looked at here: the current one, the finished ones, and for leaders the next one. Only the current phase and the
+  // next one can be changed.
+  const phases = phaseOptions(live.data.settings, canAdd)
+  const selected = phases.find((option) => option.no === phaseNo) ?? phases.find((option) => option.kind === 'current') ?? phases[0]
+  const editable = canAdd && selected.kind !== 'past'
+  // The drop lists of the phase picked here: the built-in lists with the guild's own changes for that phase and the ones before it.
+  const dropTables = useDropTables(live.data.lootTables, selected.no)
+  const table = dropTables.find((candidate) => candidate.zoneId === zoneId) ?? dropTables[0]
   const phasePriorities = live.data.allPriorities.filter((priority) => phaseNoOf(priority) === selected.no)
   // Priorities of this phase that were taken off the list and kept.
   const parked = live.data.hiddenPriorities.filter((priority) => phaseNoOf(priority) === selected.no)
@@ -45,6 +49,10 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
   const nameOf = (id: number) => { const state = peekItem(id); return state?.status === 'ready' ? state.info.name : undefined }
   const groups = filterGroups(table, query, nameOf)
   const allGroups = filterGroups(table, '', nameOf)
+  // Priorities of this phase whose item is in none of the phase's drop lists (the zone or the item was taken out of the phase after they were made).
+  // Browse drops is the way to take a priority off the list, so they are offered here too.
+  const inLists = new Set(dropTables.flatMap(lootCaptureItemIds))
+  const orphanIds = [...new Set(phasePriorities.flatMap((priority) => (priority.itemId !== undefined && !inLists.has(priority.itemId) ? [priority.itemId] : [])))]
 
   // The priorities that stand for an item. It is on the list when there is one. Only an item whose name is known can be added, because
   // the name is stored on the priority.
@@ -52,9 +60,9 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
   const isListed = (id: number) => listedBy(id).length > 0
   const parkedFor = (id: number) => prioritiesForItem(parked, id, nameOf(id))
   // An item that was taken off and kept can be put back without its name (it is on the priority already).
-  const canTick = (id: number) => canAdd && !isListed(id) && (parkedFor(id).length > 0 || nameOf(id) !== undefined)
+  const canTick = (id: number) => editable && !isListed(id) && (parkedFor(id).length > 0 || nameOf(id) !== undefined)
   const playersOf = (priorities: { rankedPlayers: string[] }[]) => Math.max(0, ...priorities.map((priority) => priority.rankedPlayers.length))
-  const changePhase = (no: number) => { setPhaseNo(no); setAdding(new Map()); setRemoving(new Set()); setConfirming(false) }
+  const changePhase = (no: number) => { onPhaseNo(no); setAdding(new Map()); setRemoving(new Set()); setConfirming(false) }
 
   const pickFor = (group: { kind: string; name: string; npcId?: number }, itemId: number): DropPick => ({
     itemId, zoneId: table.zoneId, encounter: dropEncounter(table.name, group), ...(group.npcId !== undefined ? { npcId: group.npcId } : {}),
@@ -153,12 +161,12 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
       </select>
       <input className="drops-search" type="search" aria-label="Find a creature or an item" placeholder="Find a creature or an item..." value={query} onChange={(event) => setQuery(event.target.value)} />
     </div>
-    {canAdd && <div className="drops-bulk">
+    {editable && <div className="drops-bulk">
       <button type="button" className="button button-secondary" onClick={addAll} disabled={busy || addableInZone.length === 0} title={addableInZone.length ? `Mark every item of ${table.name} that is not on the list yet` : `Everything in ${table.name} is on the list`}>Add all ({addableInZone.length})</button>
       <button type="button" className="button button-secondary" onClick={removeAll} disabled={busy || listedInZone.length === 0} title={listedInZone.length ? `Mark every item of ${table.name} that is on the list to be taken off` : `Nothing in ${table.name} is on the list`}>Remove all ({listedInZone.length})</button>
     </div>}
     <div className="drops-intro">
-      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}. Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{canAdd ? ` You are changing the ${selected.name} list (a finished phase cannot be changed). A ticked item is on it: tick one to add it, untick one that is on it to take it off (an item that has priorities keeps them and gets them back when you tick it again), then use the bar at the bottom.` : ` A ticked item is on the ${selected.name} priority list.`}</p>
+      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. {table.custom ? 'Added by the guild\u2019s leaders.' : <>Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}.{table.edited ? ' The guild\u2019s leaders have changed this list.' : ''}</>} Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{editable ? ` You are changing the ${selected.name} list (a finished phase cannot be changed). A ticked item is on it: tick one to add it, untick one that is on it to take it off (an item that has priorities keeps them and gets them back when you tick it again), then use the bar at the bottom.` : selected.kind === 'past' ? ` These are the ${selected.name} lists as they stood: a finished phase cannot be changed.` : ` A ticked item is on the ${selected.name} priority list.`}</p>
       {table.dataStatus && <p className="drops-status">{table.dataStatus}</p>}
       {table.notes && table.notes.length > 0 && <details className="drops-notes"><summary>About this data</summary><ul>{table.notes.map((note) => <li key={note}>{note}</li>)}</ul></details>}
     </div>
@@ -180,7 +188,7 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
           const keptPlayers = playersOf(kept)
           const hasPlayers = playersOf(listedBy(id)) > 0
           return <li key={id} className="drops-item">
-            {canAdd && (listed || canTick(id)) && <input type="checkbox" className="drops-tick" checked={listed ? !leaving : adding.has(id)} disabled={busy} onChange={() => toggleItem(id, pickFor(group, id))} aria-label={listed ? `Keep ${nameOf(id) ?? `item ${id}`} on the priority list` : kept.length ? `Put ${nameOf(id) ?? `item ${id}`} back on the priority list` : `Add ${nameOf(id)} to the priority list`} />}
+            {editable && (listed || canTick(id)) && <input type="checkbox" className="drops-tick" checked={listed ? !leaving : adding.has(id)} disabled={busy} onChange={() => toggleItem(id, pickFor(group, id))} aria-label={listed ? `Keep ${nameOf(id) ?? `item ${id}`} on the priority list` : kept.length ? `Put ${nameOf(id) ?? `item ${id}`} back on the priority list` : `Add ${nameOf(id)} to the priority list`} />}
             <ItemTooltip itemId={id} />
             {listed && (leaving ? <span className="drops-leaving">{hasPlayers ? 'Will be taken off (keeps its priorities)' : 'Will be removed'}</span> : <span className="drops-listed">On the list</span>)}
             {!listed && kept.length > 0 && (adding.has(id) ? <span className="drops-listed">Will be put back</span> : <span className="drops-parked" title="Taken off the list, with its priorities kept. Tick it to put it back as it was.">Taken off{keptPlayers ? `, keeps ${plural(keptPlayers, 'player', 'players')}` : ''}</span>)}
@@ -188,6 +196,21 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
         })}</ul>
       </section>
     })}
+    {editable && orphanIds.length > 0 && <section className="drops-group drops-zone drops-orphans">
+      <header>
+        <h3>On the list, but not in {selected.name}'s drop lists</h3>
+        <span className="drops-kind">no drop list</span>
+      </header>
+      <ul>{orphanIds.map((id) => {
+        const leaving = removing.has(id)
+        const hasPlayers = playersOf(listedBy(id)) > 0
+        return <li key={id} className="drops-item">
+          <input type="checkbox" className="drops-tick" checked={!leaving} disabled={busy} onChange={() => toggleItem(id, { itemId: id, zoneId: table.zoneId, encounter: '' })} aria-label={leaving ? `Put ${nameOf(id) ?? `item ${id}`} back on the priority list` : `Keep ${nameOf(id) ?? `item ${id}`} on the priority list`} />
+          <ItemTooltip itemId={id} />
+          {leaving ? <span className="drops-leaving">{hasPlayers ? 'Will be taken off (keeps its priorities)' : 'Will be removed'}</span> : <span className="drops-listed">On the list</span>}
+        </li>
+      })}</ul>
+    </section>}
     <p className="drops-count">Showing <strong>{countItems(groups)}</strong> of <strong>{lootCaptureItemIds(table).length}</strong> items in {table.name}.</p>
     {(toAdd.length > 0 || toRemove.length > 0) && <div className="drops-tray" role="region" aria-label="Changes to the priority list">
       {confirming

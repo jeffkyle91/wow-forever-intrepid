@@ -1,21 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { subscribeAuditLog } from '../../guildApi'
+import { TABLE_PHASE_MAX, firstPhases } from '../../shared/game/guildTables'
 import { legacyAwardEntry, type AuditEntry } from '../../shared/game/lootAudit'
-import { phaseName } from '../../shared/game/phases'
-import { requestItem } from '../../shared/lib/itemInfo'
+import { currentPhaseNo, phaseName } from '../../shared/game/phases'
+import { peekItem, requestItem } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 import { describeEntry } from './auditText'
-import { bossOrder } from './bossOrder'
 import { encounterOptions } from './groupPriorities'
 import { logFacts, logFilterActive, logPlayers, matchesLogFilter, noLogFilter, type LogFilter } from './logFilters'
 import { slotChoices } from './slots'
+import { useBossOrder, useMergedTables } from './useDropTables'
 import { useSlotOf } from './useSlotOf'
 import './LootFilters.css'
 import './AuditLog.css'
 
-type Show = 'both' | 'priority' | 'award'
-const shows: { value: Show; label: string }[] = [{ value: 'both', label: 'Both' }, { value: 'priority', label: 'Priorities' }, { value: 'award', label: 'Awards' }]
+type Show = 'all' | 'priority' | 'award' | 'table'
+const shows: { value: Show; label: string }[] = [{ value: 'all', label: 'All' }, { value: 'priority', label: 'Priorities' }, { value: 'award', label: 'Awards' }, { value: 'table', label: 'Drop lists' }]
 const STEP = 100
 // The indent of a boss under its dungeon in the encounter list.
 const indent = '\u00a0\u00a0\u00a0\u00a0'
@@ -33,7 +34,7 @@ const timeOf = (entry: AuditEntry) => (entry.at ? entry.at.getTime() : Number.MA
 // rules check that each entry tells the truth, and nobody can edit or delete an entry. It listens only while this dialog is open. Awards made
 // before the Log began have no entry, so they are added from the awards themselves, dated the raid night, so no award is missing from it.
 export function AuditLogModal({ close, live }: { close: () => void; live: TabContext }) {
-  const [show, setShow] = useState<Show>('both')
+  const [show, setShow] = useState<Show>('all')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<LogFilter>(noLogFilter)
   const [newestFirst, setNewestFirst] = useState(true)
@@ -44,8 +45,15 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   useEffect(() => subscribeAuditLog(limit, (list) => { setEntries(list); setError('') }, (problem) => setError(problem.message)), [limit])
 
   const name = (no: number) => phaseName(live.data.settings, no)
+  // The Log spans phases: the boss order comes from the current phase's lists, and the names of zones and creatures from the latest of every phase (a zone
+  // prepared for the next phase has a name too, and an entry that sets no name is named from here).
+  const nowNo = currentPhaseNo(live.data.settings)
+  const bossOrder = useBossOrder(live.data.lootTables, nowNo)
+  const zones = useMergedTables(live.data.lootTables, TABLE_PHASE_MAX)
+  const first = useMemo(() => firstPhases(live.data.lootTables), [live.data.lootTables])
+  const lookups = { firstZonePhase: (zoneId: number) => first.zones.get(zoneId), firstSourcePhase: (zoneId: number, key: string) => first.sources.get(`${zoneId}_${key}`), zoneName: (zoneId: number) => zones.find((zone) => zone.zoneId === zoneId)?.name, sourceName: (zoneId: number, key: string) => zones.find((zone) => zone.zoneId === zoneId)?.sources.find((source) => source.key === key)?.name, itemName: (itemId: number) => { const state = peekItem(itemId); return state?.status === 'ready' ? state.info.name : undefined } }
   // A phase started or reopened changes which lists are current, so it is shown with the priorities.
-  const wanted = (type: string) => (show === 'both' ? type === 'priority' || type === 'award' || type === 'phase' : show === 'priority' ? type === 'priority' || type === 'phase' : type === 'award')
+  const wanted = (type: string) => (show === 'all' ? type === 'priority' || type === 'award' || type === 'phase' || type === 'table' : show === 'priority' ? type === 'priority' || type === 'phase' : show === 'table' ? type === 'table' : type === 'award')
   const earlier = live.data.awards.filter((award) => award.rev === undefined).map(legacyAwardEntry)
   const text = query.trim().toLowerCase()
   const priorities = new Map([...live.data.allPriorities, ...live.data.hiddenPriorities].map((priority) => [priority.id, priority]))
@@ -59,13 +67,13 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const rows = everything
     .filter(({ facts }) => matchesLogFilter(facts, filter, slotOf))
     .sort((a, b) => (newestFirst ? timeOf(b.entry) - timeOf(a.entry) : timeOf(a.entry) - timeOf(b.entry)))
-    .map(({ entry }) => ({ entry, ...describeEntry(entry, name) }))
+    .map(({ entry }) => ({ entry, ...describeEntry(entry, name, lookups) }))
     .filter(({ entry, title, details }) => !text || [title, entry.byName, ...details].join(' ').toLowerCase().includes(text))
   const more = entries !== null && entries.length >= limit
   const narrowed = !!text || logFilterActive(filter)
 
   return <Modal title="Log" onClose={close}><div className="audit-log">
-    <p className="audit-intro">Every change to a loot priority or an award, newest first. Open a line to see who made it and what changed. Nobody can edit or delete an entry.</p>
+    <p className="audit-intro">Every change to a loot priority, an award, a phase or a drop list, newest first. Open a line to see who made it and what changed. Nobody can edit or delete an entry.</p>
     <div className="audit-controls">
       <div className="segmented-control audit-toggle" role="group" aria-label="What to show">
         {shows.map((option) => <button key={option.value} type="button" className={show === option.value ? 'segment selected' : 'segment'} aria-pressed={show === option.value} onClick={() => setShow(option.value)}>{option.label}</button>)}
@@ -100,7 +108,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
         <details>
           <summary><span className="audit-title" title={title}>{title}</span><time className="audit-when">{entry.rev === 0 && entry.at ? entry.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : whenOf(entry.at)}</time></summary>
           <div className="audit-body">
-            <p>{entry.rev === 0 ? 'Recorded before the Log began (dated the raid night)' : <>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</>}</p>
+            <p>{entry.rev === 0 ? 'Recorded before the Log began (dated the raid night)' : <>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : entry.targetType === 'table' ? 'Drop list' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</>}</p>
             {details.length > 0 && <ul>{details.map((line) => <li key={line}>{line}</li>)}</ul>}
           </div>
         </details>

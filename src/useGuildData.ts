@@ -15,10 +15,12 @@ import {
   type TeamAssignmentRecord,
 } from './guildApi'
 import type { GuildRole } from './security'
+import { useRosterComments } from './rosterComments'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
 import { normalizeAward, normalizeJoinRequest, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 
 export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
+  const comments = useRosterComments(enabled, actualRole)
   const [roster, setRoster] = useState<PlayerRecord[]>([])
   const [assignments, setAssignments] = useState<Record<string, TeamAssignmentRecord['team']>>({})
   const [priorities, setPriorities] = useState<PriorityRecord[]>([])
@@ -59,6 +61,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
   }, [enabled, actualRole])
 
   return {
+    comments,
     roster,
     assignments,
     priorities,

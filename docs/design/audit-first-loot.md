@@ -33,7 +33,7 @@ Rollout follows [the roadmap](../ROADMAP.md): target recording loot from the fir
 | Field | Meaning |
 | --- | --- |
 | `at`, `by`, `byName` | server time, uid, display name at the time |
-| `targetType`, `targetId`, `rev` | `award` or `priority`, which document, which revision |
+| `targetType`, `targetId`, `rev` | `award` or `priority`, which document, which revision; `phase` (target id `settings`) for starting or reopening a loot phase; `raid` for raid edits |
 | `action` | `create`, `edit`, `remove`, `reorder`, `delete` |
 | `item` | the item name as it was before the change (as created, for a create), so the log reads without joins |
 | `changed` | list of changed field names |
@@ -63,6 +63,8 @@ Not changed here: the date check, which tests the format only (`2026-13-45` pass
 ## Loot phases
 
 The loot lists are kept per phase (a priority and an award carry `phaseNo`; none means phase 0). The current phase's number is the length of `phaseHistory` in the settings document, the names of the finished phases, oldest first. `validGuildSettings` accepts that list only when it is unchanged, grows by one name (the name the current phase had, with `currentPhase` becoming the new name) or shrinks by one (the last name becomes `currentPhase` again and the phase being left becomes `nextPhase`), at most 30 names, so a Guild Leader cannot quietly move the phase back or rewrite its history. The first save of a guild's settings (no document stored yet) may close only "Launch prep", the name the app shows until then. `phaseNo` (0 to 30) is checked wherever an award is created or edited, is part of what an award entry may list and must log, and can be corrected like any other field, with an entry (a correction cannot take it away). The rule that a closed phase cannot be written to comes with the priority rules in stage 3.
+
+**Starting or reopening a phase is logged.** The settings document carries `phaseRev`, how many times a phase has been started or reopened. A save that changes `phaseHistory` has to carry `phaseRev` one higher than before and its entry `phase_settings_{phaseRev}` (type `phase`, action `start` or `reopen`) in the same batch; a save that leaves the history alone, a rename of the current phase included, leaves `phaseRev` alone and needs none. The entry lists the phase fields (`currentPhase`, `nextPhase`, `phaseHistory`) that differ between what was stored and what the batch stores, with their old and new values (nothing before, for a guild's first save), and its item is the new current phase's name. Other settings saved at the same time, such as the status label, are not part of the entry.
 
 ## Rules
 

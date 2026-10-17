@@ -4,6 +4,7 @@ import type { PlayerRecord as Player } from '../../guildApi'
 import { membersArt } from '../../shared/art'
 import type { Role } from '../../shared/game/classes'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
+import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
 
@@ -26,7 +27,7 @@ export function GuildRosterPool({ players, totalPlayers, canEdit, dropActive, on
       return <details className={`roster-role-group role-group-${role.toLowerCase()}`} key={role} open>
         <summary><RolePill role={role} /><span className="roster-role-count">{group.length}</span><ChevronDown size={14} /></summary>
         <div className="roster-role-members">{group.map((player) => {
-          return <div className="roster-pool-member" key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)} title={canEdit ? `Drag ${player.name} to a 10-player team` : player.name}>
+          return <div className={`roster-pool-member ${classAccent(player.className)}`} key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)} title={canEdit ? `Drag ${player.name} to a 10-player team` : player.name}>
             <ClassAvatar player={player} /><span className="roster-pool-member-info"><strong>{player.name}</strong><small>{player.specialization || player.className}</small></span><span className="pool-unassigned">Available</span>
           </div>
         })}{!group.length && <p className="roster-role-empty">No {role.toLowerCase()} characters</p>}</div>

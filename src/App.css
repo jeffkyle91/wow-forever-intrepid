@@ -171,7 +171,7 @@
 .roster-pool-member { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 44px; padding: 4px 5px; border-radius: 4px; transition: background .12s ease, opacity .12s ease; }
 .roster-pool-member[draggable='true'] { cursor: grab; }
 .roster-pool-member[draggable='true']:active { cursor: grabbing; }
-.roster-pool-member:hover { background: #f4f7f9; }
+.roster-pool-member:hover { background-color: #f4f7f9; }
 .roster-pool-member-info { display: grid; min-width: 0; gap: 2px; }
 .roster-pool-member-info strong { overflow: hidden; color: #394d61; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .roster-pool-member-info small { overflow: hidden; color: #8b98a5; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
@@ -192,8 +192,8 @@
 .team-card-brown { border-top: 3px solid #9a7757; }
 .team-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border-bottom: 1px solid #edf0f3; }
 .team-role-composition { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px 14px; border-bottom: 1px solid #edf0f3; }
-.team-role-count { display: inline-flex; align-items: center; gap: 3px; min-height: 22px; padding: 2px 7px; border: 1px solid #e4e9ed; border-radius: 4px; color: #687787; background: #f8fafb; font-size: 11px; white-space: nowrap; }
-.team-role-count strong { color: #3d5164; font-size: 12px; font-variant-numeric: tabular-nums; }
+.team-role-count { display: inline-flex; align-items: center; gap: 3px; min-height: 19px; padding: 2px 5px; border: 1px solid #e4e9ed; border-radius: 4px; color: #687787; background: #f8fafb; font-size: 8px; white-space: nowrap; }
+.team-role-count strong { color: #3d5164; font-size: 9px; font-variant-numeric: tabular-nums; }
 .team-role-count.role-tank { color: #a45b42; border-color: #edd8cd; background: #fcf4ef; }
 .team-role-count.role-healer { color: #547d47; border-color: #dce8d4; background: #f3f8ef; }
 .team-role-count.role-melee { color: #476d9b; border-color: #d8e3ef; background: #f1f6fb; }
@@ -212,7 +212,7 @@
 .mark-pink { background: #ca78a1; }
 .mark-brown { background: #9a7757; }
 .team-title h3 { margin: 0; color: #2d3c4e; font: 600 15px/1.2 var(--display); }
-.team-title p { margin-top: 3px; color: #8491a0; font-size: 11px; }
+.team-title p { margin-top: 3px; color: #8491a0; font-size: 9px; }
 .team-capacity { color: #8a96a2; font-size: 10px; white-space: nowrap; }
 .team-capacity strong { color: #34485e; font-size: 15px; font-variant-numeric: tabular-nums; }
 .team-member-list { min-height: 78px; padding: 4px 13px; transition: background .12s ease; }
@@ -220,8 +220,8 @@
 .team-member-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 75px 26px; align-items: center; gap: 7px; min-height: 46px; border-bottom: 1px solid #f0f2f4; }
 .team-member-row:last-child { border-bottom: 0; }
 .team-member-info { display: grid; min-width: 0; gap: 2px; }
-.team-member-info strong { overflow: hidden; color: #344355; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.team-member-info small { overflow: hidden; color: #8995a1; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.team-member-info strong { overflow: hidden; color: #344355; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.team-member-info small { overflow: hidden; color: #8995a1; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .move-team-select { width: 75px; height: 26px; padding: 0 3px; border: 1px solid #e2e7eb; border-radius: 4px; color: #627284; background: #fff; font: inherit; font-size: 8px; }
 .remove-member-button { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid transparent; border-radius: 4px; color: #8a96a2; background: transparent; cursor: pointer; }
 .remove-member-button:hover { color: #a64e4a; border-color: #f0d4d1; background: #fcf0ef; }
@@ -594,7 +594,7 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 :root[data-theme='dark'] .roster-role-group summary > svg { color: #9baec1; }
 :root[data-theme='dark'] .roster-role-group { border-color: #2d3d51; }
 :root[data-theme='dark'] .roster-role-group summary:hover,
-:root[data-theme='dark'] .roster-pool-member:hover { background: #26374b; }
+:root[data-theme='dark'] .roster-pool-member:hover { background-color: #26374b; }
 :root[data-theme='dark'] .roster-pool-member-info strong { color: #dce6f0; }
 :root[data-theme='dark'] .roster-pool-member-info small,
 :root[data-theme='dark'] .pool-unassigned,
@@ -611,3 +611,34 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 :root[data-theme='dark'] .team-role-count.role-healer strong,
 :root[data-theme='dark'] .team-role-count.role-melee strong,
 :root[data-theme='dark'] .team-role-count.role-ranged strong { color: inherit; }
+
+/* Class accent for blocks (team members, roster pool, dashboard characters): the same look as .class-accent-row on a table
+   row. A stripe on the left edge, a fade across the block and a coloured name. Stripe width and fade strength come from
+   --class-stripe-width and --class-fade. Do not use the background shorthand in this element's hover or selected states: it
+   resets the fade. */
+.class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); border-radius: 4px; background-image: linear-gradient(color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent), color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent)); box-shadow: inset var(--class-stripe-width, 6px) 0 0 var(--wow-class-exact, transparent), inset calc(var(--class-stripe-width, 6px) + 1px) 0 0 rgba(23, 38, 59, .35); }
+.class-accent strong, .class-accent .ranked-name { color: var(--wow-class-color); }
+:root[data-theme='dark'] .class-accent strong, :root[data-theme='dark'] .class-accent .ranked-name { color: var(--wow-class-dark-color); }
+
+/* Text on a class fade. The fade tints the background, so text that was written for a plain background (grey secondary text,
+   tags, names in the same hue as the fade) can lose contrast. Inside an accent the secondary text, the tags and the received
+   names are re-inked, and on the dark theme the fade is darkened a little so coloured names stay readable. */
+.class-accent, .class-accent-row { --accent-ink: #172536; --accent-chip: rgba(255, 255, 255, .88); --accent-chip-ink: #1e4261; --accent-chip-green: #1b6440; }
+:root[data-theme='dark'] .class-accent, :root[data-theme='dark'] .class-accent-row { --accent-ink: #ffffff; --accent-chip: rgba(7, 14, 25, .82); --accent-chip-ink: #dcecf9; --accent-chip-green: #94e5b2; }
+:root[data-theme='dark'] .class-accent { background-image: linear-gradient(rgba(6, 12, 22, .5), rgba(6, 12, 22, .5)), linear-gradient(color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent), color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent)); }
+:root[data-theme='dark'] .class-accent-row > td { background-image: linear-gradient(rgba(6, 12, 22, .5), rgba(6, 12, 22, .5)), linear-gradient(color-mix(in srgb, var(--wow-class-exact) 26%, transparent), color-mix(in srgb, var(--wow-class-exact) 26%, transparent)); }
+.class-accent small, .class-accent .table-subtext, .class-accent-row .table-subtext, .class-accent-row .unassigned-label, .class-accent-row .linked-account-status, .class-accent-row .date-cell, .class-accent-row .award-note-cell, .class-accent-row .snapshot-order b, .class-accent-row .snapshot-order span { color: var(--accent-ink) !important; }
+.class-accent .top-pick, .class-accent .received-tag { padding: 1px 5px; border-radius: 3px; background: var(--accent-chip); color: var(--accent-chip-ink) !important; }
+.class-accent .received-tag { color: var(--accent-chip-green) !important; }
+.class-accent.listing-received .ranked-name { color: var(--accent-ink) !important; opacity: .8; }
+:root[data-theme='dark'] .class-color-shaman { --wow-class-dark-color: #4DA6FF; }
+:root[data-theme='dark'] .class-color-warlock { --wow-class-dark-color: #9697F1; }
+/* Light theme: the tuned name colours are darkened a little more on top of a fade, and a received candidate's number stays readable. */
+:root:not([data-theme='dark']) .class-accent strong, :root:not([data-theme='dark']) .class-accent .ranked-name, :root:not([data-theme='dark']) .class-accent-row .character-cell strong, :root:not([data-theme='dark']) .class-accent-row .class-name, :root:not([data-theme='dark']) .class-accent-row .specialization-name { color: color-mix(in srgb, var(--wow-class-color) 68%, #0b1420); }
+.priority-ranking li.class-accent.listing-received .rank-number { opacity: .85; }
+/* The dashboard list rows set their own padding, which would put the icon under the stripe. */
+.dash-list li.class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); padding-right: 8px; }
+/* A class-coloured name with no stripe or fade, for a name inside a row that is not about a character (for example the recipient of an award). */
+.class-text, strong.class-text { color: var(--wow-class-color); }
+:root[data-theme='dark'] .class-text, :root[data-theme='dark'] strong.class-text { color: var(--wow-class-dark-color); }
+

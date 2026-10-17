@@ -24,12 +24,28 @@ It is **not** a fork of RCLootCouncil or a repurposed Gargul. We read how they w
 | v1 council | Raiders respond (Need, Upgrade, Off-spec, Pass), the council sees the priority position next to each candidate and votes, the loot master awards. Council voting stays **in the game**. | yes (addon messages); if the game blocks them, whisper or chat commands read by the loot master's addon |
 | v2 extras | Attendance snapshot at each boss kill, alt to main mapping, the boss named from the corpse's NPC id, and invites from a locked roster (the app's locked roster is pasted into the addon, one command invites everyone on it and converts the party to a raid). | no |
 
+## Decisions so far
+
+From the guild's loot council practice and the leadership's answers (2026-10-16):
+
+- **Voting happens in the game.** The app holds priorities and the record, not the vote.
+- **Council.** The leadership roles plus a rotating group of members, rotated monthly. The rotation is managed on the website (the app suggests who is next; a selected member can opt out and another is drawn). The month's council travels to the addon with the roster.
+- **Who runs it.** One long-term loot master (more if 10 and 20 player councils are run). Everyone in the raid installs the addon and responds; a player without it whispers the loot master, who enters the response.
+- **Responses.** Configurable buttons, one set for everything (default Best in slot, Upgrade, Off-spec, Pass). 60 seconds per item by default, configurable. Ties are broken with `/roll`.
+- **Priority is advisory.** It is a column in the voting window. Attendance, raider type, main or alt, recent receipts, the equipped item and the player's note are shown, never enforced.
+- **Visibility.** Everyone in the raid sees the voting window and the tallies; hovering a vote count shows who voted; only council members get the Vote button.
+- **Columns.** RCLootCouncil's, without item level and item level difference (and probably without rank), plus the priority position and the factors above.
+- **Sessions.** Independent of the item quality threshold (all items while testing). Built from what the boss dropped, then edited by the loot master (remove items, add items from bags) before starting.
+- **Awards.** Both master loot from the corpse and trading later. The addon knows the winner and assigns the item from the loot window when it is there. **Assigned and received are tracked separately**, with a hand-out list for the loot master and "items owed to you" in the app; leaders and the loot master can also mark an item received by hand (audited).
+- **Disenchant and Guild bank** are awards to a pseudo recipient.
+- **Scope.** Council tooling is mainly for the top raid tier; the lower tiers are decided later.
+
 ## How the app and the addon exchange data
 
 Nothing is live: an addon cannot open a connection, and a web page cannot read the game.
 
-1. **Pasted text strings (first versions).** App to game: a "Copy for addon" button builds a string with the locked roster (full names, main or alt, class, role) and the priorities for the night; the leader pastes it into the addon. Game to app: the addon shows a string of awards (recipient, item id, date, boss, response, votes, source id) that the leader pastes into the importer, which previews it first.
-2. **A small desktop helper (later).** It watches the addon's saved-variables file (the game writes it on `/reload` or logout), uploads awards, and writes data for the addon to load. No pasting, but every leader installs it.
+1. **Pasted text strings (first versions, decided).** App to game: a "Copy for addon" button builds a string with the locked roster (full names, main or alt, class, role) and the priorities for the night; the leader pastes it into the addon. Game to app: the addon shows a string of awards (recipient, item id, date, boss, response, votes, source id) that the leader pastes into the importer, which previews it first.
+2. **A small desktop helper (later, only if pasting and the file-read idea below both annoy people).** It watches the addon's saved-variables file (the game writes it on `/reload` or logout), uploads awards, and writes data for the addon to load. No pasting, but every leader installs it.
 3. **Whisper or chat commands for votes** if the game turns out to block addon messages (see open questions). Voting stays in the game: the app holds priorities and the record, not the vote.
 
 ## What we learned about the Forever client

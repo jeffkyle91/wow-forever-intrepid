@@ -4,7 +4,8 @@ import { saveGuildRecord, type PriorityRecord as LootPriority } from '../../guil
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 
-export function PriorityModal({ existing, close, live }: { existing?: LootPriority; close: () => void; live: TabContext }) {
+// `phaseNo` is the phase a new priority is added to; an edit keeps the phase it has (the write merges).
+export function PriorityModal({ existing, phaseNo, close, live }: { existing?: LootPriority; phaseNo: number; close: () => void; live: TabContext }) {
   const { setBusy, setMutationError } = live.feedback
 
   async function savePriority(event: FormEvent<HTMLFormElement>) {
@@ -16,6 +17,7 @@ export function PriorityModal({ existing, close, live }: { existing?: LootPriori
       encounter: String(data.get('encounter')).trim(),
       rankedPlayers: String(data.get('rankedPlayers')).split(',').map((name) => name.trim()).filter(Boolean),
       councilNote: String(data.get('councilNote')).trim(),
+      ...(existing ? {} : { phaseNo }),
     }
     setBusy(true)
     try {

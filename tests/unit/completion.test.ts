@@ -3,8 +3,8 @@ import { describe, it } from 'node:test'
 import { awardsForPriority, listingProgress, nameKey, recipientChoices } from '../../src/features/loot/completion.ts'
 
 // Every name here is invented: this repository is public.
-const priority = (rankedPlayers: string[], overrides: Partial<{ id: string; item: string }> = {}) => ({ id: 'p1', item: 'Signet of the Deep Earth', rankedPlayers, ...overrides })
-const award = (recipient: string, overrides: Partial<{ priorityId: string; item: string; status: string }> = {}) => ({ priorityId: 'p1', item: 'Signet of the Deep Earth', recipient, ...overrides })
+const priority = (rankedPlayers: string[], overrides: Partial<{ id: string; item: string; phaseNo: number }> = {}) => ({ id: 'p1', item: 'Signet of the Deep Earth', rankedPlayers, ...overrides })
+const award = (recipient: string, overrides: Partial<{ priorityId: string; item: string; status: string; phaseNo: number }> = {}) => ({ priorityId: 'p1', item: 'Signet of the Deep Earth', recipient, ...overrides })
 
 describe('listingProgress', () => {
   it('has nothing received and the first listing next when there are no awards', () => {
@@ -93,6 +93,24 @@ describe('awardsForPriority', () => {
     const unlinked = award('Vex', { priorityId: '' })
     const other = award('Vex', { priorityId: 'p2' })
     assert.deepEqual(awardsForPriority(list, [mine, unlinked, other]), [mine, unlinked])
+  })
+  it('counts an unlinked award only in its own phase; no phase means the first', () => {
+    const first = priority(['Morrow'])
+    const second = priority(['Morrow'], { id: 'p9', phaseNo: 1 })
+    const old = award('Morrow', { priorityId: '' })
+    const stamped = award('Morrow', { priorityId: '', phaseNo: 1 })
+    assert.deepEqual(awardsForPriority(first, [old, stamped]), [old])
+    assert.deepEqual(awardsForPriority(second, [old, stamped]), [stamped])
+  })
+  it('does not mark a second phase\'s item received because of a first-phase award of the same name', () => {
+    const second = priority(['Morrow', 'Vex'], { id: 'p9', phaseNo: 1 })
+    assert.deepEqual(listingProgress(second, [award('Morrow', { priorityId: '' })]).received, [false, false])
+    assert.deepEqual(listingProgress(second, [award('Morrow', { priorityId: '', phaseNo: 1 })]).received, [true, false])
+  })
+  it('ignores a phase number that is not valid, as the first phase', () => {
+    const first = priority(['Morrow'])
+    const odd = award('Morrow', { priorityId: '', phaseNo: -4 })
+    assert.deepEqual(awardsForPriority(first, [odd]), [odd])
   })
 })
 

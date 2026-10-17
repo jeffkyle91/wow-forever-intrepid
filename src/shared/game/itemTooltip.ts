@@ -125,3 +125,25 @@ export function parseItemTooltip(data: unknown): ItemInfo | undefined {
   const tooltip = typeof record.tooltip === 'string' ? sanitizeTooltipHtml(record.tooltip) : []
   return { name, quality, icon, tooltip }
 }
+
+// The slot an item goes in, as the tooltip words it. It sits alone in a table cell of the tooltip ("Finger", "Two-Hand", "Held In Off-hand"),
+// next to the armor or weapon type. Items that go in no slot (bags, recipes, mounts, keys) have none, and give undefined.
+export const slotLabels = [
+  'Head', 'Neck', 'Shoulder', 'Back', 'Chest', 'Robe', 'Wrist', 'Hands', 'Waist', 'Legs', 'Feet', 'Finger', 'Trinket',
+  'One-Hand', 'Main Hand', 'Two-Hand', 'Off Hand', 'Held In Off-hand', 'Ranged', 'Thrown', 'Relic',
+]
+
+export function itemSlotLabel(tooltip: TooltipNode[]): string | undefined {
+  const known = new Map(slotLabels.map((label) => [label.toLowerCase(), label]))
+  const textOf = (nodes: TooltipNode[]): string => nodes.map((node) => (typeof node === 'string' ? node : textOf(node.children))).join('')
+  const find = (nodes: TooltipNode[]): string | undefined => {
+    for (const node of nodes) {
+      if (typeof node === 'string') continue
+      if (node.tag === 'td') { const label = known.get(textOf(node.children).trim().toLowerCase()); if (label) return label }
+      const inner = find(node.children)
+      if (inner) return inner
+    }
+    return undefined
+  }
+  return find(tooltip)
+}

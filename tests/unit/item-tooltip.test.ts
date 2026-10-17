@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { itemIconUrl, itemTooltipUrl, parseItemTooltip, sanitizeTooltipHtml, tooltipLimits, type TooltipElement, type TooltipNode } from '../../src/shared/game/itemTooltip.ts'
+import { itemIconUrl, itemSlotLabel, itemTooltipUrl, parseItemTooltip, sanitizeTooltipHtml, slotLabels, tooltipLimits, type TooltipElement, type TooltipNode } from '../../src/shared/game/itemTooltip.ts'
 
 const allowedTags = new Set(['table', 'tbody', 'tr', 'td', 'th', 'b', 'i', 'span', 'div', 'br'])
 const allowedClass = /^(q[0-9]?|money(gold|silver|copper)|whtt-[a-z]+)$/
@@ -230,4 +230,30 @@ describe('urls', () => {
     assert.equal(itemTooltipUrl(872), 'https://nether.wowhead.com/tooltip/item/872?dataEnv=16&locale=0')
     assert.equal(itemIconUrl('inv_sword_24'), 'https://wow.zamimg.com/images/wow/icons/medium/inv_sword_24.jpg')
   })
+})
+
+describe('itemSlotLabel', () => {
+  // The slot part of real tooltips from the endpoint, each wrapped in the table the tooltip puts it in.
+  const slotCell = (cell: string, type = '') => `<table><tr><td><b class="q3">Name</b><br>Binds when picked up<table width="100%"><tr><td>${cell}</td>${type ? `<th><span class="q1">${type}</span></th>` : ''}</tr></table><span>+4 Stamina</span></td></tr></table>`
+  const slotOf = (html: string) => itemSlotLabel(sanitizeTooltipHtml(html))
+  it('reads every slot label, whatever the armor or weapon type beside it', () => {
+    for (const [label, type] of [['Head', 'Mail'], ['Neck', ''], ['Shoulder', 'Cloth'], ['Back', ''], ['Chest', 'Mail'], ['Wrist', 'Leather'], ['Hands', 'Leather'], ['Waist', 'Plate'], ['Legs', 'Cloth'], ['Feet', 'Mail'],
+      ['Finger', ''], ['Trinket', ''], ['One-Hand', 'Sword'], ['Main Hand', 'Dagger'], ['Two-Hand', 'Axe'], ['Off Hand', 'Shield'], ['Held In Off-hand', ''], ['Ranged', 'Bow'], ['Thrown', 'Thrown'], ['Relic', 'Totem']]) {
+      assert.equal(slotOf(slotCell(label, type)), label, label)
+    }
+  })
+  it('knows every label it can read', () => {
+    for (const label of slotLabels) assert.equal(slotOf(slotCell(label)), label)
+  })
+  it('ignores case and spaces around the label', () => assert.equal(slotOf(slotCell('  two-hand ', 'Axe')), 'Two-Hand'))
+  it('gives undefined for an item that goes in no slot', () => {
+    assert.equal(slotOf('<table><tr><td><b class="q2">Snakeskin Bag</b><br>Binds when picked up<br />10 Slot Bag</td></tr></table>'), undefined)
+    assert.equal(slotOf('<table><tr><td><b class="q3">Plans: Golden Scale Boots</b><br>Requires Blacksmithing (200)</td></tr></table>'), undefined)
+    assert.equal(itemSlotLabel([]), undefined)
+  })
+  it('does not take a word in the text for a slot, only a table cell that holds just that word', () => {
+    assert.equal(slotOf('<table><tr><td><b>Name</b><br>Equip: Increases healing done. Head of the Hand<br>Finger</td></tr></table>'), undefined)
+    assert.equal(slotOf(slotCell('Finger of the Wind')), undefined)
+  })
+  it('takes the first slot cell it finds', () => assert.equal(slotOf(slotCell('Two-Hand', 'Axe') + slotCell('Finger')), 'Two-Hand'))
 })

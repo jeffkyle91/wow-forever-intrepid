@@ -33,6 +33,8 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Discussed future work
 
+Collaborators track actionable work in [the shared backlog](docs/backlog.json), verified member-facing releases in [the changelog](CHANGELOG.md), and maintenance/publishing responsibilities in [CONTRIBUTING.md](CONTRIBUTING.md#backlog-patch-notes-and-publishing). The roadmap supplies direction and milestone decisions; Discord is a published view of these shared records.
+
 ### Rollout milestones (2026)
 
 - **November 4:** game launch, not a full-app deadline. Most core web functionality rolls out progressively between November 4 and December 9.
@@ -56,6 +58,8 @@ The raid-zone catalog, multi-zone scheduling, member sign-ups and live raid-team
 
 
 ## Local setup
+
+For on-request Discord backlog publishing from a developer terminal, see [the publisher guide](docs/discord-backlog.md). This is separate from planned raid-bot integration and stores its credential outside the repository.
 
 Requires Node.js 24.12 or newer (`.nvmrc` selects Node 24; get it from nodejs.org or a version manager such as nvm or fnm). Node 22.12+ also builds, but npm prints unsupported-engine warnings for the Firebase packages.
 

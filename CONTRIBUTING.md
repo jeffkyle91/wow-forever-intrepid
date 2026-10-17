@@ -58,6 +58,58 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 - After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs server/rules tests, deploys Functions, Firestore rules, then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
 
+## Backlog, patch notes, and publishing
+
+### Sources of truth
+
+- [Roadmap](docs/ROADMAP.md): direction, policy decisions, milestones and dependencies. Do not maintain a second task-status list there.
+- [Backlog](docs/backlog.json): canonical actionable work and status, including released/cancelled records retained for history.
+- [Changelog](CHANGELOG.md): member-facing changes grouped by verified release.
+- [Publisher guide](docs/discord-backlog.md): local credentials, message tracking, previews, publishing and recovery.
+
+Discord is a published view, not the authoritative work tracker. Collaborators propose changes through PRs. The primary maintainer deploys and publishes from the designated Windows machine; collaborators do not need webhook credentials or local Discord tracking files. A merge, build or deployment does not itself authorize a Discord post.
+
+### Maintaining backlog items
+
+Each item has these required fields:
+
+| Field | Rule |
+| --- | --- |
+| `id` | Permanent unique identifier, such as `RAID-001`. Check current main and open PRs before allocating one; never reuse or rename an ID. |
+| `title` | A concrete outcome, not an implementation diary. |
+| `status` | `planned`, `in-progress`, `awaiting-deployment`, `released`, or `cancelled`. |
+| `priority` | `critical`, `high`, or `normal`. Reserve critical for the firm first-raid path. |
+| `target` | ISO date or `null` when unscheduled or externally blocked. Around December 15 remains approximate even though the sortable target is `2026-12-15`. |
+| `commitment` | `required`, `target`, or `external-dependency`; a target is not a guaranteed delivery date. |
+| `dependsOn` | Existing item IDs for actual prerequisites, with no self references or cycles. Unknown research outcomes belong in notes rather than guessed dependencies. |
+| `prs` | Relevant PR numbers in this repository; an empty array means no PR is recorded. |
+| `release` | `null` until verified adoption/release, then the exact changelog release heading. |
+| `notes` | Remaining scope, acceptance conditions, policy questions, external risks and fallback behavior. Public-safe text only. |
+
+Claim work as `in-progress` when implementation starts. A merged application change becomes `awaiting-deployment`, not `released`. After production deployment and verification, the primary maintainer records its release. Local tools require verified installation/adoption instead; they must not be described as deployed web features. Keep blocked items at their current status and explain the blocker in notes.
+
+For partial delivery, keep the original item open with explicit remaining scope, or split the remaining outcome into a new ID and record the relationship. Only completed scope belongs in patch notes. Retain cancelled records with a reason; cancelling or reprioritizing work is not a shipped feature. Preserve released records and IDs, but omit them from the active Discord backlog. Removing a feature later is a new change, not erasure of the earlier release.
+
+Initial priorities and dates are a working breakdown of the approved roadmap, not additional firm deadlines. The December 9 scheduled-raid/sign-up/starting-snapshot requirement remains firm; loot recording has a spreadsheet fallback, priorities start around December 15, and December 22 is the broad full-rollout target. Resolve conflicts with the maintainer rather than silently changing commitments.
+
+### Maintaining patch notes
+
+Include relevant backlog status/scope updates in implementation PRs and concise member-facing bullets under **Unreleased**, referencing their backlog IDs. Describe what members can do or what changed, not internal filenames. Internal-only tooling and documentation need not generate member-facing notes. Unreleased is not evidence of production availability.
+
+After deployment and verification, the primary maintainer moves only the shipped bullets into a heading `YYYY-MM-DD - <full-or-short-commit>`, records source PRs, and updates completed backlog items with `status: "released"` and that exact heading in `release`. Leave merged-but-unshipped bullets under Unreleased. Preserve existing release entries; explicitly label corrections to published notes instead of silently rewriting history. Do not invent historical backlog IDs or retrospectively mark planned work complete.
+
+### Publishing ownership and approval
+
+1. Collaborators update the shared files in reviewed PRs.
+2. The primary maintainer deploys the approved application changes and verifies production.
+3. Finalize the release record and backlog statuses through the normal reviewed change process. Publishing does not require another Firebase deployment for documentation-only changes.
+4. Preview the exact Discord content and destination; obtain explicit approval to publish.
+5. Post a new patch-notes message for the verified release and update existing active-backlog messages. Record receipts locally and recover partial failures without duplicating posts.
+
+The current publisher accepts `{ "posts": [...] }`, not the backlog data model or Markdown changelog directly. Shared-file rendering, named backlog/patch-notes destinations and coordinated release publication are tracked as `COMMS-002`; do not pass these files to the current publisher as if that integration exists. Until implemented, prepare and review publisher payloads manually. Never configure a patch-notes webhook over the existing single backlog credential.
+
+Keep encrypted webhook credentials, Discord receipts/message IDs, locks and private guild content outside the repository. The primary machine owns publishing state; other machines must not publish independently using fresh state. Verify JSON syntax, unique IDs, field values, references, acyclic dependencies and release links when editing the backlog. Documentation-only changes need no app build unless behavior or tooling changes too.
+
 ## Rules that protect the guild
 
 - Firestore security rules are the direct-client authorization boundary. Availability and raid-response writes are denied by the rules and go through authenticated server callables that enforce membership, ownership and availability. UI role checks only hide controls; never relax direct-write rules to work around a callable failure.

@@ -1,6 +1,6 @@
 # Roadmap, decisions and work lanes
 
-Last updated 2026-10-16. This file records what the guild leaders decided, what is being built, and who can work on what in parallel. It does not replace the "Discussed future work" list in the README; it turns it into an order of work. Keep it short and update it when a decision changes.
+Last updated 2026-10-16. This file records direction, policy decisions, milestones and work lanes. [backlog.json](backlog.json) is the canonical item/status tracker; [the changelog](../CHANGELOG.md) records verified releases. Feature-status descriptions below provide context, not a second independent tracker. Keep them consistent with those files and follow [the maintenance rules](../CONTRIBUTING.md#backlog-patch-notes-and-publishing).
 
 ## Dates that drive the order
 

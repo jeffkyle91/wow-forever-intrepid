@@ -90,7 +90,7 @@
 .search-field input { width: 150px; padding: 0; border: 0; outline: 0; color: #33443a; background: transparent; font: inherit; font-size: 10px; }
 .search-field input::placeholder { color: #9ba49d; }
 .search-field kbd { padding: 2px 4px; border: 1px solid #e5e9e4; border-radius: 3px; color: #97a097; font: 8px var(--sans); white-space: nowrap; }
-.table-scroll { overflow-x: auto; }
+.table-scroll { position: relative; overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; text-align: left; }
 .data-table thead { background: #fafbf9; }
 .data-table th { height: 34px; padding: 0 18px; color: #8a958d; border-bottom: 1px solid #e9eee7; font-size: 8px; font-weight: 700; letter-spacing: .9px; white-space: nowrap; }
@@ -404,9 +404,10 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
   .guild-roster-pool { top: 10px; }
 }
 @media (max-width: 600px) {
-  .topbar { padding-inline: 14px; }
-  .breadcrumb { gap: 6px; font-size: 8px; }
-  .topbar-actions { gap: 8px; }
+  .topbar { gap: 8px; padding-inline: 14px; }
+  .breadcrumb { min-width: 0; gap: 6px; overflow: hidden; font-size: 8px; }
+  .breadcrumb strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-actions { flex: none; gap: 8px; }
   .page-wrap { padding: 21px 12px; }
   .page-heading { align-items: flex-start; flex-direction: column; gap: 12px; margin-bottom: 17px; }
   .page-heading h1 { font-size: 25px; }
@@ -641,4 +642,3 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 /* A class-colored name with no stripe or fade, for a name inside a row that is not about a character (for example the recipient of an award). */
 .class-text, strong.class-text { color: var(--wow-class-color); }
 :root[data-theme='dark'] .class-text, :root[data-theme='dark'] strong.class-text { color: var(--wow-class-dark-color); }
-

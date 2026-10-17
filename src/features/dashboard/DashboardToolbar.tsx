@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { CircleHelp } from 'lucide-react'
+import { HelpPopover } from '../../shared/ui/HelpPopover'
 import { saveMyRaiderType, subscribeMyRaiderType, type RaiderType } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { findMyCharacters } from './myCharacters'
@@ -37,8 +39,12 @@ export function DashboardToolbar({ ctx }: { ctx: TabContext }) {
 
   return <div className="dash-head">
     <div className="dash-raider-type" role="group" aria-label="Raider type">
-      {TYPES.map((option) => <button key={option.type} title={option.hint} aria-pressed={current === option.type} disabled={busy} onClick={() => choose(option.type)}>{option.label}</button>)}
+      {TYPES.map((option) => <button key={option.type} aria-pressed={current === option.type} disabled={busy} onClick={() => choose(option.type)}>{option.label}</button>)}
     </div>
-    <div className="dash-attendance-chip" title="Attendance tracking is coming.">Attendance <strong>--</strong></div>
+    <HelpPopover label="About Casual and Hardcore" trigger={<CircleHelp size={16} />}>
+      {TYPES.map((option) => <p key={option.type}><strong>{option.label}:</strong> {option.hint}</p>)}
+      <p>Reading this help does not change your raider type.</p>
+    </HelpPopover>
+    <HelpPopover label="About attendance" triggerClassName="dash-attendance-chip" trigger={<>Attendance <strong>--</strong></>}><p>Attendance tracking is coming.</p></HelpPopover>
   </div>
 }

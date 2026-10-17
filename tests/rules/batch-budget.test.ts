@@ -13,8 +13,8 @@
 import { describe, test } from 'node:test'
 import { serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore'
 import { PLAYER_1, PLAYER_2, PLAYER_3, UID, priorityDoc } from './support/fixtures.ts'
-import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, setUpGuildEmulator } from './support/harness.ts'
-import { clean, describeChange, entry, entryId, newAwardDoc, newPriorityDoc, stamp } from './support/audit.ts'
+import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, resetData, setUpGuildEmulator } from './support/harness.ts'
+import { clean, createTable, describeChange, editTable, entry, entryId, inPhase, newAwardDoc, newPriorityDoc, overlayTableDoc, presenceTableDoc, sourceTableDoc, stamp, storeTable, tableIdOf, zoneTableDoc } from './support/audit.ts'
 
 setUpGuildEmulator()
 
@@ -52,6 +52,28 @@ function deletes(db: Firestore, count: number) {
     batch.delete(guildDoc(db, `lootPriorities/${id}`))
     batch.set(guildDoc(db, `auditLog/${entryId('priority', id, 1)}`), clean(entry(WHO, 'priority', id, 1, { action: 'delete', item: before.item, changed: Object.keys(before), before })))
   }
+  return batch.commit()
+}
+
+// Loot tables: documents of the three kinds, written with their entries. A table is written in the current phase or the next one, so the loot phase is read
+// from the settings like for a priority. The widest documents the app writes: a first creature document with all 11 fields (both lists full, the longest
+// strings), a first custom zone document with all 7, and an edit of a creature that changes all 7 fields it can.
+const widestSource = (i: number) => sourceTableDoc({ key: `k${i}`, phaseNo: 1, name: 'x'.repeat(100), kind: 'trash', npcId: 100_000_000, order: 100_000, itemIds: Array.from({ length: 80 }, (_, n) => n + 1), hiddenItemIds: Array.from({ length: 80 }, (_, n) => n + 1000), removed: true })
+const widestZone = (i: number) => zoneTableDoc({ zoneId: 60_000_000 + i, phaseNo: 1, name: 'x'.repeat(100), kind: 'raid', players: 40, removed: false })
+const presence = (i: number) => presenceTableDoc({ zoneId: 1000 + i, phaseNo: 1 })
+const delta = (i: number) => overlayTableDoc({ key: `npc${100 + i}`, phaseNo: 1 })
+const widestEdit = { name: 'y'.repeat(100), kind: 'rare', npcId: 99_999_999, order: 99_999, itemIds: Array.from({ length: 80 }, (_, n) => n + 5000), hiddenItemIds: Array.from({ length: 80 }, (_, n) => n + 9000), removed: false }
+const seedTables = async (docs: Record<string, unknown>[]) => { for (const fields of docs) await storeTable(tableIdOf(fields), fields) }
+
+async function tableCreates(db: Firestore, make: (i: number) => Record<string, unknown>, count: number) {
+  const batch = writeBatch(db)
+  for (let i = 0; i < count; i++) createTable(db, WHO, { into: batch, fields: make(i) })
+  return batch.commit()
+}
+
+async function tableEdits(db: Firestore, make: (i: number) => Record<string, unknown>, count: number, changes: Record<string, unknown>) {
+  const batch = writeBatch(db)
+  for (let i = 0; i < count; i++) await editTable(db, WHO, { into: batch, id: tableIdOf(make(i)), changes })
   return batch.commit()
 }
 
@@ -98,6 +120,78 @@ describe('audited priority writes in one batch', () => {
     await settings()
     await seedPriorities('old', 17)
     await expectDenied(deletes(dbFor(WHO), 17))
+  })
+})
+
+describe('audited loot table writes in one batch', () => {
+  // The lookups per batch are the role check (2), the loot phase (2, shared) and one per document (exists() of the document for a create, get() for an
+  // edit), so 16 fit like priorities, whichever kind of document and however wide the entry: the lookup limit binds long before the expression limit.
+  const documents: [string, (i: number) => Record<string, unknown>][] = [
+    ['first creature documents with all 11 fields', widestSource],
+    ['first custom zone documents with all 7 fields', widestZone],
+    ['presence documents of built-in zones', presence],
+    ['changes to creatures of the captures', delta],
+  ]
+  for (const [label, make] of documents) {
+    test(`16 new ${label}, each with its entry, fit`, async () => {
+      await inPhase(0)
+      await expectAllowed(tableCreates(dbFor(WHO), make, 16))
+    })
+    // KNOWN GAP: the lookup limit, not a rule, stops the 17th. The app sends at most 10 at a time.
+    test(`KNOWN GAP: 17 new ${label} are refused for lack of lookups`, async () => {
+      await inPhase(0)
+      await expectDenied(tableCreates(dbFor(WHO), make, 17))
+    })
+  }
+
+  test('16 edits that change all 7 fields of a creature (both lists full), each with its entry, fit', async () => {
+    await inPhase(0)
+    await seedTables(Array.from({ length: 16 }, (_, i) => ({ ...widestSource(i), phaseNo: 1 })))
+    await expectAllowed(tableEdits(dbFor(WHO), (i) => widestSource(i), 16, widestEdit))
+  })
+  test('KNOWN GAP: 17 such edits are refused for lack of lookups', async () => {
+    await inPhase(0)
+    await seedTables(Array.from({ length: 17 }, (_, i) => ({ ...widestSource(i), phaseNo: 1 })))
+    await expectDenied(tableEdits(dbFor(WHO), (i) => widestSource(i), 17, widestEdit))
+  })
+
+  test('16 edits of each other kind of document, each with its entry, fit', async () => {
+    await inPhase(0)
+    await seedTables([...Array.from({ length: 6 }, (_, i) => widestZone(i)), ...Array.from({ length: 5 }, (_, i) => presence(i)), ...Array.from({ length: 5 }, (_, i) => delta(i))])
+    const batch = writeBatch(dbFor(WHO))
+    for (let i = 0; i < 6; i++) await editTable(dbFor(WHO), WHO, { into: batch, id: tableIdOf(widestZone(i)), changes: { name: 'z', kind: 'dungeon', players: 5, removed: true } })
+    for (let i = 0; i < 5; i++) await editTable(dbFor(WHO), WHO, { into: batch, id: tableIdOf(presence(i)), changes: { removed: false } })
+    for (let i = 0; i < 5; i++) await editTable(dbFor(WHO), WHO, { into: batch, id: tableIdOf(delta(i)), changes: { itemIds: [1], hiddenItemIds: [2] } })
+    await expectAllowed(batch.commit())
+  })
+
+  test('8 new documents and 8 edits in one batch fit, and one more of either is refused', async () => {
+    const mixed = async (creating: number, editing: number) => {
+      await resetData()
+      await inPhase(0)
+      await seedTables(Array.from({ length: editing }, (_, i) => ({ ...widestSource(100 + i), phaseNo: 1 })))
+      const batch = writeBatch(dbFor(WHO))
+      for (let i = 0; i < creating; i++) createTable(dbFor(WHO), WHO, { into: batch, fields: widestSource(i) })
+      for (let i = 0; i < editing; i++) await editTable(dbFor(WHO), WHO, { into: batch, id: tableIdOf(widestSource(100 + i)), changes: widestEdit })
+      return batch.commit()
+    }
+    await expectAllowed(mixed(8, 8), '8 and 8')
+    await expectDenied(mixed(9, 8), '9 and 8')
+    await expectDenied(mixed(8, 9), '8 and 9')
+  })
+
+  // A guild that never saved its settings has no settings document to read: one lookup less for the phase, so one more document fits.
+  test('with no settings stored, 17 new tables fit and 18 are refused', async () => {
+    await expectAllowed(tableCreates(dbFor(WHO), widestSource, 17))
+    await resetData()
+    await expectDenied(tableCreates(dbFor(WHO), widestSource, 18))
+  })
+  test('with no settings stored, 17 table edits fit and 18 are refused', async () => {
+    await seedTables(Array.from({ length: 18 }, (_, i) => ({ ...widestSource(i), phaseNo: 1 })))
+    await expectAllowed(tableEdits(dbFor(WHO), widestSource, 17, widestEdit))
+    await resetData()
+    await seedTables(Array.from({ length: 18 }, (_, i) => ({ ...widestSource(i), phaseNo: 1 })))
+    await expectDenied(tableEdits(dbFor(WHO), widestSource, 18, widestEdit))
   })
 })
 

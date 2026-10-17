@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "zoneId": 717,
+  "name": "The Stockade",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=717/the-stockade",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected."
+  ],
+  "sources": [
+    {
+      "npcId": 1696,
+      "name": "Targorr the Dread",
+      "kind": "boss",
+      "itemIds": [273804, 273805, 273806]
+    },
+    {
+      "npcId": 1666,
+      "name": "Kam Deepfury",
+      "kind": "boss",
+      "itemIds": [2280, 273807, 273808]
+    },
+    {
+      "npcId": 1717,
+      "name": "Hamhock",
+      "kind": "boss",
+      "itemIds": [273809, 273810, 273811]
+    },
+    {
+      "npcId": 1663,
+      "name": "Dextren Ward",
+      "kind": "boss",
+      "itemIds": [273817, 273819, 273820]
+    },
+    {
+      "npcId": 1716,
+      "name": "Bazil Thredd",
+      "kind": "boss",
+      "itemIds": [273824, 273825, 273827, 273829]
+    },
+    {
+      "npcId": 1720,
+      "name": "Bruegal Ironknuckle",
+      "kind": "rare",
+      "itemIds": [2941, 2942, 3228]
+    }
+  ],
+  "zoneWideItemIds": [1076, 274092]
+}

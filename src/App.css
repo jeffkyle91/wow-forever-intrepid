@@ -634,7 +634,7 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 :root[data-theme='dark'] .class-color-shaman { --wow-class-dark-color: #4DA6FF; }
 :root[data-theme='dark'] .class-color-warlock { --wow-class-dark-color: #9697F1; }
 /* Light theme: the tuned name colours are darkened a little more on top of a fade, and a received candidate's number stays readable. */
-:root:not([data-theme='dark']) .class-accent strong, :root:not([data-theme='dark']) .class-accent .ranked-name, :root:not([data-theme='dark']) .class-accent-row .character-cell strong, :root:not([data-theme='dark']) .class-accent-row .class-name, :root:not([data-theme='dark']) .class-accent-row .specialization-name { color: color-mix(in srgb, var(--wow-class-color) 68%, #0b1420); }
+:root:not([data-theme='dark']) .class-accent strong, :root:not([data-theme='dark']) .class-accent .ranked-name, :root:not([data-theme='dark']) .class-accent .class-text, :root:not([data-theme='dark']) .class-accent-row .character-cell strong, :root:not([data-theme='dark']) .class-accent-row .class-name, :root:not([data-theme='dark']) .class-accent-row .specialization-name { color: color-mix(in srgb, var(--wow-class-color) 68%, #0b1420); }
 .priority-ranking li.class-accent.listing-received .rank-number { opacity: .85; }
 /* The dashboard list rows set their own padding, which would put the icon under the stripe. */
 .dash-list li.class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); padding-right: 8px; }

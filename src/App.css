@@ -113,19 +113,25 @@
 .class-name, .specialization-name { color: var(--wow-class-color, #6c7a70); }
 .class-name { font-size: 10px; }
 .specialization-name { font-size: 10px; white-space: nowrap; }
-.class-color-warrior { --wow-class-color: #835a35; --wow-class-dark-color: #dbb27b; }
-.class-color-paladin { --wow-class-color: #a44970; --wow-class-dark-color: #f0a1c0; }
-.class-color-hunter { --wow-class-color: #5c792d; --wow-class-dark-color: #b8d779; }
-.class-color-rogue { --wow-class-color: #887000; --wow-class-dark-color: #f0d75b; }
-.class-color-priest { --wow-class-color: #697685; --wow-class-dark-color: #d8e0e9; }
-.class-color-shaman { --wow-class-color: #2854a3; --wow-class-dark-color: #96b7ff; }
-.class-color-mage { --wow-class-color: #166f8e; --wow-class-dark-color: #72d8ef; }
-.class-color-warlock { --wow-class-color: #715092; --wow-class-dark-color: #c5a4e9; }
-.class-color-druid { --wow-class-color: #ad550c; --wow-class-dark-color: #ffc078; }
+.class-color-warrior { --wow-class-color: #835a35; --wow-class-dark-color: #C69B6D; --wow-class-exact: #C69B6D; }
+.class-color-paladin { --wow-class-color: #a44970; --wow-class-dark-color: #F48CBA; --wow-class-exact: #F48CBA; }
+.class-color-hunter { --wow-class-color: #5c792d; --wow-class-dark-color: #AAD372; --wow-class-exact: #AAD372; }
+.class-color-rogue { --wow-class-color: #887000; --wow-class-dark-color: #FFF468; --wow-class-exact: #FFF468; }
+.class-color-priest { --wow-class-color: #697685; --wow-class-dark-color: #FFFFFF; --wow-class-exact: #FFFFFF; }
+.class-color-shaman { --wow-class-color: #2854a3; --wow-class-dark-color: #0070DD; --wow-class-exact: #0070DD; }
+.class-color-mage { --wow-class-color: #166f8e; --wow-class-dark-color: #3FC7EB; --wow-class-exact: #3FC7EB; }
+.class-color-warlock { --wow-class-color: #715092; --wow-class-dark-color: #8788EE; --wow-class-exact: #8788EE; }
+.class-color-druid { --wow-class-color: #ad550c; --wow-class-dark-color: #FF7C0A; --wow-class-exact: #FF7C0A; }
 .class-color-death-knight { --wow-class-color: #a52e47; --wow-class-dark-color: #ed8196; }
 .class-color-demon-hunter { --wow-class-color: #85369e; --wow-class-dark-color: #d28eeb; }
 .class-color-monk { --wow-class-color: #08734a; --wow-class-dark-color: #63e7af; }
 .class-color-evoker { --wow-class-color: #247665; --wow-class-dark-color: #77d8bf; }
+/* Rows: a class-coloured stripe, a faded row and a coloured name. The stripe and the fade use the exact in-game colour on both
+   themes; the name uses the darker tuned colour on the light theme and the exact colour on the dark theme. */
+.class-accent-row > td { background-image: linear-gradient(color-mix(in srgb, var(--wow-class-exact) 26%, transparent), color-mix(in srgb, var(--wow-class-exact) 26%, transparent)); }
+.class-accent-row > td:first-child { box-shadow: inset 18px 0 0 var(--wow-class-exact, transparent), inset 19px 0 0 rgba(23, 38, 59, .35); }
+.class-accent-row .character-cell strong { color: var(--wow-class-color); }
+:root[data-theme='dark'] .class-accent-row .character-cell strong { color: var(--wow-class-dark-color); }
 .unassigned-label { color: #8996a4; font-size: 10px; }
 .linked-account-status { color: #8996a4; font-size: 9px; white-space: nowrap; }
 .linked-account-status.linked { color: #487da5; font-weight: 700; }

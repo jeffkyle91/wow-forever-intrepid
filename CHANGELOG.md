@@ -6,6 +6,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Right-aligned the My dashboard raider-type, help and attendance controls on mobile, including when they wrap.
 - Fixed raid edits with ten selected zones being rejected by Firestore's rule-expression limit, while preserving complete zone validation and truthful, atomic audit entries. Pending merge and rules deployment.
 
 ## 2026-10-16 - f42a14d

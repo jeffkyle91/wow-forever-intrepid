@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { deleteDoc, deleteField, setDoc, writeBatch, type DocumentData } from 'firebase/firestore'
-import { AWARD, NOTHING, createAward, createPriority, deletePriority, describeChange, editAward, editPriority, entry, entryId, removedAward, stampedAward, type Staff } from './support/audit.ts'
+import { AWARD, NOTHING, createAward, createPriority, deletePriority, describeChange, editAward, editPriority, entry, entryId, newAwardDoc, newPriorityDoc, removedAward, stampedAward, type Staff } from './support/audit.ts'
 import { LABEL, PLAYER_1, PLAYER_2, PLAYER_3, PRIORITY_ID, RAID_STAFF, UID, awardDoc, displayNameOf, priorityDoc } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
 import { asDouble, rawCommit, requestTime } from './support/raw.ts'
@@ -136,8 +136,8 @@ describe('an award edit entry must give the stored old value and the stored new 
 })
 
 describe('an award create entry', () => {
-  const fields = awardDoc()
-  const listed = Object.keys(fields) // priorityId, item, encounter, recipient, awardedAt, prioritySnapshot, councilNoteSnapshot, awardNote
+  const fields = newAwardDoc()
+  const listed = Object.keys(fields) // priorityId, item, encounter, recipient, awardedAt, prioritySnapshot, councilNoteSnapshot, awardNote, phaseNo
 
   for (const who of RAID_STAFF as readonly Staff[]) {
     test(`[D04-*,D10-createdBy,D10-createdAt,D11-*] a ${LABEL[who]} can create an award with an entry that lists its fields`, async () => {
@@ -365,7 +365,7 @@ describe('the item label is limited to 120 characters of text', () => {
 // ---------------------------------------------------------------------------------------------------------------
 // The SDK writes whole numbers as integers, so a double with a whole value needs a hand-built request (support/raw.ts).
 describe('an entry revision that is a whole-number double', () => {
-  const P = priorityDoc()
+  const P = newPriorityDoc()
   const nulls = Object.fromEntries(Object.keys(P).map((key) => [key, null]))
   const staff = UID.raidLeader
   const entryFields = (extra: Record<string, unknown>) => ({ at: requestTime, by: staff, byName: displayNameOf(staff), targetType: 'priority', item: 'Test Sword', ...extra })
@@ -382,7 +382,7 @@ describe('an entry revision that is a whole-number double', () => {
 
   test('[V24,V27] a priority edit entry for revision 1.0 is refused', async () => {
     const edit = (entryRev: unknown, id: string) => rawCommit(staff, [
-      { path: `lootPriorities/${PRIORITY_ID}`, mask: ['councilNote', 'rev'], fields: { councilNote: 'Rewritten note', rev: 1 } },
+      { path: `lootPriorities/${PRIORITY_ID}`, mask: ['councilNote', 'rev', 'updatedBy', 'updatedAt'], fields: { councilNote: 'Rewritten note', rev: 1, updatedBy: staff, updatedAt: requestTime } },
       { path: `auditLog/${id}`, fields: entryFields({ targetId: PRIORITY_ID, rev: entryRev, action: 'edit', changed: ['councilNote'], before: { councilNote: P.councilNote }, after: { councilNote: 'Rewritten note' } }) },
     ])
     assert.equal(await edit(asDouble(1), `priority_${PRIORITY_ID}_1.0`), 'denied', 'revision 1.0 under the id with .0')

@@ -60,15 +60,18 @@ export async function editAward(
   return batch.commit()
 }
 
-/** Create an award at revision 1 with its create entry. */
+/** What a new award made from the seeded priority is: the priority's copy, filed under the first phase (the seeded priority has none). */
+export const newAwardDoc = (overrides: DocumentData = {}): DocumentData => awardDoc({ phaseNo: 0, ...overrides })
+
+/** Create an award made from a priority, at revision 1, with its create entry. Honest unless a test overrides a part or leaves the entry out. */
 export function createAward(
   db: Firestore,
   who: Staff,
-  { id = 'award-new', fields = awardDoc(), award = {}, audit = {}, entryKey }: { id?: string; fields?: DocumentData; award?: DocumentData; audit?: DocumentData; entryKey?: string } = {},
+  { id = 'award-new', fields = newAwardDoc(), award = {}, audit = {}, entryKey, skipEntry = false }: { id?: string; fields?: DocumentData; award?: DocumentData; audit?: DocumentData; entryKey?: string; skipEntry?: boolean } = {},
 ) {
   const batch = writeBatch(db)
-  batch.set(guildDoc(db, `awards/${id}`), clean({ ...fields, rev: 1, createdBy: UID[who], createdAt: serverTimestamp(), updatedBy: UID[who], updatedAt: serverTimestamp(), ...award }))
-  batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('award', id, 1)}`), clean(entry(who, 'award', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields), ...audit })))
+  batch.set(guildDoc(db, `awards/${id}`), clean({ ...fields, rev: 1, createdBy: UID[who], createdAt: serverTimestamp(), ...award }))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('award', id, 1)}`), clean(entry(who, 'award', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields), ...audit })))
   return batch.commit()
 }
 
@@ -91,16 +94,16 @@ export function createManualAward(
   return batch.commit()
 }
 
-/** Update a priority and file an entry for it. Priorities are not forced to carry an entry in this stage, but an entry has to be truthful. */
+/** Update a priority and file an entry for it, as the rules require: the revision and the stamps go up with it and the entry tells the truth. */
 export async function editPriority(
   db: Firestore,
   who: Staff,
-  { id = PRIORITY_ID, rev = 1, changes = { councilNote: 'Rewritten note' }, priority = {}, audit = {}, entryKey, action = 'edit' }: { id?: string; rev?: number; changes?: DocumentData; priority?: DocumentData; audit?: DocumentData; entryKey?: string; action?: string } = {},
+  { id = PRIORITY_ID, rev = 1, changes = { councilNote: 'Rewritten note' }, priority = {}, audit = {}, entryKey, action = 'edit', skipEntry = false }: { id?: string; rev?: number; changes?: DocumentData; priority?: DocumentData; audit?: DocumentData; entryKey?: string; action?: string; skipEntry?: boolean } = {},
 ) {
   const current = await stored(`lootPriorities/${id}`)
   const batch = writeBatch(db)
-  batch.update(guildDoc(db, `lootPriorities/${id}`), clean({ ...changes, rev, ...priority }))
-  batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('priority', id, rev)}`), clean(entry(who, 'priority', id, rev, { action, item: current?.item, ...describeChange(current, changes), ...audit })))
+  batch.update(guildDoc(db, `lootPriorities/${id}`), clean({ ...changes, ...stamp(who, rev), ...priority }))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('priority', id, rev)}`), clean(entry(who, 'priority', id, rev, { action, item: current?.item, ...describeChange(current, changes), ...audit })))
   return batch.commit()
 }
 
@@ -108,19 +111,24 @@ export async function editPriority(
 export const reorderPriority = (db: Firestore, who: Staff, { order = [PLAYER_3, PLAYER_2, PLAYER_1], ...rest }: { id?: string; rev?: number; audit?: DocumentData; entryKey?: string; order?: string[] } = {}) =>
   editPriority(db, who, { ...rest, changes: { rankedPlayers: order }, action: 'reorder' })
 
+/** A new priority as the app writes it: the seeded one's fields, filed under the first phase. */
+export const newPriorityDoc = (overrides: DocumentData = {}): DocumentData => priorityDoc({ phaseNo: 0, ...overrides })
+
 /** Create a priority at revision 1 with its create entry (honest unless overridden). */
-export function createPriority(db: Firestore, who: Staff, { id = 'priority-2', fields = priorityDoc(), audit = {}, entryKey }: { id?: string; fields?: DocumentData; audit?: DocumentData; entryKey?: string } = {}) {
+export function createPriority(db: Firestore, who: Staff, { id = 'priority-2', fields = newPriorityDoc(), priority = {}, audit = {}, entryKey, skipEntry = false }: { id?: string; fields?: DocumentData; priority?: DocumentData; audit?: DocumentData; entryKey?: string; skipEntry?: boolean } = {}) {
   const batch = writeBatch(db)
-  batch.set(guildDoc(db, `lootPriorities/${id}`), { ...fields, rev: 1, updatedBy: UID[who], updatedAt: serverTimestamp() })
-  batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('priority', id, 1)}`), clean(entry(who, 'priority', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields), ...audit })))
+  batch.set(guildDoc(db, `lootPriorities/${id}`), clean({ ...fields, rev: 1, updatedBy: UID[who], updatedAt: serverTimestamp(), ...priority }))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('priority', id, 1)}`), clean(entry(who, 'priority', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields), ...audit })))
   return batch.commit()
 }
-/** Delete the seeded priority and file a delete entry (honest unless overridden). */
-export async function deletePriority(db: Firestore, who: Staff, { rev = 1, audit = {} }: { rev?: number; audit?: DocumentData } = {}) {
-  const current = await stored(`lootPriorities/${PRIORITY_ID}`)
+/** Delete the seeded priority (or another) and file a delete entry (honest unless overridden). */
+export async function deletePriority(db: Firestore, who: Staff, { id = PRIORITY_ID, rev = 1, audit = {}, skipEntry = false }: { id?: string; rev?: number; audit?: DocumentData; skipEntry?: boolean } = {}) {
+  const current = await stored(`lootPriorities/${id}`)
   const batch = writeBatch(db)
-  batch.delete(guildDoc(db, `lootPriorities/${PRIORITY_ID}`))
-  batch.set(guildDoc(db, `auditLog/${entryId('priority', PRIORITY_ID, rev)}`), clean(entry(who, 'priority', PRIORITY_ID, rev, { action: 'delete', item: current?.item, changed: Object.keys(current ?? {}), before: current, ...audit })))
+  batch.delete(guildDoc(db, `lootPriorities/${id}`))
+  // The entry lists what the document had, except the stamps the log does not list.
+  const listed = Object.keys(current ?? {}).filter((key) => !['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].includes(key))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryId('priority', id, rev)}`), clean(entry(who, 'priority', id, rev, { action: 'delete', item: current?.item, changed: listed, before: Object.fromEntries(listed.map((key) => [key, current?.[key]])), ...audit })))
   return batch.commit()
 }
 

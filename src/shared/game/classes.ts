@@ -6,6 +6,11 @@ export function classColorKey(className: string) {
   return className.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+// The classes that give a block (not a table row) the class stripe, fade and coloured name. See .class-accent in App.css.
+export function classAccent(className: string) {
+  return `class-accent class-color-${classColorKey(className)}`
+}
+
 export const classSpecializations: Record<string, SpecializationOption[]> = {
   Warrior: [
     { name: 'Arms', role: 'Melee' },

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { awardCreateFields, describeCreate, describeDelete, describeEdit, priorityAuditFields, readAuditEntry, sameValue } from '../../src/shared/game/lootAudit.ts'
+import { awardCreateFields, describeCreate, describeDelete, describeEdit, legacyAwardEntry, priorityAuditFields, readAuditEntry, sameValue } from '../../src/shared/game/lootAudit.ts'
 
 // Invented names.
 const priority = { item: 'Test Sword', encounter: 'Test Hall \u00b7 Warden', rankedPlayers: ['Aria', 'Brock'], councilNote: '', phaseNo: 0, itemId: 101 }
@@ -86,5 +86,23 @@ describe('readAuditEntry', () => {
     assert.equal(readAuditEntry('x', {}), null)
     assert.equal(readAuditEntry('', stored), null)
     assert.equal(readAuditEntry('x', { targetType: 'award', targetId: 'a', at: { toDate: () => new Date(NaN) } })!.at, null)
+  })
+})
+
+describe('legacyAwardEntry', () => {
+  const award = { id: 'a1', priorityId: 'p1', item: 'Test Sword', encounter: 'Test Hall', recipient: 'Aria', awardedAt: '2026-11-05', prioritySnapshot: ['Aria', 'Brock'], councilNoteSnapshot: 'Note', awardNote: '' }
+  it('is an entry of revision 0 for the award, dated the raid night, with the fields the award has', () => {
+    const entry = legacyAwardEntry(award)
+    assert.deepEqual([entry.targetType, entry.targetId, entry.rev, entry.action, entry.item, entry.byName], ['award', 'a1', 0, 'create', 'Test Sword', ''])
+    assert.equal(entry.at?.getFullYear(), 2026)
+    assert.equal(entry.at?.getMonth(), 10)
+    assert.equal(entry.at?.getDate(), 5)
+    assert.deepEqual(entry.changed, ['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote'])
+    assert.equal(entry.after.recipient, 'Aria')
+  })
+  it('has no date when the award has none that reads, and leaves out fields the award lacks', () => {
+    const entry = legacyAwardEntry({ id: 'a2', item: 'X', encounter: '', recipient: 'Aria', awardedAt: 'last Tuesday' })
+    assert.equal(entry.at, null)
+    assert.equal(entry.changed.includes('prioritySnapshot'), false)
   })
 })

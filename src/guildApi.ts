@@ -48,6 +48,8 @@ export type AwardRecord = {
   awardNote: string
   // The phase the award was recorded in; none means the first phase.
   phaseNo?: number
+  // Awards made since the Log began have a revision (1 or more); one without is older and has no entry in the Log.
+  rev?: number
 }
 export type AfkEntryRecord = { id: string; userId: string; displayName: string; startDate: string; endDate: string; createdAt?: unknown }
 export type CommentKind = 'public' | 'leadership'

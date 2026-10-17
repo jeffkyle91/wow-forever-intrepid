@@ -62,6 +62,14 @@ export type AuditEntry = {
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
 const map = (value: unknown): Values => (value && typeof value === 'object' && !Array.isArray(value) ? (value as Values) : {})
 
+/** An award made before the Log began has no entry; the Log shows it as an entry of its own (revision 0), dated the raid night. */
+export function legacyAwardEntry(award: { id: string; priorityId?: string; item: string; encounter: string; recipient: string; awardedAt: string; prioritySnapshot?: string[]; councilNoteSnapshot?: string; awardNote?: string; phaseNo?: number }): AuditEntry {
+  const fields: Values = { priorityId: award.priorityId, item: award.item, encounter: award.encounter, recipient: award.recipient, awardedAt: award.awardedAt, prioritySnapshot: award.prioritySnapshot, councilNoteSnapshot: award.councilNoteSnapshot, awardNote: award.awardNote, phaseNo: award.phaseNo }
+  const { changed, after } = describeCreate(fields, awardCreateFields)
+  const at = new Date(`${award.awardedAt}T12:00:00`)
+  return { id: `before-${award.id}`, at: Number.isNaN(at.getTime()) ? null : at, by: '', byName: '', targetType: 'award', targetId: award.id, rev: 0, action: 'create', item: award.item, changed, before: {}, after, reason: '' }
+}
+
 /** Reads an entry tolerantly: a missing or odd field becomes empty, an entry with no target is dropped. Never throws. */
 export function readAuditEntry(id: string, data: Values): AuditEntry | null {
   if (!id || typeof data.targetType !== 'string' || typeof data.targetId !== 'string') return null

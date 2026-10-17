@@ -79,6 +79,11 @@ export type RollableSettings = PhaseSettings & PhaseStatus
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 
+// The words a Guild Leader types to start a phase ("Start Phase 2"), and whether what was typed matches them: case and extra spaces do not matter,
+// nothing else may differ.
+export const startPhrase = (name: string) => `Start ${name.trim()}`
+export const matchesPhrase = (typed: string, phrase: string) => typed.trim() !== '' && sameName(typed, phrase)
+
 // Why a name cannot be the next phase's, or undefined when it can. A name already used is refused so two phases never look alike in the list.
 export function startPhaseProblem(settings: PhaseSettings, name: string): string | undefined {
   const trimmed = name.trim()

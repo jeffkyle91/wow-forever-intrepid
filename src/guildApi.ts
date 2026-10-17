@@ -156,6 +156,11 @@ export async function saveGuildRecord(collectionName: 'roster' | 'lootPriorities
   await setDoc(doc(requireDb(), 'guilds', guildId, collectionName, id), fields, { merge: true })
 }
 
+// Removes a loot priority. The awards that were recorded from it keep their own copy of the candidate order, so history is not touched.
+export async function deleteLootPriority(id: string) {
+  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'lootPriorities', id))
+}
+
 export async function setTeamAssignment(playerId: string, team: TenManTeam | null) {
   const assignmentRef = doc(requireDb(), 'guilds', guildId, 'teamAssignments', playerId)
   if (team) await setDoc(assignmentRef, { team })

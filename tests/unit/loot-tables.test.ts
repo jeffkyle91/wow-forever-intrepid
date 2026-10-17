@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { checkLootCapture, lootCaptureItemIds, lootItemsOfNpc, lootSourceOfItem } from '../../src/shared/game/lootTables.ts'
 
@@ -18,6 +18,23 @@ describe('the Deadmines capture in the repository', () => {
       assert.equal(result.table.sources.filter((source) => source.kind !== 'trash').length, 9)
       assert.equal(result.table.zoneWideItemIds.length, 4)
     }
+  })
+})
+
+describe('every capture in data/loot', () => {
+  const dir = new URL('../../data/loot/', import.meta.url)
+  const files = readdirSync(dir).filter((name) => name.endsWith('.json')).sort()
+  it('includes the Deadmines', () => assert.ok(files.includes('the-deadmines.json')))
+  for (const file of files) {
+    it(`${file} is valid, and named after its zone`, () => {
+      const data = JSON.parse(readFileSync(new URL(file, dir), 'utf8'))
+      assert.deepEqual(errorsOf(data), [])
+      assert.equal(file, `${String(data.name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.json`)
+    })
+  }
+  it('has one file for each zone id', () => {
+    const ids = files.map((file) => JSON.parse(readFileSync(new URL(file, dir), 'utf8')).zoneId)
+    assert.equal(new Set(ids).size, ids.length)
   })
 })
 

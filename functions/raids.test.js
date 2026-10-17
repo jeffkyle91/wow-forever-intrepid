@@ -63,6 +63,16 @@ describe('authenticated response authorization', () => {
       await rejected(response(extra), 'invalid-argument')
     }
   })
+  test('Removed accounts cannot use callables, including with a retained old character link', async () => {
+    await response()
+    const { id } = await absence()
+    await guild.collection('members').doc('test-member').update({ role: 'Removed' })
+    await rejected(response(), 'permission-denied')
+    await rejected(absence(), 'permission-denied')
+    await rejected(remove(id), 'permission-denied')
+    await rejected(synchronizeGuild(db, request({})), 'permission-denied')
+    assert.equal((await signup().get()).data().status, 'absent')
+  })
   for (const characterId of ['other', 'missing']) {
     test(`cannot respond as ${characterId}`, async () => {
       await rejected(response({ characterId }), 'permission-denied')

@@ -27,6 +27,14 @@ service cloud.firestore {
       return request.resource.data.role in ['Guild Leader', 'Raid Leader', 'Member'];
     }
 
+    function validMemberAccessChange(userId) {
+      let after = request.resource.data;
+      return (hasValidRole() || after.role == 'Removed')
+        && (after.role != 'Removed' || (request.auth.uid != userId && after.get('playerId', null) == null))
+        && (resource.data.role != 'Removed'
+          || (after.role in ['Removed', 'Member'] && after.get('playerId', null) == null));
+    }
+
     function hasValidPlayerLink(guildId, userId) {
       let playerId = request.resource.data.get('playerId', null);
       return playerId == null
@@ -46,7 +54,8 @@ service cloud.firestore {
       let linkedUid = request.resource.data.get('linkedUid', null);
       return linkedUid == null
         || (linkedUid is string
-          && getAfter(memberPath(guildId, linkedUid)).data.playerId == playerId);
+          && getAfter(memberPath(guildId, linkedUid)).data.playerId == playerId
+          && getAfter(memberPath(guildId, linkedUid)).data.role != 'Removed');
     }
 
     function releasesPreviousMemberLink(guildId, playerId) {
@@ -341,7 +350,7 @@ service cloud.firestore {
         allow list: if isGuildLeader(guildId);
         allow create: if isGuildLeader(guildId) && hasValidRole() && hasValidPlayerLink(guildId, userId);
         allow update: if isGuildLeader(guildId)
-          && hasValidRole()
+          && validMemberAccessChange(userId)
           && hasValidPlayerLink(guildId, userId)
           && releasesPreviousPlayerLink(guildId, userId);
         allow delete: if false;

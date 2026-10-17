@@ -18,7 +18,7 @@ import './App.css'
 
 function App() {
   const session = useGuildSession()
-  const actualRole = session.membership?.role ?? null
+  const actualRole = session.membership?.role === 'Removed' ? null : session.membership?.role ?? null
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       return localStorage.getItem('intrepid-theme') === 'dark' ? 'dark' : 'light'
@@ -35,6 +35,7 @@ function App() {
   const [mutationError, setMutationError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [previousStatus, setPreviousStatus] = useState(session.status)
   const data = useGuildData(session.status === 'active', actualRole)
   const { roster, priorities, awards, dataError } = data
   const effectiveRole = actualRole === 'Guild Leader' ? impersonatedRole ?? actualRole : actualRole
@@ -42,6 +43,16 @@ function App() {
   const tab = isTabVisible(selectedDef, effectiveRole) ? selectedDef : tabList.find((entry) => entry.id === FALLBACK_TAB_ID) ?? tabList[0]
   const canEditRoster = effectiveRole ? canManageRoster(effectiveRole) : false
   const canEditRaidData = effectiveRole ? canManageRaidData(effectiveRole) : false
+
+  if (previousStatus !== session.status) {
+    setPreviousStatus(session.status)
+    if (session.status !== 'active') {
+      setModal(null)
+      setImpersonatedRole(null)
+      setMutationError('')
+      setNotice('')
+    }
+  }
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme

@@ -1,4 +1,5 @@
-import type { PlayerRecord as Player } from '../../guildApi'
+// Structural, so this file has no imports and the unit tests can run it directly. PlayerRecord (guildApi.ts) satisfies it.
+type Player = { id: string; name: string; surname?: string; className: string; specialization?: string; role: string; mainId?: string }
 
 // Alt id -> main name. A link to a missing character, or to another alt, is ignored.
 export function mainNameByPlayer(roster: Player[]) {
@@ -9,17 +10,18 @@ export function mainNameByPlayer(roster: Player[]) {
   }))
 }
 
-export type RosterRow = { player: Player; isAlt: boolean; altCount: number }
+export type RosterRow<T> = { player: T; isAlt: boolean; altCount: number }
 
 // Puts each visible alt right under its visible main. altCount counts every alt of a main (shown or not); the
-// alts are hidden while that main is collapsed. An alt whose main is not visible stays a normal row.
-export function groupAlts(visible: Player[], roster: Player[], collapsed: Set<string>) {
+// alts are hidden while that main is collapsed. An alt whose main is not visible stays a normal row. With keepTogether off no
+// alt is nested: every visible character is its own row, in the order given, so a sort puts alts in among the mains.
+export function groupAlts<T extends Player>(visible: T[], roster: Player[], collapsed: Set<string>, keepTogether = true) {
   const mainNames = mainNameByPlayer(roster)
   const visibleIds = new Set(visible.map((player) => player.id))
-  const nested = (player: Player) => !!player.mainId && mainNames.has(player.id) && visibleIds.has(player.mainId)
+  const nested = (player: T) => keepTogether && !!player.mainId && mainNames.has(player.id) && visibleIds.has(player.mainId)
   const altCounts = new Map<string, number>()
   for (const player of roster) if (player.mainId && mainNames.has(player.id)) altCounts.set(player.mainId, (altCounts.get(player.mainId) ?? 0) + 1)
-  const rows: RosterRow[] = []
+  const rows: RosterRow<T>[] = []
   for (const player of visible) {
     if (nested(player)) continue
     rows.push({ player, isAlt: false, altCount: altCounts.get(player.id) ?? 0 })
@@ -29,7 +31,7 @@ export function groupAlts(visible: Player[], roster: Player[], collapsed: Set<st
   return { rows, mainNames }
 }
 
-export function filterRoster(roster: Player[], query: string, hideAlts = false) {
+export function filterRoster<T extends Player>(roster: T[], query: string, hideAlts = false) {
   const mainNames = mainNameByPlayer(roster)
   return roster.filter((player) => !(hideAlts && mainNames.has(player.id)) && `${player.name} ${player.surname ?? ''} ${player.className} ${player.specialization ?? ''} ${player.role} ${mainNames.get(player.id) ?? ''}`.toLowerCase().includes(query.toLowerCase()))
 }

@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "zoneId": 209,
+  "name": "Shadowfang Keep",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=209/shadowfang-keep",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected."
+  ],
+  "sources": [
+    {
+      "npcId": 3914,
+      "name": "Rethilgore",
+      "kind": "boss",
+      "itemIds": [5254, 273456, 273457]
+    },
+    {
+      "npcId": 3886,
+      "name": "Razorclaw the Butcher",
+      "kind": "boss",
+      "itemIds": [1292, 6226, 6633, 273096]
+    },
+    {
+      "npcId": 3887,
+      "name": "Baron Silverlaine",
+      "kind": "boss",
+      "itemIds": [6321, 6323, 273637]
+    },
+    {
+      "npcId": 4278,
+      "name": "Commander Springvale",
+      "kind": "boss",
+      "itemIds": [3191, 6320, 273105, 273643]
+    },
+    {
+      "npcId": 4279,
+      "name": "Odo the Blindwatcher",
+      "kind": "boss",
+      "itemIds": [6318, 6319, 273645]
+    },
+    {
+      "npcId": 4274,
+      "name": "Fenrus the Devourer",
+      "kind": "boss",
+      "itemIds": [3230, 6340, 273646]
+    },
+    {
+      "npcId": 3927,
+      "name": "Wolf Master Nandos",
+      "kind": "boss",
+      "itemIds": [3748, 6314, 273647]
+    },
+    {
+      "npcId": 4275,
+      "name": "Archmage Arugal",
+      "kind": "boss",
+      "itemIds": [6220, 6324, 6392]
+    },
+    {
+      "npcId": 14682,
+      "name": "Sever",
+      "kind": "rare",
+      "itemIds": [23173]
+    },
+    {
+      "npcId": 3864,
+      "name": "Fel Steed",
+      "kind": "trash",
+      "itemIds": [932]
+    },
+    {
+      "npcId": 4627,
+      "name": "Arugal's Voidwalker",
+      "kind": "trash",
+      "itemIds": [5943]
+    }
+  ],
+  "zoneWideItemIds": [1318, 1482, 1483, 1484, 1489, 1935, 1974, 2205, 2292, 2807, 3194, 6341, 6641, 6642]
+}

@@ -19,7 +19,7 @@ An item may appear once in the whole file. Wowhead does not flag bosses, so `kin
 
 ## Capture a dungeon
 
-1. Open the dungeon's page on Wowhead Forever in your browser (list of zones: `https://www.wowhead.com/forever/zones`). Its **Drops** tab lists every item with the creature it comes from.
+1. Open the dungeon's page on Wowhead Forever in your browser (list of zones: `https://www.wowhead.com/forever/zones`). Its **Drops** tab lists every item with the creature it comes from. Open one zone page at a time and leave a minute or so between pages: after about ten page loads in a few seconds Wowhead's CDN answered every page with a 403 "request blocked" error (the item check below uses a different endpoint and was not affected).
 2. Write the file by hand or from what you read: one entry per creature, with its NPC id and item ids. Copy `the-deadmines.json` as a template.
 3. Check it: `npm run check:loot -- data/loot/your-file.json`. It validates the shape, then looks every id up and reports any that Wowhead does not know. Add `--names` to read the names by creature and confirm they match what you saw.
 

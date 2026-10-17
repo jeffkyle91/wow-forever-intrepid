@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "zoneId": 719,
+  "name": "Blackfathom Deeps",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=719/blackfathom-deeps",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected."
+  ],
+  "sources": [
+    {
+      "npcId": 4887,
+      "name": "Ghamoo-ra",
+      "kind": "boss",
+      "itemIds": [6907, 6908, 273839]
+    },
+    {
+      "npcId": 4831,
+      "name": "Lady Sarevess",
+      "kind": "boss",
+      "itemIds": [888, 3078, 11121]
+    },
+    {
+      "npcId": 6243,
+      "name": "Gelihast",
+      "kind": "boss",
+      "itemIds": [6905, 6906, 273141, 273840]
+    },
+    {
+      "npcId": 12902,
+      "name": "Lorgus Jett",
+      "kind": "boss",
+      "itemIds": [273841, 273842, 273843]
+    },
+    {
+      "npcId": 12876,
+      "name": "Baron Aquanis",
+      "kind": "boss",
+      "itemIds": [16782]
+    },
+    {
+      "npcId": 4832,
+      "name": "Twilight Lord Kelris",
+      "kind": "boss",
+      "itemIds": [1155, 6903, 273846]
+    },
+    {
+      "npcId": 4830,
+      "name": "Old Serra'kis",
+      "kind": "boss",
+      "itemIds": [6901, 6902, 6904]
+    },
+    {
+      "npcId": 4829,
+      "name": "Aku'mai",
+      "kind": "boss",
+      "itemIds": [6909, 6910, 6911]
+    }
+  ],
+  "zoneWideItemIds": [1454, 2034, 3414, 3416]
+}

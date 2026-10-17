@@ -24,3 +24,26 @@
 .roster-comment-preview { white-space: pre-line; }
 .roster-comment-expand { display: block; text-decoration: underline; margin-top: 4px; }
 .roster-comment-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+.roster-sort-trigger { display: inline-flex; align-items: center; gap: 5px; height: 31px; padding: 0 8px; border: 1px solid #dfe7ef; border-radius: 4px; color: #3f566b; background: #fff; font: inherit; font-size: 10px; white-space: nowrap; cursor: pointer; }
+.roster-sort-trigger:focus-visible { outline: 2px solid #4b82aa; outline-offset: 2px; }
+.roster-sort-panel { position: fixed; margin: 0; box-sizing: border-box; overflow: auto; padding: 12px; border: 1px solid #c8d2c7; border-radius: 6px; background: #fff; color: #425148; font-size: 11px; box-shadow: 0 4px 16px #17263b26; }
+.roster-sort-panel:popover-open { display: grid; gap: 12px; }
+.roster-sort-panel fieldset { display: grid; gap: 2px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.roster-sort-panel fieldset:disabled { opacity: .5; }
+.roster-sort-panel legend { margin-bottom: 7px; padding: 0; color: #7a8a9a; font-size: 10px; font-weight: 700; }
+.roster-sort-panel label { display: flex; align-items: center; gap: 7px; min-height: 24px; cursor: pointer; }
+@media (pointer: coarse) { .roster-sort-panel label { min-height: 36px; } }
+.roster-sort-panel input { width: 14px; height: 14px; margin: 0; accent-color: #4a6a85; }
+.roster-sort-panel .roster-sort-alts { padding-top: 10px; border-top: 1px solid #e3e8e0; }
+.roster-sort-panel small { color: #7a8a9a; font-size: 10px; }
+:root[data-theme='dark'] .roster-sort-trigger { border-color: #3a4b61; color: #d3deea; background: #182536; }
+:root[data-theme='dark'] .roster-sort-panel { border-color: #40546b; background: #182536; color: #bfccd9; }
+:root[data-theme='dark'] .roster-sort-panel legend, :root[data-theme='dark'] .roster-sort-panel small { color: #9fb0c3; }
+:root[data-theme='dark'] .roster-sort-panel .roster-sort-alts { border-top-color: #33465c; }
+.toolbar-controls:has(.roster-sort-trigger) { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.panel-toolbar:has(.roster-sort-trigger) .panel-heading { white-space: nowrap; }
+@media (max-width: 600px) {
+  .toolbar-controls:has(.roster-sort-trigger) { justify-content: flex-start; }
+  .toolbar-controls:has(.roster-sort-trigger) .roster-sort-trigger { flex: 1 1 110px; justify-content: center; }
+  .toolbar-controls:has(.roster-sort-trigger) .search-field { flex: 1 1 100%; }
+}

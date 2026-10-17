@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "zoneId": 718,
+  "name": "Wailing Caverns",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=718/wailing-caverns",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected."
+  ],
+  "sources": [
+    {
+      "npcId": 3671,
+      "name": "Lady Anacondra",
+      "kind": "boss",
+      "itemIds": [5404, 6446, 10412, 273088, 273098]
+    },
+    {
+      "npcId": 3669,
+      "name": "Lord Cobrahn",
+      "kind": "boss",
+      "itemIds": [6460, 6465, 10410]
+    },
+    {
+      "npcId": 3670,
+      "name": "Lord Pythas",
+      "kind": "boss",
+      "itemIds": [6472, 6473, 273089]
+    },
+    {
+      "npcId": 3673,
+      "name": "Lord Serpentis",
+      "kind": "boss",
+      "itemIds": [5970, 6459, 6469, 10411, 273087]
+    },
+    {
+      "npcId": 3653,
+      "name": "Kresh",
+      "kind": "boss",
+      "itemIds": [6447, 13245, 273084]
+    },
+    {
+      "npcId": 3674,
+      "name": "Skum",
+      "kind": "boss",
+      "itemIds": [6448, 6449, 273137]
+    },
+    {
+      "npcId": 5775,
+      "name": "Verdan the Everliving",
+      "kind": "boss",
+      "itemIds": [6629, 6630, 6631]
+    },
+    {
+      "npcId": 3654,
+      "name": "Mutanus the Devourer",
+      "kind": "boss",
+      "itemIds": [6461, 6463, 6627]
+    },
+    {
+      "npcId": 5912,
+      "name": "Deviate Faerie Dragon",
+      "kind": "rare",
+      "itemIds": [5243, 6632]
+    },
+    {
+      "npcId": 3840,
+      "name": "Druid of the Fang",
+      "kind": "trash",
+      "itemIds": [10413]
+    }
+  ],
+  "zoneWideItemIds": []
+}

@@ -5,12 +5,15 @@
 // See docs/design/audit-first-loot.md.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore'
+import { deleteField, serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore'
 import { LABEL, PERSONAS, PLAYER_2, PLAYER_3, RAID_STAFF, UID, rosterDoc, without } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
 import { MANUAL, clean, createManualAward, describeChange, editAward, entry, entryId, manualAwardDoc, type Staff } from './support/audit.ts'
 
 setUpGuildEmulator()
+
+/** Put the guild in phase `n`: n finished phases in its settings (none stored means phase 0). */
+const inPhase = (n: number) => asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { currentPhase: `Phase ${n}`, nextPhase: 'Next', phaseHistory: Array.from({ length: n }, (_, index) => `Earlier ${index}`) }))
 
 for (const who of RAID_STAFF as readonly Staff[]) {
   describe(`a ${LABEL[who]} records a manual award`, () => {
@@ -106,7 +109,7 @@ describe('the shape of a manual award', () => {
     await expectDenied(createManualAward(dbFor('raidLeader'), 'raidLeader', { fields: manualAwardDoc({ extra: 'anything' }) }))
   })
 
-  for (const field of ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision']) {
+  for (const field of ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo']) {
     test(`an award with no ${field} is refused`, async () => {
       await expectDenied(createManualAward(dbFor('raidLeader'), 'raidLeader', { fields: without(manualAwardDoc(), field) }))
     })
@@ -125,12 +128,43 @@ describe('the shape of a manual award', () => {
     ['a decision that is not one of the three', { decision: 'fiat' }],
     ['a decision with different capitals', { decision: 'Roll' }],
     ['a decision that is a list', { decision: ['roll'] }],
+    ['a phase of -1', { phaseNo: -1 }],
+    ['a phase of 1.5', { phaseNo: 1.5 }],
+    ['a phase that is text', { phaseNo: '0' }],
+    ['a phase that is empty', { phaseNo: null }],
+    ['a phase of 31', { phaseNo: 31 }],
+    ['a phase of 2 to the power of 60', { phaseNo: 2 ** 60 }],
   ]
   for (const [what, overrides] of bad) {
     test(`an award with ${what} is refused`, async () => {
       await expectDenied(createManualAward(dbFor('raidLeader'), 'raidLeader', { fields: manualAwardDoc(overrides) }))
     })
   }
+
+  // A manual award is recorded in the current phase, which is the number of finished phases in the settings (none stored means phase 0).
+  const record = (phaseNo: number, id = MANUAL) => createManualAward(dbFor('raidLeader'), 'raidLeader', { id, fields: manualAwardDoc({ phaseNo }) })
+
+  test('a manual award is recorded in the current phase: 0 when no phase has been closed, then the number of finished phases', async () => {
+    await expectAllowed(record(0, 'manual-a'), 'phase 0, with no settings stored')
+    await inPhase(0)
+    await expectAllowed(record(0, 'manual-b'), 'phase 0, with the settings stored')
+    await inPhase(2)
+    await expectAllowed(record(2, 'manual-c'), 'phase 2')
+    await inPhase(30)
+    await expectAllowed(record(30, 'manual-d'), 'phase 30, the highest')
+  })
+
+  test('a manual award in a finished phase, or in the next one, is refused', async () => {
+    await inPhase(2)
+    for (const phaseNo of [0, 1, 3]) await expectDenied(record(phaseNo), `phase ${phaseNo} while the current phase is 2`)
+    await expectAllowed(record(2), 'the current phase')
+  })
+
+  test('the phase of a manual award follows the settings: a closed phase cannot be recorded into', async () => {
+    await expectAllowed(record(0, 'manual-a'))
+    await inPhase(1)
+    await expectDenied(record(0, 'manual-b'), 'phase 0 once it is finished')
+  })
 
   test('the longest allowed values are accepted', async () => {
     await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader', { fields: manualAwardDoc({ item: 'x'.repeat(120), encounter: 'x'.repeat(120), awardNote: 'x'.repeat(500) }) }))
@@ -207,6 +241,42 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { decision: 'fiat' } }))
     })
 
+    test('correcting the phase to a phase that has started, with its entry, is accepted and logged', async () => {
+      await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await inPhase(1)
+      await expectAllowed(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 } }))
+      const logged = await stored(`auditLog/${entryId('award', MANUAL, 2)}`)
+      assert.deepEqual(logged?.changed, ['phaseNo'])
+      assert.deepEqual(logged?.before, { phaseNo: 0 })
+      assert.deepEqual(logged?.after, { phaseNo: 1 })
+    })
+
+    test('an award cannot be moved to a phase that has not started', async () => {
+      await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 } }), 'the next phase')
+      await inPhase(1)
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 2 } }), 'one past the current phase')
+      await expectAllowed(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 } }), 'the current phase')
+    })
+
+    test('changing the phase without logging it, or with an entry that lies, is refused', async () => {
+      await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await inPhase(1)
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 }, audit: { changed: [], before: {}, after: {} } }), 'not logged')
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 }, audit: { before: { phaseNo: 5 } } }), 'a wrong old value')
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 }, audit: { after: { phaseNo: 2 } } }), 'a wrong new value')
+    })
+
+    test('a phase that is not a whole number of 0 or more is refused', async () => {
+      await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      for (const phaseNo of [-1, 0.5, '1', 31]) await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo } }), JSON.stringify(phaseNo))
+    })
+
+    test('a correction cannot take the phase number away', async () => {
+      await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: deleteField(), awardNote: 'Edited' }, audit: { changed: ['phaseNo', 'awardNote'], before: { phaseNo: 0, awardNote: '' }, after: { phaseNo: null, awardNote: 'Edited' } } }))
+    })
+
     test('changing the recipient to another roster character is accepted', async () => {
       await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
       await expectAllowed(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { recipient: rosterDoc(3).name, recipientId: PLAYER_3 } }))
@@ -246,23 +316,30 @@ describe('how many manual awards fit in one batch', () => {
   }
   const seedRoster = (count: number) => asAdmin(async (db) => { for (let i = 0; i < count; i++) await setDoc(guildDoc(db, `roster/batch-${i}`), rosterDoc(`batch-${i}`)) })
 
-  test('17 awards for one recipient fit', async () => {
+  // With the settings stored, as for any guild that has saved them: the loot phase check looks them up, two lookups for the whole batch.
+  const settings = () => asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { currentPhase: 'Phase', nextPhase: 'Next', phaseHistory: [] }))
+
+  test('15 awards for one recipient fit', async () => {
+    await settings()
     await seedRoster(1)
-    await expectAllowed(batchOf(dbFor('raidLeader'), 17, 1))
+    await expectAllowed(batchOf(dbFor('raidLeader'), 15, 1))
   })
 
-  test('18 awards for one recipient do not', async () => {
+  test('16 awards for one recipient do not', async () => {
+    await settings()
     await seedRoster(1)
-    await expectDenied(batchOf(dbFor('raidLeader'), 18, 1))
+    await expectDenied(batchOf(dbFor('raidLeader'), 16, 1))
   })
 
-  test('9 awards for 9 different recipients fit', async () => {
+  test('8 awards for 8 different recipients fit', async () => {
+    await settings()
+    await seedRoster(8)
+    await expectAllowed(batchOf(dbFor('raidLeader'), 8, 8))
+  })
+
+  test('9 awards for 9 different recipients do not', async () => {
+    await settings()
     await seedRoster(9)
-    await expectAllowed(batchOf(dbFor('raidLeader'), 9, 9))
-  })
-
-  test('10 awards for 10 different recipients do not', async () => {
-    await seedRoster(10)
-    await expectDenied(batchOf(dbFor('raidLeader'), 10, 10))
+    await expectDenied(batchOf(dbFor('raidLeader'), 9, 9))
   })
 })

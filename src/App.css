@@ -171,7 +171,7 @@
 .roster-pool-member { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 44px; padding: 4px 5px; border-radius: 4px; transition: background .12s ease, opacity .12s ease; }
 .roster-pool-member[draggable='true'] { cursor: grab; }
 .roster-pool-member[draggable='true']:active { cursor: grabbing; }
-.roster-pool-member:hover { background: #f4f7f9; }
+.roster-pool-member:hover { background-color: #f4f7f9; }
 .roster-pool-member-info { display: grid; min-width: 0; gap: 2px; }
 .roster-pool-member-info strong { overflow: hidden; color: #394d61; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .roster-pool-member-info small { overflow: hidden; color: #8b98a5; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
@@ -594,7 +594,7 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 :root[data-theme='dark'] .roster-role-group summary > svg { color: #9baec1; }
 :root[data-theme='dark'] .roster-role-group { border-color: #2d3d51; }
 :root[data-theme='dark'] .roster-role-group summary:hover,
-:root[data-theme='dark'] .roster-pool-member:hover { background: #26374b; }
+:root[data-theme='dark'] .roster-pool-member:hover { background-color: #26374b; }
 :root[data-theme='dark'] .roster-pool-member-info strong { color: #dce6f0; }
 :root[data-theme='dark'] .roster-pool-member-info small,
 :root[data-theme='dark'] .pool-unassigned,

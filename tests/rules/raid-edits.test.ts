@@ -3,7 +3,7 @@
 // the calendar with status 'cancelled' and a reason. Guild Leaders and Raid Leaders may do it; nobody else.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { deleteField, serverTimestamp, setDoc, writeBatch, type DocumentData } from 'firebase/firestore'
+import { deleteField, FieldValue, serverTimestamp, setDoc, Timestamp, writeBatch, type DocumentData } from 'firebase/firestore'
 import { UID, displayNameOf, raidDoc } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
 
@@ -33,7 +33,7 @@ async function changeRaid({ who = 'raidLeader', changes = { name: 'Renamed Raid'
   const rev = (current?.rev ?? 0) + 1
   const logged = entryRev ?? rev
   const keys = Object.keys(changes)
-  const after = Object.fromEntries(keys.map((key) => [key, changes[key] instanceof Object && 'isEqual' in changes[key] ? null : changes[key]]))
+  const after = Object.fromEntries(keys.map((key) => [key, changes[key] instanceof FieldValue ? null : changes[key]]))
   const batch = writeBatch(db)
   if (!skipRaid) batch.update(guildDoc(db, `raids/${raid}`), clean({ ...changes, rev, updatedBy: UID[who], updatedAt: serverTimestamp(), ...stamp }))
   if (!skipEntry) {
@@ -73,6 +73,57 @@ describe('editing a raid', () => {
     assert.equal((await stored(`auditLog/raid_${RAID}_2`))?.item, 'Renamed Raid')
   })
 
+  test('a zone selection is saved with its exact audit snapshot', async () => {
+    const zones = [{ id: 'barrow-deeps', name: 'Barrow Deeps', size: 10 }, { id: 'hyjal-summit', name: 'Hyjal Summit', size: 20 }]
+    await expectAllowed(changeRaid({ changes: { zones } }))
+    assert.deepEqual((await stored(`raids/${RAID}`))?.zones, zones)
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.after, { zones })
+  })
+
+  test('a legacy raid gets an audited start instant', async () => {
+    const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+    await expectAllowed(changeRaid({ changes: { startsAt } }))
+    assert.ok((await stored(`raids/${RAID}`))?.startsAt.isEqual(startsAt))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.before, { startsAt: null })
+    assert.ok((await stored(`auditLog/raid_${RAID}_1`))?.after.startsAt.isEqual(startsAt))
+  })
+
+  test('unchanged zones must not be reported as changed when initializing a raid', async () => {
+    const zones = [{ id: 'test-summit', name: 'Test Summit', size: 20 }, { id: 'test-lair', name: 'Test Lair', size: 40 }]
+    await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
+    const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+    await expectDenied(changeRaid({ changes: { zones: zones.map(({ id, name, size }) => ({ size, name, id })), startsAt } }))
+    await expectAllowed(changeRaid({ changes: { startsAt } }))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.changed, ['startsAt'])
+  })
+
+  for (const count of [2]) {
+    test(`initializing a legacy raid with ${count} selected zones preserves its snapshots`, async () => {
+      const zones = Array.from({ length: count }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: index % 2 ? 40 : 20 }))
+      await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
+      const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+      await expectAllowed(changeRaid({ changes: { startsAt } }))
+      assert.deepEqual((await stored(`raids/${RAID}`))?.zones, zones)
+    })
+    test(`saving a legacy raid with ${count} reordered zone snapshots and a start instant succeeds`, async () => {
+      const zones = Array.from({ length: count }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: index % 2 ? 40 : 20 }))
+      await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
+      const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+      await expectAllowed(changeRaid({ changes: { zones: [...zones].reverse(), startsAt } }))
+    })
+  }
+
+  test('rescheduling preserves the server cutoff and its audit truth', async () => {
+    const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+    await seed(raidDoc(UID.raidLeader, { startsAt }))
+    await expectDenied(changeRaid({ changes: { date: '2026-12-11' } }))
+    await expectDenied(changeRaid({ changes: { startsAt: deleteField() } }))
+    await expectDenied(changeRaid({ changes: { startsAt: 'not-a-timestamp' } }))
+    const next = Timestamp.fromDate(new Date('2026-12-12T02:00:00Z'))
+    await expectDenied(changeRaid({ changes: { date: '2026-12-11', startsAt: next }, entry: { after: { date: '2026-12-11', startsAt } } }))
+    await expectAllowed(changeRaid({ changes: { date: '2026-12-11', startsAt: next } }))
+  })
+
   test('a member cannot edit a raid, even with an honest entry', async () => {
     await expectDenied(changeRaid({ who: 'member' }))
     assert.equal((await stored(`raids/${RAID}`))?.name, 'Test Raid')
@@ -89,6 +140,7 @@ describe('editing a raid', () => {
     ['an empty name', { changes: { name: '' } }],
     ['a name of 81 characters', { changes: { name: 'x'.repeat(81) } }],
     ['a size of 25', { changes: { size: 25 } }],
+    ['a malformed zone snapshot', { changes: { zones: [{ id: 'barrow-deeps', name: 'Barrow Deeps', size: 25 }] } }],
     ['a date in the wrong format', { changes: { date: '09/12/2026' } }],
     ['an extra field', { changes: { name: 'Renamed Raid', notes: 'bring flasks' } }],
     ['an entry that lists a field that did not change', { entry: { changed: ['name', 'size'], before: { name: 'Test Raid', size: 20 }, after: { name: 'Renamed Raid', size: 20 } } }],

@@ -1,4 +1,5 @@
 import type { AfkEntryRecord, AwardRecord, PlayerRecord, PriorityRecord, RaidRecord } from '../../guildApi'
+import { unavailableOn } from '../../shared/raids/availability'
 
 // The character a Guild Leader linked to this account, plus its main and that main's alts.
 export function findMyCharacters(roster: PlayerRecord[], uid: string): { linked: PlayerRecord | null; characters: PlayerRecord[] } {
@@ -37,7 +38,7 @@ export function upcomingRaids(raids: RaidRecord[], afkEntries: AfkEntryRecord[],
   return raids
     .filter((raid) => raid.date >= today)
     .slice(0, limit)
-    .map((raid) => ({ raid, unavailable: afkEntries.some((entry) => entry.userId === uid && entry.startDate <= raid.date && raid.date <= entry.endDate) }))
+    .map((raid) => ({ raid, unavailable: unavailableOn(afkEntries, uid, raid.date) }))
 }
 
 export function myAbsences(afkEntries: AfkEntryRecord[], uid: string, today: string): AfkEntryRecord[] {

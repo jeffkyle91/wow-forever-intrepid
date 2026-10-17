@@ -11,11 +11,15 @@ import {
   setDoc,
   updateDoc,
   writeBatch,
+  Timestamp,
   type Firestore,
 } from 'firebase/firestore'
-import { auth, db, guildId } from './firebase'
+import { auth, db, functions, guildId } from './firebase'
+import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
+import { raidStartDate } from './shared/lib/raidStart'
+import { sameRaidZones } from './shared/raids/zoneSnapshots'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
@@ -37,12 +41,16 @@ export type CommentKind = 'public' | 'leadership'
 export const COMMENT_MAX_LENGTH = 300
 export type RaiderType = 'casual' | 'hardcore'
 export type RaidStatus = 'scheduled' | 'cancelled'
+export type RaidSize = 10 | 20 | 40
+export type RaidZoneRecord = { id: string; name: string; size: RaidSize }
 export type RaidRecord = {
   id: string
   date: string
   time?: string
+  startsAt?: Timestamp
   name: string
   size: 10 | 20 | 40
+  zones?: RaidZoneRecord[]
   description?: string
   createdBy: string
   createdAt?: unknown
@@ -50,7 +58,7 @@ export type RaidRecord = {
   status?: RaidStatus
   cancelReason?: string
 }
-export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'time' | 'size' | 'description'>>
+export type RaidEdit = Partial<Pick<RaidRecord, 'name' | 'date' | 'time' | 'size' | 'description' | 'zones'>>
 export type MembershipRecord = { id: string; email: string; displayName: string; role: GuildRole; playerId?: string | null }
 export type JoinRequestRecord = { id: string; userId: string; email: string; displayName: string; status: 'pending' | 'approved' | 'rejected' }
 export type TeamAssignmentRecord = { id: string; team: TenManTeam }
@@ -125,6 +133,22 @@ export async function setTeamAssignment(playerId: string, team: TenManTeam | nul
   else await deleteDoc(assignmentRef)
 }
 
+export async function saveRaidZone(zone: Omit<RaidZoneRecord, 'id'>, id: string = crypto.randomUUID()) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'raidZones', id), zone)
+  return id
+}
+
+export async function deleteRaidZone(id: string) {
+  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'raidZones', id))
+}
+
+export function subscribeRaidZones(onData: (zones: RaidZoneRecord[]) => void, onError: (error: Error) => void) {
+  return subscribeGuildCollection<RaidZoneRecord>('raidZones', onData, onError, (id, data) => {
+    if (typeof data.name !== 'string' || ![10, 20, 40].includes(data.size as number)) return null
+    return { id, name: data.name, size: data.size as RaidSize }
+  })
+}
+
 // Guild Leaders only: the rules refuse everyone else, and refuse a document that is not exactly this shape.
 export async function saveGuildSettings(settings: GuildSettings) {
   await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'general'), settings)
@@ -135,11 +159,19 @@ export async function createAward(data: Omit<AwardRecord, 'id'>) {
 }
 
 export async function createAfkEntry(data: Omit<AfkEntryRecord, 'id' | 'createdAt'>) {
-  await addDoc(guildCollection('afkEntries'), { ...data, createdAt: serverTimestamp() })
+  if (!functions || !auth?.currentUser || data.userId !== auth.currentUser.uid) throw new Error('Sign in as the owner to add unavailable dates.')
+  await httpsCallable(functions, 'addUnavailableDates')({ guildId, startDate: data.startDate, endDate: data.endDate })
 }
 
 export async function deleteAfkEntry(id: string) {
-  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'afkEntries', id))
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to remove unavailable dates.')
+  await httpsCallable(functions, 'removeUnavailableDates')({ guildId, entryId: id })
+}
+
+export async function synchronizeRaidAbsences() {
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to synchronize raid absences.')
+  const result = await httpsCallable<{ guildId: string }, { checkedRaids: number }>(functions, 'synchronizeRaidAbsences', { timeout: 540000 })({ guildId })
+  return result.data.checkedRaids
 }
 
 const commentCollection = (kind: CommentKind) => (kind === 'public' ? 'publicComments' : 'leaderComments')
@@ -172,7 +204,8 @@ export async function saveMyRaiderType(uid: string, type: RaiderType) {
 }
 
 export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {
-  await addDoc(guildCollection('raids'), { ...data, createdBy: uid, createdAt: serverTimestamp() })
+  const startsAt = Timestamp.fromDate(raidStartDate(data.date, raidTimeOf(data)))
+  await addDoc(guildCollection('raids'), { ...data, startsAt, createdBy: uid, createdAt: serverTimestamp() })
 }
 
 export const RAID_REASON_MAX_LENGTH = 300
@@ -210,7 +243,7 @@ async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown
     item: raid.name,
     changed,
     before: Object.fromEntries(changed.map((key) => [key, current[key] ?? null])),
-    after: Object.fromEntries(changed.map((key) => [key, typeof changes[key] === 'object' ? null : changes[key]])),
+    after: Object.fromEntries(changed.map((key) => [key, changes[key] === REMOVE_FIELD ? null : changes[key]])),
     ...(reason ? { reason } : {}),
   })
   await batch.commit()
@@ -218,7 +251,10 @@ async function writeRaidChange(raid: RaidRecord, changes: Record<string, unknown
 
 export async function updateRaidEvent(raid: RaidRecord, edit: RaidEdit, who: RaidWho) {
   const changes: Record<string, unknown> = {}
+  const startsAt = Timestamp.fromDate(raidStartDate(edit.date ?? raid.date, edit.time ?? raidTimeOf(raid)))
+  if (!raid.startsAt?.isEqual(startsAt)) changes.startsAt = startsAt
   for (const key of ['name', 'date', 'size'] as const) if (edit[key] !== undefined && edit[key] !== raid[key]) changes[key] = edit[key]
+  if (edit.zones !== undefined && !sameRaidZones(edit.zones, raid.zones ?? [])) changes.zones = edit.zones
   if (edit.time !== undefined && edit.time !== raidTimeOf(raid)) changes.time = edit.time
   if (edit.description !== undefined) {
     const text = edit.description.trim()

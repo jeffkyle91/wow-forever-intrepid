@@ -2,6 +2,11 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs24",
+    "ignore": ["node_modules", ".git", "*.test.js", "*.log"]
+  },
   "emulators": {
     "auth": {
       "host": "127.0.0.1",
@@ -10,6 +15,10 @@
     "firestore": {
       "host": "127.0.0.1",
       "port": 18080
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 15001
     },
     "ui": {
       "enabled": false

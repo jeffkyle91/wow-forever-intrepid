@@ -5,8 +5,10 @@ How the code is organized, and how to add to it without stepping on each other. 
 ## Layout
 
 ```text
+addon/                         In-game Lua addon work, not part of the web build (see docs/design/loot-addon.md)
 tests/
   rules/                       Firestore rules tests, run on the emulator (npm run test:rules)
+  unit/                        Tests of pure functions, run by Node directly (npm run test:unit)
 src/
   main.tsx, index.css          entry point and design tokens
   App.tsx                      composition root: shared state, hooks, and the layout of the shell
@@ -39,7 +41,7 @@ The shell passes each tab one `TabContext`:
 
 | Field | What it is |
 | --- | --- |
-| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `settings`, `members`, `joinRequests`) and `unreadable`, how many documents were skipped because they could not be read |
+| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `raidZones`, `settings`, `members`, `joinRequests`) and `unreadable`, how many documents were skipped because they could not be read |
 | `query` | the current search text |
 | `identity` | `uid`, `displayName`, `canEditRoster`, `canEditRaidData` |
 | `shell` | `raidView` and `setRaidView` (the 10/20/40 selector lives in the shell so it survives tab switches) |
@@ -49,7 +51,7 @@ The shell passes each tab one `TabContext`:
 
 A new `TabContext` object is built on every render, so do not put `ctx` or `ctx.openModal` in a hook dependency array.
 
-`TabContext` deliberately carries no role string. Role display and the "VIEW AS" preview live in `App.tsx` and `shell/Topbar.tsx` only. The `identity` booleans decide which controls to show; Firestore rules decide what is allowed. Never put an authorization decision in the UI alone, and never pass a previewed role to a data hook or a write helper.
+`TabContext` deliberately carries no role string. Role display and the "VIEW AS" preview live in `App.tsx` and `shell/Topbar.tsx` only. The `identity` booleans decide which controls to show; Firestore rules decide what direct client access is allowed. Availability and raid-response writes are server-only: their authenticated callables check the real account's membership and ownership. Never put an authorization decision in the UI alone, and never pass a previewed role to a data hook or a write helper.
 
 ## Adding a tab
 
@@ -71,9 +73,23 @@ Open a dialog with `ctx.openModal(({ close, live }) => <MyModal ... close={close
 
 `useGuildData` subscribes to the guild's collections once and every tab reads them from `ctx.data`. Writes go through `guildApi.ts`. `navCount`, `recordCount` and `footer` are functions of `ctx.data`, so today a tab can only show counts for data the shell already loads. If a feature needs its own collection, agree on how it loads that data (a hook inside its content component, or a new shared subscription) before building it. Adding a new collection currently touches shared files: the record type and write helper in `guildApi.ts`, a subscription in `useGuildData.ts`, and a block in `firestore.rules` (Firebase deploys a single rules file) with its tests in `tests/rules/` (see "Testing the Firestore rules" in `CONTRIBUTING.md`). Do each in its own small commit and say so in the PR so a reviewer looks at the rules change on its own. Rules are the authorization boundary, so a feature that writes data needs a rules change and a rules deploy before the hosting build ships.
 
+Roster comment review uses `useRosterComments` through `useGuildData`: Public comments are subscribed for authenticated members; Leadership collection subscriptions use only the actual Guild/Raid Leader role, never VIEW AS. A session-only Show Comments toggle beside All characters/Hide alts replaces the normal columns with Character, Public and (for leaders) Leadership comments. Comments use small-text previews and tap/click/keyboard-triggered native popovers, which float above the table without changing row height. Comments appear on the character with the linked account; unlinked alts do not inherit another account's comments. Loading, empty and failed reads are distinct, and unreadable records are reported. The Leadership column is hidden in a Member preview without changing the real-role subscription. Authors continue editing both audiences on the dashboard; existing Firestore rules allow authors to read their own Leadership comment but deny other members' private comments and collection lists.
+
 Award snapshots are immutable: the candidate order and council note are copied from the priority as it was when the award dialog opened (`features/loot/AwardModal.tsx`) and the rules compare them to the stored priority. Do not change that flow casually.
 
+Raid sign-ups live at `guilds/<guildId>/raids/<raidId>/signups/<uid>`. `raidSignups.ts` owns the per-raid subscription and calls the server to save responses; `shared/raids/RaidSignupModal.tsx` is shared by the calendar and dashboard, without adding a global subscription. Each response stores a character id, status, server update timestamp, and `benchKind: 'self'` only for Bench. Response buttons save immediately, with response-specific colors on hover/selection. A separate team preview is available only for a saved Accept, Tentative or Late response; `shared/raids/roster.ts` selects only that saved character's live 10-player team, with no main-character fallback or zone-size expansion. No starting roster is saved yet.
+
+Each upcoming dashboard raid subscribes while mounted so its compact, centered action shows the current account's response above "Click to change or view details", or "Sign-up / roster" before a response. Unavailable dates display Absent immediately while server synchronization catches up. The action sits beneath the raid details and unavailable/cancelled badge visually, without reordering the existing row markup.
+
+`functions/index.js` exposes authenticated callables implemented in `functions/raids.js`. Firestore rules deny all direct writes to `afkEntries`, sign-ups and server-only `availabilityLocks`; other collections retain their existing authorization rules. The server rechecks guild membership, reciprocal main/direct-alt ownership, cancellation and the start cutoff, and queries actual unavailable ranges. It never trusts caller-supplied uid, display name, team, timestamps or bench provenance. Availability changes and response saves share a transaction lock at `guilds/<guildId>/availabilityLocks/<uid>`, preventing stale concurrent writes. Adding an event atomically saves Absent on overlapping upcoming raids; deleting an event leaves Absent, even for legacy events not yet backfilled. Unlinked accounts can record unavailable dates without fabricating a character response.
+
+Firestore triggers synchronize newly scheduled/rescheduled/restored raids and newly linked mains. They re-read current state in transactions, so delayed/retried events cannot resurrect an old response. `shared/raids/availability.ts` derives effective Absent for every roster preview while triggers catch up. All overlapping events must be removed before manual responses are allowed; removing them does not restore the previous response. Started/cancelled raids are not rewritten by automatic synchronization. A Guild Leader-only Settings action runs the idempotent initial backfill. See README for Functions setup and deploy order; these server handlers are tested against the local Firestore emulator in `functions/raids.test.js`.
+
+New raids store `startsAt` as a Firestore timestamp derived from their Eastern date/time in `shared/lib/raidStart.ts`. Saving an older raid initializes it; rescheduling updates it in the same audited change. Nonexistent spring-forward times are rejected, and the repeated fall hour uses its first occurrence. Existing raids without `startsAt` remain readable/editable, but the response callable refuses manual sign-ups until a leader saves their details. This cutoff does not freeze team assignments; the dialog explicitly labels them as a live preview until server-side locking is built.
+
 ### Reading data safely
+
+Raid zone snapshots are compared by ordered zone values (`id`, `name`, `size`) in `shared/raids/zoneSnapshots.ts`, not by JSON text. Firestore map key order is not significant; logging an unchanged zone list as changed makes the audit entry inconsistent and the batch is refused.
 
 The rules decide who may write and check a few shapes (a member's role, the allowed keys of a join request), but they do not require the fields the UI reads or check their types, and roster, lootPriorities and awards written by a Guild Leader are free-form. So the client does not trust what it reads. `subscribeGuildCollection` passes each document of those five collections through a normalizer in `shared/lib/normalize.ts` before it reaches `useGuildData`. A field the UI reads gets a safe default (text `''`, lists `[]`, non-string list entries dropped), every other field passes through unchanged, and a document that cannot be used (a name or item that is missing or not text, an unknown role or status) is skipped. Skipped documents are counted in `data.unreadable`, which the shell shows to Guild Leaders as "N records could not be read", and named by collection and id in a console warning. If a feature starts reading a new field from one of these collections, add it to that collection's normalizer. raids, afkEntries and teamAssignments are validated by the rules and are read as they are. `guildApi.ts` and `useGuildData.ts` import `shared/lib/normalize.ts` at runtime; `normalize.ts` must keep its import from `guildApi.ts` type-only so the two never import each other at runtime.
 

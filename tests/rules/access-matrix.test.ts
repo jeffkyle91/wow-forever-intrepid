@@ -160,7 +160,7 @@ defineMatrix('awards', [
 defineMatrix('afkEntries', [
   { op: 'get', what: 'read an entry', allow: ANY_ROLE, run: (db) => getDoc(guildDoc(db, 'afkEntries/afk-bystander')) },
   { op: 'list', what: 'list the entries', allow: ANY_ROLE, run: (db) => getDocs(guildCollection(db, 'afkEntries')) },
-  { op: 'create', what: 'add an entry for yourself', allow: ANY_ROLE, run: (db, who) => addDoc(guildCollection(db, 'afkEntries'), afkDoc(uidOf(who))) },
+  { op: 'create', what: 'add an entry for yourself', allow: 'nobody', run: (db, who) => addDoc(guildCollection(db, 'afkEntries'), afkDoc(uidOf(who))) },
   {
     op: 'create',
     what: 'add an entry for someone else (under your own displayName)',
@@ -168,7 +168,7 @@ defineMatrix('afkEntries', [
     run: (db, who) => addDoc(guildCollection(db, 'afkEntries'), afkDoc(BYSTANDER, { displayName: displayNameOf(uidOf(who)) })),
   },
   { op: 'update', what: 'edit your own entry', allow: 'nobody', run: (db, who) => updateDoc(guildDoc(db, `afkEntries/afk-${who}`), { endDate: '2026-12-30' }) },
-  { op: 'delete', what: 'delete your own entry', allow: ANY_ROLE, run: (db, who) => deleteDoc(guildDoc(db, `afkEntries/afk-${who}`)) },
+  { op: 'delete', what: 'delete your own entry', allow: 'nobody', run: (db, who) => deleteDoc(guildDoc(db, `afkEntries/afk-${who}`)) },
   { op: 'delete', what: "delete someone else's entry", allow: 'nobody', run: (db) => deleteDoc(guildDoc(db, 'afkEntries/afk-bystander')) },
 ])
 
@@ -255,10 +255,8 @@ describe('what each persona is granted', () => {
     assert.deepEqual(grantedTo('otherGuildLeader', [...READS, ...WRITES]), grantedTo('stranger', [...READS, ...WRITES]))
   })
 
-  test('a Member can write only their own availability and their own join request', () => {
+  test('a Member writes availability through callables, not directly', () => {
     assert.deepEqual(grantedTo('member', WRITES), [
-      'afkEntries.create: add an entry for yourself',
-      'afkEntries.delete: delete your own entry',
       'joinRequests.create: file a request for yourself',
     ])
   })

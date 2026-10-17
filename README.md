@@ -8,14 +8,17 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Current functionality
 
-- **My dashboard:** The landing tab. For a member whose account has a linked character, it shows, In the dashboard panel toolbar (next to the character count) it has a Casual / Hardcore raider type switch (hover text explains each; stored per member in `raiderTypes`, readable by every member) and a Raid attendance placeholder (`--`, filled in when attendance tracking is built). Below, in order: that character and its alts, raid team, upcoming raids (with time and description, flagging dates the member marked unavailable, and a "View on calendar" link that opens the Raid Calendar on that raid's month with the raid highlighted), upcoming absences (with an Add absence button, the same unavailable dates as the Raid Calendar), loot priorities, awarded loot, and a Comments section. A comment is the member's own short note (300 characters), either Public (every guild member can read it) or Leadership (only Guild and Raid Leaders and the author). Each member has one of each, stored in `publicComments` and `leaderComments` with the member's uid as the document id. A member without a linked character sees a short note and keeps the other tabs.
+- **My dashboard:** The landing tab. For members with a linked character, the panel toolbar (next to the character count) includes a Casual / Hardcore raider type switch (hover text explains each; stored per member in `raiderTypes`, readable by every member) and a Raid attendance placeholder (`--`, to be filled in when attendance tracking is built). Below are that character and its alts, raid team, upcoming raids (with time and description, flagging dates the member marked unavailable, and a "View on calendar" link that opens the Raid Calendar on that raid's month with the raid highlighted), upcoming absences (with an Add absence button, the same unavailable dates as the Raid Calendar), loot priorities, awarded loot, and a Comments section. A comment is the member's own short note (300 characters), either Public (every guild member can read it) or Leadership (only Guild and Raid Leaders and the author). Each member has one of each, stored in `publicComments` and `leaderComments` with the member's uid as the document id. A member without a linked character sees a short note and keeps the other tabs.
 - **Guild roster:** Add and edit characters with a first name, an optional surname, class, specialization, and a raid role (the specialization sets the default; a Guild Leader can change it). A character can be linked to a main as an alt; alts are listed under their main and can be collapsed, or hidden entirely with the All characters / Hide alts toggle (not saved between visits). The roster shows only the first name (the full name appears on hover, and search matches the surname); long names are cut off with an ellipsis so the columns stay fixed. Teams, loot and the calendar use the first name. The complete guild roster remains separate from raid assignments. The Rogue spec is always **Combat**: anything called Rogue Outlaw (the name used by later game versions and some icon sets) is treated as Rogue Combat.
 - **Raid teams:** Assign characters to four 10-player teams (Blue, Yellow, Red, and White). Green combines Blue and Yellow; Pink combines Red and White; Brown combines all four. A Guild Leader can rename all of these teams, including the 20- and 40-player ones, in Settings. View role composition and move characters with drag-and-drop or controls.
-- **Raid Calendar:** Guild members can add inclusive unavailable date ranges and remove their own entries. Guild and Raid Leaders can schedule 10-, 20-, and 40-player raids by date and start time (Eastern Time, 9:00 PM by default, changeable per raid, picked from hour, minute and AM/PM lists where the chosen item scrolls to the top; raids saved before times existed show 9:00 PM ET), with an optional description (up to 500 characters, shown in the raid's hover text and on members' dashboards). Availability and raids appear together on the shared monthly calendar. Guild and Raid Leaders can click a raid to correct its name, date, size or description, cancel it with a reason, or restore it. A cancelled raid stays on the calendar (struck through, marked Cancelled, and listed as Cancelled on members' dashboards). Every change is saved with an audit entry (`auditLog`, entry id `raid_{id}_{rev}`) in the same batch; Firestore refuses a raid change without it.
+- **Raid sign-ups and roster preview:** Open Sign-up / roster from the dashboard or click a raid on the calendar. Members choose their linked main (the default) or one of its linked alts and respond Accept, Tentative, Absent, Late, or Bench (voluntary). Each account has one response per raid, shared with guild members through Firestore. Only the account owner can change it, including for leader accounts; responses cannot be deleted. Authenticated Cloud Functions enforce ownership, the stored start instant, cancellation and unavailable dates; Firestore rules refuse direct response/availability writes. An overlapping unavailable event automatically sets Absent on upcoming raids and locks the controls and team preview. All overlapping events must be removed to unlock the controls; Absent remains until the member explicitly chooses another response. After saving Accept, Tentative or Late, members can preview only their saved character's current 10-player team and its responses, regardless of zone size. An unassigned character sees "No team assigned", without falling back to its main's assignment. This is not a locked roster or attendance record: assignments still change after start until automatic snapshots are built. On older raids without a start instant, a leader must save Edit raid once to enable manual sign-ups. Calendar raid dialogs offer leaders a separate Edit raid action.
+  - The sign-up window has a character dropdown and five response buttons in the standard blue-toned style, with response-specific colors on hover and selection; pressing a response saves immediately. **View raid team** opens a separate preview window with a **Back to sign-up** action, and is hidden before a saved response or after Absent or Bench.
+  - Dashboard actions show the saved response (Accepted, Tentative, Absent, Late or Bench) above "Click to change or view details", using the matching response color. Before a response they show "Sign-up / roster". The compact action is centered beneath raid details and unavailable/cancelled badges; a divider separates the guidance below the raids.
+- **Raid Calendar:** Guild members can add inclusive unavailable date ranges and remove their own entries. Guild and Raid Leaders can schedule raid nights with one or more configured zones, a date and start time (Eastern Time, 9:00 PM by default, changeable per raid, picked from hour, minute and AM/PM lists where the chosen item scrolls to the top; raids saved before times existed show 9:00 PM ET), and an optional description (up to 500 characters, shown in the raid's hover text and on members' dashboards). Each zone has a 10-, 20- or 40-player size; selected zone names and sizes are saved as a snapshot on the raid and shown on the calendar and dashboard. Availability and raids appear together on the shared monthly calendar. Guild and Raid Leaders can click a raid to correct its name, date, zones or description, cancel it with a reason, or restore it. A cancelled raid stays on the calendar (struck through, marked Cancelled, and listed as Cancelled on members' dashboards). Every change is saved with an audit entry (`auditLog`, entry id `raid_{id}_{rev}`) in the same batch; Firestore refuses a raid change without it.
 - **Loot council:** Track items by encounter with ranked candidates and council notes. Authorized leaders can update the priority list and record awards.
 - **Award history:** Review recipients, dates, and decision notes. Each award preserves a snapshot of the candidate order and council note at decision time.
 - **Guild access:** Members authenticate and request access. Guild Leaders approve requests, assign roles, and link accounts to roster characters. Firestore rules enforce permissions independently of the UI.
-- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, a status label and indicator color for each phase, the council status (Deliberating while priorities are being discussed, Live once they are set), and the names of the 10-, 20- and 40-player teams. Stored in one document, `settings/general`, that every member reads and only a Guild Leader writes. Until it is saved, or if it cannot be read, the app shows built-in defaults.
+- **Settings (Guild Leaders only):** Edit the sidebar's current and next phase, a status label and indicator color for each phase, the council status (Deliberating while priorities are being discussed, Live once they are set), the names of the 10-, 20- and 40-player teams, and the catalog of raid zones (name and 10-, 20- or 40-player size). General settings are stored in `settings/general`; zones are stored separately so scheduled raids can preserve their selected zone snapshots. Every member can read these settings and zones, while only a Guild Leader can write them.
 - **Guild experience:** Use the app in light or dark theme, with WoW class and specialization artwork.
 - **Hosting:** The production app is served from [Firebase Hosting](https://intrepid-wow-forever.web.app/).
 
@@ -30,9 +33,21 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Discussed future work
 
+Collaborators track actionable work in [the shared backlog](docs/backlog.json), verified member-facing releases in [the changelog](CHANGELOG.md), and maintenance/publishing responsibilities in [CONTRIBUTING.md](CONTRIBUTING.md#backlog-patch-notes-and-publishing). The roadmap supplies direction and milestone decisions; Discord is a published view of these shared records.
+
+### Rollout milestones (2026)
+
+- **November 4:** game launch, not a full-app deadline. Most core web functionality rolls out progressively between November 4 and December 9.
+- **December 9, firm:** scheduled raids and sign-ups must be usable ahead of the first raid, and its first immutable starting roster/sign-up snapshot must be captured at the scheduled start. Scheduling/sign-ups are already live; automatic starting snapshots are not yet implemented.
+- **December 9, loot target:** record awards from the first raid independently of priorities. Use need-before-greed rolls initially. If app loot recording is not ready, use a spreadsheet and build a later validated upload; that fallback upload is not implemented yet.
+- **Around December 15:** start using priority listings.
+- **December 22, full-rollout target:** all planned functionality, including loot audits, priorities, the production addon, Discord and advanced automation. Full adoption can begin December 9 if ready, or soft-open over the next one or two weeks. The December 9 raid/sign-up/snapshot requirements remain firm.
+
+"Most core functionality" excludes the addon, Discord and advanced automation from the earlier window, not from the broader December 22 target. Dates are planning commitments/targets, not claims that planned features already exist. See [the roadmap](docs/ROADMAP.md) for dependencies and implementation status.
+
 These ideas have been discussed but are not implemented as part of this app yet:
 
-The decisions taken and the order of work are in [docs/ROADMAP.md](docs/ROADMAP.md).
+The raid-zone catalog, multi-zone scheduling, member sign-ups and live raid-team preview are implemented (see Current functionality). Still planned: a server-side snapshot of teams and sign-ups at the start, audited team changes during the raid, leader benching, reminders at creation and 24 and 1 hour before, and attendance against the locked snapshot. The decisions taken and the order of work are in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 - Loot Priorities and Award History: Reworking the existing [loot-council app](https://intrepid-reforged-p2-loot-tracker.netlify.app/) and selectively adapt useful workflows if its source repository becomes available. This project was started independently while waiting for that repository.
     - Interfacing loot from an outside source to populate the items in the loot priority list.
@@ -44,10 +59,13 @@ The decisions taken and the order of work are in [docs/ROADMAP.md](docs/ROADMAP.
 
 ## Local setup
 
+For on-request Discord backlog publishing from a developer terminal, see [the publisher guide](docs/discord-backlog.md). This is separate from planned raid-bot integration and stores its credential outside the repository.
+
 Requires Node.js 24.12 or newer (`.nvmrc` selects Node 24; get it from nodejs.org or a version manager such as nvm or fnm). Node 22.12+ also builds, but npm prints unsupported-engine warnings for the Firebase packages.
 
 ```powershell
 npm install
+npm ci --prefix functions --ignore-scripts
 Copy-Item .env.example .env.local
 npm run dev
 ```
@@ -58,7 +76,17 @@ npm run dev
 npm run dev:emulator
 ```
 
-Starts the Firebase Auth and Firestore emulators with your current `firestore.rules`, seeds an invented guild, and runs the app against them (it ignores `.env.local`). It needs Java 21, the same as `npm run test:rules`. Sign in as `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader) or `member@example.test` (Member) with the password `password123`. Data is discarded when you stop it and nothing reaches the live Firebase project, so rules changes can be tried here before they are deployed.
+Starts the Firebase Auth, Firestore and Functions emulators with your current rules and server code, seeds an invented guild, and runs the app against them (it ignores `.env.local`). Install the Functions dependencies above first. It needs Java 21, the same as `npm run test:rules`. Functions run on port 15001, Auth on 19099 and Firestore on 18080. Sign in as `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader) or `member@example.test` (Member) with the password `password123`. Data is discarded when you stop it and nothing reaches the live Firebase project, so rules and server changes can be tried here before they are deployed.
+
+### Server-side sign-ups and unavailable dates
+
+Production requires Firebase's **Blaze billing plan** for Node 24 Cloud Functions in `us-central1`. The separate [functions/](functions/) package uses Firebase Admin and Functions SDKs; no service-account files belong in the app or repository. Deployed Functions use their managed service identity.
+
+The callables authenticate the real account and read its guild membership; VIEW AS never changes server permissions. Availability additions/removals and sign-up saves run in transactions sharing a server-only account lock. Adding unavailable dates sets overlapping upcoming raid responses to Absent (preserving a previously selected alt, otherwise using the linked main). Removing an event retains Absent. Other members' events have no effect on your response.
+
+Firestore triggers synchronize newly scheduled/rescheduled/restored raids and newly linked members. These triggers may take a moment; the dialog immediately derives effective Absent from shared unavailable events, and the callable checks the actual events before allowing any response change. Already-started or cancelled raids are not rewritten by this synchronization.
+
+For the first release, deploy **Functions, then Firestore rules, then hosting**. Afterwards a Guild Leader must use **Settings > Synchronize raid absences** once to backfill existing upcoming raids/events; it is safe to repeat. Existing events already block the callable before backfill, and deleting a legacy event also persists Absent before removal. Old browser tabs cannot bypass the new rules; refresh them after release.
 
 ## Firebase Hosting
 
@@ -66,10 +94,10 @@ The Firebase Hosting target serves the Vite production build from `dist` and rew
 
 ```powershell
 npm run build
-npx firebase-tools@latest deploy --only hosting --project intrepid-wow-forever
+npx firebase-tools@15.31.0 deploy --only hosting --project intrepid-wow-forever
 ```
 
-`npm run release` runs this whole sequence from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for.
+`npm run release -- --deploy` runs the build, lint, server/rules tests, Functions deploy, rules deploy and hosting deploy from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for. `npm run release` on its own only prints the plan. Do not use a hosting-only deploy for a server/rules change.
 
 The deployed site is [intrepid-wow-forever.web.app](https://intrepid-wow-forever.web.app/). Hosting deployment does not deploy Firestore rules; deploy those separately when the rules change.
 
@@ -138,3 +166,5 @@ npm run test:rules
 ```
 
 CI runs them in a separate job.
+
+The same command also runs [tests/raid-preview.test.ts](tests/raid-preview.test.ts), which checks Eastern start-time conversion (including daylight-saving transitions), character choices, own-team preview and effective unavailable responses, plus [functions/raids.test.js](functions/raids.test.js) for server authorization, persistence and concurrency. Pure checks can also run without Java: `node --test tests/raid-preview.test.ts`.

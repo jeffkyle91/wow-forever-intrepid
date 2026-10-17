@@ -4,7 +4,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Commands
 
-- `npm run build` and `npm run lint` must both pass. If you change `firestore.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests, so check the app by hand in your own Firebase project.
+- `npm run build`, `npm run lint` and `npm run test:unit` must all pass. If you change `firestore.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests (`test:unit` covers pure functions only), so check the app by hand in your own Firebase project.
 - Deploy to Firebase only when you are asked to.
 
 ## Rules that must not be broken
@@ -16,6 +16,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Layout
 
+- `addon/` holds the in-game Lua addon work (a probe so far). It is not part of the web build; the plan is `docs/design/loot-addon.md`. Never copy code from RCLootCouncil (GPL-3.0) or Gargul (All Rights Reserved) into it.
 - `src/shell/` is the frame (sidebar, top bar, dialog host, and the tab registry in `tabs.ts`). `src/shared/` holds what features share. `src/features/<name>/` holds one feature each.
 - A feature is a `tab.tsx` exporting a `TabDefinition` (written `as const satisfies TabDefinition`, never annotated), a content component, and any dialogs. Register it with one import and one line in `src/shell/tabs.ts`. Do not add feature code to `src/App.tsx`.
 - Imports go one way: `core and shared <- features <- shell <- App`. A feature never imports another feature or the shell; shared never imports a feature or the shell.

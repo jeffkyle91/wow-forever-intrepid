@@ -1,0 +1,8 @@
+## Interface: 16001, 11508, 20505
+## Title: Intrepid Probe
+## Notes: Developer tool. Records which APIs and events the client has and what happens when loot drops. Writes only to its own saved variables.
+## Author: Intrepid
+## Version: 0.5
+## SavedVariables: IntrepidProbeDB
+
+IntrepidProbe.lua

@@ -15,6 +15,16 @@ const RULES_FILE = new URL('../../../firestore.rules', import.meta.url)
 
 let testEnv: RulesTestEnvironment | undefined
 
+// Clients are made once per test file and reused by every test, not made again for each test. Each new client opens
+// its own connections to the emulator, and a few hundred tests made thousands of them: on a machine with a small
+// range of local ports (macOS and Windows have about 16,000, and a closed connection holds its port for 30 seconds or
+// more) the run could run out of ports halfway through and fail with EADDRNOTAVAIL. Data is cleared between tests
+// on the server, so a reused client does not carry anything over.
+const clients = new Map<string, Firestore>()
+let adminClient: Firestore | undefined
+let releaseAdmin: (() => void) | undefined
+let adminHeld: Promise<void> | undefined
+
 function env(): RulesTestEnvironment {
   if (!testEnv) throw new Error('The rules test environment is not running. Call setUpGuildEmulator() at the top of the test file.')
   return testEnv
@@ -29,7 +39,12 @@ function requireLocalEmulator(): void {
 /** Wipe the emulator and write the baseline guild again. Tests call this to start a case from scratch. */
 export async function resetData(): Promise<void> {
   await env().clearFirestore()
-  await env().withSecurityRulesDisabled((ctx) => seedBaseline(asModular(ctx.firestore())))
+  await seedBaseline(admin())
+}
+
+function admin(): Firestore {
+  if (!adminClient) throw new Error('The rules test environment is not running. Call setUpGuildEmulator() at the top of the test file.')
+  return adminClient
 }
 
 /**
@@ -42,9 +57,24 @@ export function setUpGuildEmulator(): void {
   before(async () => {
     setLogLevel('silent') // denied writes are the point here; the SDK would log each one
     testEnv = await initializeTestEnvironment({ projectId: PROJECT_ID, firestore: { rules: readFileSync(RULES_FILE, 'utf8') } })
+    // A client with the security rules switched off, held open until the file is done. withSecurityRulesDisabled only
+    // lends it for the length of a callback, so the callback waits for `releaseAdmin` and the file's last step calls it.
+    await new Promise<void>((ready) => {
+      adminHeld = env().withSecurityRulesDisabled(async (ctx) => {
+        adminClient = asModular(ctx.firestore())
+        ready()
+        await new Promise<void>((release) => {
+          releaseAdmin = release
+        })
+      })
+    })
   })
   beforeEach(resetData)
   after(async () => {
+    clients.clear()
+    releaseAdmin?.()
+    await adminHeld
+    adminClient = undefined
     await testEnv?.cleanup()
   })
 }
@@ -57,22 +87,26 @@ function asModular(db: unknown): Firestore {
 
 /** A Firestore client signed in as the persona (or signed out for `anonymous`). */
 export function dbFor(who: Persona): Firestore {
+  const known = clients.get(who)
+  if (known) return known
   const context = who === 'anonymous' ? env().unauthenticatedContext() : env().authenticatedContext(UID[who])
-  return asModular(context.firestore())
+  const db = asModular(context.firestore())
+  clients.set(who, db)
+  return db
 }
 
 /** A client signed in as any uid, for people who are not one of the personas. */
 export function dbForUid(uid: string): Firestore {
-  return asModular(env().authenticatedContext(uid).firestore())
+  const known = clients.get(`uid:${uid}`)
+  if (known) return known
+  const db = asModular(env().authenticatedContext(uid).firestore())
+  clients.set(`uid:${uid}`, db)
+  return db
 }
 
 /** Run something with the security rules switched off: for arranging state, never for the thing under test. */
 export async function asAdmin<T>(fn: (db: Firestore) => Promise<T>): Promise<T> {
-  let result: T | undefined
-  await env().withSecurityRulesDisabled(async (ctx) => {
-    result = await fn(asModular(ctx.firestore()))
-  })
-  return result as T
+  return fn(admin())
 }
 
 /** Paths inside the test guild: `guildDoc(db, 'roster/player-1')`. */

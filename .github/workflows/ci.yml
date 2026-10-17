@@ -26,8 +26,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm ci --prefix functions --ignore-scripts
       - run: npm run lint
       - run: npm run build
+      - run: npm run test:unit
 
   rules:
     name: Firestore rules tests
@@ -46,4 +48,5 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: npm ci --ignore-scripts
+      - run: npm ci --prefix functions --ignore-scripts
       - run: npm run test:rules

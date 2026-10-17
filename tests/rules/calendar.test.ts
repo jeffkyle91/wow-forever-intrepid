@@ -12,23 +12,16 @@ setUpGuildEmulator()
 
 const CLIENT_TIME = Timestamp.fromDate(new Date('2020-01-01T00:00:00Z'))
 
-// match /afkEntries/{entryId}: create
-// A member, Raid Leader or Guild Leader adds an entry for themselves. The entry may hold exactly userId,
-// displayName, startDate, endDate and createdAt; userId is the caller; displayName is the one in their
-// members doc; createdAt is the server's time; and the dates are YYYY-MM-DD strings with start on or before end.
+// Direct availability writes are closed. Server validation and side effects are tested in functions/raids.test.js.
 describe('adding unavailable dates', () => {
   const add = (data: Record<string, unknown>) => addDoc(guildCollection(dbFor('member'), 'afkEntries'), data)
 
-  test('a valid entry is accepted and stores what was sent', async () => {
-    const ref = await addDoc(guildCollection(dbFor('member'), 'afkEntries'), afkDoc(UID.member))
-    const entry = await stored(`afkEntries/${ref.id}`)
-    assert.equal(entry?.userId, UID.member)
-    assert.equal(entry?.startDate, '2026-12-10')
-    assert.equal(entry?.endDate, '2026-12-12')
+  test('even a valid entry must use the authenticated callable', async () => {
+    await expectDenied(add(afkDoc(UID.member)))
   })
 
-  test('a single day is allowed: the start may equal the end', async () => {
-    await expectAllowed(add(afkDoc(UID.member, { startDate: '2026-12-10', endDate: '2026-12-10' })))
+  test('single-day entries cannot bypass the callable', async () => {
+    await expectDenied(add(afkDoc(UID.member, { startDate: '2026-12-10', endDate: '2026-12-10' })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -66,37 +59,35 @@ describe('adding unavailable dates', () => {
     })
   }
 
-  // KNOWN GAP: dates are checked with a pattern only (four digits, two, two), not as real calendar dates,
-  // and a range has no limit. Entries like these reach the calendar, which has to cope with them.
+  // Invalid dates cannot bypass the callable, which also validates real calendar dates.
   const impossible: [string, string, string][] = [
     ['February 30th', '2026-02-30', '2026-03-01'],
     ['month 13', '2026-13-01', '2026-13-02'],
     ['year 0000 to year 9999', '0000-00-00', '9999-99-99'],
   ]
   for (const [what, startDate, endDate] of impossible) {
-    test(`KNOWN GAP: a range using ${what} is accepted`, async () => {
-      await expectAllowed(add(afkDoc(UID.member, { startDate, endDate })))
+    test(`a direct range using ${what} is refused`, async () => {
+      await expectDenied(add(afkDoc(UID.member, { startDate, endDate })))
     })
   }
 })
 
 // match /afkEntries/{entryId}: update and delete
-// Entries are never edited. Only the person named in the entry can delete it, and only while they are
-// still a member of the guild; a Guild Leader cannot delete someone else's (the matrix checks this per role).
+// Entries are never edited. Removal must go through the callable so Absent persists.
 describe('changing or removing unavailable dates', () => {
   test('an owner cannot edit their own entry, only delete it', async () => {
     const ref = guildDoc(dbFor('member'), 'afkEntries/afk-member')
     await expectDenied(updateDoc(ref, { endDate: '2026-12-30' }), 'editing')
     await expectDenied(setDoc(ref, afkDoc(UID.member, { endDate: '2026-12-30' })), 'replacing')
-    await expectAllowed(deleteDoc(ref), 'deleting')
-    assert.equal(await stored('afkEntries/afk-member'), undefined)
+    await expectDenied(deleteDoc(ref), 'deleting without the callable')
+    assert.equal((await stored('afkEntries/afk-member'))?.userId, UID.member)
   })
 })
 
 // match /raids/{raidId}: create
-// A Guild Leader or Raid Leader schedules a raid. It may hold exactly date, name, size, createdBy and
-// createdAt; the date is a YYYY-MM-DD string; the name is 1 to 80 characters; the size is 10, 20 or 40;
-// createdBy is the caller; createdAt is the server's time.
+// A Guild Leader or Raid Leader schedules a raid, optionally including a description, time, zones and
+// a UTC startsAt timestamp. The date is YYYY-MM-DD, the name 1 to 80 characters, the size 10, 20 or 40;
+// createdBy is the caller and createdAt is the server's time. Legacy raids can omit startsAt.
 describe('scheduling a raid', () => {
   const schedule = (data: Record<string, unknown>) => addDoc(guildCollection(dbFor('raidLeader'), 'raids'), data)
 
@@ -110,6 +101,8 @@ describe('scheduling a raid', () => {
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { name: 'x'.repeat(80) })))
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { description: 'x'.repeat(500) })))
     await expectAllowed(schedule(raidDoc(UID.raidLeader, { time: '21:00' })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { zones: [{ id: 'zone-1', name: 'Barrow Deeps', size: 10 }, { id: 'zone-2', name: 'Hyjal Summit', size: 20 }] })))
+    await expectAllowed(schedule(raidDoc(UID.raidLeader, { startsAt: new Date('2026-12-10T02:00:00Z') })))
   })
 
   const refused: [string, Record<string, unknown>][] = [
@@ -126,6 +119,10 @@ describe('scheduling a raid', () => {
     ['a time without a leading zero', raidDoc(UID.raidLeader, { time: '9:00' })],
     ['a time of 24:00', raidDoc(UID.raidLeader, { time: '24:00' })],
     ['a time that is a number', raidDoc(UID.raidLeader, { time: 2100 })],
+    ['a non-timestamp start instant', raidDoc(UID.raidLeader, { startsAt: '2026-12-10T02:00:00Z' })],
+    ['a zone without a valid size', raidDoc(UID.raidLeader, { zones: [{ id: 'zone-1', name: 'Barrow Deeps', size: 25 }] })],
+    ['a zone without an id', raidDoc(UID.raidLeader, { zones: [{ name: 'Barrow Deeps', size: 10 }] })],
+    ['an empty zone list', raidDoc(UID.raidLeader, { zones: [] })],
     ['an empty description', raidDoc(UID.raidLeader, { description: '' })],
     ['a createdAt chosen by the client', raidDoc(UID.raidLeader, { createdAt: CLIENT_TIME })],
     ['no createdAt', without(raidDoc(UID.raidLeader), 'createdAt')],

@@ -53,7 +53,7 @@
 .eyebrow-line { display: inline-block; width: 17px; height: 2px; background: var(--orange); }
 .page-heading h1 { margin: 9px 0 4px; color: var(--ink); font: 600 30px/1.15 var(--display); letter-spacing: 0; }
 .page-heading p { color: #77827a; font-size: 12px; }
-.heading-actions { display: flex; gap: 8px; }
+.heading-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 35px; padding: 0 12px; border: 1px solid transparent; border-radius: 5px; font: inherit; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: transform .14s ease, background .14s ease, border-color .14s ease; }
 .button:active { transform: translateY(1px); }
 .button-primary { color: #fff; background: #315f9f; }
@@ -318,9 +318,6 @@
 .member-access-table td { height: 47px; }
 .member-access-table td strong { color: #3d4f62; font-size: 10px; }
 .member-role-select { min-width: 135px; }
-.import-notice { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; border: 1px solid #cfe2ee; border-radius: 5px; background: #f4f9fc; }
-.import-notice strong { color: #355c7b; font-size: 10px; }
-.import-notice p { margin-top: 4px; color: #70879a; font-size: 9px; line-height: 1.5; }
 .modal-backdrop { position: fixed; z-index: 5; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(19,30,24,.43); animation: fade-in .16s ease-out; }
 .modal { width: min(100%, 490px); max-height: min(90vh, 760px); overflow: auto; padding: 21px; border: 1px solid #e0e8f0; border-radius: 7px; background: #fff; box-shadow: 0 22px 70px #17263b38; animation: modal-in .2s ease-out; }
 .modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid #ebefe9; }
@@ -449,7 +446,6 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
   .request-role { grid-row: 2; }
   .request-character { grid-row: 3; }
   .request-approve, .request-reject { grid-row: 1; }
-  .import-notice { align-items: flex-start; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
@@ -580,9 +576,6 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 :root[data-theme='dark'] .member-access-table td strong { color: #e0e8f1; }
 :root[data-theme='dark'] .request-avatar { border-color: #3c5871; color: #b9ddf5; background: #20364c; }
 :root[data-theme='dark'] .access-empty { color: #a8b6c6; }
-:root[data-theme='dark'] .import-notice { border-color: #38536c; background: #1e3348; }
-:root[data-theme='dark'] .import-notice strong { color: #c5e1f4; }
-:root[data-theme='dark'] .import-notice p { color: #afc1d2; }
 :root[data-theme='dark'] .app-error { border-color: #6c4445; color: #f1b5ad; background: #35282d; }
 :root[data-theme='dark'] .app-notice { border-color: #3a5a75; color: #bfddf2; background: #1d3348; }
 :root[data-theme='dark'] .guild-roster-pool { border-color: #314157; background: #1c2838; }

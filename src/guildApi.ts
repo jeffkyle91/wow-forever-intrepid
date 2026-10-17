@@ -5,7 +5,6 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   limit,
   onSnapshot,
   orderBy,
@@ -159,15 +158,11 @@ export async function submitJoinRequest(uid: string, email: string, displayName:
   })
 }
 
-// A field set to undefined is removed from the stored document (the write merges, so it would otherwise stay).
-export async function saveGuildRecord(collectionName: 'roster' | 'lootPriorities', id: string, data: Record<string, unknown>) {
+// A field set to undefined is removed from the stored document (the write merges, so it would otherwise stay). Roster characters only: loot
+// priorities and awards are written through the audited helpers below, and the rules refuse any other write to them.
+export async function saveGuildRecord(collectionName: 'roster', id: string, data: Record<string, unknown>) {
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === undefined ? deleteField() : value]))
   await setDoc(doc(requireDb(), 'guilds', guildId, collectionName, id), fields, { merge: true })
-}
-
-// Removes a loot priority. The awards that were recorded from it keep their own copy of the candidate order, so history is not touched.
-export async function deleteLootPriority(id: string) {
-  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'lootPriorities', id))
 }
 
 export async function setTeamAssignment(playerId: string, team: TenManTeam | null) {
@@ -195,10 +190,6 @@ export function subscribeRaidZones(onData: (zones: RaidZoneRecord[]) => void, on
 // Guild Leaders only: the rules refuse everyone else, and refuse a document that is not exactly this shape.
 export async function saveGuildSettings(settings: GuildSettings) {
   await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'general'), settings)
-}
-
-export async function createAward(data: Omit<AwardRecord, 'id'>) {
-  await addDoc(guildCollection('awards'), data)
 }
 
 export async function createAfkEntry(data: Omit<AfkEntryRecord, 'id' | 'createdAt'>) {
@@ -455,56 +446,6 @@ export async function approveJoinRequest(request: JoinRequestRecord, role: Guild
 
 export async function rejectJoinRequest(uid: string) {
   await updateDoc(doc(requireDb(), 'guilds', guildId, 'joinRequests', uid), { status: 'rejected' })
-}
-
-export async function importLocalPreviewData() {
-  const database = requireDb()
-  const existing = await Promise.all(['roster', 'teamAssignments', 'lootPriorities', 'awards'].map((name) => getDocs(guildCollection(name))))
-  if (existing.some((snapshot) => !snapshot.empty)) throw new Error('Import is only available when the guild has no roster, teams, priorities, or awards.')
-
-  const local = (key: string) => {
-    try {
-      return JSON.parse(localStorage.getItem(`intrepid-loot-council-v1-${key}`) ?? '[]') as Record<string, unknown>[]
-    } catch {
-      return []
-    }
-  }
-  const roster = local('roster')
-  const savedAssignments = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('intrepid-loot-council-v1-team-assignments') ?? '{}') as Record<string, TenManTeam>
-    } catch {
-      return {}
-    }
-  })()
-  const priorities = local('priorities')
-  const awards = local('awards')
-  const batch = writeBatch(database)
-
-  for (const player of roster) {
-    const { id, team, ...record } = player
-    if (typeof id !== 'string') continue
-    batch.set(doc(database, 'guilds', guildId, 'roster', id), record)
-    const assignment = savedAssignments[id] ?? (team === 'A' ? 'blue' : team === 'B' ? 'red' : null)
-    if (assignment && ['blue', 'yellow', 'red', 'white'].includes(assignment)) {
-      batch.set(doc(database, 'guilds', guildId, 'teamAssignments', id), { team: assignment })
-    }
-  }
-  for (const priority of priorities) {
-    const { id, ...record } = priority
-    if (typeof id === 'string') batch.set(doc(database, 'guilds', guildId, 'lootPriorities', id), record)
-  }
-  for (const award of awards) {
-    const { id, ...record } = award
-    if (typeof id === 'string') batch.set(doc(database, 'guilds', guildId, 'awards', id), {
-      ...record,
-      priorityId: typeof award.priorityId === 'string' ? award.priorityId : 'legacy-import',
-      prioritySnapshot: Array.isArray(award.prioritySnapshot) ? award.prioritySnapshot : Array.isArray(award.priorityAtAward) ? award.priorityAtAward : [],
-      councilNoteSnapshot: typeof award.councilNoteSnapshot === 'string' ? award.councilNoteSnapshot : typeof award.councilNoteAtAward === 'string' ? award.councilNoteAtAward : '',
-    })
-  }
-  await batch.commit()
-  return roster.length + priorities.length + awards.length
 }
 
 export function currentAuthUser() {

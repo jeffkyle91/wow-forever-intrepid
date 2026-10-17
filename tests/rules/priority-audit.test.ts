@@ -437,3 +437,70 @@ describe('an entry left from an earlier life of an id', () => {
     await expectDenied(createManualAward(dbFor('raidLeader'), 'raidLeader', { id: 'ghost', skipEntry: true }), 'a manual award')
   })
 })
+
+// Taking a priority off the list without losing it: `hidden` (only ever true, only on an edit). The priority keeps its candidates and the awards
+// recorded from it, and putting it back (taking the field away) brings it back as it was. No award can be made from one that is hidden.
+for (const who of RAID_STAFF as readonly Staff[]) {
+  describe(`a ${LABEL[who]} takes a priority off the list and puts it back`, () => {
+    const hide = (extra: Parameters<typeof editPriority>[2] = {}) => editPriority(dbFor(who), who, { changes: { hidden: true }, ...extra })
+    const putBack = (extra: Parameters<typeof editPriority>[2] = {}) => editPriority(dbFor(who), who, { rev: 2, changes: { hidden: deleteField() }, audit: { changed: ['hidden'], before: { hidden: true }, after: { hidden: null } }, ...extra })
+
+    test('hiding it keeps its candidates, is one step of its revision and is in the log; putting it back is another', async () => {
+      await expectAllowed(hide())
+      const saved = await stored(`lootPriorities/${PRIORITY_ID}`)
+      assert.equal(saved?.hidden, true)
+      assert.deepEqual(saved?.rankedPlayers, priorityDoc().rankedPlayers)
+      assert.equal(saved?.rev, 1)
+      const logged = await stored(`auditLog/${entryId('priority', PRIORITY_ID, 1)}`)
+      assert.deepEqual(logged?.changed, ['hidden'])
+      assert.deepEqual(logged?.before, { hidden: null })
+      assert.deepEqual(logged?.after, { hidden: true })
+      await expectAllowed(putBack())
+      assert.equal((await stored(`lootPriorities/${PRIORITY_ID}`))?.hidden, undefined)
+      assert.deepEqual((await stored(`lootPriorities/${PRIORITY_ID}`))?.rankedPlayers, priorityDoc().rankedPlayers)
+      assert.deepEqual((await stored(`auditLog/${entryId('priority', PRIORITY_ID, 2)}`))?.after, { hidden: null })
+    })
+
+    test('it can be hidden together with another change, as one honest edit', async () => {
+      await expectAllowed(editPriority(dbFor(who), who, { changes: { hidden: true, councilNote: 'Parked until the next phase' } }))
+    })
+
+    test('hidden can only be true, and only set by an edit', async () => {
+      for (const hidden of [false, 'true', 1, null, ['x'], { a: 1 }]) await expectDenied(editPriority(dbFor(who), who, { changes: { hidden } }), JSON.stringify(hidden))
+      await expectDenied(createPriority(dbFor(who), who, { fields: newPriorityDoc({ hidden: true }) }), 'a priority created hidden')
+    })
+
+    test('it cannot be logged as a reorder', async () => {
+      await expectDenied(hide({ action: 'reorder' }))
+    })
+
+    test('the entry has to say it truthfully, and cannot leave it out', async () => {
+      await expectDenied(hide({ audit: { before: { hidden: true } } }), 'a wrong old value')
+      await expectDenied(hide({ audit: { after: { hidden: false } } }), 'a wrong new value')
+      await expectDenied(hide({ audit: { changed: [], before: {}, after: {} } }), 'left out')
+      await expectAllowed(hide(), 'the honest entry')
+    })
+
+    test('a priority of a finished phase can be neither hidden nor put back', async () => {
+      await inPhase(2)
+      await store(PRIORITY_ID, { phaseNo: 1 })
+      await expectDenied(hide(), 'hiding one')
+      await store(PRIORITY_ID, { phaseNo: 1, hidden: true, rev: 1 })
+      await expectDenied(putBack(), 'putting one back')
+    })
+
+    test('a priority of the next phase can be', async () => {
+      await inPhase(2)
+      await store(PRIORITY_ID, { phaseNo: 3 })
+      await expectAllowed(hide(), 'hiding it')
+      await expectAllowed(putBack(), 'putting it back')
+    })
+
+    test('an award cannot be made from a hidden priority, and can again once it is back', async () => {
+      await expectAllowed(hide())
+      await expectDenied(createAward(dbFor(who), who, { id: 'award-hidden' }), 'an award from a hidden priority')
+      await expectAllowed(putBack())
+      await expectAllowed(createAward(dbFor(who), who, { id: 'award-back' }), 'an award once it is back')
+    })
+  })
+}

@@ -88,6 +88,7 @@ service cloud.firestore {
         && request.resource.data.item == get(priorityPath).data.item
         && request.resource.data.encounter == get(priorityPath).data.encounter
         && request.resource.data.recipient in get(priorityPath).data.rankedPlayers
+        && !('hidden' in get(priorityPath).data)
         && validPhaseNo(request.resource.data.phaseNo)
         && request.resource.data.phaseNo == get(priorityPath).data.get('phaseNo', 0);
     }
@@ -127,9 +128,12 @@ service cloud.firestore {
         && (!('itemId' in after) || validGameId(after.itemId))
         && (!('zoneId' in after) || validGameId(after.zoneId))
         && (!('npcId' in after) || validGameId(after.npcId))
-        && (!('carriedFrom' in after) || (after.carriedFrom is string && after.carriedFrom.matches('^[A-Za-z0-9_-]{1,100}$')));
+        && (!('carriedFrom' in after) || (after.carriedFrom is string && after.carriedFrom.matches('^[A-Za-z0-9_-]{1,100}$')))
+        && (!('hidden' in after) || after.hidden == true);
     }
 
+    // `hidden` (only ever true, and only on an edit: a priority is never created hidden) takes a priority off the list while keeping it, its candidate
+    // list and the awards recorded from it, so ticking the item again in Browse drops brings it back as it was. No award can be made from a hidden priority.
     function validPriorityCreate(guildId, priorityId) {
       let data = request.resource.data;
       let current = currentPhaseNo(guildId);
@@ -149,7 +153,7 @@ service cloud.firestore {
       let current = currentPhaseNo(guildId);
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'priority', priorityId, rev);
-      return after.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'rev', 'updatedBy', 'updatedAt'])
+      return after.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden', 'rev', 'updatedBy', 'updatedAt'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -355,7 +359,7 @@ service cloud.firestore {
         ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
           ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
-          : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom'];
+          : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
         && data.changed.toSet() == touched
@@ -394,7 +398,8 @@ service cloud.firestore {
               && auditFieldLogged(data, oldDoc, newDoc, 'zoneId')
               && auditFieldLogged(data, oldDoc, newDoc, 'npcId')
               && auditFieldLogged(data, oldDoc, newDoc, 'phaseNo')
-              && auditFieldLogged(data, oldDoc, newDoc, 'carriedFrom'))
+              && auditFieldLogged(data, oldDoc, newDoc, 'carriedFrom')
+              && auditFieldLogged(data, oldDoc, newDoc, 'hidden'))
         && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
         && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
         && (data.action != ending || data.get('reason', '') == newDoc.get(reasonField, ''))

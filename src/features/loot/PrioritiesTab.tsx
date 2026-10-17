@@ -44,5 +44,5 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const notice = view.kind === 'past' ? `${view.name} is closed. This is a record of its lists: nothing here can be changed.`
     : view.kind === 'next' ? `${view.name} has not started. Only leaders see it. Prepare its lists here; nothing can be awarded until it starts.` : undefined
 
-  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} classOf={classLookup(roster)} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} phaseNo={view.no} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
+  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} classOf={classLookup(roster)} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
 }

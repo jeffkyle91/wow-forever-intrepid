@@ -31,5 +31,5 @@ export function PriorityList({ priorities, awards, lookup, classOf, canEdit, can
       ...boss.priorities.map((priority) => row(priority, position++)),
     ]),
   ])
-  return <div className="priority-list">{notice && <p className="phase-notice" role="note">{notice}</p>}{grouped ? groupedRows() : priorities.map(row)}{!priorities.length && <div className="empty-state"><span className="empty-icon"><ClipboardList size={21} /></span><strong>No priorities found</strong><p>Add a loot item or adjust your search or filters.</p></div>}</div>
+  return <div className="priority-list">{notice && <p className="phase-notice" role="note">{notice}</p>}{grouped ? groupedRows() : priorities.map(row)}{!priorities.length && <div className="empty-state"><span className="empty-icon"><ClipboardList size={21} /></span><strong>No priorities found</strong><p>Leaders add items from Browse drops. Adjust your search or filters to see more.</p></div>}</div>
 }

@@ -6,7 +6,7 @@ export function classColorKey(className: string) {
   return className.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-// The classes that give a block (not a table row) the class stripe, fade and coloured name. See .class-accent in App.css.
+// The classes that give a block (not a table row) the class stripe, fade and colored name. See .class-accent in App.css.
 export function classAccent(className: string) {
   return `class-accent class-color-${classColorKey(className)}`
 }
@@ -16,7 +16,7 @@ export function classAccentRow(className?: string) {
   return className ? `class-accent-row class-color-${classColorKey(className)}` : undefined
 }
 
-// A class-coloured name only (see .class-text in App.css).
+// A class-colored name only (see .class-text in App.css).
 export function classText(className?: string) {
   return className ? `class-text class-color-${classColorKey(className)}` : undefined
 }

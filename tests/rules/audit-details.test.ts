@@ -1,6 +1,6 @@
 // Audit log, in detail: the old and new value an entry has to give for every field it can list, awards and priorities
 // being created, edited and deleted with their entries, the 120-character item label, entry ids, and the cases where
-// one rule line is the only thing standing in the way. The main behaviour is in audit.test.ts; the builders for
+// one rule line is the only thing standing in the way. The main behavior is in audit.test.ts; the builders for
 // both files are in support/audit.ts.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
@@ -58,7 +58,7 @@ describe('awards: delete, roles and frozen fields', () => {
 
 // ---------------------------------------------------------------------------------------------------------------
 describe('awards: a stored field the rule does not know', () => {
-  for (const key of ['favourite', 'legacyNote']) {
+  for (const key of ['favorite', 'legacyNote']) {
     test(`[A05,A06,A08] an award that carries an unknown stored field (${key}) cannot be edited`, async () => {
       await asAdmin((db) => setDoc(guildDoc(db, 'awards/award-legacy'), awardDoc({ [key]: 'x' })))
       await expectDenied(editAward(dbFor(WHO), WHO, { awardId: 'award-legacy' }))
@@ -162,7 +162,7 @@ describe('an award create entry', () => {
 
   test('[D13,D08] a field the log cannot describe makes the create entry refused, even when the entry lists it', async () => {
     const db = dbFor(WHO)
-    for (const extra of [{ surprise: 'x' }, { rankedPlayers: [PLAYER_1] }, { favourite: true }]) {
+    for (const extra of [{ surprise: 'x' }, { rankedPlayers: [PLAYER_1] }, { favorite: true }]) {
       const withExtra = { ...fields, ...extra }
       await expectDenied(createAward(db, WHO, { id: 'award-extra', fields: withExtra }), `a created award with ${Object.keys(extra)[0]}`)
     }

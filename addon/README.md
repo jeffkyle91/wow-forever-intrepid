@@ -39,9 +39,9 @@ The game writes `WTF/Account/<account>/SavedVariables/IntrepidProbe.lua` when yo
 3. Both `/ip log on`, then `/ip msg hello`, then `/ip whisper First Surname hi` (the other's full name), then `/ip show`.
 4. Fight a mob and send one more `/ip msg` during the fight.
 5. The party leader sets the loot method to Master Looter (party menu), kills a mob and opens its loot.
-6. Trade one grey item.
+6. Trade one gray item.
 7. Both `/reload`.
 
-## Licence note
+## License note
 
 This addon is our own code (MIT, like the repository). Do not copy code from RCLootCouncil (GPL-3.0) or Gargul (All Rights Reserved) into this folder.

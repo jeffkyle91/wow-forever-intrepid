@@ -2,6 +2,7 @@ import { useState, type DragEvent as ReactDragEvent, type FormEvent, type ReactN
 import { Plus, X } from 'lucide-react'
 import type { PlayerRecord as Player, TenManTeam } from '../../guildApi'
 import type { TeamOption } from '../../shared/game/teams'
+import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { TeamRoleComposition } from './TeamRoleComposition'
 
@@ -30,7 +31,7 @@ export function TenManTeamCard({ teams, team, members, available, canEdit, cover
   return <article className={`team-card team-card-${team.key}${dropActive ? ' drop-active' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
     <header className="team-card-header"><div className="team-title"><span className={`team-color-mark mark-${team.key}`} /><div><h3>{team.name}</h3><p>10-player group</p></div></div><span className="team-capacity"><strong>{members.length}</strong> / 10</span></header>
     <TeamRoleComposition members={members} />
-    {coverage}    <div className="team-member-list">{members.map((player) => <div className="team-member-row" key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)}>
+    {coverage}    <div className="team-member-list">{members.map((player) => <div className={`team-member-row ${classAccent(player.className)}`} key={player.id} draggable={canEdit} onDragStart={(event) => onDragStart(event, player.id)}>
       <ClassAvatar player={player} /><span className="team-member-info"><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>
       {canEdit ? <><select className="move-team-select" value={team.key} onChange={(event) => onMove(player.id, event.target.value as TenManTeam)} aria-label={`Move ${player.name} to another 10-player team`}>{teams.map((option) => <option key={option.key} value={option.key}>{option.name}</option>)}</select><button className="remove-member-button" onClick={() => onRemove(player.id)} title={`Remove ${player.name} from ${team.name}`} aria-label={`Remove ${player.name} from ${team.name}`}><X size={15} /></button></> : <span />}
     </div>)}{!members.length && <p className="team-empty">No members assigned</p>}</div>

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { PlayerRecord as Player, RaidGroup, TenManTeam } from '../../guildApi'
 import type { TeamOption } from '../../shared/game/teams'
+import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { TeamRoleComposition } from './TeamRoleComposition'
 
@@ -27,7 +28,7 @@ export function DerivedTeamCard({ teams, groupKey, name, size, parts, players, a
       const members = players.filter((player) => assignments[player.id] === team.key)
       return <section className="derived-subteam" key={team.key}>
         <header className="derived-subteam-heading"><span className="derived-subteam-name"><span className={`team-color-mark mark-${team.key}`} aria-hidden="true" />{team.name}</span><span>{members.length} / 10</span></header>
-        {members.length ? <div className="derived-member-list">{members.map((player) => <span className="derived-member" key={player.id}><ClassAvatar player={player} /><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>)}</div> : <p className="team-empty">No members in {team.name}</p>}
+        {members.length ? <div className="derived-member-list">{members.map((player) => <span className={`derived-member ${classAccent(player.className)}`} key={player.id}><ClassAvatar player={player} /><strong>{player.name}</strong><small>{player.specialization || player.className} · {player.role}</small></span>)}</div> : <p className="team-empty">No members in {team.name}</p>}
       </section>
     })}</div>
     <p className="derived-note">Membership is combined from the 10-player groups and managed on the 10-player view.</p>

@@ -8,6 +8,23 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 No member-facing changes queued. Developer tools and planning documentation do not imply a production feature release.
 
+## 2026-10-16 - f42a14d
+
+Production deployments through f42a14d and live release assets verified. This summarizes changes since the ec45641 Discord announcement.
+
+- Guild roster now supports sorting by name, class, role or team, in either direction. Keep alts under their mains or mix them into the sorted list. Sort choices last for the browser session.
+- Raid Teams has All characters / Hide alts for the available roster and Add from guild roster lists. Assigned alts remain visible; assignments, assigned counts and buff/debuff coverage are unchanged.
+- Class-colored character styling now extends to Raid Teams, loot candidate and recipient names, dashboard characters, Member Access and sign-up team previews.
+
+- Dashboard Casual/Hardcore descriptions now have a separate tap-accessible help button; reading help does not change your selection. Tap the attendance chip for its explanation.
+- Roster comment panels and coverage details use shared tap/click/keyboard-accessible popovers. Coverage spell details now open by explicit activation rather than hover.
+- Help panels close on outside interaction, Escape, focus leaving, navigation, surrounding page/table scrolling and viewport changes. Long panel content remains scrollable without changing roster row heights.
+- Fixed sideways scrolling into blank space on mobile, and prevented narrow header text from pushing account controls off-screen. Wide tables and the mobile tab bar still scroll independently.
+
+Sources: PRs #58-#65, #68 and #70. RAID-009 is delivered. UX-002/UX-003 have deployed improvements; physical-device checks and the broader mobile workflow pass remain open. RAID-007 game-data verification is still outstanding.
+
+Developer progress, not new live app functionality: PRs #67/#69 add validated practice loot captures for nine dungeons; loot-table selection/import UI is not delivered. The on-request two-channel Discord publisher (PRs #51/#52) has been adopted and verified with live posting and editing; it is not a raid bot.
+
 ## 2026-10-16 - ec45641
 
 Production deployment and live release assets verified. This update also summarizes the roster improvements deployed since the previous Discord announcement.

@@ -42,6 +42,23 @@ Rollout follows [the roadmap](../ROADMAP.md): target recording loot from the fir
 
 The id comes from the target type, the target and its revision, so it needs no random ids, cannot be reused, and the rules can compute it. The type keeps an award and a priority that share an id from sharing entry ids (otherwise a leader could permanently block corrections to an award by filing a priority entry under its next id). The revision has to be a whole number.
 
+## Manual awards (LOOT-002)
+
+Priorities are not adopted until around December 15, so the first raid is decided by need-before-greed rolls and the council. A **manual award** records such a decision without a priority list. It is an award with no `priorityId`, no `prioritySnapshot` and no `councilNoteSnapshot`: nothing pretends that a candidate order existed, and the snapshot rule is not weakened for awards that have one.
+
+| Field | Meaning |
+| --- | --- |
+| `item`, `encounter`, `awardNote` | as for any award; `encounter` and `awardNote` may be empty text |
+| `recipientId` | the roster character's id (required) |
+| `recipient` | that character's name as the roster has it when the award is made; a later rename does not rewrite the award |
+| `awardedAt` | the raid date, `YYYY-MM-DD`. It is kept apart from `createdAt`, the time the award was entered, so a spreadsheet upload or a late entry never looks like a decision made later |
+| `decision` | how it was decided: `roll`, `council` or `other` |
+| `rev`, `createdBy`, `createdAt` | 1, the uid of the leader, and server time |
+
+The create rule (`validManualAward`) applies when the document has no `priorityId`. Guild and Raid Leaders may write it; it allows exactly the fields above (no status, no `updatedBy`/`updatedAt`: a new award is active), checks their types and sizes, requires the roster character to exist with that name, and requires the audit entry (type `award`, revision 1) in the same batch. The entry's own rule is unchanged: it has to describe the new document truthfully. `decision` is part of what an entry may list and must log, and it can be corrected later like any other field (with an entry); the snapshot fields can never be added to a manual award afterwards. A document with a `priorityId` follows the snapshot rule exactly as before.
+
+Not changed here: the Guild Leader exception in the create rule (it goes away in stage 3, with the local-preview import), and the date check, which tests the format only.
+
 ## Rules
 
 - `auditLog`: read for every guild role; create only by a Guild or Raid Leader with `by == request.auth.uid`, `at == request.time`, an allowed key list and size caps; **update and delete are denied for everyone.**

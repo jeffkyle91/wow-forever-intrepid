@@ -1,13 +1,13 @@
 // Builders shared by the audit log tests: one batch that edits (or creates, or deletes) an award or a priority
 // together with an audit entry for it. Everything is honest unless a test overrides a field, so a test can break
 // exactly one thing and see what the rules do. See audit.test.ts and audit-details.test.ts.
-import { serverTimestamp, writeBatch, type DocumentData, type Firestore } from 'firebase/firestore'
+import { deleteField, serverTimestamp, setDoc, writeBatch, type DocumentData, type Firestore, type WriteBatch } from 'firebase/firestore'
 import { PLAYER_1, PLAYER_2, PLAYER_3, PRIORITY_ID, UID, awardDoc, displayNameOf, priorityDoc, rosterDoc } from './fixtures.ts'
-import { guildDoc, stored } from './harness.ts'
+import { asAdmin, guildDoc, stored } from './harness.ts'
 
 export const AWARD = 'award-1' // seeded without any of the new fields, like every award written before this change
 export type Staff = 'raidLeader' | 'guildLeader'
-export type TargetType = 'award' | 'priority' | 'phase'
+export type TargetType = 'award' | 'priority' | 'phase' | 'table'
 
 /** Firestore refuses `undefined`, so a field a test wants missing is passed as undefined and dropped here. */
 export const clean = (data: DocumentData): DocumentData => Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined))
@@ -142,6 +142,7 @@ export { priorityDoc }
 export const PHASE_FIELDS = ['currentPhase', 'nextPhase', 'phaseHistory'] as const
 
 export type PhaseChangeOptions = {
+  into?: WriteBatch // add the writes to this batch and leave committing it to the caller
   settings: DocumentData // the whole settings document the batch stores (without phaseRev)
   rev?: number // the revision the document and the entry carry
   action?: string
@@ -156,11 +157,11 @@ export type PhaseChangeOptions = {
  * Start or reopen a loot phase: the settings document and its entry (phase_settings_{rev}) in one batch. The entry lists the phase fields that
  * differ between what is stored now (nothing on a first save) and what the batch stores, as the rules require. Honest unless overridden.
  */
-export async function changePhase(db: Firestore, who: Staff, { settings, rev = 1, action = 'start', audit = {}, doc = {}, entryKey, skipEntry = false, extraEntries = [] }: PhaseChangeOptions) {
+export async function changePhase(db: Firestore, who: Staff, { into, settings, rev = 1, action = 'start', audit = {}, doc = {}, entryKey, skipEntry = false, extraEntries = [] }: PhaseChangeOptions) {
   const current = await stored('settings/general')
   const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
   const changed = PHASE_FIELDS.filter((field) => !same(current?.[field], settings[field]))
-  const batch = writeBatch(db)
+  const batch = into ?? writeBatch(db)
   batch.set(guildDoc(db, 'settings/general'), clean({ ...settings, phaseRev: rev, ...doc }))
   if (!skipEntry) {
     batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('phase', 'settings', rev)}`), clean(entry(who, 'phase', 'settings', rev, {
@@ -173,5 +174,73 @@ export async function changePhase(db: Firestore, who: Staff, { settings, rev = 1
     })))
   }
   for (const [id, data] of extraEntries) batch.set(guildDoc(db, `auditLog/${id}`), clean(data))
-  return batch.commit()
+  return into ? undefined : batch.commit()
+}
+
+// Loot tables (the lootTables collection). Three kinds of document, all filed under the loot phase they were written in (`phaseNo`) and all saying
+// only what their phase changes: a zone (type 'zone') the guild made, whose number is 50 million or more; a "presence" document (type 'zone', a
+// number below that), which only says whether a zone of the built-in captures is in the lists; and a creature or the zone-wide list (type 'source').
+// The id comes from the fields: z{zoneId}_{phaseNo} and s{zoneId}_{key}_{phaseNo}. See loot-tables.test.ts.
+
+export const ZONE_NO = 60_000_001 // a custom zone: numbers from 50 million up are the guild's own
+export const BUILT_IN_ZONE_NO = 1581 // a zone of the built-in captures
+export const NPC_KEY = 'npc4887' // a creature of the built-in captures
+export const zoneTableId = (zoneId: unknown, phaseNo: unknown) => `z${zoneId}_${phaseNo}`
+export const sourceTableId = (zoneId: unknown, key: unknown, phaseNo: unknown) => `s${zoneId}_${key}_${phaseNo}`
+/** The id the rules require for a new document: the one its fields make. */
+export const tableIdOf = (fields: DocumentData): string => (fields.type === 'source' ? sourceTableId(fields.zoneId, fields.key, fields.phaseNo) : zoneTableId(fields.zoneId, fields.phaseNo))
+
+export const ZONE_TABLE = zoneTableId(ZONE_NO, 0)
+export const PRESENCE_TABLE = zoneTableId(BUILT_IN_ZONE_NO, 0)
+export const SOURCE_TABLE = sourceTableId(ZONE_NO, 'c1', 0)
+export const BUILT_IN_SOURCE_TABLE = sourceTableId(BUILT_IN_ZONE_NO, NPC_KEY, 0)
+
+/** The first document of a zone the guild adds: its name, kind and size. */
+export const zoneTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'zone', zoneId: ZONE_NO, phaseNo: 0, name: 'Test Hollow', kind: 'dungeon', players: 5, ...overrides })
+/** A zone of the built-in captures taken out of the lists (`removed: true`) from this phase on. */
+export const presenceTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'zone', zoneId: BUILT_IN_ZONE_NO, phaseNo: 0, removed: true, ...overrides })
+/** The first document of a creature the guild adds, with two items. */
+export const sourceTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'source', zoneId: ZONE_NO, key: 'c1', phaseNo: 0, name: 'Test Boss', kind: 'boss', order: 10, itemIds: [1111, 2222], hiddenItemIds: [], ...overrides })
+/** What a phase changes about a creature of the built-in captures: items added and items taken off, and nothing else (no name, no number). */
+export const overlayTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'source', zoneId: BUILT_IN_ZONE_NO, key: NPC_KEY, phaseNo: 0, itemIds: [3333], hiddenItemIds: [4444], ...overrides })
+
+/** Put the guild in phase `n`: n finished phases in its settings (none stored means phase 0). */
+export const inPhase = (n: number) => asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { currentPhase: `Phase ${n}`, nextPhase: 'Next', phaseHistory: Array.from({ length: n }, (_, index) => `Earlier ${index}`) }))
+
+/** Store a table document as an earlier write left it (by someone who is none of the personas, so a stamp a test leaves out is not the stored one). */
+export const storeTable = (id: string, fields: DocumentData, rev = 1) =>
+  asAdmin((db) => setDoc(guildDoc(db, `lootTables/${id}`), clean({ ...fields, rev, updatedBy: 'uid-earlier-editor', updatedAt: new Date('2026-12-01T00:00:00Z') })))
+
+/** In a `changes` object, a field to take away (an update with deleteField(), and `null` in the entry). */
+export const GONE = Symbol('taken away')
+const sent = (data: DocumentData): DocumentData => clean(Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === GONE ? deleteField() : value])))
+const told = (data: DocumentData): DocumentData => Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === GONE ? null : value]))
+
+export type CreateTableOptions = { into?: WriteBatch; id?: string; fields?: DocumentData; table?: DocumentData; audit?: DocumentData; entryKey?: string; skipEntry?: boolean }
+
+/** Create a table document at revision 1 with its create entry (honest unless overridden). The id is made from the fields. */
+export function createTable(db: Firestore, who: Staff, { into, id, fields: given = zoneTableDoc(), table = {}, audit = {}, entryKey, skipEntry = false }: CreateTableOptions = {}) {
+  const fields = clean(given)
+  const tableId = id ?? tableIdOf(fields)
+  const batch = into ?? writeBatch(db)
+  batch.set(guildDoc(db, `lootTables/${tableId}`), clean({ ...fields, rev: 1, updatedBy: UID[who], updatedAt: serverTimestamp(), ...table }))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('table', tableId, 1)}`), clean(entry(who, 'table', tableId, 1, { action: 'create', item: fields.name ?? '', ...describeChange(undefined, fields), ...audit })))
+  return into ? Promise.resolve() : batch.commit()
+}
+
+export type EditTableOptions = { into?: WriteBatch; id?: string; rev?: number; changes?: DocumentData; table?: DocumentData; audit?: DocumentData; entryKey?: string; skipEntry?: boolean }
+
+/**
+ * Update a table document and file an entry for it: the revision and the stamps go up with it and the entry tells the truth. A field to take away is
+ * written GONE. The default revision is the stored one plus one.
+ */
+export async function editTable(db: Firestore, who: Staff, { into, id = SOURCE_TABLE, rev, changes = { itemIds: [1111, 2222, 3333] }, table = {}, audit = {}, entryKey, skipEntry = false }: EditTableOptions = {}) {
+  const current = await stored(`lootTables/${id}`)
+  const next = rev ?? (typeof current?.rev === 'number' ? current.rev + 1 : 2)
+  const batch = into ?? writeBatch(db)
+  batch.update(guildDoc(db, `lootTables/${id}`), sent({ ...changes, ...stamp(who, next), ...table }))
+  // The honest entry lists the fields whose value really differs (an update that writes a field with the value it has changes nothing).
+  const differs = Object.fromEntries(Object.entries(told(changes)).filter(([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify(current?.[key] ?? null)))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('table', id, next)}`), clean(entry(who, 'table', id, next, { action: 'edit', item: current?.name ?? '', ...describeChange(current, differs), ...audit })))
+  return into ? undefined : batch.commit()
 }

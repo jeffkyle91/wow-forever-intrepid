@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { saveGuildRecord, type PriorityRecord as LootPriority } from '../../guildApi'
+import { editPriority, type PriorityRecord as LootPriority } from '../../guildApi'
 import { requestItem } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { AwardModal } from './AwardModal'
@@ -33,8 +33,7 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
     if (target < 0 || target >= rankedPlayers.length) return
     ;[rankedPlayers[index], rankedPlayers[target]] = [rankedPlayers[target], rankedPlayers[index]]
     try {
-      const { id, ...record } = { ...priority, rankedPlayers }
-      await saveGuildRecord('lootPriorities', id, record)
+      await editPriority(priority, { rankedPlayers }, { uid: ctx.identity.uid, displayName: ctx.identity.displayName }, 'reorder')
       setMutationError('')
     } catch (error) {
       setMutationError(error instanceof Error ? error.message : 'Could not reorder loot candidates.')

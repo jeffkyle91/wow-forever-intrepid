@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react'
 import { Check, Shield } from 'lucide-react'
-import { createAward, type AwardRecord as Award, type PriorityRecord as LootPriority } from '../../guildApi'
+import { recordAward, type NewAward, type PriorityRecord as LootPriority } from '../../guildApi'
 import { coinsArt } from '../../shared/art'
 import type { TabContext } from '../../shared/tabs/types'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
@@ -18,10 +18,10 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
   const nextName = priority.rankedPlayers[progress.next] ?? ''
   const defaultRecipient = choices.find((choice) => nameKey(choice.name) === nameKey(nextName))?.name ?? choices[0]?.name ?? ''
 
-  async function recordAward(event: FormEvent<HTMLFormElement>, priority: LootPriority) {
+  async function submitAward(event: FormEvent<HTMLFormElement>, priority: LootPriority) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    const award: Omit<Award, 'id'> = {
+    const award: NewAward = {
       priorityId: priority.id,
       item: priority.item,
       encounter: priority.encounter,
@@ -34,7 +34,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
     }
     setBusy(true)
     try {
-      await createAward(award)
+      await recordAward(award, { uid: live.identity.uid, displayName: live.identity.displayName })
       setMutationError('')
       close()
       live.navigate('history')
@@ -45,7 +45,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
     }
   }
 
-  return <Modal title="Record loot award" onClose={close}><div className="award-modal-item"><span className="item-gem"><ArtIcon src={coinsArt} className="loot-art-icon" /></span><span><strong>{priority.item}</strong><small>{priority.encounter}</small></span></div><form className="modal-form" onSubmit={(event) => recordAward(event, priority)}>
+  return <Modal title="Record loot award" onClose={close}><div className="award-modal-item"><span className="item-gem"><ArtIcon src={coinsArt} className="loot-art-icon" /></span><span><strong>{priority.item}</strong><small>{priority.encounter}</small></span></div><form className="modal-form" onSubmit={(event) => submitAward(event, priority)}>
     <label>Awarded to<select name="recipient" defaultValue={defaultRecipient} required>{choices.map((choice) => <option key={choice.name} value={choice.name}>{choice.listed > 1 ? `${choice.name} (${choice.received} of ${choice.listed} received)` : choice.received ? `${choice.name} (received)` : choice.name}</option>)}</select></label>
     <label>Award date<input type="date" name="awardedAt" defaultValue={awardedAt} required /></label>
     <label>Council decision note<textarea name="awardNote" rows={3} placeholder="Optional context for the permanent record" /></label>

@@ -5,25 +5,22 @@ import { guildRoles, type GuildRole } from '../../security'
 import { classAccentRow } from '../../shared/game/classes'
 import { EmptyRow } from '../../shared/ui/EmptyRow'
 
-export function GuildAccessManager({ members, roster, requests, busy, currentUid, canImport, onMemberChange, onToggleRemoved, onApprove, onReject, onImport }: {
+export function GuildAccessManager({ members, roster, requests, busy, currentUid, onMemberChange, onToggleRemoved, onApprove, onReject }: {
   members: MembershipRecord[]
   roster: Player[]
   requests: JoinRequestRecord[]
   busy: boolean
   currentUid: string
-  canImport: boolean
   onMemberChange: (uid: string, role: GuildRole, playerId: string | null) => void
   onToggleRemoved: (uid: string, restore: boolean) => void
   onApprove: (request: JoinRequestRecord, role: GuildRole, playerId: string | null) => void
   onReject: (uid: string) => void
-  onImport: () => void
 }) {
   const [requestRoles, setRequestRoles] = useState<Record<string, GuildRole>>({})
   const [requestPlayers, setRequestPlayers] = useState<Record<string, string>>({})
   const activeCount = members.filter((member) => member.role !== 'Removed').length
 
   return <div className="access-management">
-    {canImport && <section className="import-notice"><div><strong>Existing browser data found?</strong><p>Import this browser’s roster, raid assignments, loot priorities, and award history into the shared guild space.</p></div><button className="button button-secondary" disabled={busy} onClick={onImport}>Import local data</button></section>}
     <section className="access-section"><header className="access-section-heading"><div><h3>Join requests</h3><p>Approve a request to create the member’s guild account and assign a role.</p></div><span className="access-count">{requests.length} pending</span></header>
       {requests.length ? <div className="request-list">{requests.map((request) => <article className="request-row" key={request.id}><span className="request-avatar">{(request.displayName ?? '').slice(0, 1).toUpperCase()}</span><div className="request-person"><strong>{request.displayName}</strong><small>{request.email}</small></div><label className="request-role">Assign role<select value={requestRoles[request.id] ?? 'Member'} onChange={(event) => setRequestRoles((current) => ({ ...current, [request.id]: event.target.value as GuildRole }))} disabled={busy}>{guildRoles.map((role) => <option key={role}>{role}</option>)}</select></label><label className="request-character">Link character<select value={requestPlayers[request.id] ?? ''} onChange={(event) => setRequestPlayers((current) => ({ ...current, [request.id]: event.target.value }))} disabled={busy}><option value="">Link later</option>{roster.filter((player) => !player.linkedUid && !player.mainId).map((player) => <option key={player.id} value={player.id}>{player.name} · {player.className}</option>)}</select></label><button className="button button-primary request-approve" disabled={busy || members.some((member) => member.id === request.userId)} title={members.some((member) => member.id === request.userId) ? 'Already a member. Decline to dismiss this request.' : undefined} onClick={() => onApprove(request, requestRoles[request.id] ?? 'Member', requestPlayers[request.id] || null)}><Check size={14} /> Approve</button><button className="button button-secondary request-reject" disabled={busy} onClick={() => onReject(request.userId)}>Decline</button></article>)}</div> : <div className="access-empty">No pending access requests.</div>}
     </section>

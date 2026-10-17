@@ -29,9 +29,6 @@ export const countItems = (groups: LootGroup[]) => groups.reduce((total, group) 
 // creature in the zone. The candidate list starts empty, so the priority shows as "Needs players".
 export type DropPick = { itemId: number; zoneId: number; npcId?: number; encounter: string }
 
-// One priority per item per phase: `drop-<itemId>` in the first phase and `drop-<itemId>-p<n>` in phase n, so the same item can be on the list in
-// every phase. Both fit the audit entry id rule (letters, digits, - and _).
-export const dropPriorityId = (itemId: number, phaseNo = 0) => (phaseNo > 0 ? `drop-${itemId}-p${phaseNo}` : `drop-${itemId}`)
 
 // The encounter text follows the "dungeon \u00b7 boss" form that priorities typed by hand use.
 export const dropEncounter = (zoneName: string, group: { kind: string; name: string }) => `${zoneName} \u00b7 ${group.kind === 'zone' ? 'any creature' : group.name}`

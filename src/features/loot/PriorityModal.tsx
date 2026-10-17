@@ -1,28 +1,28 @@
 import type { FormEvent } from 'react'
 import { Check } from 'lucide-react'
-import { saveGuildRecord, type PriorityRecord as LootPriority } from '../../guildApi'
+import { createPriorities, editPriority, newPriorityId, type PriorityRecord as LootPriority } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 
-// `phaseNo` is the phase a new priority is added to; an edit keeps the phase it has (the write merges).
+// `phaseNo` is the phase a new priority is added to; an edit never changes the phase a priority is in. Every save is logged in the audit log.
 export function PriorityModal({ existing, phaseNo, close, live }: { existing?: LootPriority; phaseNo: number; close: () => void; live: TabContext }) {
   const { setBusy, setMutationError } = live.feedback
 
   async function savePriority(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    const priority: LootPriority = {
-      id: existing ? existing.id : crypto.randomUUID(),
+    const fields = {
       item: String(data.get('item')).trim(),
       encounter: String(data.get('encounter')).trim(),
       rankedPlayers: String(data.get('rankedPlayers')).split(',').map((name) => name.trim()).filter(Boolean),
       councilNote: String(data.get('councilNote')).trim(),
-      ...(existing ? {} : { phaseNo }),
     }
+    const who = { uid: live.identity.uid, displayName: live.identity.displayName }
     setBusy(true)
     try {
-      const { id, ...record } = priority
-      await saveGuildRecord('lootPriorities', id, record)
+      // An edit builds on the priority as it is now, so a change someone else made while this was open is not written over unseen.
+      if (existing) await editPriority(live.data.allPriorities.find((priority) => priority.id === existing.id) ?? existing, fields, who)
+      else await createPriorities([{ id: newPriorityId(), fields: { ...fields, phaseNo } }], who)
       setMutationError('')
       close()
     } catch (error) {

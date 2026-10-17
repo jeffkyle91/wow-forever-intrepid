@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { deleteLootPriority, saveGuildRecord } from '../../guildApi'
+import { createPriorities, deletePriorities, newPriorityId } from '../../guildApi'
 import { lootCaptureItemIds } from '../../shared/game/lootTables'
 import { phaseNoOf, type PhaseOption } from '../../shared/game/phases'
 import { peekItem, requestItem, retryItem, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import { dropTables } from './dropTables'
-import { countItems, dropEncounter, dropPriorityId, dropPriorityRecord, filterGroups, kindLabels, prioritiesForItem, type DropPick } from './dropsFilter'
+import { countItems, dropEncounter, dropPriorityRecord, filterGroups, kindLabels, prioritiesForItem, type DropPick } from './dropsFilter'
 import './Drops.css'
 
 // Which creature drops which item, for the dungeons captured in data/loot. A zone picker, a search box, one card per creature and the
@@ -82,19 +82,26 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
     if (!toAdd.length && !toRemove.length) { clearChanges(); return }
     if (losing.length && !confirmed) { setConfirming(true); return }
     setBusy(true)
+    // Every change is logged in the audit log, in batches (see createPriorities). What was written stays written if a later batch fails, so
+    // the counts and the staged items follow what was actually written.
+    const who = { uid: live.identity.uid, displayName: live.identity.displayName }
+    const adds = toAdd.map((pick) => ({ id: newPriorityId(), pick }))
+    const leaving = toRemove.flatMap(listedBy)
+    const deleted = new Set<string>()
     let added = 0
     let removed = 0
     try {
-      for (const pick of toAdd) {
-        await saveGuildRecord('lootPriorities', dropPriorityId(pick.itemId, phase.no), dropPriorityRecord(pick, nameOf(pick.itemId) ?? `Item ${pick.itemId}`, phase.no))
-        added++
-        setAdding((current) => { const next = new Map(current); next.delete(pick.itemId); return next })
-      }
-      for (const id of toRemove) {
-        for (const priority of listedBy(id)) await deleteLootPriority(priority.id)
-        removed++
-        setRemoving((current) => { const next = new Set(current); next.delete(id); return next })
-      }
+      await createPriorities(adds.map(({ id, pick }) => ({ id, fields: dropPriorityRecord(pick, nameOf(pick.itemId) ?? `Item ${pick.itemId}`, phase.no) })), who, (ids) => {
+        added += ids.length
+        const written = adds.filter(({ id }) => ids.includes(id)).map(({ pick }) => pick.itemId)
+        setAdding((current) => { const next = new Map(current); written.forEach((itemId) => next.delete(itemId)); return next })
+      })
+      await deletePriorities(leaving, who, (ids) => {
+        ids.forEach((id) => deleted.add(id))
+        const gone = toRemove.filter((itemId) => listedBy(itemId).every((priority) => deleted.has(priority.id)))
+        removed = gone.length
+        setRemoving((current) => { const next = new Set(current); gone.forEach((itemId) => next.delete(itemId)); return next })
+      })
       setMutationError('')
       const parts = [added ? `${plural(added, 'item', 'items')} added to Loot priorities` : '', removed ? `${plural(removed, 'item', 'items')} removed` : ''].filter(Boolean)
       setNotice(`${parts.join(', ')}.${added ? ' Assign players to each new one.' : ''}`)

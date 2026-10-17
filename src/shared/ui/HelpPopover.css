@@ -1,0 +1,38 @@
+.help-popover-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.help-popover-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.help-popover {
+  position: fixed;
+  inset: auto;
+  left: 12px;
+  top: 12px;
+  margin: 0;
+  box-sizing: border-box;
+  width: min(300px, calc(100dvw - 24px));
+  max-height: min(300px, calc(100dvh - 24px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  border: 1px solid #c8d2c7;
+  border-radius: 6px;
+  background: #fff;
+  color: #425148;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  box-shadow: 0 4px 16px #17263b26;
+}
+.help-popover p { white-space: pre-wrap; margin: 8px 0; }
+:root[data-theme='dark'] .help-popover { border-color: #40546b; background: #182536; color: #bfccd9; }

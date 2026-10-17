@@ -85,7 +85,7 @@ function StartPhaseModal({ close, live }: { close: () => void; live: TabContext 
   }
 
   return <Modal title={`${phrase}?`} onClose={close}><form className="modal-form" onSubmit={(event) => { event.preventDefault(); void start() }}>
-    <p className="phases-warning"><strong>{settings.currentPhase}</strong> closes now: its loot priorities become a read-only record. {prepared > 0 ? `The ${prepared} ${prepared === 1 ? 'priority' : 'priorities'} prepared for ${name} become the current lists.` : `${name} starts with empty lists.`} Starting is logged and can be undone only until something is awarded in {name}.</p>
+    <p className="phases-warning"><strong>{settings.currentPhase}</strong> closes now: its loot priorities become a read-only record. {prepared > 0 ? (prepared === 1 ? `The 1 priority prepared for ${name} becomes the current list.` : `The ${prepared} priorities prepared for ${name} become the current lists.`) : `${name} starts with empty lists.`} Starting is logged and can be undone only until something is awarded in {name}.</p>
     <label>Type <strong>{phrase}</strong> to confirm<input value={typed} onChange={(event) => setTyped(event.target.value)} autoFocus autoComplete="off" spellCheck={false} aria-label={`Type ${phrase} to confirm`} /></label>
     <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close} disabled={busy}>Cancel</button><button className="button button-primary" disabled={busy || !ready}>{phrase}</button></div>
   </form></Modal>

@@ -108,7 +108,7 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
       const whole = (ids: number[], priorities: (itemId: number) => { id: string }[]) => ids.filter((id) => priorities(id).every((priority) => done.has(priority.id))).length
       return [
         creates.filter(({ id }) => done.has(id)).length ? `${plural(creates.filter(({ id }) => done.has(id)).length, 'item', 'items')} added` : '',
-        whole(restores.map((pick) => pick.itemId), parkedFor) ? `${plural(whole(restores.map((pick) => pick.itemId), parkedFor), 'item', 'items')} put back with their priorities` : '',
+        whole(restores.map((pick) => pick.itemId), parkedFor) ? `${plural(whole(restores.map((pick) => pick.itemId), parkedFor), 'item', 'items')} put back, priorities restored` : '',
         whole(keeping.map(({ id }) => id), listedBy) ? `${plural(whole([...new Set(keeping.map(({ id }) => id))], listedBy), 'item', 'items')} taken off, priorities kept` : '',
         whole(deleting.map(({ id }) => id), listedBy) ? `${plural(whole([...new Set(deleting.map(({ id }) => id))], listedBy), 'item', 'items')} removed` : '',
       ].filter(Boolean)
@@ -191,13 +191,13 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
     <p className="drops-count">Showing <strong>{countItems(groups)}</strong> of <strong>{lootCaptureItemIds(table).length}</strong> items in {table.name}.</p>
     {(toAdd.length > 0 || toRemove.length > 0) && <div className="drops-tray" role="region" aria-label="Changes to the priority list">
       {confirming
-        ? <span className="drops-warning" role="alert">{plural(withPriorities.length, 'item you are taking off already has', 'items you are taking off already have')} priorities set ({namesOf(withPriorities)}). {withPriorities.length === 1 ? 'It comes' : 'They come'} off the list but keep their priorities, and come back with them when you tick the item again.</span>
+        ? <span className="drops-warning" role="alert">{plural(withPriorities.length, 'item you are taking off already has', 'items you are taking off already have')} priorities set ({namesOf(withPriorities)}). {withPriorities.length === 1 ? 'It comes off the list but keeps its priorities, and comes back with them' : 'They come off the list but keep their priorities, and come back with them'} when you tick the item again.</span>
         : <span>{[toAdd.length ? `${toAdd.length} to add` : '', toRemove.length ? `${toRemove.length} to take off` : ''].filter(Boolean).join(', ')}</span>}
       {confirming
         ? <button type="button" className="button button-secondary" onClick={() => setConfirming(false)} disabled={busy}>Back</button>
         : <button type="button" className="button button-secondary" onClick={clearChanges} disabled={busy}>Clear</button>}
       <button type="button" className="button button-primary" onClick={() => applyChanges(confirming)} disabled={busy}>
-        {confirming ? 'Yes, take them off' : toAdd.length && toRemove.length ? 'Update the list' : toRemove.length ? 'Take off the list' : 'Add to priorities'}
+        {confirming ? (toRemove.length === 1 ? 'Yes, take it off' : 'Yes, take them off') : toAdd.length && toRemove.length ? 'Update the list' : toRemove.length ? 'Take off the list' : 'Add to priorities'}
       </button>
     </div>}
   </div>

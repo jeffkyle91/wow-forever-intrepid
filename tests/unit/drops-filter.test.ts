@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { countItems, filterGroups, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
+import { countItems, dropEncounter, dropPriorityId, dropPriorityRecord, filterGroups, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
 
 // Invented creatures and items.
 const table = {
@@ -48,5 +48,32 @@ describe('filterGroups', () => {
     const before = JSON.stringify(table)
     filterGroups(table, 'ring', nameOf)
     assert.equal(JSON.stringify(table), before)
+  })
+})
+
+describe('priorities made from drops', () => {
+  it('has one fixed id per item, so an item can be on the list only once', () => {
+    assert.equal(dropPriorityId(872), 'drop-872')
+    assert.equal(dropPriorityId(872), dropPriorityId(872))
+    assert.match(dropPriorityId(273289), /^[A-Za-z0-9_-]{1,100}$/)
+  })
+  it('writes the dungeon and boss in the same form as a priority typed by hand', () => {
+    assert.equal(dropEncounter('Test Hall', { kind: 'boss', name: 'Hall Warden' }), 'Test Hall \u00b7 Hall Warden')
+    assert.equal(dropEncounter('Test Hall', { kind: 'zone', name: 'Any creature in the zone' }), 'Test Hall \u00b7 any creature')
+  })
+  it('starts with nobody assigned, and carries the item, dungeon and creature', () => {
+    const record = dropPriorityRecord({ itemId: 101, zoneId: 7, npcId: 10, encounter: 'Test Hall \u00b7 Hall Warden' }, 'Iron Ring')
+    assert.deepEqual(record, { item: 'Iron Ring', encounter: 'Test Hall \u00b7 Hall Warden', rankedPlayers: [], councilNote: '', itemId: 101, zoneId: 7, npcId: 10 })
+  })
+  it('leaves npcId out, never undefined, for an item from any creature in the zone', () => {
+    const record = dropPriorityRecord({ itemId: 900, zoneId: 7, encounter: 'Test Hall \u00b7 any creature' }, 'Plain Boots')
+    assert.equal('npcId' in record, false)
+    assert.ok(Object.values(record).every((value) => value !== undefined))
+  })
+  it('gives every record its own empty candidate list', () => {
+    const a = dropPriorityRecord({ itemId: 1, zoneId: 1, encounter: 'x' }, 'A')
+    const b = dropPriorityRecord({ itemId: 2, zoneId: 1, encounter: 'x' }, 'B')
+    a.rankedPlayers.push('someone')
+    assert.deepEqual(b.rankedPlayers, [])
   })
 })

@@ -19,7 +19,8 @@ export function visiblePriorities(priorities: LootPriority[], awards: Award[], r
     (!filters.encounter || priority.encounter.trim() === filters.encounter)
     && (!player || priority.rankedPlayers.some((name) => nameKey(name) === player))
     && (!filters.className || priority.rankedPlayers.some((name) => classByName.get(nameKey(name)) === filters.className))
-    && (!filters.hideCompleted || !listingProgress(priority, awards).complete))
+    && (!filters.hideCompleted || !listingProgress(priority, awards).complete)
+    && (!filters.needsPlayers || priority.rankedPlayers.length === 0))
 }
 
 function sorted(values: Iterable<string>) {

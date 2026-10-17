@@ -21,3 +21,20 @@ export function filterGroups(table: TableLike, query: string, nameOf: (itemId: n
 }
 
 export const countItems = (groups: LootGroup[]) => groups.reduce((total, group) => total + group.itemIds.length, 0)
+
+// Making a priority from an item that was ticked in Browse drops. The id is fixed per item, so there is one priority per item for the
+// whole guild. The record has no field that is undefined (Firestore refuses one): npcId is left out for an item that drops from any
+// creature in the zone. The candidate list starts empty, so the priority shows as "Needs players".
+export type DropPick = { itemId: number; zoneId: number; npcId?: number; encounter: string }
+
+export const dropPriorityId = (itemId: number) => `drop-${itemId}`
+
+// The encounter text follows the "dungeon \u00b7 boss" form that priorities typed by hand use.
+export const dropEncounter = (zoneName: string, group: { kind: string; name: string }) => `${zoneName} \u00b7 ${group.kind === 'zone' ? 'any creature' : group.name}`
+
+export function dropPriorityRecord(pick: DropPick, itemName: string) {
+  return {
+    item: itemName, encounter: pick.encounter, rankedPlayers: [] as string[], councilNote: '',
+    itemId: pick.itemId, zoneId: pick.zoneId, ...(pick.npcId !== undefined ? { npcId: pick.npcId } : {}),
+  }
+}

@@ -11,6 +11,9 @@ export function PrioritiesToolbar({ ctx }: { ctx: TabContext }) {
       <button className={filters.hideCompleted ? 'segment' : 'segment selected'} onClick={() => setPriorityFilters({ hideCompleted: false })} aria-pressed={!filters.hideCompleted}>All items</button>
       <button className={filters.hideCompleted ? 'segment selected' : 'segment'} onClick={() => setPriorityFilters({ hideCompleted: true })} aria-pressed={filters.hideCompleted}>Hide completed</button>
     </div>
+    <div className="segmented-control" role="group" aria-label="Items without players">
+      <button className={filters.needsPlayers ? 'segment selected' : 'segment'} onClick={() => setPriorityFilters({ needsPlayers: !filters.needsPlayers })} aria-pressed={filters.needsPlayers}>Needs players</button>
+    </div>
     <select className="loot-filter-select" aria-label="Filter by encounter" value={filters.encounter} onChange={(event) => setPriorityFilters({ encounter: event.target.value })}>
       <option value="">All encounters</option>
       {options.encounters.map((encounter) => <option key={encounter} value={encounter}>{encounter}</option>)}

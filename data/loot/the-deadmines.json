@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "zoneId": 1581,
+  "name": "The Deadmines",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=1581/the-deadmines",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected.",
+    "Ten of the items (ids above 200000) are listed under Wowhead's Normal mode only and look new in Forever."
+  ],
+  "sources": [
+    {
+      "npcId": 644,
+      "name": "Rhahk'Zor",
+      "kind": "boss",
+      "itemIds": [872, 5187, 273289]
+    },
+    {
+      "npcId": 642,
+      "name": "Sneed's Shredder",
+      "kind": "boss",
+      "itemIds": [1937, 2169, 285292]
+    },
+    {
+      "npcId": 643,
+      "name": "Sneed",
+      "kind": "boss",
+      "itemIds": [5194, 5195, 210178, 273092, 273293]
+    },
+    {
+      "npcId": 1763,
+      "name": "Gilnid",
+      "kind": "boss",
+      "itemIds": [1156, 5199, 273086, 273297]
+    },
+    {
+      "npcId": 646,
+      "name": "Mr. Smite",
+      "kind": "boss",
+      "itemIds": [5192, 5196, 7230, 284715]
+    },
+    {
+      "npcId": 645,
+      "name": "Cookie",
+      "kind": "boss",
+      "itemIds": [5197, 5198, 273102, 273298]
+    },
+    {
+      "npcId": 647,
+      "name": "Captain Greenskin",
+      "kind": "boss",
+      "itemIds": [5200, 5201, 10403]
+    },
+    {
+      "npcId": 639,
+      "name": "Edwin VanCleef",
+      "kind": "boss",
+      "itemIds": [5191, 5193, 5202, 10399]
+    },
+    {
+      "npcId": 3586,
+      "name": "Miner Johnson",
+      "kind": "rare",
+      "itemIds": [5443, 5444]
+    },
+    {
+      "npcId": 1725,
+      "name": "Defias Watchman",
+      "kind": "trash",
+      "itemIds": [1925]
+    },
+    {
+      "npcId": 598,
+      "name": "Defias Miner",
+      "kind": "trash",
+      "itemIds": [1930]
+    },
+    {
+      "npcId": 636,
+      "name": "Defias Blackguard",
+      "kind": "trash",
+      "itemIds": [1934]
+    },
+    {
+      "npcId": 622,
+      "name": "Goblin Engineer",
+      "kind": "trash",
+      "itemIds": [1936]
+    },
+    {
+      "npcId": 3947,
+      "name": "Goblin Shipbuilder",
+      "kind": "trash",
+      "itemIds": [1943]
+    },
+    {
+      "npcId": 1731,
+      "name": "Goblin Craftsman",
+      "kind": "trash",
+      "itemIds": [1944]
+    },
+    {
+      "npcId": 641,
+      "name": "Goblin Woodcarver",
+      "kind": "trash",
+      "itemIds": [1945]
+    },
+    {
+      "npcId": 4416,
+      "name": "Defias Strip Miner",
+      "kind": "trash",
+      "itemIds": [10402]
+    }
+  ],
+  "zoneWideItemIds": [1929, 1951, 10400, 10401]
+}

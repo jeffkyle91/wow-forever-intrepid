@@ -81,6 +81,29 @@ service cloud.firestore {
         && request.resource.data.recipient in get(priorityPath).data.rankedPlayers;
     }
 
+    // A manual award is recorded without a priority, for example a need-before-greed roll or a decision made on the night.
+    // It carries no priorityId and no snapshot, so nothing pretends that a candidate order existed. The recipient is a roster
+    // character, by id, and the recipient name is the one the roster has now (a later rename does not rewrite the award).
+    // `decision` says how it was decided. awardedAt is the raid date and is kept apart from createdAt, the time of entry. The
+    // audit entry (type 'award', revision 1) has to be written in the same batch; its own rule ties it back to this document.
+    function validManualAward(guildId, awardId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'rev', 'createdBy', 'createdAt'])
+        && data.keys().hasAll(['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'rev', 'createdBy', 'createdAt'])
+        && data.rev is int && data.rev == 1
+        && data.createdBy == request.auth.uid
+        && data.createdAt == request.time
+        && data.item is string && data.item.size() >= 1 && data.item.size() <= 120
+        && data.encounter is string && data.encounter.size() <= 120
+        && data.recipient is string && data.recipient.size() >= 1 && data.recipient.size() <= 60
+        && data.recipientId is string && data.recipientId.matches('^[A-Za-z0-9_-]{1,100}$')
+        && get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(data.recipientId)).data.name == data.recipient
+        && validIsoDate(data.awardedAt)
+        && data.awardNote is string && data.awardNote.size() <= 500
+        && data.decision in ['roll', 'council', 'other']
+        && existsAfter(auditEntryPath(guildId, 'award', awardId, 1));
+    }
+
     // Audit log. A change to an award is accepted only together with its audit entry, written in the same batch;
     // the entry's own rule (validAuditEntry) ties it back to the change, so each needs the other, and the entry has
     // to describe the change truthfully (which fields, their old and new values, whether it was a removal).
@@ -99,7 +122,7 @@ service cloud.firestore {
       let after = request.resource.data;
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'award', awardId, rev);
-      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
+      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'decision', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -118,6 +141,7 @@ service cloud.firestore {
         && (after.get('recipientId', null) == null || (after.recipientId is string && after.recipientId.size() <= 100))
         && validIsoDate(after.awardedAt)
         && after.awardNote is string && after.awardNote.size() <= 500
+        && (!('decision' in after) || after.decision in ['roll', 'council', 'other'])
         && after.get('status', 'active') in ['active', 'removed']
         && (!('removedReason' in after) || (after.removedReason is string && after.removedReason.size() <= 300))
         && (after.get('status', 'active') != 'removed' || (after.get('removedReason', null) is string && after.removedReason.trim().size() >= 1));
@@ -216,7 +240,7 @@ service cloud.firestore {
       let fields = raid
         ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
-          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
+          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
           : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
@@ -241,6 +265,7 @@ service cloud.firestore {
               && auditFieldLogged(data, oldDoc, newDoc, 'recipientId')
               && auditFieldLogged(data, oldDoc, newDoc, 'awardedAt')
               && auditFieldLogged(data, oldDoc, newDoc, 'awardNote')
+              && auditFieldLogged(data, oldDoc, newDoc, 'decision')
               && auditFieldLogged(data, oldDoc, newDoc, 'status')
               && auditFieldLogged(data, oldDoc, newDoc, 'removedReason')
               && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
@@ -389,7 +414,8 @@ service cloud.firestore {
 
       match /awards/{awardId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create: if isGuildLeader(guildId) || (canManageRaid(guildId) && hasPrioritySnapshot(guildId));
+        allow create: if isGuildLeader(guildId)
+          || (canManageRaid(guildId) && (!('priorityId' in request.resource.data) ? validManualAward(guildId, awardId) : hasPrioritySnapshot(guildId)));
         allow update: if canManageRaid(guildId) && validAwardEdit(guildId, awardId);
         allow delete: if false;
       }

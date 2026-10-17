@@ -2,6 +2,12 @@
 
 This is an on-request developer tool, not the planned raid bot. It posts approved text to one channel webhook and updates its own tracked messages. It cannot edit messages posted by a person. Nothing is sent by a build, deploy, preview or credential setup.
 
+## Shared content and publishing ownership
+
+Collaborators maintain [the backlog](backlog.json) and [patch notes](../CHANGELOG.md) through PRs using [the contribution rules](../CONTRIBUTING.md#backlog-patch-notes-and-publishing). The primary maintainer publishes from the designated Windows machine; its encrypted credentials, message receipts and locks remain local. Other collaborators must not create independent publishing state for the same messages.
+
+These shared files are source content, not valid publisher input yet. The current CLI accepts the `posts` payload below. Named backlog/patch-notes destinations, automatic rendering and coordinated release tracking are future work (`COMMS-002`). Do not configure the patch-notes webhook with the current setup command: it would replace the backlog credential. No automatic file watcher, deploy hook or Discord update is enabled by adding shared files.
+
 ## Secure setup (Windows)
 
 Create a webhook in Discord's channel settings under Integrations, then run this in your own VS Code PowerShell terminal from the repository root:

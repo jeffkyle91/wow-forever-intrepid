@@ -33,6 +33,8 @@ Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shar
 
 ## Discussed future work
 
+Collaborators track actionable work in [the shared backlog](docs/backlog.json), verified member-facing releases in [the changelog](CHANGELOG.md), and maintenance/publishing responsibilities in [CONTRIBUTING.md](CONTRIBUTING.md#backlog-patch-notes-and-publishing). The roadmap supplies direction and milestone decisions; Discord is a published view of these shared records.
+
 ### Rollout milestones (2026)
 
 - **November 4:** game launch, not a full-app deadline. Most core web functionality rolls out progressively between November 4 and December 9.

@@ -28,7 +28,9 @@ export type { PlayerRecord } from './shared/game/players'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
-export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string }
+// itemId, zoneId and npcId are set when a priority was added from the drop lists (Browse drops): the Wowhead item id, the dungeon
+// in data/loot and the creature that drops it. A priority typed by hand has none of them.
+export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number }
 export type AwardRecord = {
   id: string
   priorityId: string
@@ -152,6 +154,11 @@ export async function submitJoinRequest(uid: string, email: string, displayName:
 export async function saveGuildRecord(collectionName: 'roster' | 'lootPriorities', id: string, data: Record<string, unknown>) {
   const fields = Object.fromEntries(Object.entries(data).map(([key, value]) => [key, value === undefined ? deleteField() : value]))
   await setDoc(doc(requireDb(), 'guilds', guildId, collectionName, id), fields, { merge: true })
+}
+
+// Removes a loot priority. The awards that were recorded from it keep their own copy of the candidate order, so history is not touched.
+export async function deleteLootPriority(id: string) {
+  await deleteDoc(doc(requireDb(), 'guilds', guildId, 'lootPriorities', id))
 }
 
 export async function setTeamAssignment(playerId: string, team: TenManTeam | null) {

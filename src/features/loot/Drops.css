@@ -42,3 +42,25 @@
 @media (max-width: 600px) {
   .drops-zone-select { flex: 1 1 100%; max-width: none; }
 }
+
+/* Adding items to Loot priorities: tick boxes, a per-creature button and a tray that stays at the bottom of the dialog (sticky, no negative margins, so it cannot overflow). */
+.drops-item { display: inline-flex; align-items: center; gap: 6px; }
+.drops-tick { width: 15px; height: 15px; margin: 0; accent-color: #315f9f; cursor: pointer; }
+.drops-listed { padding: 1px 7px; border-radius: 9px; color: #2f6a45; background: #e7f3ea; font-size: 9px; font-weight: 700; }
+.drops-select-all { margin-left: auto; padding: 0; border: 0; color: #427296; background: transparent; font: inherit; font-size: 10px; text-decoration: underline; cursor: pointer; }
+.drops-select-all:disabled { opacity: .5; cursor: default; }
+.drops-tray { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 0 2px; border-top: 1px solid #dfe7ef; background: #fff; box-shadow: 0 21px 0 0 #fff; font-size: 11px; color: #3f566b; }
+.drops-tray span { margin-right: auto; }
+:root[data-theme='dark'] .drops-listed { color: #9ad8b0; background: #1f3a2b; }
+:root[data-theme='dark'] .drops-select-all { color: #8fc2e6; }
+:root[data-theme='dark'] .drops-tray { border-top-color: #33465c; background: #1c2838; box-shadow: 0 21px 0 0 #1c2838; color: #d3deea; }
+
+/* Removing items, and Add all / Remove all at the top. */
+.drops-bulk { display: flex; flex-wrap: wrap; gap: 8px; }
+.drops-bulk .button { min-height: 31px; }
+.drops-leaving { padding: 1px 7px; border-radius: 9px; color: #8a5a12; background: #fbf0dc; font-size: 9px; font-weight: 700; }
+.drops-warning { color: #9a3b2e; font-weight: 600; }
+.button-danger { color: #fff; background: #a8402f; }
+.button-danger:hover:not(:disabled) { background: #8e3426; }
+:root[data-theme='dark'] .drops-leaving { color: #f0c987; background: #4a3a1c; }
+:root[data-theme='dark'] .drops-warning { color: #f2a99d; }

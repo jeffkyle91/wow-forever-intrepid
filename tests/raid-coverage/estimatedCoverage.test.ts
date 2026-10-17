@@ -137,14 +137,14 @@ const statusOf = (members: CoverageMember[]) => Object.fromEntries(calculateCove
 const countsOf = (members: CoverageMember[]) => calculateCoverage(standardEffects(coverageEffects), members).estimateSummary
 
 describe('real catalog against the seeded Blue and Yellow rosters', () => {
-  it('Blue: 18 available, 1 potential, 4 missing, 0 party unknown, 1 unverified (all estimates)', () => {
+  it('Blue: 18 available, 1 potential, 4 missing, 0 party unknown, 0 unverified (all estimates)', () => {
     const s = countsOf(blue)
-    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [18, 1, 4, 0, 1, 0, 0])
+    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [18, 1, 4, 0, 0, 0, 0])
   })
 
-  it('Yellow: 21 available, 1 potential, 1 missing, 0 party unknown, 1 unverified (all estimates)', () => {
+  it('Yellow: 21 available, 1 potential, 1 missing, 0 party unknown, 0 unverified (all estimates)', () => {
     const s = countsOf(yellow)
-    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [21, 1, 1, 0, 1, 0, 0])
+    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [21, 1, 1, 0, 0, 0, 0])
   })
 
   it('Blue lacks a Warlock, so both curses are estimated Missing; Yellow has one', () => {
@@ -161,7 +161,7 @@ describe('real catalog against the seeded Blue and Yellow rosters', () => {
 
   it('unverified requirements stay Unverified whatever the roster', () => {
     for (const roster of [blue, yellow]) {
-      assert.equal(statusOf(roster)['physical-damage-reduction'], 'unverified')
+      assert.equal(statusOf(roster)['physical-damage-reduction'], undefined)
       for (const key of ['valor-of-azeroth', 'heart-of-the-lion', 'judgement', 'fear-protection']) assert.equal(statusOf(roster)[key], undefined, key)
     }
   })
@@ -170,7 +170,7 @@ describe('real catalog against the seeded Blue and Yellow rosters', () => {
     for (const roster of [blue, yellow]) {
       const report = calculateCoverage(standardEffects(coverageEffects), roster)
       assert.equal(report.confirmedCount, 0)
-      assert.equal(report.summary.unverified, 24)
+      assert.equal(report.summary.unverified, 23)
       const chips = statusCounts(coverageTiles(coverageEffects, roster))
       assert.ok(chips.filter((c) => c.status === 'available' || c.status === 'missing' || c.status === 'potential').every((c) => c.estimated))
     }

@@ -6,7 +6,7 @@ export type Confidence = 'confirmed' | 'provisional' | 'unverified'
 // Whether who the effect reaches (whole raid, party, one target, enemy) is known.
 export type ScopeStatus = 'confirmed' | 'provisional' | 'unknown'
 
-export type EffectVisibility = 'standard' | 'encounter' | 'excluded'
+export type EffectVisibility = 'standard' | 'encounter' | 'excluded' | 'inactive'
 
 // How far a roster player's class and specialization establish that they can provide an effect.
 // guaranteed: the player can provide it with no talent or rune choice (counts towards Available).
@@ -49,10 +49,13 @@ export type CoverageEffect = {
   category?: string
   // Only where reliably sourced.
   spellId?: number
+  // Preferred icon and fallback tooltip spell for its requirement. Without one, the first effect that has an icon is used.
+  representative?: boolean
   // 'standard' (the default) appears in the everyday raid checklist. 'encounter' keeps researched data for encounter-specific needs
   // (for example resistance fights) and 'excluded' keeps an effect the owner removed from the checklist; neither is shown or counted.
   // An 'encounter' effect cannot share a stackGroup with other visibilities. An 'excluded' effect may share one with standard
-  // alternatives, which then remain the requirement.
+  // alternatives, which then remain the requirement. 'inactive' keeps research on an ability suspected to be Season of Discovery only (not
+  // proven to exist in Forever); it behaves like 'excluded' and must not be made 'standard' without Forever-specific evidence.
   visibility?: EffectVisibility
   // Minimum number of different eligible players needed. Defaults to 1; for a stackGroup the largest value among its confirmed effects applies.
   // Use a number above 1 only when a verified mechanic requires it.
@@ -67,6 +70,27 @@ export type CoverageEffect = {
   notes?: string
   // ISO date (YYYY-MM-DD) the entry was last checked against the game.
   verifiedOn?: string
+}
+
+// A consumable that can stand in, usually more weakly, for a class-provided requirement. It is never counted as class coverage:
+// it only matters once an organizer marks it as planned. List one only with Forever-specific evidence in `sources`.
+export type ConsumableAlternative = {
+  id: string
+  name: string
+  // The requirement it stands in for: the `stackGroup` (or the `id` of an ungrouped effect) in coverageData.ts.
+  requirementKey: string
+  // What it does, in words copied from a Forever source. Shown to the organizer.
+  effect: string
+  // How it is weaker or different from the class buff (duration, strength, scope).
+  limitation: string
+  // Icon source: a catalog-style spell ID looked up in spellIcons.ts, or a Wowhead icon name for an item.
+  spellId?: number
+  iconName?: string
+  // 'unverified' entries are kept as research but cannot be planned.
+  confidence: Confidence
+  sources: string[]
+  verifiedOn?: string
+  notes?: string
 }
 
 export type CoverageMember = { id: string; name: string; className: string; specialization: string }

@@ -14,6 +14,10 @@ import { classifySlot, DEFAULT_NODE_LIMIT, type SlotRequirement } from './slotCo
 
 const norm = (value: string) => value.trim().toLowerCase()
 
+// Label only: the most cautious scope among a requirement's effects. Evaluation judges each provider's own scope.
+const cautionOrder: CoverageEffect['kind'][] = ['raid-buff', 'debuff', 'party-buff', 'targeted-buff']
+export const groupKind = (group: CoverageEffect[]): CoverageEffect['kind'] => group.map((effect) => effect.kind).reduce((a, b) => (cautionOrder.indexOf(b) > cautionOrder.indexOf(a) ? b : a))
+
 // Only raid-wide buffs and enemy debuffs take part in slot matching in v1; a slot on any other kind is ignored.
 export const slotKinds: CoverageEffect['kind'][] = ['raid-buff', 'debuff']
 const slotOf = (effect: CoverageEffect) => (slotKinds.includes(effect.kind) ? effect.slot : undefined)
@@ -110,13 +114,15 @@ function countPlayers(matches: ProviderMatch[], mode: Mode) {
   return { available: available.size, potential: potential.size }
 }
 
-function statusFor(effects: CoverageEffect[], required: number, counts: { available: number; potential: number }, mode: Mode): CoverageStatus {
+// party counts players of party-wide effects only. They never satisfy a requirement, but they keep it from reading as Missing.
+function statusFor(effects: CoverageEffect[], required: number, counts: { available: number; potential: number }, party: { available: number; potential: number }, mode: Mode): CoverageStatus {
   const usable = effects.filter((effect) => counted(effect, mode))
   if (!usable.length) return 'unverified'
   // Party membership is not tracked, so a party buff can never be shown as covered.
   if (usable.every((effect) => effect.kind === 'party-buff')) return 'party-unknown'
   if (counts.available >= required) return 'available'
-  if (counts.potential >= required) return 'potential'
+  if (party.available > 0) return 'party-unknown'
+  if (counts.potential >= required || party.potential > 0) return 'potential'
   return 'missing'
 }
 
@@ -129,12 +135,17 @@ function evaluate(groups: Map<string, CoverageEffect[]>, members: CoverageMember
   const requirements: Evaluated[] = [...groups].map(([key, group]) => {
     const matches = group.flatMap((effect) => matchesFor(effect, members))
     const required = Math.max(1, ...group.filter((effect) => counted(effect, mode)).map((effect) => effect.requirement ?? 1))
-    const counts = countPlayers(matches, mode)
+    // Scope is judged per provider: a party-wide alternative never makes a raid-wide one party-limited, nor the reverse.
+    const partyIds = new Set(group.filter((effect) => effect.kind === 'party-buff').map((effect) => effect.id))
+    const allParty = group.filter((effect) => counted(effect, mode)).every((effect) => effect.kind === 'party-buff')
+    const wide = matches.filter((match) => !partyIds.has(match.effectId))
+    const counts = countPlayers(allParty ? matches : wide, mode)
+    const party = allParty ? { available: 0, potential: 0 } : countPlayers(matches.filter((match) => partyIds.has(match.effectId)), mode)
     const result: Evaluated = {
       key,
       name: group.map((effect) => effect.name).join(' / '),
-      kind: group[0].kind,
-      status: statusFor(group, required, counts, mode),
+      kind: groupKind(group),
+      status: statusFor(group, required, counts, party, mode),
       required,
       availableCount: counts.available,
       potentialCount: counts.potential,
@@ -150,7 +161,7 @@ function evaluate(groups: Map<string, CoverageEffect[]>, members: CoverageMember
     if (result.status !== 'available' || !slots.length) return result
 
     const byEffect = new Map(group.map((effect) => [effect.id, effect]))
-    const playersFor = (wantSlotted: boolean) => new Set(matches
+    const playersFor = (wantSlotted: boolean) => new Set(wide
       .filter((match) => matchCounted(match, mode) && providesNow(match, mode) && (slotOf(byEffect.get(match.effectId)!) !== undefined) === wantSlotted)
       .map((match) => match.playerId))
     // Players who provide it through an effect with no slot need no slot, so they never compete.
@@ -304,11 +315,13 @@ export function validateEffects(effects: CoverageEffect[]): string[] {
     if (effect.requirement !== undefined && (!Number.isInteger(effect.requirement) || effect.requirement < 1)) problems.push(`${effect.id}: requirement must be a whole number of at least 1`)
     if (effect.spellId !== undefined && (!Number.isInteger(effect.spellId) || effect.spellId < 1)) problems.push(`${effect.id}: spellId must be a positive whole number`)
     if (effect.requirement && effect.requirement > 1 && effect.kind === 'party-buff') problems.push(`${effect.id}: a party buff cannot have a provider requirement because party groups are not tracked`)
+    // Buff scopes may differ inside a group (so one effect can change scope alone); a debuff and a buff cannot be alternatives.
     const key = effect.stackGroup ?? effect.id
-    const kind = groupKinds.get(key)
-    if (kind && kind !== effect.kind) problems.push(`${key}: stack group mixes kinds`)
-    groupKinds.set(key, effect.kind)
-    if (effect.visibility !== undefined && !['standard', 'encounter', 'excluded'].includes(effect.visibility)) problems.push(`${effect.id}: visibility must be 'standard', 'encounter' or 'excluded'`)
+    const side = effect.kind === 'debuff' ? 'debuff' : 'buff'
+    const seen = groupKinds.get(key)
+    if (seen && seen !== side) problems.push(`${key}: stack group mixes kinds (buffs and debuffs cannot share a group)`)
+    groupKinds.set(key, side)
+    if (effect.visibility !== undefined && !['standard', 'encounter', 'excluded', 'inactive'].includes(effect.visibility)) problems.push(`${effect.id}: visibility must be 'standard', 'encounter', 'excluded' or 'inactive'`)
     const visibilities = groupVisibility.get(key) ?? new Set<string>()
     visibilities.add(effect.visibility ?? 'standard')
     groupVisibility.set(key, visibilities)

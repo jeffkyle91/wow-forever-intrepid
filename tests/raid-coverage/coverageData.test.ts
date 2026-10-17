@@ -45,8 +45,8 @@ describe('real catalog', () => {
     const report = calculateCoverage(coverageEffects, [])
     assert.equal(coverageEffects.length, 58)
     assert.equal(report.requirements.length, 33)
-    assert.equal(coverageEffects.filter((entry) => entry.confidence ===     'provisional').length, 44)
-        assert.equal(coverageEffects.filter((entry) => entry.confidence === 'unverified').length, 14)
+    assert.equal(coverageEffects.filter((entry) => entry.confidence ===     'provisional').length, 43)
+        assert.equal(coverageEffects.filter((entry) => entry.confidence === 'unverified').length, 15)
   })
 
   it('keeps the verified result Unverified for any roster, and only ever estimates from provisional data', () => {

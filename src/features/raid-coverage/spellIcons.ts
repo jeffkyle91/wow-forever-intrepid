@@ -66,7 +66,10 @@ export function iconName(spellId: number | undefined): string | undefined {
 }
 
 // "medium" is the 36 px Wowhead icon size.
-export function iconUrl(spellId: number | undefined): string | undefined {
-  const name = iconName(spellId)
+export function iconUrlFromName(name: string | undefined): string | undefined {
   return name ? `https://wow.zamimg.com/images/wow/icons/medium/${name}.jpg` : undefined
+}
+
+export function iconUrl(spellId: number | undefined): string | undefined {
+  return iconUrlFromName(iconName(spellId))
 }

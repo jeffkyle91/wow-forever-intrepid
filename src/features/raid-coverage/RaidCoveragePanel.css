@@ -48,34 +48,25 @@
 .cov-chip-unverified, .cov-chip-indeterminate, .cov-chip-est { border-style: dashed; }
 .cov-status-est { border-style: dashed; }
 .cov-icon-est { border-style: dashed; }
-.cov-icon-est .cov-icon-badge { box-sizing: border-box; border: 1.5px solid currentColor; }
 .cov-icon-est.cov-icon-available { color: #1f7a45; }
 .cov-icon-est.cov-icon-missing { color: #b3261e; }
 .cov-icon-est.cov-icon-potential { color: #8a5a00; }
 .cov-icon-est.cov-icon-contested { color: #a34a00; }
-.cov-icon-est .cov-icon-badge { background: #fff; }
 :root[data-theme='dark'] .cov-icon-est.cov-icon-available { color: #8fdcae; }
 :root[data-theme='dark'] .cov-icon-est.cov-icon-missing { color: #ff9d96; }
 :root[data-theme='dark'] .cov-icon-est.cov-icon-potential { color: #f0d797; }
 :root[data-theme='dark'] .cov-icon-est.cov-icon-contested { color: #ffb877; }
-:root[data-theme='dark'] .cov-icon-est .cov-icon-badge { background: #18222c; }
 .cov-icons { display: grid; grid-template-columns: repeat(auto-fill, 36px); gap: 7px; margin: 8px 0 2px; padding: 0 4px 0 0; list-style: none; }
 .cov-icon { position: relative; box-sizing: border-box; width: 36px; height: 36px; border: 2px solid; border-radius: 5px; background: #eef2f6; cursor: default; }
 .cov-icon img { display: block; position: relative; width: 100%; height: 100%; border-radius: 3px; object-fit: cover; }
 .cov-icon-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #47596c; font-size: 12px; font-weight: 700; }
-.cov-icon-badge { position: absolute; right: -6px; bottom: -6px; display: flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
 .cov-icon:focus-visible { outline: 2px solid #3c75a2; outline-offset: 2px; }
 .cov-icon-available { border-color: #2f9e5f; }
-.cov-icon-available .cov-icon-badge { background: #1f7a45; }
 .cov-icon-missing { border-color: #c93b32; }
-.cov-icon-missing .cov-icon-badge { background: #b3261e; }
 .cov-icon-potential { border-color: #c8921a; }
-.cov-icon-potential .cov-icon-badge { background: #8a5a00; }
 .cov-icon-contested { border-color: #e07b1f; }
-.cov-icon-contested .cov-icon-badge { background: #a34a00; }
 .cov-icon-party-unknown { border-color: #8a96a3; }
 .cov-icon-unverified, .cov-icon-indeterminate { border-style: dashed; border-color: #8a96a3; }
-.cov-icon-party-unknown .cov-icon-badge, .cov-icon-unverified .cov-icon-badge, .cov-icon-indeterminate .cov-icon-badge { background: #5f6b77; }
 .cov-tip { position: fixed; z-index: 50; display: grid; gap: 3px; box-sizing: border-box; padding: 8px 10px; border: 1px solid #4a5a6c; border-radius: 6px; background: #1f2a36; color: #eef3f8; font-size: 12px; line-height: 1.35; pointer-events: none; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
 .cov-tip strong { font-size: 13px; }
 .cov-tip span { white-space: pre-line; }
@@ -85,17 +76,11 @@
 :root[data-theme='dark'] .cov-icon { background: #263649; }
 :root[data-theme='dark'] .cov-icon-fallback { color: #b6c2cf; }
 :root[data-theme='dark'] .cov-icon:focus-visible, :root[data-theme='dark'] .cov-strip-head:focus-visible { outline-color: #8cc4ea; }
-:root[data-theme='dark'] .cov-icon-badge { color: #10181f; }
 :root[data-theme='dark'] .cov-icon-available { border-color: #5cb585; }
-:root[data-theme='dark'] .cov-icon-available .cov-icon-badge { background: #8fdcae; }
 :root[data-theme='dark'] .cov-icon-missing { border-color: #d9615a; }
-:root[data-theme='dark'] .cov-icon-missing .cov-icon-badge { background: #ff9d96; }
 :root[data-theme='dark'] .cov-icon-potential { border-color: #c9a043; }
-:root[data-theme='dark'] .cov-icon-potential .cov-icon-badge { background: #f0d797; }
 :root[data-theme='dark'] .cov-icon-contested { border-color: #e08a3c; }
-:root[data-theme='dark'] .cov-icon-contested .cov-icon-badge { background: #ffb877; }
 :root[data-theme='dark'] .cov-icon-party-unknown, :root[data-theme='dark'] .cov-icon-unverified, :root[data-theme='dark'] .cov-icon-indeterminate { border-color: #7f8fa0; }
-:root[data-theme='dark'] .cov-icon-party-unknown .cov-icon-badge, :root[data-theme='dark'] .cov-icon-unverified .cov-icon-badge, :root[data-theme='dark'] .cov-icon-indeterminate .cov-icon-badge { background: #b6c2cf; }
 :root[data-theme='dark'] .cov-chip-available { color: #8fdcae; }
 :root[data-theme='dark'] .cov-chip-missing { color: #ff9d96; }
 :root[data-theme='dark'] .cov-chip-potential { color: #f0d797; }
@@ -119,3 +104,21 @@
 :root[data-theme='dark'] .cov-status-contested { color: #ffb877; }
 :root[data-theme='dark'] .cov-status-indeterminate { color: #aab8c6; }
 :root[data-theme='dark'] .cov-conflict { color: #ffb877; }
+
+/* Whole-icon state, like an action bar: covered is untouched, missing is dark with a red tint, uncertain is muted, a planned consumable is muted gold. The image filters are set in coverageDisplay.ts (visualTreatments). */
+.cov-icon-visual-missing::after { content: ''; position: absolute; inset: 0; border-radius: 3px; background: rgba(179, 38, 30, .32); pointer-events: none; }
+.cov-icon-visual-missing { background: #2a1514; }
+.cov-icon-visual-consumable { border-color: #b8962e; }
+:root[data-theme='dark'] .cov-icon-visual-missing { background: #2a1514; }
+:root[data-theme='dark'] .cov-icon-visual-consumable { border-color: #c9a843; }
+.cov-consumables { margin: 8px 0 0; padding: 6px 8px; border: 1px solid #d9c98f; border-radius: 5px; font-size: 11px; color: #47596c; }
+.cov-consumables legend { padding: 0 4px; color: #6b5a1a; font-weight: 600; }
+.cov-consumables label { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0; }
+:root[data-theme='dark'] .cov-consumables { border-color: #7a6a2c; color: #d1dce8; }
+:root[data-theme='dark'] .cov-consumables legend { color: #e3c76a; }
+.cov-tip .cov-tip-headline { color: #c3ceda; font-size: 11px; }
+.cov-tip-spell { display: grid; grid-template-columns: 20px 1fr; column-gap: 6px; row-gap: 1px; margin-top: 3px; }
+.cov-tip-spell img { grid-column: 1; grid-row: 1 / span 3; width: 20px; height: 20px; border-radius: 3px; }
+.cov-tip-spell > span, .cov-tip-spell > b { grid-column: 2; white-space: pre-line; }
+.cov-tip .cov-tip-providers, .cov-tip .cov-tip-note { color: #aebccb; font-size: 11px; }
+.cov-tip-consumable { border-color: #b8962e; }

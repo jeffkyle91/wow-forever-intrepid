@@ -35,7 +35,7 @@ function RequirementRow({ requirement }: { requirement: RequirementResult }) {
       <strong>{requirement.name}</strong>
       <span className={`cov-status cov-status-${estimate.status}${estimated ? ' cov-status-est' : ''}`} title={displayHint(estimate.status, estimated)}><span aria-hidden="true">{statusGlyphs[estimate.status]} </span>{displayLabel(estimate.status, estimated)}</span>
     </div>
-    <p className="cov-scope">{kindLabels[kind]}{estimate.required > 1 ? `, needs ${estimate.required} different players (${estimate.availableCount} counting guaranteed or specialization-assumed providers, ${estimate.potentialCount} including possible talents)` : ''}</p>
+    <p className="cov-scope">{[...new Set(requirement.effects.map((effect) => kindLabels[effect.kind]))].join(' / ')}{estimate.required > 1 ? `, needs ${estimate.required} different players (${estimate.availableCount} counting guaranteed or specialization-assumed providers, ${estimate.potentialCount} including possible talents)` : ''}</p>
     {requirement.basis !== 'verified' && <p className="cov-note">{requirement.basis === 'estimated' ? 'Estimate from provisional data; not verified in game. Unverified effects are not counted.' : 'No effect here has supported data, so no coverage is estimated.'}</p>}
     {explanation && <p className="cov-conflict">{explanation}</p>}
     {matches.length > 0 && <p className="cov-providers">{label}: {matches.map(providerText).join(', ')}</p>}

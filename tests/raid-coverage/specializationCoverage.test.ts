@@ -174,8 +174,12 @@ describe('real catalog: Hunters, Shamans and other classes', () => {
     assert.equal(r.estimate.status, 'unverified')
   })
 
-  it('Mana Spring Totem stays class-wide for Shamans', () => {
-    for (const spec of ['Elemental', 'Enhancement', 'Restoration']) assert.equal(run('mana-spring-totem', [member('1', 'Shaman', spec)]).estimate.status, 'available', spec)
+  it('Mana Spring Totem stays class-wide for Shamans, who are eligible but party-wide so Party Unknown', () => {
+    for (const spec of ['Elemental', 'Enhancement', 'Restoration']) {
+      const r = run('mana-spring-totem', [member('1', 'Shaman', spec)])
+      assert.equal(r.matches[0].eligibility, 'guaranteed', spec)
+      assert.equal(r.estimate.status, 'party-unknown', spec)
+    }
   })
 
   it('a different class with a matching spec name is never eligible', () => {

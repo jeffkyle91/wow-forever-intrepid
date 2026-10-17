@@ -1,9 +1,25 @@
 import { calculateCoverage } from './calculateCoverage.ts'
-import { spellInfo } from './spellDescriptions.ts'
-import { iconUrl } from './spellIcons.ts'
-import type { CoverageBasis, CoverageEffect, CoverageMember, CoverageStatus, RequirementResult } from './types.ts'
+import { bestPlanned, plannableFor } from './consumables.ts'
+import { activeProviders, buildTooltip, describeSpell, providerRulesOf, representativeEffect, tally } from './coverageTooltip.ts'
+import type { CoverageTooltip } from './coverageTooltip.ts'
+import { iconUrl, iconUrlFromName } from './spellIcons.ts'
+import type { ConsumableAlternative, CoverageBasis, CoverageEffect, CoverageMember, CoverageStatus, RequirementResult } from './types.ts'
 
 export const DESCRIPTION_UNAVAILABLE = 'Highest-rank spell description unavailable'
+
+// How an icon reads at a glance, like an action bar: covered is full colour, missing is dark and red, uncertain is muted grey,
+// and a planned consumable is muted gold. Colour is never the only signal: the status text, badge glyph and accessible name remain.
+export type CoverageVisual = 'covered' | 'missing' | 'uncertain' | 'consumable'
+
+// Applied to the spell icon image. Covered must stay untouched; the others are visibly dimmed.
+export const visualTreatments: Record<CoverageVisual, { filter: string; opacity: number }> = {
+  covered: { filter: 'none', opacity: 1 },
+  missing: { filter: 'grayscale(0.9) brightness(0.45)', opacity: 0.85 },
+  uncertain: { filter: 'grayscale(0.6) brightness(0.8)', opacity: 0.8 },
+  consumable: { filter: 'sepia(0.7) saturate(1.1) brightness(0.8)', opacity: 0.9 },
+}
+
+export const visualOf = (status: CoverageStatus): CoverageVisual => (status === 'available' ? 'covered' : status === 'missing' ? 'missing' : 'uncertain')
 
 export const statusLabels: Record<CoverageStatus, string> = {
   available: 'Available',
@@ -35,6 +51,9 @@ export const statusGlyphs: Record<CoverageStatus, string> = {
   unverified: '?',
   'party-unknown': '?',
 }
+
+// Badge for a planned consumable, which is not class coverage.
+export const consumableGlyph = 'C'
 
 // Extra sentence explaining a Contested or Not calculated result; empty for other statuses.
 export function conflictExplanation(requirement: RequirementResult): string {
@@ -101,18 +120,24 @@ export type CoverageTile = {
   team: TeamEligibility
   // The calculation explanation (eligibility, confidence, uncertainty). Not shown in the tooltip; kept for tests and detail views.
   lines: string[]
+  // How the icon is drawn (see visualTreatments). A planned consumable on a requirement that class coverage does not satisfy is 'consumable'.
+  visual: CoverageVisual
+  // Structured mouseover content, built from local catalog data only.
+  tooltip: CoverageTooltip
+  // The best planned consumable standing in for this requirement. It never changes `status`.
+  consumable?: ConsumableAlternative
+  // Consumables that could be planned for this requirement (verified entries only).
+  consumableOptions: ConsumableAlternative[]
 }
 
 export const STRIP_DEFAULT_OPEN = false
 
 // Effects shown in the everyday checklist. Encounter-specific entries stay in the catalog but are not calculated or shown.
 export const standardEffects = (effects: CoverageEffect[]) => effects.filter((effect) => (effect.visibility ?? 'standard') === 'standard')
+export const inactiveEffects = (effects: CoverageEffect[]) => effects.filter((effect) => effect.visibility === 'inactive')
 export const encounterEffects = (effects: CoverageEffect[]) => effects.filter((effect) => effect.visibility === 'encounter')
 
-// The first effect of a requirement that has a known icon, so the choice does not depend on anything but catalog order.
-export function representativeEffect(effects: CoverageEffect[]): CoverageEffect {
-  return effects.find((effect) => iconUrl(effect.spellId)) ?? effects[0]
-}
+export { representativeEffect }
 
 function providerClassesOf(effects: CoverageEffect[]): string[] {
   const classes = new Map<string, boolean>()
@@ -124,28 +149,7 @@ function providerClassesOf(effects: CoverageEffect[]): string[] {
   return [...classes].map(([className, talentOnly]) => (talentOnly ? `${className} (talent)` : className))
 }
 
-// Which classes and specializations can provide the requirement, for example "Druid (Feral, Guardian; needs talent or rune)".
-function providerRulesOf(effects: CoverageEffect[]): string[] {
-  const rules = effects.flatMap((effect) => effect.providers.map((provider) => {
-    const detail = [provider.specs?.join(', '), provider.talent ? 'needs talent or rune' : '', provider.assumed ? `assumed for ${provider.assumed.specs.join(', ')}` : ''].filter(Boolean).join('; ')
-    return detail ? `${provider.className} (${detail})` : provider.className
-  }))
-  return [...new Set(rules)]
-}
-
-type RosterPlayer = { id: string; className: string; specialization: string }
 const uniqueMembers = (members: CoverageMember[]) => [...new Map(members.map((member) => [member.id, member])).values()]
-
-// "Feral Druid ×2": the specialization is part of the name so a count never hides which specs are in the team.
-function tally(players: RosterPlayer[]): string[] {
-  const counts = new Map<string, Set<string>>()
-  for (const player of players) {
-    const spec = player.specialization.trim()
-    const label = spec ? `${spec} ${player.className}` : `${player.className} (spec not set)`
-    counts.set(label, (counts.get(label) ?? new Set()).add(player.id))
-  }
-  return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([label, ids]) => (ids.size > 1 ? `${label} ×${ids.size}` : label))
-}
 
 export type TeamEligibility = { guaranteed: string[]; assumed: string[]; possible: string[]; ineligible: string[] }
 
@@ -189,7 +193,7 @@ function uncertaintyOf(requirement: RequirementResult): string[] {
 
 // One tile per requirement, from the same engine as the detailed panel. Empty when there is no catalog.
 // The status is the roster estimate; `basis` and `estimated` say whether it rests on provisional data.
-export function coverageTiles(effects: CoverageEffect[], members: CoverageMember[], options?: { nodeLimit?: number }): CoverageTile[] {
+export function coverageTiles(effects: CoverageEffect[], members: CoverageMember[], options?: { nodeLimit?: number; consumables?: ConsumableAlternative[]; planned?: ReadonlySet<string> }): CoverageTile[] {
   return calculateCoverage(standardEffects(effects), members, options).requirements.map((requirement) => {
     const representative = representativeEffect(requirement.effects)
     const { status } = requirement.estimate
@@ -211,9 +215,24 @@ export function coverageTiles(effects: CoverageEffect[], members: CoverageMember
       ...(alternatives.length ? [`Also: ${alternatives.join(', ')}`] : []),
       ...uncertaintyOf(requirement),
     ]
-    const info = representative.spellId === undefined ? undefined : spellInfo[representative.spellId]
-    const spellName = info?.name ?? representative.name
-    const description = info?.description
+    // The spell the icon and tooltip name: the provider currently satisfying a covered requirement, else the representative.
+    const shown = status === 'available' ? activeProviders(requirement)[0]?.effect ?? representative : representative
+    const spell = describeSpell(shown)
+    const spellName = spell.name
+    const description = spell.description
+    const consumableOptions = plannableFor(options?.consumables ?? [], requirement.key)
+    const consumable = status === 'available' ? undefined : bestPlanned(options?.consumables ?? [], requirement.key, options?.planned ?? new Set())
+    const visual: CoverageVisual = consumable ? 'consumable' : visualOf(status)
+    const statusLabel = displayLabel(status, estimated)
+    const tooltip = buildTooltip({
+      requirement,
+      state: visual,
+      statusLabel,
+      reason: conflict || displayHint(status, estimated),
+      estimated,
+      representative,
+      consumable,
+    })
     return {
       key: requirement.key,
       name: requirement.name,
@@ -221,19 +240,22 @@ export function coverageTiles(effects: CoverageEffect[], members: CoverageMember
       status,
       basis: requirement.basis,
       estimated,
-      statusLabel: displayLabel(status, estimated),
-      glyph: statusGlyphs[status],
-      label: `${spellName}: ${displayLabel(status, estimated)}`,
+      statusLabel,
+      glyph: consumable ? consumableGlyph : statusGlyphs[status],
+      label: `${spellName}: ${statusLabel}${consumable ? `. Planned consumable: ${consumable.name}` : ''}`,
       spellName,
       description: description ?? DESCRIPTION_UNAVAILABLE,
       descriptionAvailable: description !== undefined,
-      spellId: representative.spellId,
-      iconUrl: iconUrl(representative.spellId),
-      initials: representative.name.replace(/[^A-Za-z]/g, '').slice(0, 2),
+      spellId: shown.spellId,
+      iconUrl: (consumable && (iconUrlFromName(consumable.iconName) ?? iconUrl(consumable.spellId))) || spell.iconUrl,
+      initials: shown.name.replace(/[^A-Za-z]/g, '').slice(0, 2),
       alternatives,
       providerClasses,
-      team,
-      lines,
+      team,      lines,
+      visual,
+      tooltip,
+      consumable,
+      consumableOptions,
     }
   })
 }

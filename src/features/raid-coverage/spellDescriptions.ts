@@ -1,5 +1,5 @@
 // Highest-rank spell names and descriptions for the coverage tooltips, read from Wowhead's WoW Forever database on 2026-10-16
-// so hovering never makes a live request. Nothing here is taken from Classic, TBC or Retail, and none of it is verified in game.
+// so hovering never makes a live request (the tooltip reads only this file). Nothing here is taken from Classic, TBC or Retail, and none of it is verified in game.
 //
 // Keyed by the catalog's `spellId`. For a spell with ranks, `tooltipSpellId` and `rank` are the highest-numbered rank listed for it
 // on its Wowhead Forever spell page (Other Ranks / See also): the highest number, not the highest spell ID. A spell with no ranks uses
@@ -9,7 +9,7 @@
 // carried unresolved formulas.
 // An entry with a `reason` and no `description` could not be read accurately; the tooltip then says
 // "Highest-rank spell description unavailable" and the spell needs review.
-// Regenerate by re-reading those pages; do not edit descriptions by hand.
+// To update after a balance change, re-read the Forever tooltip and copy its text exactly; never paraphrase or take text from another game version.
 
 export type SpellInfo = {
   name: string

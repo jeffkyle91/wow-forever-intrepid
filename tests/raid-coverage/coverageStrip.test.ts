@@ -89,16 +89,16 @@ describe('real catalog visibility', () => {
     assert.ok(coverageEffects.some((entry) => entry.id === 'gift-of-the-wild' && entry.visibility !== 'encounter'))
   })
 
-  it('shows 24 standard requirements and the full catalog still validates', () => {
+  it('shows 23 standard requirements and the full catalog still validates', () => {
     assert.equal(tiles.length, VISIBLE_REQUIREMENTS)
-    assert.equal(standardEffects(coverageEffects).length, coverageEffects.length - 9 - excludedIds.length)
+    assert.equal(standardEffects(coverageEffects).length, coverageEffects.length - 9 - excludedIds.length - 4)
     assert.equal(calculateCoverage(coverageEffects, []).requirements.length, 33)
     assert.deepEqual(validateEffects(coverageEffects), [])
   })
 })
 
-const excludedIds = ['heart-of-the-lion', 'valor-of-azeroth', 'tremor-totem', 'devotion-aura', 'judgement-of-wisdom', 'stoneskin-totem', 'fear-ward', 'judgement-of-light']
-const VISIBLE_REQUIREMENTS = 24
+const excludedIds = ['heart-of-the-lion', 'valor-of-azeroth', 'tremor-totem', 'devotion-aura', 'judgement-of-wisdom', 'stoneskin-totem', 'fear-ward', 'judgement-of-light', 'windwall-totem']
+const VISIBLE_REQUIREMENTS = 23
 
 describe('excluded effects', () => {
   const members = [member('1', 'Shaman'), member('2', 'Paladin'), member('3', 'Priest'), member('4', 'Warrior')]
@@ -130,17 +130,13 @@ describe('excluded effects', () => {
     assert.ok(!keys.includes('fear-protection') && !keys.includes('judgement'))
   })
 
-  it('keeps Windwall Totem as its own requirement once Stoneskin Totem is excluded', () => {
-    const wind = tiles.filter((tile) => tile.key === 'physical-damage-reduction')
-    assert.equal(wind.length, 1)
-    assert.equal(wind[0].name, 'Windwall Totem')
-    assert.equal(wind[0].spellName, 'Windwall Totem')
-    assert.equal(wind[0].spellId, 15107)
-    assert.deepEqual(wind[0].alternatives, [])
-    assert.equal(wind[0].description, spellInfo[15107].description)
-    assert.ok(wind[0].iconUrl)
-    assert.doesNotMatch(`${wind[0].name} ${wind[0].description} ${wind[0].lines.join(' ')}`, /Stoneskin/)
-    assert.deepEqual(calculateCoverage(standardEffects(coverageEffects), [member('1', 'Warrior')]).requirements.find((r) => r.key === 'physical-damage-reduction')!.estimate.status, 'unverified')
+  it('hides the whole physical damage reduction requirement once Stoneskin Totem and Windwall Totem are both excluded', () => {
+    assert.ok(!tiles.some((tile) => tile.key === 'physical-damage-reduction'))
+    assert.ok(!tiles.some((tile) => /Windwall|Stoneskin/.test(JSON.stringify([tile.tooltip, tile.lines, tile.label]))))
+    assert.ok(!calculateCoverage(standardEffects(coverageEffects), [member('1', 'Shaman')]).requirements.some((r) => r.key === 'physical-damage-reduction'))
+    const windwall = coverageEffects.find((entry) => entry.id === 'windwall-totem')!
+    assert.equal(windwall.visibility, 'excluded')
+    assert.equal(windwall.spellId, 15107)
   })
 
   it('does not count an excluded provider as coverage', () => {
@@ -382,7 +378,7 @@ describe('collapsed summary and default state', () => {
     assert.deepEqual(statusCounts(coverageTiles([], [member('1', 'Alpha')])), [])
     const counts = statusCounts(coverageTiles(coverageEffects, [member('1', 'Warrior')]))
     assert.equal(counts.reduce((sum, entry) => sum + entry.count, 0), VISIBLE_REQUIREMENTS)
-    assert.ok(counts.some((entry) => entry.status === 'unverified' && !entry.estimated))
+    assert.ok(!counts.some((entry) => entry.status === 'unverified'))
     assert.ok(counts.filter((entry) => entry.estimated).every((entry) => entry.label.startsWith('Est. ')))
     assert.ok(counts.every((entry) => entry.estimated !== (entry.status === 'unverified' || entry.status === 'party-unknown')))
   })

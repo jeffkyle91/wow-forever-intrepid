@@ -1,7 +1,9 @@
-// Seeds the local emulators with a small invented guild and three sign-ins. Run by `npm run dev:emulator`
+// Seeds the local emulators with an invented 40-player guild (every class and specialization) and three sign-ins. Run by `npm run dev:emulator`
 // after the emulators start. Every name and address is made up: this repository is public.
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, setDoc } from 'firebase/firestore'
+import { classSpecializations } from '../src/shared/game/classes.ts'
+import { seedRoster } from './seedRoster.ts'
 
 const PROJECT_ID = 'demo-intrepid'
 const GUILD = 'guild-local'
@@ -33,15 +35,13 @@ await env.withSecurityRulesDisabled(async (context) => {
     const uid = await createUser(user.email)
     await set(`${g}/members/${uid}`, { email: user.email, displayName: user.displayName, role: user.role, playerId: null })
   }
-  const roster = [
-    ['Aldric', 'Warrior', 'Protection', 'Tank'],
-    ['Brienne', 'Priest', 'Holy', 'Healer'],
-    ['Cormac', 'Mage', 'Fire', 'Ranged'],
-    ['Delia', 'Rogue', 'Combat', 'Melee'],
-  ]
-  for (const [i, [name, className, specialization, role]] of roster.entries()) await set(`${g}/roster/player-${i + 1}`, { name, className, specialization, role })
-  await set(`${g}/teamAssignments/player-1`, { team: 'blue' })
-  await set(`${g}/teamAssignments/player-2`, { team: 'blue' })
+  for (const [i, player] of seedRoster.entries()) {
+    const role = classSpecializations[player.className]?.find((option) => option.name === player.specialization)?.role
+    if (!role) throw new Error(`Unknown class or specialization: ${player.className} ${player.specialization}`)
+    const id = `player-${i + 1}`
+    await set(`${g}/roster/${id}`, { name: player.name, className: player.className, specialization: player.specialization, role })
+    await set(`${g}/teamAssignments/${id}`, { team: player.team })
+  }
 })
 await env.cleanup()
 console.log(`\nSeeded guild "${GUILD}". Sign in with ${USERS.map((u) => `${u.email} (${u.role})`).join(', ')}; password: ${PASSWORD}\n`)

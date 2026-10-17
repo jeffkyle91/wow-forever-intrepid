@@ -19,8 +19,11 @@ import type { CoverageEffect } from './types.ts'
 // - `visibility: 'excluded'` keeps an effect in the catalog but out of the standard checklist by owner decision (Heart of the Lion,
 //   Valor of Azeroth, Tremor Totem, Devotion Aura, Stoneskin Totem, Fear Ward, and the Paladin Judgements and Seals: Judgement of
 //   Light and Judgement of Wisdom, which are the Seal of Light and Seal of Wisdom spells). Unlike resistance data it is not
-//   encounter-specific. Only the excluded effect leaves a stackGroup: any remaining alternatives (Windwall Totem) stay as the
+//   encounter-specific. Only the excluded effect leaves a stackGroup: any remaining alternatives stay as the
 //   requirement, and a group with no active effect left disappears.
+// - `kind` is the scope (raid-wide, party-wide, targeted, debuff): change it alone when Forever changes who a buff reaches.
+// - `representative: true` picks the icon spell of a group. Consumable alternatives live in consumableData.ts, not here.
+// - `visibility: 'inactive'` keeps research on an ability that is suspected to be Season of Discovery only. Like 'excluded' it is never shown or counted, and it needs Forever-specific evidence before it is made 'standard'.
 // - Spell icons are looked up by `spellId` in spellIcons.ts.
 // - Talents and runes are not tracked, so a provider that needs one carries `talent` and can only ever be Potential once confirmed.
 // - `specs` marks which roster specializations can hold that talent (from the talent tree on Wowhead). Other recognised specs are
@@ -45,8 +48,8 @@ export const coverageEffects: CoverageEffect[] = [
   // Melee attack power from Paladin
   { id: 'blessing-of-might', name: 'Blessing of Might', kind: 'targeted-buff', stackGroup: 'melee-attack-power', category: 'attack power', spellId: 19740, providers: [{ className: 'Paladin' }], ...provisional,
     sources: [spell(19740)], notes: 'Targeted; the Greater version covers same-class members. Ranks 19740 to 25291 (7 ranks); Greater 25782, 25916. Tooltip: one Blessing per Paladin on a player.' },
-  { id: 'horn-of-lordaeron', name: 'Horn of Lordaeron', kind: 'targeted-buff', stackGroup: 'melee-attack-power', category: 'attack power', spellId: 425600, providers: [{ className: 'Paladin' }], ...provisional,
-    sources: [spell(425600)], notes: 'Real scope is party, 30 yards, strength and agility, 2 min. Listed as targeted-buff only because it shares a requirement with Blessing of Might. Tooltip: "Exclusive with Blessing of Might." Interaction with Might and slot behaviour unresolved.' },
+  { id: 'horn-of-lordaeron', visibility: 'inactive', name: 'Horn of Lordaeron', kind: 'targeted-buff', stackGroup: 'melee-attack-power', category: 'attack power', spellId: 425600, providers: [{ className: 'Paladin' }], ...unverified,
+    sources: [spell(425600)], notes: 'Real scope is party, 30 yards, strength and agility, 2 min. Listed as targeted-buff only because it shares a requirement with Blessing of Might. Tooltip: "Exclusive with Blessing of Might." Interaction with Might and slot behaviour unresolved. INACTIVE (suspected Season of Discovery only, not counted): Horn of Lordaeron is a level 1 Paladin spell with an ID in the Season of Discovery range (425600) and no Forever-range rank. No Forever-specific source shows it exists in Forever. Kept as research.' },
 
   // Auras and talent-based raid buffs
   { id: 'trueshot-aura', name: 'Trueshot Aura', kind: 'raid-buff', category: 'attack power', spellId: 1299346, providers: [{ className: 'Hunter', specs: ['Marksmanship'], talent: 'Trueshot Aura (Marksmanship tree, inferred)' }], ...provisional,
@@ -65,8 +68,8 @@ export const coverageEffects: CoverageEffect[] = [
     sources: [spell(8835), buildArticle], notes: '+89 Agility, 30 yards, party or raid per the build article. Ranks 8835, 10627, 25359.' },
   { id: 'windfury-totem', name: 'Windfury Totem', kind: 'raid-buff', stackGroup: 'extra-melee-attacks', category: 'melee damage', spellId: 8512, providers: [{ className: 'Shaman' }], ...provisional,
     sources: [spell(8512), buildArticle], notes: 'Extra melee attack chance, 30 yards, party or raid per the build article. Ranks 8512, 10613, 10614.' },
-  { id: 'wild-strikes', name: 'Wild Strikes', kind: 'raid-buff', stackGroup: 'extra-melee-attacks', category: 'melee damage', spellId: 410021, providers: [{ className: 'Druid', talent: 'Rune: Wild Strikes' }], ...unverified,
-    sources: [spell(410021)], notes: 'Rune engraving (availability unknown); needs Cat or Bear form. Tooltip: no effect if the target already benefits from Windfury Totem, so it shares a requirement with it.' },
+  { id: 'wild-strikes', visibility: 'inactive', name: 'Wild Strikes', kind: 'raid-buff', stackGroup: 'extra-melee-attacks', category: 'melee damage', spellId: 410021, providers: [{ className: 'Druid', talent: 'Rune: Wild Strikes' }], ...unverified,
+    sources: [spell(410021)], notes: 'Rune engraving (availability unknown); needs Cat or Bear form. Tooltip: no effect if the target already benefits from Windfury Totem, so it shares a requirement with it. INACTIVE (suspected Season of Discovery only, not counted): Wild Strikes is learned from an Engrave Chest rune engraving (spell 407977), a Season of Discovery mechanic. No Forever-specific source shows runes exist in Forever. Kept as research.' },
   { id: 'flametongue-totem', name: 'Flametongue Totem', kind: 'raid-buff', category: 'melee damage', spellId: 8227, providers: [{ className: 'Shaman' }], ...provisional,
     sources: [spell(8227), buildArticle], notes: 'Fire damage on melee hits, 30 yards, party or raid per the build article. Ranks 8227 to 16387 (4 ranks).' },
 
@@ -99,12 +102,12 @@ export const coverageEffects: CoverageEffect[] = [
   // Mana regeneration (stacking between these is unknown)
   { id: 'blessing-of-wisdom', name: 'Blessing of Wisdom', kind: 'targeted-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 19742, providers: [{ className: 'Paladin' }], ...provisional,
     sources: [spell(19742)], notes: '40 mana per 5 sec, 1 hr. Ranks 19742 to 25290 (6 ranks); Greater 25894, 25918.' },
-  { id: 'mana-spring-totem', name: 'Mana Spring Totem', kind: 'targeted-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 5675, providers: [{ className: 'Shaman' }], ...provisional,
-    sources: [spell(5675)], notes: 'Group totem, 10 mana per 2 sec, 30 yards. Listed as targeted-buff because it shares a requirement with Blessing of Wisdom. Ranks 5675 to 10497 (4 ranks).' },
-  { id: 'mana-tide-totem', name: 'Mana Tide Totem', kind: 'targeted-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 16190, providers: [{ className: 'Shaman', specs: ['Restoration'], talent: 'Mana Tide Totem (Restoration tree, inferred)' }], ...unverified,
-    sources: [spell(16190)], notes: 'Group totem, 290 mana per 3 sec for 12 sec. Ranks 16190 to 1325256 (4 ranks; IDs look unusual).' },
-  { id: 'vampiric-touch', name: 'Vampiric Touch', kind: 'targeted-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 402668, providers: [{ className: 'Priest' }], ...unverified,
-    sources: [spell(402668)], notes: 'Mana to the party equal to 2% of Shadow damage. Spec requirement not read from the database.' },
+  { id: 'mana-spring-totem', name: 'Mana Spring Totem', kind: 'party-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 5675, providers: [{ className: 'Shaman' }], ...provisional,
+    sources: [spell(5675)], notes: 'Group totem, 10 mana per 2 sec, 30 yards; the Forever text says group members, so it is party-wide and shows Party Unknown on its own. Shares a requirement with Blessing of Wisdom. Ranks 5675 to 10497 (4 ranks).' },
+  { id: 'mana-tide-totem', name: 'Mana Tide Totem', kind: 'party-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 16190, providers: [{ className: 'Shaman', specs: ['Restoration'], talent: 'Mana Tide Totem (Restoration tree, inferred)' }], ...unverified,
+    sources: [spell(16190)], notes: 'Group totem, 290 mana per 3 sec for 12 sec; the Forever text says group members, so it is party-wide. Ranks 16190 to 1325256 (4 ranks; IDs look unusual).' },
+  { id: 'vampiric-touch', visibility: 'inactive', name: 'Vampiric Touch', kind: 'targeted-buff', stackGroup: 'mana-regeneration', category: 'mana', spellId: 402668, providers: [{ className: 'Priest' }], ...unverified,
+    sources: [spell(402668)], notes: 'Mana to the party equal to 2% of Shadow damage. Spec requirement not read from the database. INACTIVE (suspected Season of Discovery only, not counted): This Vampiric Touch (402668) is a level 1 Priest spell with an ID in the Season of Discovery range that builds on the Vampiric Embrace talent. No Forever-specific source shows it exists in Forever. Kept as research.' },
 
   // Healing and threat
   { id: 'blessing-of-light', name: 'Blessing of Light', kind: 'targeted-buff', category: 'healing', spellId: 19977, providers: [{ className: 'Paladin' }], ...provisional,
@@ -117,7 +120,7 @@ export const coverageEffects: CoverageEffect[] = [
   // Damage reduction (stacking unknown)
   { id: 'stoneskin-totem', visibility: 'excluded', name: 'Stoneskin Totem', kind: 'party-buff', stackGroup: 'physical-damage-reduction', category: 'damage reduction', spellId: 8071, providers: [{ className: 'Shaman' }], ...unverified,
     sources: [spell(8071)], notes: '-30 physical damage taken, party, 30 yards. Ranks 8071 to 10408 (6 ranks).' },
-  { id: 'windwall-totem', name: 'Windwall Totem', kind: 'party-buff', stackGroup: 'physical-damage-reduction', category: 'damage reduction', spellId: 15107, providers: [{ className: 'Shaman' }], ...unverified,
+  { id: 'windwall-totem', visibility: 'excluded', name: 'Windwall Totem', kind: 'party-buff', stackGroup: 'physical-damage-reduction', category: 'damage reduction', spellId: 15107, providers: [{ className: 'Shaman' }], ...unverified,
     sources: [spell(15107)], notes: '-64 ranged damage taken, party, 30 yards. Ranks 15107, 15111, 15112.' },
 
   // Resistances (overlap between sources is not stated)
@@ -159,8 +162,8 @@ export const coverageEffects: CoverageEffect[] = [
     sources: [spell(702)], notes: '-37 physical damage dealt, 2 min. Tooltip: one Curse per Warlock per target. Ranks 702 to 11708 (6 ranks); Improved 18179 to 18181.' },
   { id: 'thunder-clap', name: 'Thunder Clap', kind: 'debuff', stackGroup: 'attack-speed-reduction', category: 'enemy debuff', spellId: 6343, providers: [{ className: 'Warrior' }], ...provisional,
     sources: [spell(6343)], notes: '+20% time between enemy attacks, 30 sec, up to 4 targets. Ranks 6343 to 11581 (6 ranks).' },
-  { id: 'homunculi', name: 'Homunculi', kind: 'debuff', stackGroup: 'attack-speed-reduction', category: 'enemy debuff', spellId: 402799, providers: [{ className: 'Priest', talent: 'Rune: Homunculi' }], ...unverified,
-    sources: [spell(402799)], notes: 'Rune engraving (availability unknown). Summons copies that lower attack speed, attack power and armor of targets they hit.' },
+  { id: 'homunculi', visibility: 'inactive', name: 'Homunculi', kind: 'debuff', stackGroup: 'attack-speed-reduction', category: 'enemy debuff', spellId: 402799, providers: [{ className: 'Priest', talent: 'Rune: Homunculi' }], ...unverified,
+    sources: [spell(402799)], notes: 'Rune engraving (availability unknown). Summons copies that lower attack speed, attack power and armor of targets they hit. INACTIVE (suspected Season of Discovery only, not counted): Homunculi is a level 1 Priest spell with an ID in the Season of Discovery range (402799), taught by a rune. No Forever-specific source shows it exists in Forever. Kept as research.' },
   { id: 'curse-of-the-elements', name: 'Curse of the Elements', kind: 'debuff', category: 'enemy debuff', spellId: 440892, providers: [{ className: 'Warlock' }], ...provisional,
     sources: [spell(440892)], notes: '-75 magic resistance and +10% magic damage taken, 5 min. Tooltip: one Curse per Warlock per target. Ranks 440892 to 1311680 (4 ranks); the IDs look unusual.' },
   { id: 'hunters-mark', name: "Hunter's Mark", kind: 'debuff', category: 'enemy debuff', spellId: 1130, providers: [{ className: 'Hunter' }], ...provisional,

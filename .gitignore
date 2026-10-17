@@ -39,3 +39,8 @@ serviceAccount*.json
 *.njsproj
 *.sln
 *.sw?
+.vs/
+
+# Local-only raid coverage preview (fictional rosters for UI review)
+/src/features/raid-coverage/previewData.ts
+/scripts/seed-coverage-preview.mjs

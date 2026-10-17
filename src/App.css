@@ -192,8 +192,8 @@
 .team-card-brown { border-top: 3px solid #9a7757; }
 .team-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border-bottom: 1px solid #edf0f3; }
 .team-role-composition { display: flex; flex-wrap: wrap; gap: 4px; padding: 5px 14px; border-bottom: 1px solid #edf0f3; }
-.team-role-count { display: inline-flex; align-items: center; gap: 3px; min-height: 19px; padding: 2px 5px; border: 1px solid #e4e9ed; border-radius: 4px; color: #687787; background: #f8fafb; font-size: 8px; white-space: nowrap; }
-.team-role-count strong { color: #3d5164; font-size: 9px; font-variant-numeric: tabular-nums; }
+.team-role-count { display: inline-flex; align-items: center; gap: 3px; min-height: 22px; padding: 2px 7px; border: 1px solid #e4e9ed; border-radius: 4px; color: #687787; background: #f8fafb; font-size: 11px; white-space: nowrap; }
+.team-role-count strong { color: #3d5164; font-size: 12px; font-variant-numeric: tabular-nums; }
 .team-role-count.role-tank { color: #a45b42; border-color: #edd8cd; background: #fcf4ef; }
 .team-role-count.role-healer { color: #547d47; border-color: #dce8d4; background: #f3f8ef; }
 .team-role-count.role-melee { color: #476d9b; border-color: #d8e3ef; background: #f1f6fb; }
@@ -212,7 +212,7 @@
 .mark-pink { background: #ca78a1; }
 .mark-brown { background: #9a7757; }
 .team-title h3 { margin: 0; color: #2d3c4e; font: 600 15px/1.2 var(--display); }
-.team-title p { margin-top: 3px; color: #8491a0; font-size: 9px; }
+.team-title p { margin-top: 3px; color: #8491a0; font-size: 11px; }
 .team-capacity { color: #8a96a2; font-size: 10px; white-space: nowrap; }
 .team-capacity strong { color: #34485e; font-size: 15px; font-variant-numeric: tabular-nums; }
 .team-member-list { min-height: 78px; padding: 4px 13px; transition: background .12s ease; }
@@ -220,8 +220,8 @@
 .team-member-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 75px 26px; align-items: center; gap: 7px; min-height: 46px; border-bottom: 1px solid #f0f2f4; }
 .team-member-row:last-child { border-bottom: 0; }
 .team-member-info { display: grid; min-width: 0; gap: 2px; }
-.team-member-info strong { overflow: hidden; color: #344355; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.team-member-info small { overflow: hidden; color: #8995a1; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.team-member-info strong { overflow: hidden; color: #344355; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.team-member-info small { overflow: hidden; color: #8995a1; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .move-team-select { width: 75px; height: 26px; padding: 0 3px; border: 1px solid #e2e7eb; border-radius: 4px; color: #627284; background: #fff; font: inherit; font-size: 8px; }
 .remove-member-button { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid transparent; border-radius: 4px; color: #8a96a2; background: transparent; cursor: pointer; }
 .remove-member-button:hover { color: #a64e4a; border-color: #f0d4d1; background: #fcf0ef; }

@@ -2,7 +2,7 @@
 // together with an audit entry for it. Everything is honest unless a test overrides a field, so a test can break
 // exactly one thing and see what the rules do. See audit.test.ts and audit-details.test.ts.
 import { serverTimestamp, writeBatch, type DocumentData, type Firestore } from 'firebase/firestore'
-import { PLAYER_1, PLAYER_2, PLAYER_3, PRIORITY_ID, UID, awardDoc, displayNameOf, priorityDoc } from './fixtures.ts'
+import { PLAYER_1, PLAYER_2, PLAYER_3, PRIORITY_ID, UID, awardDoc, displayNameOf, priorityDoc, rosterDoc } from './fixtures.ts'
 import { guildDoc, stored } from './harness.ts'
 
 export const AWARD = 'award-1' // seeded without any of the new fields, like every award written before this change
@@ -69,6 +69,25 @@ export function createAward(
   const batch = writeBatch(db)
   batch.set(guildDoc(db, `awards/${id}`), clean({ ...fields, rev: 1, createdBy: UID[who], createdAt: serverTimestamp(), updatedBy: UID[who], updatedAt: serverTimestamp(), ...award }))
   batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('award', id, 1)}`), clean(entry(who, 'award', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields), ...audit })))
+  return batch.commit()
+}
+
+export const MANUAL = 'award-manual'
+
+/** A manual award (no priority): the seeded roster character PLAYER_2, decided by a roll. Valid unless a test overrides a field. */
+export const manualAwardDoc = (overrides: DocumentData = {}): DocumentData => ({
+  item: 'Test Sword', encounter: 'Test Boss', recipient: rosterDoc(2).name, recipientId: PLAYER_2, awardedAt: '2026-12-09', awardNote: '', decision: 'roll', ...overrides,
+})
+
+/** Create a manual award at revision 1 with its create entry. Honest unless a test overrides a part, or leaves the entry out. */
+export function createManualAward(
+  db: Firestore,
+  who: Staff,
+  { id = MANUAL, fields = manualAwardDoc(), award = {}, audit = {}, entryKey, skipEntry = false }: { id?: string; fields?: DocumentData; award?: DocumentData; audit?: DocumentData; entryKey?: string; skipEntry?: boolean } = {},
+) {
+  const batch = writeBatch(db)
+  batch.set(guildDoc(db, `awards/${id}`), clean({ ...fields, rev: 1, createdBy: UID[who], createdAt: serverTimestamp(), ...award }))
+  if (!skipEntry) batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('award', id, 1)}`), clean(entry(who, 'award', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields), ...audit })))
   return batch.commit()
 }
 

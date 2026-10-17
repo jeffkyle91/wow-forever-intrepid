@@ -1,0 +1,47 @@
+/* ItemTooltip: an item name chip that opens a Wowhead-style tooltip. Every class here starts with item-tt or tt-. */
+
+/* Quality colors for the name chip. Light theme: darkened until they pass 4.5:1 on white. Dark theme: the exact in-game colors, with
+   blue and purple lightened because the exact ones are too dark to read as small text. */
+.item-tt { --tt-q0: #6e6e6e; --tt-q1: #33443a; --tt-q2: #0f7f00; --tt-q3: #006cd4; --tt-q4: #a034e9; --tt-q5: #ad5700; display: inline-block; max-width: 100%; }
+:root[data-theme='dark'] .item-tt { --tt-q0: #9d9d9d; --tt-q1: #ffffff; --tt-q2: #1eff00; --tt-q3: #3d92e5; --tt-q4: #bb6af2; --tt-q5: #ff8000; }
+
+.item-tt-trigger { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 26px; padding: 2px 8px 2px 3px; border: 1px solid #dfe7ef; border-radius: 4px; color: inherit; background: #fff; font: inherit; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; }
+.item-tt-trigger:hover { background: #f3f7fb; }
+.item-tt-trigger:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.item-tt-name { min-width: 0; overflow-wrap: anywhere; }
+.item-tt-icon { flex: 0 0 20px; width: 20px; height: 20px; border: 1px solid #c8d2c7; border-radius: 3px; background: #e9eef3; object-fit: cover; }
+.item-tt-quality-0 { color: var(--tt-q0); }
+.item-tt-quality-1 { color: var(--tt-q1); }
+.item-tt-quality-2 { color: var(--tt-q2); }
+.item-tt-quality-3 { color: var(--tt-q3); }
+.item-tt-quality-4 { color: var(--tt-q4); }
+.item-tt-quality-5 { color: var(--tt-q5); }
+:root[data-theme='dark'] .item-tt-trigger { border-color: #3a4b61; background: #182536; }
+:root[data-theme='dark'] .item-tt-trigger:hover { border-color: #6a86a4; background: #182536; } /* a lighter background would drop blue and purple below 4.5:1 */
+:root[data-theme='dark'] .item-tt-icon { border-color: #3a4b61; background: #101a28; }
+
+/* The tooltip itself is dark in both themes, like the game's. */
+.item-tt-panel { position: fixed; margin: 0; box-sizing: border-box; overflow: auto; padding: 10px 12px; border: 1px solid #5a6b82; border-radius: 6px; background: #0d1420; color: #e8edf3; font-size: 12px; font-weight: 400; line-height: 1.4; text-align: left; box-shadow: 0 6px 20px #000a; }
+.item-tt-body table { border-collapse: collapse; }
+.item-tt-body td, .item-tt-body th { padding: 0; vertical-align: top; font-weight: 400; text-align: left; }
+.item-tt-body th { padding-left: 16px; text-align: right; }
+.item-tt-body .tt-wide { width: 100%; }
+.item-tt-body table table { margin: 0; }
+.item-tt-note { margin: 0; color: #c0cede; }
+.item-tt-retry { padding: 0; border: 0; color: #8fc2e6; background: transparent; font: inherit; text-decoration: underline; cursor: pointer; }
+
+.item-tt-body .tt-q { color: #ffd100; }
+.item-tt-body .tt-q0 { color: #9d9d9d; }
+.item-tt-body .tt-q1 { color: #ffffff; }
+.item-tt-body .tt-q2 { color: #1eff00; }
+.item-tt-body .tt-q3 { color: #3d92e5; }
+.item-tt-body .tt-q4 { color: #bb6af2; }
+.item-tt-body .tt-q5 { color: #ff8000; }
+.item-tt-body .tt-q6 { color: #e6cc80; }
+.item-tt-body .tt-q7 { color: #00ccff; }
+.item-tt-body b { font-size: 14px; }
+.item-tt-body .tt-moneygold::after { content: 'g'; color: #ffd100; }
+.item-tt-body .tt-moneysilver::after { content: 's'; color: #c7c7cf; }
+.item-tt-body .tt-moneycopper::after { content: 'c'; color: #eda55f; }
+.item-tt-body .tt-whtt-sellprice { margin-top: 6px; }
+.item-tt-body .tt-whtt-extra { margin-top: 2px; color: #9fb0c3; font-size: 11px; }

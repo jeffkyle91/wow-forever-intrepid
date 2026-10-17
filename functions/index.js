@@ -3,11 +3,14 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { onCall } from 'firebase-functions/v2/https'
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { addAbsence, removeAbsence, saveResponse, synchronizeGuild, synchronizeMember, synchronizeRaid } from './raids.js'
+import { submitCharacterRequest as submitCharacterChange, resolveCharacterRequest as resolveCharacterChange } from './characters.js'
 
 initializeApp()
 const db = getFirestore()
 const options = { region: 'us-central1', maxInstances: 5 }
 
+export const submitCharacterRequest = onCall(options, (request) => submitCharacterChange(db, request))
+export const resolveCharacterRequest = onCall(options, (request) => resolveCharacterChange(db, request))
 export const saveRaidResponse = onCall(options, (request) => saveResponse(db, request))
 export const addUnavailableDates = onCall(options, (request) => addAbsence(db, request))
 export const removeUnavailableDates = onCall(options, (request) => removeAbsence(db, request))

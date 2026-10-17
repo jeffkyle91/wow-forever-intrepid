@@ -7,6 +7,8 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  query,
+  where,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -21,10 +23,11 @@ import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
 import { setMembershipRemoved as writeMembershipRemoved } from './shared/members/access'
+import { normalizeCharacterRequest, type CharacterProposal, type CharacterRequest } from './shared/characters/requests'
+export type { PlayerRecord } from './shared/game/players'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
-export type PlayerRecord = { id: string; name: string; className: string; specialization: string; role: 'Tank' | 'Healer' | 'Melee' | 'Ranged'; linkedUid?: string; mainId?: string; surname?: string }
 export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string }
 export type AwardRecord = {
   id: string
@@ -101,6 +104,28 @@ export function subscribeGuildCollection<T extends { id: string }>(
     if (droppedIds.length) console.warn(`${name}: skipped ${droppedIds.length} unreadable document(s), ids: ${droppedIds.join(', ')}`)
     onData(records, droppedIds.length)
   }, onError)
+}
+
+export function subscribeCharacterRequests(uid: string, leader: boolean, onData: (records: CharacterRequest[]) => void, onError: (error: Error) => void) {
+  const records = guildCollection('characterRequests')
+  return onSnapshot(leader ? records : query(records, where('userId', '==', uid)), (snapshot) => {
+    const { records, droppedIds } = normalizeDocs(snapshot.docs, normalizeCharacterRequest)
+    if (droppedIds.length) {
+      console.error(`characterRequests: unreadable document(s): ${droppedIds.join(', ')}`)
+      onError(new Error('Some character requests could not be read. Ask a Guild Leader to check the records.'))
+    }
+    onData(records.sort((a, b) => b.requestedAt.toMillis() - a.requestedAt.toMillis() || a.id.localeCompare(b.id)))
+  }, onError)
+}
+
+export async function submitCharacterRequest(requestId: string, proposal: CharacterProposal, note: string) {
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to request a character change.')
+  await httpsCallable(functions, 'submitCharacterRequest')({ guildId, requestId, ...proposal, note })
+}
+
+export async function resolveCharacterRequest(requestId: string, action: 'approve' | 'reject' | 'withdraw', note: string) {
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to manage character requests.')
+  await httpsCallable(functions, 'resolveCharacterRequest')({ guildId, requestId, action, note })
 }
 
 export async function getMembership(uid: string) {

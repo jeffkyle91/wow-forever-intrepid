@@ -495,6 +495,13 @@ service cloud.firestore {
         }
       }
 
+      match /characterRequests/{requestId} {
+        allow read: if isGuildLeader(guildId)
+          || (hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']) && resource.data.userId == request.auth.uid);
+        // Callables validate ownership and atomically apply approved roster/account changes.
+        allow write: if false;
+      }
+
       match /joinRequests/{userId} {
         allow create: if signedIn()
           && request.auth.uid == userId

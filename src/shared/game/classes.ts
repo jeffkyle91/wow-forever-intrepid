@@ -1,3 +1,5 @@
+import characterClasses from '../../../functions/characterClasses.json' with { type: 'json' }
+
 export type Role = 'Tank' | 'Healer' | 'Melee' | 'Ranged'
 
 export type SpecializationOption = { name: string; role: Role }
@@ -21,53 +23,12 @@ export function classText(className?: string) {
   return className ? `class-text class-color-${classColorKey(className)}` : undefined
 }
 
-export const classSpecializations: Record<string, SpecializationOption[]> = {
-  Warrior: [
-    { name: 'Arms', role: 'Melee' },
-    { name: 'Fury', role: 'Melee' },
-    { name: 'Protection', role: 'Tank' },
-  ],
-  Paladin: [
-    { name: 'Holy', role: 'Healer' },
-    { name: 'Protection', role: 'Tank' },
-    { name: 'Retribution', role: 'Melee' },
-  ],
-  Hunter: [
-    { name: 'Beast Mastery', role: 'Ranged' },
-    { name: 'Marksmanship', role: 'Ranged' },
-    { name: 'Survival', role: 'Ranged' },
-  ],
-  Rogue: [
-    { name: 'Assassination', role: 'Melee' },
-    { name: 'Combat', role: 'Melee' },
-    { name: 'Subtlety', role: 'Melee' },
-  ],
-  Priest: [
-    { name: 'Discipline', role: 'Healer' },
-    { name: 'Holy', role: 'Healer' },
-    { name: 'Shadow', role: 'Ranged' },
-  ],
-  Shaman: [
-    { name: 'Elemental', role: 'Ranged' },
-    { name: 'Enhancement', role: 'Melee' },
-    { name: 'Restoration', role: 'Healer' },
-  ],
-  Mage: [
-    { name: 'Arcane', role: 'Ranged' },
-    { name: 'Fire', role: 'Ranged' },
-    { name: 'Frost', role: 'Ranged' },
-  ],
-  Warlock: [
-    { name: 'Affliction', role: 'Ranged' },
-    { name: 'Demonology', role: 'Ranged' },
-    { name: 'Destruction', role: 'Ranged' },
-  ],
-  Druid: [
-    { name: 'Balance', role: 'Ranged' },
-    { name: 'Feral', role: 'Melee' },
-    { name: 'Guardian', role: 'Tank' },
-    { name: 'Restoration', role: 'Healer' },
-  ],
-}
+export const classSpecializations: Record<string, SpecializationOption[]> = Object.fromEntries(
+  Object.entries(characterClasses).map(([name, specs]) => [name, specs.map((spec): SpecializationOption => {
+    const role = spec.role
+    if (role !== 'Tank' && role !== 'Healer' && role !== 'Melee' && role !== 'Ranged') throw new Error(`Invalid default raid role for ${name} ${spec.name}.`)
+    return { name: spec.name, role }
+  })]),
+)
 
 export const raidRoles: Role[] = ['Tank', 'Healer', 'Melee', 'Ranged']

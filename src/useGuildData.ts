@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   subscribeGuildCollection,
   subscribeRaidZones,
+  subscribeCharacterRequests,
   type AfkEntryRecord,
   type AwardRecord,
   type GuildSettings,
@@ -18,8 +19,9 @@ import type { GuildRole } from './security'
 import { useRosterComments } from './rosterComments'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
 import { normalizeAward, normalizeJoinRequest, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
+import type { CharacterRequest } from './shared/characters/requests'
 
-export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
+export function useGuildData(enabled: boolean, actualRole: GuildRole | null, actualUid: string) {
   const comments = useRosterComments(enabled, actualRole)
   const [roster, setRoster] = useState<PlayerRecord[]>([])
   const [assignments, setAssignments] = useState<Record<string, TeamAssignmentRecord['team']>>({})
@@ -30,6 +32,9 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
   const [raidZones, setRaidZones] = useState<RaidZoneRecord[]>([])
   const [members, setMembers] = useState<MembershipRecord[]>([])
   const [joinRequests, setJoinRequests] = useState<JoinRequestRecord[]>([])
+  const [characterRequests, setCharacterRequests] = useState<CharacterRequest[]>([])
+  const [characterRequestsLoaded, setCharacterRequestsLoaded] = useState(false)
+  const [characterRequestsError, setCharacterRequestsError] = useState('')
   const [dataError, setDataError] = useState('')
   const [settings, setSettings] = useState<GuildSettings>(defaultGuildSettings)
   // How many documents each normalized collection skipped in its latest snapshot.
@@ -49,6 +54,10 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
       subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
       subscribeGuildCollection<RaidRecord>('raids', (records) => setRaids(records.sort((a, b) => a.date.localeCompare(b.date))), onError),
       subscribeRaidZones((records) => setRaidZones(records.sort((a, b) => a.name.localeCompare(b.name))), onError),
+      subscribeCharacterRequests(actualUid, actualRole === 'Guild Leader', (records) => {
+        setCharacterRequests(records)
+        setCharacterRequestsLoaded(true)
+      }, (error) => setCharacterRequestsError(error.message)),
     ]
     if (actualRole === 'Guild Leader') {
       unsubscribers.push(subscribeGuildCollection<MembershipRecord>('members', (records, dropped) => { setMembers(records); countUnreadable('members', dropped) }, onError, normalizeMember))
@@ -65,11 +74,14 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
       setRaidZones([])
       setMembers([])
       setJoinRequests([])
+      setCharacterRequests([])
+      setCharacterRequestsLoaded(false)
+      setCharacterRequestsError('')
       setSettings(defaultGuildSettings)
       setDataError('')
       setUnreadableByCollection({})
     }
-  }, [enabled, actualRole])
+  }, [enabled, actualRole, actualUid])
 
   return {
     comments,
@@ -83,6 +95,9 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null) {
     settings,
     members: actualRole === 'Guild Leader' ? members : [],
     joinRequests: actualRole === 'Guild Leader' ? joinRequests : [],
+    characterRequests,
+    characterRequestsLoaded,
+    characterRequestsError,
     dataError,
     // Documents in roster, lootPriorities, awards (and members and joinRequests for a Guild Leader) that
     // could not be read and were skipped. Show it to leaders only.

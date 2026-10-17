@@ -2,9 +2,10 @@ import { useSyncExternalStore } from 'react'
 
 // The loot filters are shared by the toolbar, the list and the footer, which are separate components.
 // They live for the page session only and are not saved anywhere.
-export type PriorityFilters = { hideCompleted: boolean; needsPlayers: boolean; encounter: string; player: string; className: string }
+export type PriorityFilters = { hideCompleted: boolean; needsPlayers: boolean; encounter: string; player: string; className: string; grouped: boolean }
 
-export const noPriorityFilters: PriorityFilters = { hideCompleted: false, needsPlayers: false, encounter: '', player: '', className: '' }
+// `grouped` is a choice of layout, not a filter: Clear filters leaves it as it is, and it does not count as an active filter.
+export const noPriorityFilters: PriorityFilters = { hideCompleted: false, needsPlayers: false, encounter: '', player: '', className: '', grouped: true }
 
 let filters = noPriorityFilters
 const listeners = new Set<() => void>()
@@ -15,7 +16,7 @@ export function setPriorityFilters(change: Partial<PriorityFilters>) {
 }
 
 export function clearPriorityFilters() {
-  filters = noPriorityFilters
+  filters = { ...noPriorityFilters, grouped: filters.grouped }
   listeners.forEach((listener) => listener())
 }
 

@@ -4,6 +4,7 @@ import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenMa
 import { group40, groups20 } from '../../shared/game/teams'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
+import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
 import { RaidSignupButton } from './RaidSignupButton'
@@ -64,7 +65,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
 
   return <div className="dash-grid">
     <Panel icon={<Swords size={15} />} title="My characters">
-      <ul className="dash-list">{characters.map((character, index) => <li key={character.id}>
+      <ul className="dash-list">{characters.map((character, index) => <li key={character.id} className={classAccent(character.className)}>
         <span className="dash-character">{index > 0 && <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" />}<ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
         <RolePill role={character.role} />
       </li>)}</ul>
@@ -73,7 +74,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
     <Panel icon={<Users size={15} />} title="My raid team">
       <ul className="dash-list">{characters.map((character) => {
         const team = assignments[character.id]
-        return <li key={character.id}>
+        return <li key={character.id} className={classAccent(character.className)}>
           <span><strong>{character.name}</strong><small>{team ? `${teamName(team)} team` : 'Not assigned to a team'}</small></span>
           {team && <span className="dash-tag">{groupLabel(team)}</span>}
         </li>

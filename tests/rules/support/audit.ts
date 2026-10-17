@@ -149,13 +149,14 @@ export type PhaseChangeOptions = {
   doc?: DocumentData // overrides for the settings document
   entryKey?: string
   skipEntry?: boolean
+  extraEntries?: [string, DocumentData][] // more entries in the same batch
 }
 
 /**
  * Start or reopen a loot phase: the settings document and its entry (phase_settings_{rev}) in one batch. The entry lists the phase fields that
  * differ between what is stored now (nothing on a first save) and what the batch stores, as the rules require. Honest unless overridden.
  */
-export async function changePhase(db: Firestore, who: Staff, { settings, rev = 1, action = 'start', audit = {}, doc = {}, entryKey, skipEntry = false }: PhaseChangeOptions) {
+export async function changePhase(db: Firestore, who: Staff, { settings, rev = 1, action = 'start', audit = {}, doc = {}, entryKey, skipEntry = false, extraEntries = [] }: PhaseChangeOptions) {
   const current = await stored('settings/general')
   const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
   const changed = PHASE_FIELDS.filter((field) => !same(current?.[field], settings[field]))
@@ -171,5 +172,6 @@ export async function changePhase(db: Firestore, who: Staff, { settings, rev = 1
       ...audit,
     })))
   }
+  for (const [id, data] of extraEntries) batch.set(guildDoc(db, `auditLog/${id}`), clean(data))
   return batch.commit()
 }

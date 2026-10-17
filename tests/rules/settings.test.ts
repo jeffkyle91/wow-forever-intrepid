@@ -238,12 +238,15 @@ describe('the loot phase history', () => {
     await expectAllowed(reopen(['Launch prep', 'Phase one']), 'the honest reopening')
   })
 
+  // These go through go(), with the next revision, an honest entry and a `reopen` action (so the entry does not say "start"), so that what refuses
+  // them is the rule on how the history may change and not the revision or the entry.
   test('the list cannot be replaced or reordered', async () => {
     await stage('Phase two', ['Launch prep', 'Phase one'], 'Phase one', 2)
-    const keep = { phaseRev: 2 }
-    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Phase one', 'Launch prep'], ...keep })), 'reordered')
-    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Other', 'Names'], ...keep })), 'other names')
-    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: [], ...keep })), 'emptied')
+    const rewrite = (phaseHistory: string[]) => go(after({ currentPhase: 'Phase two', phaseHistory }), { rev: 3, action: 'reopen' })
+    await expectDenied(rewrite(['Phase one', 'Launch prep']), 'reordered')
+    await expectDenied(rewrite(['Other', 'Names']), 'other names')
+    await expectDenied(rewrite(['Launch prep', 'Rewritten']), 'the last name rewritten')
+    await expectDenied(rewrite([]), 'emptied')
   })
 
   test('the list cannot be added to without starting a phase', async () => {
@@ -263,6 +266,15 @@ describe('the loot phase history', () => {
     for (const phaseHistory of ['Launch prep', { 0: 'Launch prep' }, {}, 1, null]) await expectDenied(leader(after({ phaseHistory })), `first save: ${JSON.stringify(phaseHistory)}`)
     await stage('Launch prep')
     for (const phaseHistory of ['Launch prep', { 0: 'Launch prep' }, {}, 1, null]) await expectDenied(leader(after({ phaseHistory })), `update: ${JSON.stringify(phaseHistory)}`)
+  })
+
+  // The same with a revision and an entry, so that nothing but the shape of the list can be what refuses it.
+  test('a history that is not a list is refused even with the next revision and its entry', async () => {
+    // A `reopen` entry, so that an empty map (which has no names, like an empty list) is not refused by the entry for not being a start.
+    const odd = (phaseHistory: unknown) => go(after({ currentPhase: 'Phase one', phaseHistory }), { action: 'reopen' })
+    for (const phaseHistory of ['Launch prep', { 0: 'Launch prep' }, {}, 1]) await expectDenied(odd(phaseHistory), `first save: ${JSON.stringify(phaseHistory)}`)
+    await stage('Launch prep')
+    for (const phaseHistory of ['Launch prep', { 0: 'Launch prep' }, {}, 1]) await expectDenied(odd(phaseHistory), `update: ${JSON.stringify(phaseHistory)}`)
   })
 
   test('a Raid Leader and a Member cannot start or reopen a phase', async () => {
@@ -371,15 +383,34 @@ describe('the change log entry of a phase', () => {
     await expectAllowed(changePhase(dbFor('guildLeader'), 'guildLeader', { settings: reopen, rev: 3, action: 'reopen' }), 'a reopen entry')
   })
 
+  // Everything about the entry is right (the next revision, the current phase's name as its item, an action, nothing listed as changed) except that
+  // the settings do not move with it. Only the rule that ties the entry to the settings' own revision refuses it, and it matters: a stray entry would
+  // use up the revision the next honest start needs, for ever, because an entry can never be rewritten.
   test('an entry cannot be written alone, by a Guild Leader or a Raid Leader', async () => {
     await stage()
     for (const who of ['guildLeader', 'raidLeader'] as const) {
       const db = dbFor(who)
-      const batch = writeBatch(db)
-      batch.set(guildDoc(db, `auditLog/${entryId('phase', 'settings', 2)}`), clean(entry(who, 'phase', 'settings', 2, { action: 'start', item: 'Phase two', changed: [], before: {}, after: {} })))
-      await expectDenied(batch.commit(), who)
+      for (const action of ['reopen', 'start']) {
+        const batch = writeBatch(db)
+        batch.set(guildDoc(db, `auditLog/${entryId('phase', 'settings', 2)}`), clean(entry(who, 'phase', 'settings', 2, { action, item: 'Phase one', changed: [], before: {}, after: {} })))
+        await expectDenied(batch.commit(), `${who}, ${action}`)
+      }
     }
     assert.equal(await stored(`auditLog/${entryId('phase', 'settings', 2)}`), undefined)
+    await expectAllowed(go(), 'and the honest start is still possible afterwards')
+  })
+
+  test('a Guild Leader cannot add another entry to the batch that starts a phase', async () => {
+    await stage()
+    // A copy of the honest entry, so that nothing about it lies: only that it is an extra entry, for another target or another revision.
+    const stray = (id: string, targetId: string, rev = 2) => [id, entry('guildLeader', 'phase', targetId, rev, {
+      action: 'start', item: 'Phase two', changed: ['currentPhase', 'nextPhase', 'phaseHistory'],
+      before: { currentPhase: 'Phase one', nextPhase: 'Phase two', phaseHistory: ['Launch prep'] },
+      after: { currentPhase: 'Phase two', nextPhase: 'To be announced', phaseHistory: ['Launch prep', 'Phase one'] },
+    })] as [string, Record<string, unknown>]
+    await expectDenied(go({ extraEntries: [stray('phase_extra_2', 'extra')] }), 'an entry for another target')
+    await expectDenied(go({ extraEntries: [stray(entryId('phase', 'settings', 3), 'settings', 3)] }), 'an entry for a later revision')
+    await expectAllowed(go(), 'the honest batch')
   })
 
   test('an entry that exists cannot be changed or deleted, even by the Guild Leader who wrote it', async () => {

@@ -140,3 +140,121 @@ describe('what a settings document must contain', () => {
     })
   }
 })
+
+// The loot phases: `phaseHistory` lists the finished phases, oldest first, and its length is the current phase's number. It can change in
+// only two ways (a phase is started or the last one reopened), and each way has to keep the names truthful.
+describe('the loot phase history', () => {
+  const leader = (data: Record<string, unknown>) => save('guildLeader', data)
+  const names = (count: number) => Array.from({ length: count }, (_, index) => `Phase ${index + 1}`)
+  // The stored settings, as an earlier save left them.
+  const stage = (current: string, history?: string[], next = 'Phase one') =>
+    asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { ...validSettings(), currentPhase: current, nextPhase: next, ...(history ? { phaseHistory: history } : {}) }))
+  const after = (change: Record<string, unknown>) => ({ ...validSettings(), ...change })
+
+  test('settings without a history, and with an empty one, are accepted', async () => {
+    await expectAllowed(leader(validSettings()), 'none')
+    await expectAllowed(leader(after({ phaseHistory: [] })), 'an empty list')
+  })
+
+  test('a guild that never closed a phase can start one: the old current name goes on the end of the list', async () => {
+    await stage('Launch prep')
+    await expectAllowed(leader(after({ currentPhase: 'Phase one', nextPhase: 'To be announced', phaseHistory: ['Launch prep'] })))
+    assert.deepEqual((await stored('settings/general'))?.phaseHistory, ['Launch prep'])
+  })
+
+  test('a second phase can be started the same way', async () => {
+    await stage('Phase one', ['Launch prep'])
+    await expectAllowed(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Launch prep', 'Phase one'] })))
+  })
+
+  test('the list can grow to 30 names, and no further', async () => {
+    await stage('Phase 30', names(29))
+    await expectAllowed(leader(after({ currentPhase: 'Phase 31', phaseHistory: [...names(29), 'Phase 30'] })), 'the 30th name')
+    await stage('Phase 31', names(30))
+    await expectDenied(leader(after({ currentPhase: 'Phase 32', phaseHistory: [...names(30), 'Phase 31'] })), 'the 31st name')
+  })
+
+  test('starting a phase has to name the phase that was current', async () => {
+    await stage('Launch prep')
+    await expectDenied(leader(after({ currentPhase: 'Phase one', phaseHistory: ['Something else'] })), 'another name')
+    await expectDenied(leader(after({ currentPhase: 'Phase one', phaseHistory: ['Phase one'] })), 'the new name')
+  })
+
+  test('starting two phases in one save is refused', async () => {
+    await stage('Launch prep')
+    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Launch prep', 'Phase one'] })))
+  })
+
+  test('starting a phase cannot change a name already in the list', async () => {
+    await stage('Phase two', ['Launch prep', 'Phase one'])
+    await expectDenied(leader(after({ currentPhase: 'Phase three', phaseHistory: ['Renamed', 'Phase one', 'Phase two'] })), 'an earlier name')
+    await expectDenied(leader(after({ currentPhase: 'Phase three', phaseHistory: ['Phase one', 'Launch prep', 'Phase two'] })), 'a different order')
+  })
+
+  test('the first save of the settings can start a phase, closing the default current phase', async () => {
+    await expectAllowed(leader(after({ currentPhase: 'Phase one', nextPhase: 'To be announced', phaseHistory: ['Launch prep'] })))
+    assert.deepEqual((await stored('settings/general'))?.phaseHistory, ['Launch prep'])
+  })
+
+  test('the first save cannot close any other name, close more than one phase, or reopen one', async () => {
+    await expectDenied(leader(after({ currentPhase: 'Phase one', phaseHistory: ['Something else'] })), 'another name')
+    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Launch prep', 'Phase one'] })), 'two phases')
+    await expectDenied(leader(after({ phaseHistory: 'Launch prep' })), 'text')
+  })
+
+  test('the last phase can be reopened: its name becomes current again and the name being left becomes the next phase', async () => {
+    await stage('Phase one', ['Launch prep'], 'To be announced')
+    await expectAllowed(leader(after({ currentPhase: 'Launch prep', nextPhase: 'Phase one' })), 'without the field')
+    assert.equal((await stored('settings/general'))?.currentPhase, 'Launch prep')
+    await stage('Phase two', ['Launch prep', 'Phase one'], 'To be announced')
+    await expectAllowed(leader(after({ currentPhase: 'Phase one', nextPhase: 'Phase two', phaseHistory: ['Launch prep'] })), 'one name left')
+  })
+
+  test('reopening has to bring back the name that was last in the list, and name the phase being left as next', async () => {
+    await stage('Phase two', ['Launch prep', 'Phase one'])
+    await expectDenied(leader(after({ currentPhase: 'Launch prep', nextPhase: 'Phase two', phaseHistory: ['Launch prep'] })), 'the wrong phase brought back')
+    await expectDenied(leader(after({ currentPhase: 'Phase one', nextPhase: 'Something else', phaseHistory: ['Launch prep'] })), 'the wrong next phase')
+  })
+
+  test('reopening two phases in one save is refused', async () => {
+    await stage('Phase two', ['Launch prep', 'Phase one'])
+    await expectDenied(leader(after({ currentPhase: 'Launch prep', nextPhase: 'Phase two' })))
+  })
+
+  test('reopening cannot change a name that stays in the list', async () => {
+    await stage('Phase three', ['Launch prep', 'Phase one', 'Phase two'])
+    await expectDenied(leader(after({ currentPhase: 'Phase two', nextPhase: 'Phase three', phaseHistory: ['Hacked', 'Phase one'] })), 'a changed earlier name')
+    await expectDenied(leader(after({ currentPhase: 'Phase two', nextPhase: 'Phase three', phaseHistory: ['Phase one', 'Launch prep'] })), 'a reordered list')
+    await expectAllowed(leader(after({ currentPhase: 'Phase two', nextPhase: 'Phase three', phaseHistory: ['Launch prep', 'Phase one'] })), 'the honest reopening')
+  })
+
+  test('the list cannot be replaced or reordered', async () => {
+    await stage('Phase two', ['Launch prep', 'Phase one'])
+    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Phase one', 'Launch prep'] })), 'reordered')
+    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: ['Other', 'Names'] })), 'other names')
+    await expectDenied(leader(after({ currentPhase: 'Phase two', phaseHistory: [] })), 'emptied')
+  })
+
+  test('the list cannot be added to without starting a phase', async () => {
+    await stage('Launch prep')
+    await expectDenied(leader(after({ phaseHistory: ['Earlier phase'] })), 'with the current name unchanged')
+  })
+
+  test('saving the other settings leaves the list as it is, and the current phase can be renamed', async () => {
+    await stage('Phase one', ['Launch prep'])
+    await expectAllowed(leader(after({ currentPhase: 'Phase 1 (renamed)', councilStatus: 'live', phaseHistory: ['Launch prep'] })))
+    assert.deepEqual((await stored('settings/general'))?.phaseHistory, ['Launch prep'])
+  })
+
+  test('a history that is not a list is refused', async () => {
+    for (const phaseHistory of ['Launch prep', { 0: 'Launch prep' }, {}, 1, null]) await expectDenied(leader(after({ phaseHistory })), `first save: ${JSON.stringify(phaseHistory)}`)
+    await stage('Launch prep')
+    for (const phaseHistory of ['Launch prep', { 0: 'Launch prep' }, {}, 1, null]) await expectDenied(leader(after({ phaseHistory })), `update: ${JSON.stringify(phaseHistory)}`)
+  })
+
+  test('a Raid Leader and a Member cannot start or reopen a phase', async () => {
+    await stage('Launch prep')
+    for (const who of ['raidLeader', 'member'] as const) await expectDenied(save(who, after({ currentPhase: 'Phase one', phaseHistory: ['Launch prep'] })), LABEL[who])
+    assert.equal((await stored('settings/general'))?.phaseHistory, undefined)
+  })
+})

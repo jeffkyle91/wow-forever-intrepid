@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { saveGuildSettings } from '../../guildApi'
+import { changePhase } from '../../guildApi'
 import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, phaseNoOf, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
@@ -21,10 +21,10 @@ export function PhasesModal({ close, live }: { close: () => void; live: TabConte
   const nameProblem = startPhaseProblem(settings, name)
   const reopenBlocked = reopenProblem(settings, awards, allPriorities)
 
-  async function save(next: typeof settings, done: string) {
+  async function save(next: typeof settings, action: 'start' | 'reopen', done: string) {
     setBusy(true)
     try {
-      await saveGuildSettings(next)
+      await changePhase(next, action, { uid: live.identity.uid, displayName: live.identity.displayName })
       setPriorityFilters({ phase: null })
       setMutationError('')
       setNotice(done)
@@ -37,8 +37,8 @@ export function PhasesModal({ close, live }: { close: () => void; live: TabConte
     }
   }
 
-  const start = () => save(startNextPhase(settings, name), `${name.trim()} has started. ${settings.currentPhase} is now a read-only record.`)
-  const reopen = () => save(reopenPhase(settings), `${finished[finished.length - 1]} is the current phase again.`)
+  const start = () => save(startNextPhase(settings, name), 'start', `${name.trim()} has started. ${settings.currentPhase} is now a read-only record.`)
+  const reopen = () => save(reopenPhase(settings), 'reopen', `${finished[finished.length - 1]} is the current phase again.`)
 
   return <Modal title="Phases" onClose={close}>
     <div className="phases-summary">

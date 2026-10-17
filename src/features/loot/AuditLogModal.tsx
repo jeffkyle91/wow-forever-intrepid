@@ -28,7 +28,9 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   useEffect(() => subscribeAuditLog(limit, (list) => { setEntries(list); setError('') }, (problem) => setError(problem.message)), [limit])
 
   const name = (no: number) => phaseName(live.data.settings, no)
-  const shown = (entries ?? []).filter((entry) => (show === 'both' ? entry.targetType === 'priority' || entry.targetType === 'award' : entry.targetType === show))
+  // A phase started or reopened changes which lists are current, so it is shown with the priorities.
+  const wanted = (type: string) => (show === 'both' ? type === 'priority' || type === 'award' || type === 'phase' : show === 'priority' ? type === 'priority' || type === 'phase' : type === 'award')
+  const shown = (entries ?? []).filter((entry) => wanted(entry.targetType))
   const more = entries !== null && entries.length >= limit
 
   return <Modal title="Change log" onClose={close}><div className="audit-log">
@@ -46,7 +48,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
         <details>
           <summary><span className="audit-title" title={title}>{title}</span><time className="audit-when">{whenOf(entry.at)}</time></summary>
           <div className="audit-body">
-            <p>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</p>
+            <p>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</p>
             {details.length > 0 && <ul>{details.map((line) => <li key={line}>{line}</li>)}</ul>}
           </div>
         </details>

@@ -3,6 +3,7 @@ import type { AuditEntry } from '../../shared/game/lootAudit.ts'
 // The change log in words: one line for what happened, then what changed. Pure, so Node tests it; the dialog only lays it out.
 
 const fieldLabels: Record<string, string> = {
+  currentPhase: 'Current phase', nextPhase: 'Next phase', phaseHistory: 'Finished phases',
   item: 'Item', encounter: 'Dungeon and boss', rankedPlayers: 'Candidates', councilNote: 'Council note', itemId: 'Item id', zoneId: 'Dungeon id',
   npcId: 'Creature id', phaseNo: 'Phase', carriedFrom: 'Carried over from', priorityId: 'Priority', recipient: 'Recipient', recipientId: 'Recipient id',
   awardedAt: 'Award date', awardNote: 'Award note', prioritySnapshot: 'Candidates at the time', councilNoteSnapshot: 'Council note at the time',
@@ -32,6 +33,15 @@ export function describeEntry(entry: AuditEntry, phaseName: (no: number) => stri
   const listed = (values: Record<string, unknown>) => entry.changed.map((field) => `${label(field)}: ${showValue(field, values[field], phaseName)}`)
   const reason = entry.reason ? [`Reason: ${clip(entry.reason)}`] : []
 
+  if (entry.targetType === 'phase') {
+    // A phase was started or reopened: the history gained or lost its last name, and the current phase changed.
+    const history = (values: Record<string, unknown>) => (Array.isArray(values.phaseHistory) ? values.phaseHistory.map(String) : [])
+    const now = typeof entry.after.currentPhase === 'string' ? entry.after.currentPhase : entry.item
+    const closed = history(entry.after).at(-1)
+    const left = typeof entry.before.currentPhase === 'string' ? entry.before.currentPhase : ''
+    if (entry.action === 'reopen') return { title: `Reopened ${quote(now)}`, details: [left ? `${quote(left)} is the next phase again` : 'The phase being left is the next phase again', ...entry.changed.map(change)] }
+    return { title: `Started ${quote(now)}`, details: [closed ? `${quote(closed)} is closed and read-only` : 'The previous phase is closed and read-only', ...entry.changed.map(change)] }
+  }
   if (entry.targetType === 'priority') {
     switch (entry.action) {
       case 'create': return { title: `Added ${item} to the list`, details: listed(entry.after) }

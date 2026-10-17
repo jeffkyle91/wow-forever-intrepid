@@ -26,6 +26,24 @@ describe('showValue', () => {
   })
 })
 
+describe('describeEntry for a phase', () => {
+  const phase = (overrides: Partial<AuditEntry>) => text({ targetType: 'phase', targetId: 'settings', item: 'Second', ...overrides })
+  it('says a phase was started, which phase closed and what changed', () => {
+    const { title, details } = phase({ action: 'start', changed: ['currentPhase', 'phaseHistory'], before: { currentPhase: 'Launch', phaseHistory: null }, after: { currentPhase: 'Second', phaseHistory: ['Launch'] } })
+    assert.equal(title, 'Started \u201cSecond\u201d')
+    assert.deepEqual(details, ['\u201cLaunch\u201d is closed and read-only', 'Current phase: Launch \u2192 Second', 'Finished phases: (none) \u2192 Launch'])
+  })
+  it('says a phase was reopened and which one is the next phase again', () => {
+    const { title, details } = phase({ action: 'reopen', item: 'Launch', changed: ['currentPhase', 'nextPhase', 'phaseHistory'], before: { currentPhase: 'Second', nextPhase: 'To be announced', phaseHistory: ['Launch'] }, after: { currentPhase: 'Launch', nextPhase: 'Second', phaseHistory: null } })
+    assert.equal(title, 'Reopened \u201cLaunch\u201d')
+    assert.equal(details[0], '\u201cSecond\u201d is the next phase again')
+    assert.ok(details.includes('Finished phases: Launch \u2192 (none)'))
+  })
+  it('still reads an entry with nothing in it', () => {
+    assert.equal(phase({ action: 'start', after: {} }).title, 'Started \u201cSecond\u201d')
+  })
+})
+
 describe('describeEntry', () => {
   it('says a priority was added, with the fields it started with', () => {
     const { title, details } = text({ action: 'create', changed: ['item', 'rankedPlayers', 'phaseNo'], after: { item: 'Test Sword', rankedPlayers: [], phaseNo: 1 } })

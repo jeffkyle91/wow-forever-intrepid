@@ -6,6 +6,7 @@ import { Modal } from '../ui/Modal'
 import { canViewRaidTeam, raidSignupTeam, signupCharacters } from './roster'
 import { effectiveRaidSignups, unavailableOn } from './availability'
 import './RaidSignup.css'
+import { classAccent } from '../game/classes'
 
 export function RaidSignupModal({ raidId, close, live, onEdit }: { raidId: string; close: () => void; live: TabContext; onEdit?: () => void }) {
   const [signups, setSignups] = useState<RaidSignup[] | null>(null)
@@ -60,7 +61,7 @@ export function RaidSignupModal({ raidId, close, live, onEdit }: { raidId: strin
         {team ? <section className="raid-signup-group">
           <h4>{team.name} (10-player)</h4>
           <p>{team.players.length} assigned · {responses.filter((entry) => ['accept', 'late'].includes(entry.status) && team.players.some((player) => player.id === entry.characterId)).length} Accept/Late responses</p>
-          <ul>{team.players.map((player) => <li key={player.id}><span>{player.name} · {player.role}</span><strong>{responseFor(player)}</strong></li>)}</ul>
+          <ul>{team.players.map((player) => <li key={player.id} className={classAccent(player.className)}><span><span className="class-text">{player.name}</span> · {player.role}</span><strong>{responseFor(player)}</strong></li>)}</ul>
         </section> : <p role="status">No team assigned. Ask a Guild Leader to assign your signed-up character to a 10-player team.</p>}
         </>}
       </>}

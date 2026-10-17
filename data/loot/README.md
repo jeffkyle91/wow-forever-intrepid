@@ -2,7 +2,7 @@
 
 One JSON file per dungeon or raid: which creatures drop which items. A capture holds **item ids and creature names only**. Item names, icons and tooltips are fetched live by item id from `https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0`, so nothing here goes stale when a name changes.
 
-These files are the starter data for the loot tables planned for the app (priorities and awards pick from them; leaders will be able to edit and re-import them). The format is validated by `src/shared/game/lootTables.ts`, the same code the app will use to preview an import.
+These files are the starter data for the app's drop lists (Browse drops). Guild and Raid Leaders add to, hide from and extend them in the app (**Edit the drop lists**); those changes are stored in Firestore on top of these files, one phase at a time (a phase nobody changed has the lists of the phase before it), and never rewrite them, so a recapture of a file still applies to everything the guild has not changed. The format is validated by `src/shared/game/lootTables.ts`, the same code the app will use to preview an import.
 
 ## Format (version 1)
 
@@ -14,6 +14,7 @@ These files are the starter data for the loot tables planned for the app (priori
 | `dataStatus`, `notes` | Optional free text: for example that the data is from the beta. |
 | `sources` | The creatures: `npcId` (the number in the creature GUID the game gives an addon when loot opens), `name`, `kind` (`boss`, `rare` or `trash`) and `itemIds`. |
 | `zoneWideItemIds` | Items that drop from any creature in the zone. May be empty. |
+| `fromPhase` | Optional. The first loot phase the zone is in the lists of (default 0, every phase). A raid captured early can be kept out of the phases before it unlocks; the guild's leaders can still put it into a phase from the drop list editor. |
 
 An item may appear once in the whole file. Wowhead does not flag bosses, so `kind` is a person's reading and may be corrected.
 

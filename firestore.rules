@@ -414,11 +414,11 @@ service cloud.firestore {
         && data.by == request.auth.uid
         && data.byName is string && data.byName.size() <= 100
         && data.byName == get(memberPath(guildId, request.auth.uid)).data.get('displayName', '')
-        && data.targetType in ['award', 'priority', 'raid']
+        && data.targetType in ['award', 'priority', 'raid', 'phase']
         && data.targetId is string && data.targetId.matches('^[A-Za-z0-9_-]{1,100}$')
         && data.rev is int && data.rev >= 1
         && entryId == data.targetType + '_' + data.targetId + '_' + string(data.rev)
-        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
+        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.targetType == 'phase' ? data.action in ['start', 'reopen'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
         && (data.targetType != 'award' || data.action in ['create', 'edit', 'remove'])
         && data.item is string && data.item.size() <= 120
         && data.changed is list && data.changed.size() <= 20
@@ -426,7 +426,7 @@ service cloud.firestore {
         && (!('after' in data) || data.after is map)
         && (!('reason' in data) || (data.reason is string && data.reason.size() <= 300))
         && (!(data.action in ['remove', 'cancel']) || ('reason' in data && data.reason.trim().size() >= 1))
-        && (data.action == 'create'
+        && (data.targetType == 'phase' ? validPhaseEntry(guildId, data) : data.action == 'create'
           ? data.rev == 1 && !exists(targetPath) && getAfter(targetPath).data.get('rev', 0) is int && getAfter(targetPath).data.get('rev', 0) == 1
             && (data.targetType != 'award' || getAfter(targetPath).data.get('createdBy', data.by) == data.by)
             && auditDescribesChange(data, {}, getAfter(targetPath).data)
@@ -436,6 +436,29 @@ service cloud.firestore {
             : data.rev == get(targetPath).data.get('rev', 0) + 1
               && getAfter(targetPath).data.get('rev', 0) == data.rev
               && auditDescribesChange(data, get(targetPath).data, getAfter(targetPath).data));
+    }
+
+    // The entry for starting or reopening a loot phase (type 'phase', id phase_settings_{n}, n counting every start and reopen). The settings
+    // document is the target and its `phaseRev` is the revision. The entry lists exactly the phase fields (currentPhase, nextPhase, phaseHistory)
+    // that differ between what was stored and what the batch stores, with their old and new values; a first save has nothing stored, so those
+    // fields read as nothing before. Other settings changed in the same save (the status label, say) are not part of the entry.
+    function validPhaseEntry(guildId, data) {
+      let path = /databases/$(database)/documents/guilds/$(guildId)/settings/general;
+      let oldDoc = exists(path) ? get(path).data : {};
+      let newDoc = getAfter(path).data;
+      let touched = newDoc.diff(oldDoc).affectedKeys().intersection(['currentPhase', 'nextPhase', 'phaseHistory'].toSet());
+      return data.targetId == 'settings'
+        && data.rev == oldDoc.get('phaseRev', 0) + 1
+        && newDoc.get('phaseRev', 0) == data.rev
+        && data.item == newDoc.currentPhase
+        && data.changed.toSet() == touched
+        && data.changed.size() == touched.size()
+        && data.get('before', {}).keys().hasOnly(data.changed)
+        && data.get('after', {}).keys().hasOnly(data.changed)
+        && auditFieldLogged(data, oldDoc, newDoc, 'currentPhase')
+        && auditFieldLogged(data, oldDoc, newDoc, 'nextPhase')
+        && auditFieldLogged(data, oldDoc, newDoc, 'phaseHistory')
+        && (data.action == 'start') == (newDoc.get('phaseHistory', []).size() > oldDoc.get('phaseHistory', []).size());
     }
 
     function validLabel(value) {
@@ -467,10 +490,23 @@ service cloud.firestore {
           : validPhaseSteps(resource.data, after));
     }
 
-    function validGuildSettings() {
+    // Starting or reopening a phase (the history changes) is one more step of `phaseRev` and needs its change log entry in the same batch (see
+    // validPhaseEntry). A save that leaves the history alone, a rename of the current phase included, leaves `phaseRev` alone and needs none.
+    function validPhaseRev(guildId) {
       let data = request.resource.data;
-      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory'])
+      let old = resource == null ? {} : resource.data;
+      let rev = data.get('phaseRev', 0);
+      return rev is int && rev >= 0 && rev <= 1000000
+        && (data.get('phaseHistory', []) != old.get('phaseHistory', [])
+          ? rev == old.get('phaseRev', 0) + 1 && writtenNow(auditEntryPath(guildId, 'phase', 'settings', rev))
+          : rev == old.get('phaseRev', 0));
+    }
+
+    function validGuildSettings(guildId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory', 'phaseRev'])
         && validPhaseHistory()
+        && validPhaseRev(guildId)
         && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames'])
         && validLabel(data.currentPhase)
         && validLabel(data.nextPhase)
@@ -549,7 +585,7 @@ service cloud.firestore {
 
       match /settings/{settingId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings();
+        allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings(guildId);
         allow delete: if false;
       }
 

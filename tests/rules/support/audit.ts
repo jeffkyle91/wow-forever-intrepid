@@ -7,7 +7,7 @@ import { guildDoc, stored } from './harness.ts'
 
 export const AWARD = 'award-1' // seeded without any of the new fields, like every award written before this change
 export type Staff = 'raidLeader' | 'guildLeader'
-export type TargetType = 'award' | 'priority'
+export type TargetType = 'award' | 'priority' | 'phase'
 
 /** Firestore refuses `undefined`, so a field a test wants missing is passed as undefined and dropped here. */
 export const clean = (data: DocumentData): DocumentData => Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined))
@@ -137,3 +137,39 @@ export const stampedAward = (overrides: DocumentData = {}) =>
 export const removedAward = (overrides: DocumentData = {}) => awardDoc({ rev: 1, status: 'removed', removedReason: 'Entered by mistake', ...overrides })
 
 export { priorityDoc }
+
+/** The settings fields a phase entry lists. */
+export const PHASE_FIELDS = ['currentPhase', 'nextPhase', 'phaseHistory'] as const
+
+export type PhaseChangeOptions = {
+  settings: DocumentData // the whole settings document the batch stores (without phaseRev)
+  rev?: number // the revision the document and the entry carry
+  action?: string
+  audit?: DocumentData // overrides for the entry
+  doc?: DocumentData // overrides for the settings document
+  entryKey?: string
+  skipEntry?: boolean
+}
+
+/**
+ * Start or reopen a loot phase: the settings document and its entry (phase_settings_{rev}) in one batch. The entry lists the phase fields that
+ * differ between what is stored now (nothing on a first save) and what the batch stores, as the rules require. Honest unless overridden.
+ */
+export async function changePhase(db: Firestore, who: Staff, { settings, rev = 1, action = 'start', audit = {}, doc = {}, entryKey, skipEntry = false }: PhaseChangeOptions) {
+  const current = await stored('settings/general')
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  const changed = PHASE_FIELDS.filter((field) => !same(current?.[field], settings[field]))
+  const batch = writeBatch(db)
+  batch.set(guildDoc(db, 'settings/general'), clean({ ...settings, phaseRev: rev, ...doc }))
+  if (!skipEntry) {
+    batch.set(guildDoc(db, `auditLog/${entryKey ?? entryId('phase', 'settings', rev)}`), clean(entry(who, 'phase', 'settings', rev, {
+      action,
+      item: settings.currentPhase,
+      changed,
+      before: Object.fromEntries(changed.map((field) => [field, current?.[field] ?? null])),
+      after: Object.fromEntries(changed.map((field) => [field, settings[field] ?? null])),
+      ...audit,
+    })))
+  }
+  return batch.commit()
+}

@@ -19,3 +19,5 @@
 :root[data-theme='dark'] .priority-dungeon { border-bottom-color: #33465c; color: #e8edf3; }
 :root[data-theme='dark'] .priority-dungeon span, :root[data-theme='dark'] .priority-boss span { color: #9fb0c3; }
 :root[data-theme='dark'] .priority-boss { color: #bfccd9; }
+.phase-notice { margin: 0 0 10px; padding: 9px 12px; border: 1px solid #d9e4ee; border-radius: 5px; color: #3e5368; background: #f2f6fa; font-size: 11px; line-height: 1.45; }
+:root[data-theme='dark'] .phase-notice { border-color: #3a4b61; color: #c8d5e3; background: #1c2838; }

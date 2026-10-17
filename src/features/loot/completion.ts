@@ -1,7 +1,8 @@
-// Structural types, so this file has no imports and can be tested directly by Node. PriorityRecord and AwardRecord
-// (guildApi.ts) satisfy them.
-type LootPriority = { id: string; item: string; rankedPlayers: string[] }
-type Award = { priorityId?: string; item: string; recipient: string }
+import { phaseNoOf } from '../../shared/game/phases.ts'
+
+// Structural types, so this file can be tested directly by Node. PriorityRecord and AwardRecord (guildApi.ts) satisfy them.
+type LootPriority = { id: string; item: string; rankedPlayers: string[]; phaseNo?: number }
+type Award = { priorityId?: string; item: string; recipient: string; phaseNo?: number }
 
 // Positional completion: a player listed twice for an item is satisfied once per receipt. Only the number of
 // receipts counts, not their dates. The first N listings of a player (in list order) are received, where N is the
@@ -13,10 +14,11 @@ export function nameKey(name: string) {
 }
 
 // An award counts toward a priority when it was recorded from that priority, or, when it has no priority at all
-// (a later manual entry or import), when it is for an item of the same name.
-export function awardsForPriority(priority: LootPriority, awards: Award[]) {
+// (a later manual entry or import), when it is for an item of the same name in the same phase.
+export function awardsForPriority<A extends Award>(priority: LootPriority, awards: A[]): A[] {
   const itemKey = nameKey(priority.item)
-  return awards.filter((award) => award.priorityId ? award.priorityId === priority.id : nameKey(award.item) === itemKey)
+  const phase = phaseNoOf(priority)
+  return awards.filter((award) => award.priorityId ? award.priorityId === priority.id : nameKey(award.item) === itemKey && phaseNoOf(award) === phase)
 }
 
 // The client does not write a status yet; the rules already allow `status: 'removed'` on an award.

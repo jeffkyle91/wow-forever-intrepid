@@ -10,7 +10,7 @@ import { describe, test } from 'node:test'
 import { deleteField, serverTimestamp, setDoc } from 'firebase/firestore'
 import { LABEL, PLAYER_1, PLAYER_2, PLAYER_3, PRIORITY_ID, RAID_STAFF, UID, priorityDoc, without } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, setUpGuildEmulator, stored } from './support/harness.ts'
-import { createPriority, deletePriority, editPriority, entryId, newPriorityDoc, type Staff } from './support/audit.ts'
+import { createAward, createManualAward, createPriority, deletePriority, editPriority, entryId, newPriorityDoc, type Staff } from './support/audit.ts'
 
 setUpGuildEmulator()
 
@@ -326,7 +326,7 @@ describe('who may write a priority', () => {
   for (const who of ['member', 'stranger', 'otherGuildLeader', 'anonymous'] as const) {
     test(`a ${LABEL[who]} cannot create, edit or delete one, with every entry in place`, async () => {
       const db = dbFor(who)
-      // The payload a Raid Leader would send, so that only the role can be what refuses it.
+      // The payload a Raid Leader would send (its stamps and entry name the Raid Leader, which a request by anyone else cannot truthfully do).
       await expectDenied(createPriority(db, 'raidLeader'), 'create')
       await expectDenied(editPriority(db, 'raidLeader'), 'edit')
       await expectDenied(deletePriority(db, 'raidLeader'), 'delete')
@@ -381,4 +381,59 @@ describe('the entry of a priority is truthful about the item, the phase and wher
       await expectAllowed(createPriority(db(), 'raidLeader', { fields }), 'the honest entry')
     })
   }
+})
+
+// A Member who signs honestly, with their own account in every stamp and in the entry, is refused too: the rules check the role itself.
+describe('a Member who signs honestly', () => {
+  const member = 'member' as unknown as Staff // the helpers write the stamps and the entry for this account
+  test('cannot create, edit or delete a priority, nor leave an entry', async () => {
+    const db = dbFor('member')
+    await expectDenied(createPriority(db, member), 'create')
+    await expectDenied(editPriority(db, member), 'edit')
+    await expectDenied(deletePriority(db, member), 'delete')
+    assert.deepEqual(await stored(`lootPriorities/${PRIORITY_ID}`), priorityDoc())
+  })
+})
+
+// An entry stays for ever, so an id that was used before has entries from its earlier life. They must not count: a write is accepted only with
+// an entry written in the same batch (a priority that was created, changed and deleted must not come back, or change, silently).
+describe('an entry left from an earlier life of an id', () => {
+  const left = (id: string, revs: number[]) => asAdmin(async (db) => {
+    for (const rev of revs) await setDoc(guildDoc(db, `auditLog/${entryId('priority', id, rev)}`), { at: new Date('2026-01-01T00:00:00Z'), by: UID.raidLeader, byName: 'An earlier leader', targetType: 'priority', targetId: id, rev, action: 'create', item: 'Test Sword', changed: [] })
+  })
+
+  test('does not let a priority be created without a new entry', async () => {
+    await left('ghost', [1, 2])
+    await expectDenied(createPriority(dbFor('raidLeader'), 'raidLeader', { id: 'ghost', skipEntry: true }), 'a create with no entry')
+    await expectDenied(setDoc(guildDoc(dbFor('raidLeader'), 'lootPriorities/ghost'), { ...newPriorityDoc(), rev: 1, updatedBy: UID.raidLeader, updatedAt: serverTimestamp() }), 'a plain create')
+  })
+
+  test('does not let a priority be edited without a new entry', async () => {
+    await store('old', { phaseNo: 0, rev: 1 })
+    await left('old', [2])
+    await expectDenied(editPriority(dbFor('raidLeader'), 'raidLeader', { id: 'old', rev: 2, skipEntry: true }))
+    assert.equal((await stored('lootPriorities/old'))?.rev, 1)
+  })
+
+  test('does not let a priority be deleted without a new entry', async () => {
+    await store('old', { phaseNo: 0, rev: 1 })
+    await left('old', [2])
+    await expectDenied(deletePriority(dbFor('raidLeader'), 'raidLeader', { id: 'old', rev: 2, skipEntry: true }))
+    assert.ok(await stored('lootPriorities/old'))
+  })
+
+  test('a priority that was created and then deleted cannot be brought back, or changed, without a trace', async () => {
+    const db = dbFor('raidLeader')
+    await expectAllowed(createPriority(db, 'raidLeader', { id: 'p-x' }), 'created')
+    await expectAllowed(deletePriority(db, 'raidLeader', { id: 'p-x', rev: 2 }), 'deleted')
+    await expectDenied(setDoc(guildDoc(db, 'lootPriorities/p-x'), { ...newPriorityDoc({ rankedPlayers: ['player-9'], councilNote: 'forged' }), rev: 1, updatedBy: UID.raidLeader, updatedAt: serverTimestamp() }), 'brought back with no entry')
+    await expectDenied(createPriority(db, 'raidLeader', { id: 'p-x' }), 'brought back with an entry, which would be written twice')
+    assert.equal(await stored('lootPriorities/p-x'), undefined)
+  })
+
+  test('does not let an award be created without a new entry', async () => {
+    await asAdmin((db) => setDoc(guildDoc(db, `auditLog/${entryId('award' as 'priority', 'ghost', 1)}`), { at: new Date('2026-01-01T00:00:00Z'), by: UID.raidLeader, byName: 'An earlier leader', targetType: 'award', targetId: 'ghost', rev: 1, action: 'create', item: 'Test Sword', changed: [] }))
+    await expectDenied(createAward(dbFor('raidLeader'), 'raidLeader', { id: 'ghost', skipEntry: true }), 'an award from a priority')
+    await expectDenied(createManualAward(dbFor('raidLeader'), 'raidLeader', { id: 'ghost', skipEntry: true }), 'a manual award')
+  })
 })

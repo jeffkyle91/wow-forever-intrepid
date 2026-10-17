@@ -12,6 +12,9 @@ import { MANUAL, clean, createManualAward, describeChange, editAward, entry, ent
 
 setUpGuildEmulator()
 
+/** Put the guild in phase `n`: n finished phases in its settings (none stored means phase 0). */
+const inPhase = (n: number) => asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { currentPhase: `Phase ${n}`, nextPhase: 'Next', phaseHistory: Array.from({ length: n }, (_, index) => `Earlier ${index}`) }))
+
 for (const who of RAID_STAFF as readonly Staff[]) {
   describe(`a ${LABEL[who]} records a manual award`, () => {
     test('an award with its audit entry is accepted, and nothing in it claims a priority', async () => {
@@ -139,7 +142,6 @@ describe('the shape of a manual award', () => {
   }
 
   // A manual award is recorded in the current phase, which is the number of finished phases in the settings (none stored means phase 0).
-  const inPhase = (n: number) => asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { currentPhase: `Phase ${n}`, nextPhase: 'Next', phaseHistory: Array.from({ length: n }, (_, index) => `Earlier ${index}`) }))
   const record = (phaseNo: number, id = MANUAL) => createManualAward(dbFor('raidLeader'), 'raidLeader', { id, fields: manualAwardDoc({ phaseNo }) })
 
   test('a manual award is recorded in the current phase: 0 when no phase has been closed, then the number of finished phases', async () => {
@@ -239,8 +241,9 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { decision: 'fiat' } }))
     })
 
-    test('correcting the phase, with its entry, is accepted and logged', async () => {
+    test('correcting the phase to a phase that has started, with its entry, is accepted and logged', async () => {
       await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await inPhase(1)
       await expectAllowed(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 } }))
       const logged = await stored(`auditLog/${entryId('award', MANUAL, 2)}`)
       assert.deepEqual(logged?.changed, ['phaseNo'])
@@ -248,8 +251,17 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       assert.deepEqual(logged?.after, { phaseNo: 1 })
     })
 
+    test('an award cannot be moved to a phase that has not started', async () => {
+      await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 } }), 'the next phase')
+      await inPhase(1)
+      await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 2 } }), 'one past the current phase')
+      await expectAllowed(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 } }), 'the current phase')
+    })
+
     test('changing the phase without logging it, or with an entry that lies, is refused', async () => {
       await expectAllowed(createManualAward(dbFor('raidLeader'), 'raidLeader'), 'recording it')
+      await inPhase(1)
       await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 }, audit: { changed: [], before: {}, after: {} } }), 'not logged')
       await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 }, audit: { before: { phaseNo: 5 } } }), 'a wrong old value')
       await expectDenied(editAward(dbFor(who), who, { awardId: MANUAL, rev: 2, changes: { phaseNo: 1 }, audit: { after: { phaseNo: 2 } } }), 'a wrong new value')

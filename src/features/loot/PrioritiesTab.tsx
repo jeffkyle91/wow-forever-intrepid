@@ -1,6 +1,7 @@
 import { saveGuildRecord, type PriorityRecord as LootPriority } from '../../guildApi'
 import type { TabContext } from '../../shared/tabs/types'
 import { AwardModal } from './AwardModal'
+import { classLookup } from './classLookup'
 import { visiblePriorities } from './filters'
 import { PriorityList } from './PriorityList'
 import { PriorityModal } from './PriorityModal'
@@ -31,5 +32,5 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
     }
   }
 
-  return <PriorityList priorities={visiblePriorities(priorities, awards, roster, ctx.query, filters)} awards={awards} canEdit={ctx.identity.canEditRaidData} busy={busy} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
+  return <PriorityList priorities={visiblePriorities(priorities, awards, roster, ctx.query, filters)} awards={awards} classOf={classLookup(roster)} canEdit={ctx.identity.canEditRaidData} busy={busy} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
 }

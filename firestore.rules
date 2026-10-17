@@ -176,6 +176,93 @@ service cloud.firestore {
         && writtenNow(auditEntryPath(guildId, 'priority', priorityId, before.get('rev', 0) + 1));
     }
 
+    // Loot tables: the guild's own changes to the drop lists of Browse drops, one document per zone (type 'zone') and one per creature (type 'source', also
+    // the zone-wide list) PER PHASE. A document carries the loot phase it was written in (`phaseNo`) and means "from this phase on, until a later phase's
+    // document says otherwise": the app works out the lists of a phase by applying, in phase order, the documents of that phase and the earlier ones to the
+    // built-in captures, so a phase with no documents has the lists of the one before it and a change in one phase never reaches an earlier one. Like a
+    // priority, a table document can be created or changed only in the current phase or the next one (a finished phase's lists are a record), and its
+    // phase never changes. Written only with the audit entry (type 'table') in the same batch, rev up by one, updatedBy and updatedAt stamped here.
+    // A document says only what its phase changes, so every attribute (name, kind, size, order, creature number) is optional and checked when it is there.
+    // A custom zone's number is 50 million or more, clear of the game's own zones; a zone of the built-in captures has only a "presence" document that says
+    // whether it is in the lists from its phase on (`removed`). A creature's document holds itemIds added in its phase and hiddenItemIds taken off from its
+    // phase on, which cannot share an item. A table is never deleted (an entry id is used once, so a deleted id could never be created again): taking one
+    // away is `removed: true`, bringing it back `removed: false`, and both are plain edits. A creature of the built-in captures (key npc{id}) and the
+    // zone-wide list can never be removed (their items can only be hidden). Only the sizes of the lists are checked; the app reads them safely, as it does
+    // a priority's candidates.
+    function tableKeysOk(data, creating) {
+      return validGameId(data.zoneId)
+        && (data.type == 'source'
+          ? data.keys().hasOnly(['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed', 'rev', 'updatedBy', 'updatedAt'])
+            && data.keys().hasAll(['type', 'zoneId', 'key', 'phaseNo', 'itemIds', 'hiddenItemIds', 'rev', 'updatedBy', 'updatedAt'])
+          : data.type == 'zone'
+            && (data.zoneId >= 50000000
+              ? data.keys().hasOnly(['type', 'zoneId', 'phaseNo', 'name', 'kind', 'players', 'removed', 'rev', 'updatedBy', 'updatedAt'])
+                && data.keys().hasAll(['type', 'zoneId', 'phaseNo', 'rev', 'updatedBy', 'updatedAt'])
+              : data.keys().hasOnly(['type', 'zoneId', 'phaseNo', 'removed', 'rev', 'updatedBy', 'updatedAt'])
+                && data.keys().hasAll(creating ? ['type', 'zoneId', 'phaseNo', 'removed', 'rev', 'updatedBy', 'updatedAt'] : ['type', 'zoneId', 'phaseNo', 'rev', 'updatedBy', 'updatedAt'])));
+    }
+
+    function validTableName(value) {
+      return value is string && value.trim().size() >= 1 && value.size() <= 100;
+    }
+
+    function validTableFields(after) {
+      return (after.type == 'zone'
+          ? after.zoneId < 50000000
+            || ((!('name' in after) || validTableName(after.name))
+              && (!('kind' in after) || after.kind in ['dungeon', 'raid'])
+              && (!('players' in after) || (after.players is int && after.players >= 1 && after.players <= 40)))
+          : (!('name' in after) || validTableName(after.name))
+            && (!('kind' in after) || (after.kind in ['boss', 'rare', 'trash', 'zonewide'] && (after.kind == 'zonewide') == (after.key == 'zonewide')))
+            && (!('npcId' in after) || validGameId(after.npcId))
+            && (!('order' in after) || (after.order is int && after.order >= 0 && after.order <= 100000))
+            && (!('itemIds' in after) || (after.itemIds is list && after.itemIds.size() <= 80))
+            && (!('hiddenItemIds' in after) || (after.hiddenItemIds is list && after.hiddenItemIds.size() <= 80))
+            && !after.itemIds.hasAny(after.hiddenItemIds)
+            && !(after.get('removed', false) == true && (after.key == 'zonewide' || after.key.matches('^npc[0-9]+$'))))
+        && (!('removed' in after) || after.removed is bool);
+    }
+
+    function validTableCreate(guildId, tableId) {
+      let data = request.resource.data;
+      let current = currentPhaseNo(guildId);
+      return data.rev is int && data.rev == 1
+        && data.updatedBy == request.auth.uid
+        && data.updatedAt == request.time
+        && data.phaseNo is int && (data.phaseNo == current || data.phaseNo == current + 1)
+        && tableKeysOk(data, true)
+        && (data.type == 'zone'
+          ? tableId == 'z' + string(data.zoneId) + '_' + string(data.phaseNo)
+          : data.key is string && data.key.matches('^[A-Za-z0-9]{1,30}$')
+            && tableId == 's' + string(data.zoneId) + '_' + data.key + '_' + string(data.phaseNo))
+        && validTableFields(data)
+        && writtenNow(auditEntryPath(guildId, 'table', tableId, 1));
+    }
+
+    function validTableEdit(guildId, tableId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let current = currentPhaseNo(guildId);
+      let rev = before.get('rev', 0) + 1;
+      let entryPath = auditEntryPath(guildId, 'table', tableId, rev);
+      return tableKeysOk(after, false)
+        && before.get('rev', 0) is int
+        && after.rev is int
+        && after.rev == rev
+        && writtenNow(entryPath)
+        && getAfter(entryPath).data.targetType == 'table'
+        && getAfter(entryPath).data.targetId == tableId
+        && after.updatedBy == request.auth.uid
+        && after.updatedAt == request.time
+        && unchanged(before, after, 'type')
+        && unchanged(before, after, 'zoneId')
+        && unchanged(before, after, 'key')
+        && unchanged(before, after, 'phaseNo')
+        && after.phaseNo is int
+        && (before.phaseNo == current || before.phaseNo == current + 1)
+        && validTableFields(after);
+    }
+
     // An award made from a priority. It copies the priority as it stands (hasPrioritySnapshot), is recorded in the current phase, carries
     // the stamps the rules set (rev 1, createdBy, createdAt), and needs its audit entry (type 'award', revision 1) in the same batch.
     function validPriorityAward(guildId, awardId) {
@@ -343,23 +430,48 @@ service cloud.firestore {
           && data.get('after', {}).get(field, null) == newDoc.get(field, null));
     }
 
+    // Headroom: the entry rule of the widest first creature document (11 listed fields) has room for only about 60 more expressions under the 1000 a request
+    // may use (measured by padding it), so a new field or check here must re-run the widest tests in tests/rules/loot-tables.test.ts and batch-budget.test.ts.
+    // The table fields of an entry, each checked as auditFieldLogged does, but with the entry's lists looked up once and the fields written out: a first
+    // creature document lists 11 fields, and a function call per field would not leave the entry rule room within the 1000 expressions a request may use.
+    function tableFieldsLogged(data, oldDoc, newDoc) {
+      let changed = data.changed;
+      let before = data.get('before', {});
+      let after = data.get('after', {});
+      return (!('type' in changed) || (before.get('type', null) == oldDoc.get('type', null) && after.get('type', null) == newDoc.get('type', null)))
+        && (!('zoneId' in changed) || (before.get('zoneId', null) == oldDoc.get('zoneId', null) && after.get('zoneId', null) == newDoc.get('zoneId', null)))
+        && (!('key' in changed) || (before.get('key', null) == oldDoc.get('key', null) && after.get('key', null) == newDoc.get('key', null)))
+        && (!('phaseNo' in changed) || (before.get('phaseNo', null) == oldDoc.get('phaseNo', null) && after.get('phaseNo', null) == newDoc.get('phaseNo', null)))
+        && (!('name' in changed) || (before.get('name', null) == oldDoc.get('name', null) && after.get('name', null) == newDoc.get('name', null)))
+        && (!('kind' in changed) || (before.get('kind', null) == oldDoc.get('kind', null) && after.get('kind', null) == newDoc.get('kind', null)))
+        && (!('players' in changed) || (before.get('players', null) == oldDoc.get('players', null) && after.get('players', null) == newDoc.get('players', null)))
+        && (!('npcId' in changed) || (before.get('npcId', null) == oldDoc.get('npcId', null) && after.get('npcId', null) == newDoc.get('npcId', null)))
+        && (!('order' in changed) || (before.get('order', null) == oldDoc.get('order', null) && after.get('order', null) == newDoc.get('order', null)))
+        && (!('itemIds' in changed) || (before.get('itemIds', null) == oldDoc.get('itemIds', null) && after.get('itemIds', null) == newDoc.get('itemIds', null)))
+        && (!('hiddenItemIds' in changed) || (before.get('hiddenItemIds', null) == oldDoc.get('hiddenItemIds', null) && after.get('hiddenItemIds', null) == newDoc.get('hiddenItemIds', null)))
+        && (!('removed' in changed) || (before.get('removed', null) == oldDoc.get('removed', null) && after.get('removed', null) == newDoc.get('removed', null)));
+    }
+
     // The item label is the item as it was before the change (as created, for a create).
     // The entry has to say exactly what happened to the target: the fields that differ between the document before
     // and after the batch (a created document has no "before", a deleted one no "after"), with their old and new values.
     function auditDescribesChange(data, oldDoc, newDoc) {
       let award = data.targetType == 'award';
       let raid = data.targetType == 'raid';
+      let table = data.targetType == 'table';
       // What the entry's action, status and reason are called for this target: an award is removed, a raid cancelled.
       let ending = raid ? 'cancel' : 'remove';
       let endStatus = raid ? 'cancelled' : 'removed';
       let startStatus = raid ? 'scheduled' : 'active';
       let reasonField = raid ? 'cancelReason' : 'removedReason';
-      let labelField = raid ? 'name' : 'item';
+      let labelField = raid || table ? 'name' : 'item';
       let fields = raid
         ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
           ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
-          : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
+          : table
+            ? ['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'players', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed']
+            : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
         && data.changed.toSet() == touched
@@ -390,7 +502,9 @@ service cloud.firestore {
               && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
               && auditFieldLogged(data, oldDoc, newDoc, 'prioritySnapshot')
               && auditFieldLogged(data, oldDoc, newDoc, 'councilNoteSnapshot')
-            : auditFieldLogged(data, oldDoc, newDoc, 'item')
+            : table
+              ? tableFieldsLogged(data, oldDoc, newDoc)
+              : auditFieldLogged(data, oldDoc, newDoc, 'item')
               && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
               && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
               && auditFieldLogged(data, oldDoc, newDoc, 'councilNote')
@@ -412,18 +526,20 @@ service cloud.firestore {
         ? /databases/$(database)/documents/guilds/$(guildId)/awards/$(data.targetId)
         : data.targetType == 'raid'
           ? /databases/$(database)/documents/guilds/$(guildId)/raids/$(data.targetId)
-          : /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(data.targetId);
+          : data.targetType == 'table'
+            ? /databases/$(database)/documents/guilds/$(guildId)/lootTables/$(data.targetId)
+            : /databases/$(database)/documents/guilds/$(guildId)/lootPriorities/$(data.targetId);
       return data.keys().hasOnly(['at', 'by', 'byName', 'targetType', 'targetId', 'rev', 'action', 'item', 'changed', 'before', 'after', 'reason'])
         && data.keys().hasAll(['at', 'by', 'byName', 'targetType', 'targetId', 'rev', 'action', 'item', 'changed'])
         && data.at == request.time
         && data.by == request.auth.uid
         && data.byName is string && data.byName.size() <= 100
         && data.byName == get(memberPath(guildId, request.auth.uid)).data.get('displayName', '')
-        && data.targetType in ['award', 'priority', 'raid', 'phase']
+        && data.targetType in ['award', 'priority', 'raid', 'phase', 'table']
         && data.targetId is string && data.targetId.matches('^[A-Za-z0-9_-]{1,100}$')
         && data.rev is int && data.rev >= 1
         && entryId == data.targetType + '_' + data.targetId + '_' + string(data.rev)
-        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.targetType == 'phase' ? data.action in ['start', 'reopen'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
+        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.targetType == 'phase' ? data.action in ['start', 'reopen'] : data.targetType == 'table' ? data.action in ['create', 'edit'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
         && (data.targetType != 'award' || data.action in ['create', 'edit', 'remove'])
         && data.item is string && data.item.size() <= 120
         && data.changed is list && data.changed.size() <= 20
@@ -599,6 +715,13 @@ service cloud.firestore {
         allow create: if canManageRaid(guildId) && validPriorityCreate(guildId, priorityId);
         allow update: if canManageRaid(guildId) && validPriorityEdit(guildId, priorityId);
         allow delete: if canManageRaid(guildId) && validPriorityDelete(guildId, priorityId);
+      }
+
+      match /lootTables/{tableId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create: if canManageRaid(guildId) && validTableCreate(guildId, tableId);
+        allow update: if canManageRaid(guildId) && validTableEdit(guildId, tableId);
+        allow delete: if false;
       }
 
       match /awards/{awardId} {

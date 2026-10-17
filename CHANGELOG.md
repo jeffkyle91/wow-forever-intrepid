@@ -8,6 +8,17 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 No member-facing changes queued. Developer tools and planning documentation do not imply a production feature release.
 
+## 2026-10-16 - ec45641
+
+Production deployment and live release assets verified. This update also summarizes the roster improvements deployed since the previous Discord announcement.
+
+- Raid Teams now includes a buff and debuff coverage checklist for 10-, 20- and 40-player teams, with spell icons, descriptions and a detailed provider/source panel.
+- Coverage distinguishes estimated results, talent-dependent possibilities and unknown party coverage. Game data is provisional or unverified, not a guarantee that buffs are active; in-game verification remains outstanding.
+- Guild roster now has a Show Comments toggle: review Public comments, plus Leadership comments for Guild and Raid Leaders. Authors still edit comments on their dashboard. Read comment opens a floating panel without expanding the row.
+- Roster rows now have class-colored stripes, shading and character names.
+
+Sources: PRs #53, #54 and #57. MEMBER-004 is delivered; RAID-007's checklist is deployed, but game-data verification remains in progress. Mobile tooltip access and consistent dismissal on scroll remain planned November 4 improvements (UX-002 and UX-003).
+
 ## 2026-10-16 - bbefbc2
 
 Production deployment verified and confirmed by the maintainer.

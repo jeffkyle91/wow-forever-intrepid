@@ -1,0 +1,2 @@
+.member-access-copy { margin: 16px 0; color: #526578; font: 400 12px/1.65 var(--sans); letter-spacing: 0.02em; }
+:root[data-theme='dark'] .member-access-copy { color: #b4c3d2; }

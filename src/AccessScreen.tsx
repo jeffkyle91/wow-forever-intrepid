@@ -110,6 +110,11 @@ export function AccessScreen({ status, user, error, setError, offline, onRetry, 
         </form>
         {authMode === 'sign-in' && <button type="button" className="access-switch" disabled={busy} onClick={resetPassword}>Forgot password?</button>}
         <button className="access-switch" onClick={() => { setAuthMode(authMode === 'create' ? 'sign-in' : 'create'); setError(''); setNotice('') }}>{authMode === 'create' ? 'Already have an account? Sign in' : 'New to the guild desk? Create an account'}</button>
+      </> : status === 'removed' ? <>
+        <span className="access-kicker">GUILD ACCESS REMOVED</span><h1>You no longer have guild access</h1>
+        <p>A Guild Leader has removed your access to this guild. Contact a Guild Leader if you believe this was a mistake or would like to return.</p>
+        <p>Your sign-in account still exists. Only a Guild Leader can restore guild access.</p>
+        <button className="access-submit secondary" onClick={leaveAccount}>Sign out</button>
       </> : status === 'pending' ? <>
         <span className="access-kicker">REQUEST SENT</span><h1>Waiting for guild approval</h1><p>A Guild Leader will review your request. You can sign out while it is pending.</p><button className="access-submit secondary" onClick={leaveAccount}>Sign out</button>
       </> : status === 'error' ? <>

@@ -2,6 +2,7 @@ import { approveJoinRequest, importLocalPreviewData, rejectJoinRequest, updateMe
 import type { GuildRole } from '../../security'
 import type { TabContext } from '../../shared/tabs/types'
 import { GuildAccessManager } from './GuildAccessManager'
+import { MemberAccessModal } from './MemberAccessModal'
 
 export function AccessTab({ ctx }: { ctx: TabContext }) {
   const { roster, priorities, awards, assignments, members, joinRequests } = ctx.data
@@ -61,5 +62,5 @@ export function AccessTab({ ctx }: { ctx: TabContext }) {
     }
   }
 
-  return <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />
+  return <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} currentUid={ctx.identity.uid} canImport={!roster.length && !priorities.length && !awards.length && !Object.keys(assignments).length} onMemberChange={changeMemberAccess} onToggleRemoved={(uid, restore) => ctx.openModal(({ close, live }) => <MemberAccessModal uid={uid} restore={restore} close={close} live={live} />)} onApprove={approveRequest} onReject={rejectRequest} onImport={importLegacyData} />
 }

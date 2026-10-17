@@ -59,8 +59,10 @@
 .drops-bulk { display: flex; flex-wrap: wrap; gap: 8px; }
 .drops-bulk .button { min-height: 31px; }
 .drops-leaving { padding: 1px 7px; border-radius: 9px; color: #8a5a12; background: #fbf0dc; font-size: 9px; font-weight: 700; }
+.drops-parked { padding: 1px 7px; border-radius: 9px; color: #51606f; background: #e9eef3; font-size: 9px; font-weight: 700; }
 .drops-warning { color: #9a3b2e; font-weight: 600; }
 .button-danger { color: #fff; background: #a8402f; }
 .button-danger:hover:not(:disabled) { background: #8e3426; }
+:root[data-theme='dark'] .drops-parked { color: #c8d5e3; background: #2a3a4d; }
 :root[data-theme='dark'] .drops-leaving { color: #f0c987; background: #4a3a1c; }
 :root[data-theme='dark'] .drops-warning { color: #f2a99d; }

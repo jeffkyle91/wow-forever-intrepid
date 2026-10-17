@@ -65,6 +65,15 @@ describe('describeEntry', () => {
     assert.equal(title, 'Changed \u201cTest Sword\u201d')
     assert.deepEqual(details, ['Council note: (empty) \u2192 Healer first', 'Item id: (none) \u2192 101'])
   })
+  it('says a priority was taken off the list and kept, and put back', () => {
+    assert.equal(text({ changed: ['hidden'], before: { hidden: null }, after: { hidden: true } }).title, 'Took \u201cTest Sword\u201d off the list (its priorities are kept)')
+    const back = text({ changed: ['hidden'], before: { hidden: true }, after: { hidden: null } })
+    assert.equal(back.title, 'Put \u201cTest Sword\u201d back on the list')
+    assert.deepEqual(back.details, [])
+  })
+  it('still shows what else changed with it', () => {
+    assert.deepEqual(text({ changed: ['hidden', 'councilNote'], before: { hidden: null, councilNote: '' }, after: { hidden: true, councilNote: 'Parked' } }).details, ['Council note: (empty) \u2192 Parked'])
+  })
   it('says who got an award, and what else was recorded with it', () => {
     const { title, details } = text({ targetType: 'award', action: 'create', changed: ['priorityId', 'item', 'recipient', 'awardedAt', 'awardNote', 'phaseNo'], after: { priorityId: 'p1', item: 'Test Sword', recipient: 'Aria', awardedAt: '2026-12-09', awardNote: '', phaseNo: 0 } })
     assert.equal(title, 'Awarded \u201cTest Sword\u201d to Aria')

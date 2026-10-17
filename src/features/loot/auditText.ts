@@ -47,7 +47,14 @@ export function describeEntry(entry: AuditEntry, phaseName: (no: number) => stri
       case 'create': return { title: `Added ${item} to the list`, details: listed(entry.after) }
       case 'delete': return { title: `Removed ${item} from the list`, details: listed(entry.before) }
       case 'reorder': return { title: `Reordered the candidates for ${item}`, details: [`Before: ${showValue('rankedPlayers', entry.before.rankedPlayers, phaseName)}`, `After: ${showValue('rankedPlayers', entry.after.rankedPlayers, phaseName)}`, ...reason] }
-      default: return { title: `Changed ${item}`, details: [...entry.changed.map(change), ...reason] }
+      default: {
+        // A priority taken off the list is kept (hidden), and put back by taking the field away: say so, not "hidden: (none) to true".
+        if (entry.changed.includes('hidden')) {
+          const off = entry.after.hidden === true
+          return { title: off ? `Took ${item} off the list (its priorities are kept)` : `Put ${item} back on the list`, details: [...entry.changed.filter((field) => field !== 'hidden').map(change), ...reason] }
+        }
+        return { title: `Changed ${item}`, details: [...entry.changed.map(change), ...reason] }
+      }
     }
   }
   if (entry.targetType === 'award') {

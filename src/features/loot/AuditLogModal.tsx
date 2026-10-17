@@ -48,7 +48,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const wanted = (type: string) => (show === 'both' ? type === 'priority' || type === 'award' || type === 'phase' : show === 'priority' ? type === 'priority' || type === 'phase' : type === 'award')
   const earlier = live.data.awards.filter((award) => award.rev === undefined).map(legacyAwardEntry)
   const text = query.trim().toLowerCase()
-  const priorities = new Map(live.data.allPriorities.map((priority) => [priority.id, priority]))
+  const priorities = new Map([...live.data.allPriorities, ...live.data.hiddenPriorities].map((priority) => [priority.id, priority]))
   const everything = [...(entries ?? []), ...earlier].filter((entry) => wanted(entry.targetType)).map((entry) => ({ entry, facts: logFacts(entry, (id) => priorities.get(id)) }))
   // The dropdowns offer what the entries are about; looking the items up is what lets the slot filter tell which ones match.
   const itemKey = [...new Set(everything.flatMap(({ facts }) => (facts.itemId ? [facts.itemId] : [])))].join(',')

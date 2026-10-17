@@ -12,7 +12,7 @@ export function usePhaseView(ctx: TabContext) {
   return {
     view,
     // Finds any priority by id, so an item carried over from an earlier phase can be matched with that phase's awards.
-    lookup: priorityLookup(ctx.data.allPriorities),
+    lookup: priorityLookup([...ctx.data.allPriorities, ...ctx.data.hiddenPriorities]),
     priorities: ctx.data.allPriorities.filter((priority) => phaseNoOf(priority) === view.no),
     canEdit: leader && view.kind !== 'past',
     canAward: leader && view.kind === 'current',

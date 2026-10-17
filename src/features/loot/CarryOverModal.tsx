@@ -24,8 +24,9 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<Set<string>>(new Set())
 
-  const lookup = priorityLookup(allPriorities)
-  const targetList = allPriorities.filter((priority) => phaseNoOf(priority) === target.no)
+  const lookup = priorityLookup([...allPriorities, ...live.data.hiddenPriorities])
+  // An item that was taken off the list of the target phase and kept is still there, so it cannot be carried over again.
+  const targetList = [...allPriorities, ...live.data.hiddenPriorities].filter((priority) => phaseNoOf(priority) === target.no)
   const fromSource = allPriorities.filter((priority) => phaseNoOf(priority) === sourceNo)
   const text = query.trim().toLowerCase()
   const shown = fromSource.filter((priority) => !text || `${priority.item} ${priority.encounter} ${priority.rankedPlayers.join(' ')}`.toLowerCase().includes(text))

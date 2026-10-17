@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { createPriorities, deletePriorities, newPriorityId } from '../../guildApi'
+import { createPriorities, deletePriorities, newPriorityId, setPrioritiesHidden } from '../../guildApi'
 import { lootCaptureItemIds } from '../../shared/game/lootTables'
-import { phaseNoOf, type PhaseOption } from '../../shared/game/phases'
+import { phaseLabel, phaseNoOf, phaseOptions, type PhaseOption } from '../../shared/game/phases'
 import { peekItem, requestItem, retryItem, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
@@ -9,14 +9,15 @@ import { dropTables } from './dropTables'
 import { countItems, dropEncounter, dropPriorityRecord, filterGroups, kindLabels, prioritiesForItem, type DropPick } from './dropsFilter'
 import './Drops.css'
 
-// Which creature drops which item, for the dungeons captured in data/loot. A zone picker, a search box, one card per creature and the
-// items that drop from any creature in the zone. Names, icons and tooltips are read live by item id.
+// Which creature drops which item, for the dungeons captured in data/loot. A phase picker, a zone picker, a search box, one card per creature and
+// the items that drop from any creature in the zone. Names, icons and tooltips are read live by item id.
 //
-// Guild and Raid Leaders get a tick box on every item. A ticked box means "this item is on the priority list": ticking one that is not
-// on the list marks it to be added (a priority with its item id, dungeon and creature and an empty candidate list, "Needs players"), and
-// unticking one that is on the list marks it to be removed. Nothing changes until the bar at the bottom is used, so a whole zone can
-// be added or taken off ("Add all", "Remove all") and checked first. Removing an item whose priority has players assigned asks once
-// more, because that order is lost. There is one priority per item, so an item that is on the list cannot be added twice.
+// Guild and Raid Leaders get a tick box on every item. A ticked box means "this item is on the priority list of the phase picked above": ticking
+// one that is not on the list marks it to be added (a priority with its item id, dungeon and creature and an empty candidate list, "Needs players"),
+// and unticking one that is on the list marks it to be taken off. Nothing changes until the bar at the bottom is used, so a whole zone can be added
+// or taken off ("Add all", "Remove all") and checked first. Only the current phase and the next one can be changed (a finished phase is a record),
+// so only they are offered. Taking off an item that already has priorities asks once more, and **keeps them**: the priority is hidden, not deleted,
+// with its candidates and the awards recorded from it, and ticking the item again brings it back as it was. There is one priority per item per phase.
 export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOption }) {
   const [zoneId, setZoneId] = useState<number | null>(null)
   const [query, setQuery] = useState('')
@@ -26,9 +27,15 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
   useItemInfoVersion() // so that the list filters again when item names arrive
   const table = dropTables.find((candidate) => candidate.zoneId === zoneId) ?? dropTables[0]
   const { busy, setBusy, setMutationError, setNotice } = live.feedback
-  // Items are added to, and listed for, the phase the dialog was opened from. A closed phase can be looked at but not changed.
-  const canAdd = live.identity.canEditRaidData && phase.kind !== 'past'
-  const phasePriorities = live.data.allPriorities.filter((priority) => phaseNoOf(priority) === phase.no)
+  const canAdd = live.identity.canEditRaidData
+  // The phases whose list can be looked at here: the current one, and for leaders the next one. The dialog opens on the phase being looked at,
+  // or on the current one when that is a finished phase.
+  const phases = phaseOptions(live.data.settings, canAdd).filter((option) => option.kind !== 'past')
+  const [phaseNo, setPhaseNo] = useState(phase.no)
+  const selected = phases.find((option) => option.no === phaseNo) ?? phases.find((option) => option.kind === 'current') ?? phase
+  const phasePriorities = live.data.allPriorities.filter((priority) => phaseNoOf(priority) === selected.no)
+  // Priorities of this phase that were taken off the list and kept.
+  const parked = live.data.hiddenPriorities.filter((priority) => phaseNoOf(priority) === selected.no)
 
   // Look up every item of the zone, not only the ones on screen, so that searching by item name finds them. An item whose lookup
   // failed earlier (for example in an outage) is tried again when the zone is opened.
@@ -43,7 +50,11 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
   // the name is stored on the priority.
   const listedBy = (id: number) => prioritiesForItem(phasePriorities, id, nameOf(id))
   const isListed = (id: number) => listedBy(id).length > 0
-  const canTick = (id: number) => canAdd && !isListed(id) && nameOf(id) !== undefined
+  const parkedFor = (id: number) => prioritiesForItem(parked, id, nameOf(id))
+  // An item that was taken off and kept can be put back without its name (it is on the priority already).
+  const canTick = (id: number) => canAdd && !isListed(id) && (parkedFor(id).length > 0 || nameOf(id) !== undefined)
+  const playersOf = (priorities: { rankedPlayers: string[] }[]) => Math.max(0, ...priorities.map((priority) => priority.rankedPlayers.length))
+  const changePhase = (no: number) => { setPhaseNo(no); setAdding(new Map()); setRemoving(new Set()); setConfirming(false) }
 
   const pickFor = (group: { kind: string; name: string; npcId?: number }, itemId: number): DropPick => ({
     itemId, zoneId: table.zoneId, encounter: dropEncounter(table.name, group), ...(group.npcId !== undefined ? { npcId: group.npcId } : {}),
@@ -75,38 +86,57 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
   // What the bar at the bottom will do. An item that changed on the list in the meantime (someone else added or removed it) is left out.
   const toAdd = [...adding.values()].filter((pick) => !isListed(pick.itemId))
   const toRemove = [...removing].filter(isListed)
-  const losing = toRemove.filter((id) => listedBy(id).some((priority) => priority.rankedPlayers.length > 0))
+  // Items being taken off that already have priorities: they are kept (hidden), after one more question.
+  const withPriorities = toRemove.filter((id) => listedBy(id).some((priority) => priority.rankedPlayers.length > 0))
   const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
+  const namesOf = (ids: number[]) => ids.slice(0, 3).map((id) => nameOf(id) ?? `item ${id}`).join(', ') + (ids.length > 3 ? ` and ${ids.length - 3} more` : '')
 
   async function applyChanges(confirmed: boolean) {
     if (!toAdd.length && !toRemove.length) { clearChanges(); return }
-    if (losing.length && !confirmed) { setConfirming(true); return }
+    if (withPriorities.length && !confirmed) { setConfirming(true); return }
     setBusy(true)
-    // Every change is logged in the audit log, in batches (see createPriorities). What was written stays written if a later batch fails, so
-    // the counts and the staged items follow what was actually written.
+    // Every change is logged in the Log, in batches (see createPriorities). What was written stays written if a later batch fails, so the counts
+    // and the staged items follow what was actually written.
     const who = { uid: live.identity.uid, displayName: live.identity.displayName }
-    const adds = toAdd.map((pick) => ({ id: newPriorityId(), pick }))
-    const leaving = toRemove.flatMap(listedBy)
-    const deleted = new Set<string>()
-    let added = 0
-    let removed = 0
+    const restores = toAdd.filter((pick) => parkedFor(pick.itemId).length > 0)
+    const creates = toAdd.filter((pick) => parkedFor(pick.itemId).length === 0).map((pick) => ({ id: newPriorityId(), pick }))
+    const leaving = toRemove.flatMap((id) => listedBy(id).map((priority) => ({ id, priority })))
+    const keeping = leaving.filter(({ priority }) => priority.rankedPlayers.length > 0)
+    const deleting = leaving.filter(({ priority }) => priority.rankedPlayers.length === 0)
+    const done = new Set<string>()
+    const sum = () => {
+      const whole = (ids: number[], priorities: (itemId: number) => { id: string }[]) => ids.filter((id) => priorities(id).every((priority) => done.has(priority.id))).length
+      return [
+        creates.filter(({ id }) => done.has(id)).length ? `${plural(creates.filter(({ id }) => done.has(id)).length, 'item', 'items')} added` : '',
+        whole(restores.map((pick) => pick.itemId), parkedFor) ? `${plural(whole(restores.map((pick) => pick.itemId), parkedFor), 'item', 'items')} put back with their priorities` : '',
+        whole(keeping.map(({ id }) => id), listedBy) ? `${plural(whole([...new Set(keeping.map(({ id }) => id))], listedBy), 'item', 'items')} taken off, priorities kept` : '',
+        whole(deleting.map(({ id }) => id), listedBy) ? `${plural(whole([...new Set(deleting.map(({ id }) => id))], listedBy), 'item', 'items')} removed` : '',
+      ].filter(Boolean)
+    }
+    const afterBatch = (ids: string[]) => {
+      ids.forEach((id) => done.add(id))
+      setAdding((current) => {
+        const next = new Map(current)
+        creates.filter(({ id }) => done.has(id)).forEach(({ pick }) => next.delete(pick.itemId))
+        restores.filter((pick) => parkedFor(pick.itemId).every((priority) => done.has(priority.id))).forEach((pick) => next.delete(pick.itemId))
+        return next
+      })
+      setRemoving((current) => {
+        const next = new Set(current)
+        toRemove.filter((id) => listedBy(id).every((priority) => done.has(priority.id))).forEach((id) => next.delete(id))
+        return next
+      })
+    }
     try {
-      await createPriorities(adds.map(({ id, pick }) => ({ id, fields: dropPriorityRecord(pick, nameOf(pick.itemId) ?? `Item ${pick.itemId}`, phase.no) })), who, (ids) => {
-        added += ids.length
-        const written = adds.filter(({ id }) => ids.includes(id)).map(({ pick }) => pick.itemId)
-        setAdding((current) => { const next = new Map(current); written.forEach((itemId) => next.delete(itemId)); return next })
-      })
-      await deletePriorities(leaving, who, (ids) => {
-        ids.forEach((id) => deleted.add(id))
-        const gone = toRemove.filter((itemId) => listedBy(itemId).every((priority) => deleted.has(priority.id)))
-        removed = gone.length
-        setRemoving((current) => { const next = new Set(current); gone.forEach((itemId) => next.delete(itemId)); return next })
-      })
+      await createPriorities(creates.map(({ id, pick }) => ({ id, fields: dropPriorityRecord(pick, nameOf(pick.itemId) ?? `Item ${pick.itemId}`, selected.no) })), who, afterBatch)
+      await setPrioritiesHidden(restores.flatMap((pick) => parkedFor(pick.itemId)), false, who, afterBatch)
+      await setPrioritiesHidden(keeping.map(({ priority }) => priority), true, who, afterBatch)
+      await deletePriorities(deleting.map(({ priority }) => priority), who, afterBatch)
       setMutationError('')
-      const parts = [added ? `${plural(added, 'item', 'items')} added to Loot priorities` : '', removed ? `${plural(removed, 'item', 'items')} removed` : ''].filter(Boolean)
-      setNotice(`${parts.join(', ')}.${added ? ' Assign players to each new one.' : ''}`)
+      setNotice(`${selected.name}: ${sum().join(', ')}.${creates.length ? ' Assign players to each new one.' : ''}`)
     } catch (error) {
-      setMutationError(`${added || removed ? `${added} added and ${removed} removed, then it stopped: ` : ''}${error instanceof Error ? error.message : 'Could not update Loot priorities.'}`)
+      const so_far = sum()
+      setMutationError(`${so_far.length ? `${so_far.join(', ')}, then it stopped: ` : ''}${error instanceof Error ? error.message : 'Could not update Loot priorities.'}`)
     } finally {
       setBusy(false)
       setConfirming(false)
@@ -115,6 +145,9 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
 
   return <div className="drops-browser">
     <div className="drops-controls">
+      {phases.length > 1 && <select className="drops-zone-select drops-phase-select" aria-label="Phase" value={selected.no} onChange={(event) => changePhase(Number(event.target.value))} disabled={busy}>
+        {phases.map((option) => <option key={option.no} value={option.no}>{phaseLabel(option)}</option>)}
+      </select>}
       <select className="drops-zone-select" aria-label="Zone" value={table.zoneId} onChange={(event) => setZoneId(Number(event.target.value))}>
         {dropTables.map((candidate) => <option key={candidate.zoneId} value={candidate.zoneId}>{candidate.name}</option>)}
       </select>
@@ -122,10 +155,10 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
     </div>
     {canAdd && <div className="drops-bulk">
       <button type="button" className="button button-secondary" onClick={addAll} disabled={busy || addableInZone.length === 0} title={addableInZone.length ? `Mark every item of ${table.name} that is not on the list yet` : `Everything in ${table.name} is on the list`}>Add all ({addableInZone.length})</button>
-      <button type="button" className="button button-secondary" onClick={removeAll} disabled={busy || listedInZone.length === 0} title={listedInZone.length ? `Mark every item of ${table.name} that is on the list for removal` : `Nothing in ${table.name} is on the list`}>Remove all ({listedInZone.length})</button>
+      <button type="button" className="button button-secondary" onClick={removeAll} disabled={busy || listedInZone.length === 0} title={listedInZone.length ? `Mark every item of ${table.name} that is on the list to be taken off` : `Nothing in ${table.name} is on the list`}>Remove all ({listedInZone.length})</button>
     </div>}
     <div className="drops-intro">
-      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}. Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{canAdd && ` A ticked item is on the ${phase.name} priority list: tick one to add it, untick one that is on the list to take it off, then use the bar at the bottom.`}{phase.kind === 'past' && ` ${phase.name} is closed, so its list can be looked at but not changed.`}</p>
+      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}. Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{canAdd ? ` You are changing the ${selected.name} list (a finished phase cannot be changed). A ticked item is on it: tick one to add it, untick one that is on it to take it off (an item that has priorities keeps them and gets them back when you tick it again), then use the bar at the bottom.` : ` A ticked item is on the ${selected.name} priority list.`}</p>
       {table.dataStatus && <p className="drops-status">{table.dataStatus}</p>}
       {table.notes && table.notes.length > 0 && <details className="drops-notes"><summary>About this data</summary><ul>{table.notes.map((note) => <li key={note}>{note}</li>)}</ul></details>}
     </div>
@@ -143,10 +176,14 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
         <ul>{group.itemIds.map((id) => {
           const listed = isListed(id)
           const leaving = removing.has(id)
+          const kept = parkedFor(id)
+          const keptPlayers = playersOf(kept)
+          const hasPlayers = playersOf(listedBy(id)) > 0
           return <li key={id} className="drops-item">
-            {canAdd && (listed || canTick(id)) && <input type="checkbox" className="drops-tick" checked={listed ? !leaving : adding.has(id)} disabled={busy} onChange={() => toggleItem(id, pickFor(group, id))} aria-label={listed ? `Keep ${nameOf(id) ?? `item ${id}`} on the priority list` : `Add ${nameOf(id)} to the priority list`} />}
+            {canAdd && (listed || canTick(id)) && <input type="checkbox" className="drops-tick" checked={listed ? !leaving : adding.has(id)} disabled={busy} onChange={() => toggleItem(id, pickFor(group, id))} aria-label={listed ? `Keep ${nameOf(id) ?? `item ${id}`} on the priority list` : kept.length ? `Put ${nameOf(id) ?? `item ${id}`} back on the priority list` : `Add ${nameOf(id)} to the priority list`} />}
             <ItemTooltip itemId={id} />
-            {listed && (leaving ? <span className="drops-leaving">Will be removed</span> : <span className="drops-listed">On the list</span>)}
+            {listed && (leaving ? <span className="drops-leaving">{hasPlayers ? 'Will be taken off (keeps its priorities)' : 'Will be removed'}</span> : <span className="drops-listed">On the list</span>)}
+            {!listed && kept.length > 0 && (adding.has(id) ? <span className="drops-listed">Will be put back</span> : <span className="drops-parked" title="Taken off the list, with its priorities kept. Tick it to put it back as it was.">Taken off{keptPlayers ? `, keeps ${plural(keptPlayers, 'player', 'players')}` : ''}</span>)}
           </li>
         })}</ul>
       </section>
@@ -154,13 +191,13 @@ export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOp
     <p className="drops-count">Showing <strong>{countItems(groups)}</strong> of <strong>{lootCaptureItemIds(table).length}</strong> items in {table.name}.</p>
     {(toAdd.length > 0 || toRemove.length > 0) && <div className="drops-tray" role="region" aria-label="Changes to the priority list">
       {confirming
-        ? <span className="drops-warning" role="alert">{plural(losing.length, 'item you are removing has', 'items you are removing have')} players assigned, and that order will be lost.</span>
-        : <span>{[toAdd.length ? `${toAdd.length} to add` : '', toRemove.length ? `${toRemove.length} to remove` : ''].filter(Boolean).join(', ')}</span>}
+        ? <span className="drops-warning" role="alert">{plural(withPriorities.length, 'item you are taking off already has', 'items you are taking off already have')} priorities set ({namesOf(withPriorities)}). {withPriorities.length === 1 ? 'It comes' : 'They come'} off the list but keep their priorities, and come back with them when you tick the item again.</span>
+        : <span>{[toAdd.length ? `${toAdd.length} to add` : '', toRemove.length ? `${toRemove.length} to take off` : ''].filter(Boolean).join(', ')}</span>}
       {confirming
         ? <button type="button" className="button button-secondary" onClick={() => setConfirming(false)} disabled={busy}>Back</button>
         : <button type="button" className="button button-secondary" onClick={clearChanges} disabled={busy}>Clear</button>}
-      <button type="button" className={confirming ? 'button button-danger' : 'button button-primary'} onClick={() => applyChanges(confirming)} disabled={busy}>
-        {confirming ? 'Yes, update the list' : toAdd.length && toRemove.length ? 'Update the list' : toRemove.length ? 'Remove from priorities' : 'Add to priorities'}
+      <button type="button" className="button button-primary" onClick={() => applyChanges(confirming)} disabled={busy}>
+        {confirming ? 'Yes, take them off' : toAdd.length && toRemove.length ? 'Update the list' : toRemove.length ? 'Take off the list' : 'Add to priorities'}
       </button>
     </div>}
   </div>

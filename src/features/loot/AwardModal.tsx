@@ -13,7 +13,7 @@ import { listingProgress, nameKey, priorityLookup, recipientChoices } from './co
 export function AwardModal({ priority, awardedAt, close, live }: { priority: LootPriority; awardedAt: string; close: () => void; live: TabContext }) {
   const { setBusy, setMutationError } = live.feedback
   // Offer the first listing that is still open, so a player who already received the item is not the default again.
-  const progress = listingProgress(priority, live.data.awards, priorityLookup(live.data.allPriorities))
+  const progress = listingProgress(priority, live.data.awards, priorityLookup([...live.data.allPriorities, ...live.data.hiddenPriorities]))
   const choices = recipientChoices(priority, progress)
   const nextName = priority.rankedPlayers[progress.next] ?? ''
   const defaultRecipient = choices.find((choice) => nameKey(choice.name) === nameKey(nextName))?.name ?? choices[0]?.name ?? ''

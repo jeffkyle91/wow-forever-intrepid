@@ -2,6 +2,8 @@
 
 Member-facing changes, grouped by verified production release. See [contribution rules](CONTRIBUTING.md#backlog-patch-notes-and-publishing) for maintenance and [the backlog](docs/backlog.json) for remaining work.
 
+Earlier releases have not been reconstructed here. These entries do not assert that Discord patch notes were published.
+
 ## Unreleased
 
 No member-facing changes queued. Developer tools and planning documentation do not imply a production feature release.
@@ -25,5 +27,3 @@ Production deployment verified and confirmed by the maintainer.
 - Loot priorities now track repeated candidate listings one receipt at a time, show received/completed progress, and offer encounter, player, class and completion filters.
 
 Sources: PRs #46 and #47. This predates backlog IDs. Automatic starting roster snapshots are not included.
-
-Earlier releases have not been reconstructed here. These entries do not assert that Discord patch notes were published.

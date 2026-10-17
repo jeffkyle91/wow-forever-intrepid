@@ -87,15 +87,16 @@ describe('Discord publishing (mock HTTP only)', () => {
     await publishPosts([post], tracking, webhook, save, request)
     await publishPosts([post], tracking, webhook, save, request)
     assert.equal(requests, 1)
-    assert.equal(saves, 1)
+    assert.equal(saves, 2)
     await publishPosts([{ ...post, content: 'Updated backlog' }], tracking, webhook, save, request)
     assert.equal(requests, 2)
-    assert.equal(saves, 2)
+    assert.equal(saves, 4)
   })
   it('stops the batch if tracking cannot be saved after a send', async () => {
     let requests = 0
+    let saves = 0
     await assert.rejects(publishPosts([post, { ...post, key: 'second' }], state(), webhook,
-      async () => { throw new Error('disk failure') }, async () => { requests++; return Response.json({ id: '456' }) }), /tracking could not be saved/)
+      async () => { if (++saves === 2) throw new Error('disk failure') }, async () => { requests++; return Response.json({ id: '456' }) }), /tracking could not be saved/)
     assert.equal(requests, 1)
   })
 })

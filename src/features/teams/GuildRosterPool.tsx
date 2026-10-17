@@ -8,8 +8,9 @@ import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
 
-export function GuildRosterPool({ players, totalPlayers, canEdit, dropActive, onDragStart, onDragOver, onDragLeave, onDrop }: {
+export function GuildRosterPool({ players, hiddenAlts, totalPlayers, canEdit, dropActive, onDragStart, onDragOver, onDragLeave, onDrop }: {
   players: Player[]
+  hiddenAlts: number
   totalPlayers: number
   canEdit: boolean
   dropActive: boolean
@@ -21,7 +22,7 @@ export function GuildRosterPool({ players, totalPlayers, canEdit, dropActive, on
   const roles: Role[] = ['Tank', 'Healer', 'Melee', 'Ranged']
 
   return <aside className={`guild-roster-pool${dropActive ? ' drop-active' : ''}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
-    <header className="guild-roster-pool-header"><div><h3>Available roster</h3><p>{players.length} available · {totalPlayers} total guild members</p></div><ArtIcon src={membersArt} className="roster-pool-art-icon" /></header>
+    <header className="guild-roster-pool-header"><div><h3>Available roster</h3><p>{players.length} available{hiddenAlts ? ` (${hiddenAlts} ${hiddenAlts === 1 ? 'alt' : 'alts'} hidden)` : ''} · {totalPlayers} total guild members</p></div><ArtIcon src={membersArt} className="roster-pool-art-icon" /></header>
     {roles.map((role) => {
       const group = players.filter((player) => player.role === role).sort((a, b) => a.name.localeCompare(b.name))
       return <details className={`roster-role-group role-group-${role.toLowerCase()}`} key={role} open>

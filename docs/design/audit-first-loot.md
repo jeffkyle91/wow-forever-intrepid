@@ -79,9 +79,8 @@ Each audited write is two documents in one atomic batch. The rules do a handful 
 
 ## Client
 
-- `guildApi.ts` gets audited helpers (`createAward`, `editAward`, `removeAward`, `savePriority`, `reorderPriority`, `deletePriority`) that build the batch; no other code writes these collections.
-- History tab: leaders see an Edit button on each award, with a reason box; removed awards are hidden behind a "show removed" toggle and shown struck through.
-- New "Audit log" tab for every role. It subscribes only while open (newest 100 entries, then "load more") so the global subscriptions and the read budget do not grow.
+- `guildApi.ts` gets audited helpers (`createPriorities`, `editPriority`, `deletePriorities`, `setPrioritiesHidden`, `recordAward`, `changePhase`) that build the batch; no other code writes these collections. Correcting or removing an award (a leader's Edit with a reason) is not built yet and would be a row in the Log.
+- There is no separate Award history tab: the **Log** button on Loot priorities opens the audit for every role. It subscribes only while open (newest 100 entries, then "load more") so the global subscriptions and the read budget do not grow, and it also lists the awards recorded before the Log began.
 - Positional priority completion and filters ignore removed awards.
 - Order within one night: sort by `awardedAt`, then `createdAt`, then id.
 

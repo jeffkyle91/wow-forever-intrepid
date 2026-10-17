@@ -49,6 +49,7 @@ async function changeRaid({ who = 'raidLeader', changes = { name: 'Renamed Raid'
 
 const cancelled = (overrides: DocumentData = {}) => raidDoc(UID.raidLeader, { rev: 1, status: 'cancelled', cancelReason: 'Tank unavailable', updatedBy: UID.raidLeader, updatedAt: new Date('2026-12-01T00:00:00Z'), ...overrides })
 const seed = (data: DocumentData) => asAdmin((db) => setDoc(guildDoc(db, `raids/${RAID}`), data))
+const tenZones = () => Array.from({ length: 10 }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: [10, 20, 40][index % 3] }))
 
 describe('editing a raid', () => {
   for (const who of ['raidLeader', 'guildLeader'] as const) {
@@ -97,7 +98,7 @@ describe('editing a raid', () => {
     assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.changed, ['startsAt'])
   })
 
-  for (const count of [2]) {
+  for (const count of [2, 10]) {
     test(`initializing a legacy raid with ${count} selected zones preserves its snapshots`, async () => {
       const zones = Array.from({ length: count }, (_, index) => ({ id: `zone-${index}`, name: `Test Zone ${index}`, size: index % 2 ? 40 : 20 }))
       await seed(raidDoc(UID.raidLeader, { size: 40, zones }))
@@ -166,6 +167,118 @@ describe('editing a raid', () => {
     await expectDenied(batch.commit())
     assert.ok(await stored(`raids/${RAID}`))
   })
+})
+
+describe('ten-zone audited raid edits', () => {
+  for (const who of ['raidLeader', 'guildLeader'] as const) {
+    test(`a ${who} can change every editable detail with ten zones and an exact audit entry`, async () => {
+      const zones = tenZones().map((zone, index) => ({ ...zone, id: `${index}${'x'.repeat(99)}`, name: 'x'.repeat(80) }))
+      const startsAt = Timestamp.fromDate(new Date('2026-12-10T02:00:00Z'))
+      const old = { name: 'Original Raid', date: '2026-12-09', time: '21:00', size: 40, description: 'Original plan', zones, startsAt, status: 'scheduled' }
+      await seed(raidDoc(UID.raidLeader, old))
+      const changes = {
+        name: 'R'.repeat(80), date: '2026-12-10', time: '20:00', size: 20, description: 'D'.repeat(500),
+        zones: [...zones].reverse().map((zone) => ({ ...zone, name: 'R'.repeat(80) })),
+        startsAt: Timestamp.fromDate(new Date('2026-12-11T01:00:00Z')), status: 'cancelled', cancelReason: 'R'.repeat(300),
+      }
+      await expectAllowed(changeRaid({ who, action: 'cancel', changes }))
+      const entry = await stored(`auditLog/raid_${RAID}_1`)
+      assert.deepEqual(entry?.changed, Object.keys(changes))
+      assert.deepEqual(entry?.before, { ...old, cancelReason: null })
+      assert.deepEqual(entry?.after, changes)
+      assert.deepEqual((await stored(`raids/${RAID}`))?.zones, changes.zones)
+      await expectAllowed(changeRaid({ who, changes: { status: 'scheduled', cancelReason: deleteField() } }))
+      assert.deepEqual((await stored(`raids/${RAID}`))?.zones, changes.zones)
+      assert.deepEqual((await stored(`auditLog/raid_${RAID}_2`))?.after, { status: 'scheduled', cancelReason: null })
+    })
+  }
+
+  test('adding ten zones logs every snapshot', async () => {
+    const zones = tenZones()
+    await expectAllowed(changeRaid({ changes: { zones } }))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.before, { zones: null })
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.after, { zones })
+  })
+
+  test('unchanged ten-zone maps with different key order are not logged as changes', async () => {
+    const zones = tenZones()
+    await seed(raidDoc(UID.raidLeader, { zones }))
+    await expectAllowed(changeRaid({ changes: { name: 'Revised Raid', zones: zones.map(({ id, name, size }) => ({ size, name, id })) },
+      entry: { changed: ['name'], before: { name: 'Test Raid' }, after: { name: 'Revised Raid' } } }))
+    assert.deepEqual((await stored(`auditLog/raid_${RAID}_1`))?.changed, ['name'])
+  })
+
+  for (let index = 0; index < 10; index++) {
+    test(`a malformed snapshot at position ${index + 1} is refused atomically`, async () => {
+      const original = tenZones()
+      await seed(raidDoc(UID.raidLeader, { zones: original }))
+      const zones = tenZones().map((zone, i) => i === index ? { ...zone, size: 25 } : zone)
+      await expectDenied(changeRaid({ changes: { zones } }))
+      assert.deepEqual((await stored(`raids/${RAID}`))?.zones, original)
+      assert.equal(await stored(`auditLog/raid_${RAID}_1`), undefined)
+    })
+  }
+
+  const invalidSnapshots: [string, unknown][] = [
+    ['missing id', { name: 'Test Zone', size: 10 }],
+    ['missing name', { id: 'zone-9', size: 10 }],
+    ['missing size', { id: 'zone-9', name: 'Test Zone' }],
+    ['extra key', { id: 'zone-9', name: 'Test Zone', size: 10, extra: true }],
+    ['empty id', { id: '', name: 'Test Zone', size: 10 }],
+    ['oversized id', { id: 'x'.repeat(101), name: 'Test Zone', size: 10 }],
+    ['non-string id', { id: 9, name: 'Test Zone', size: 10 }],
+    ['list id', { id: ['zone-9'], name: 'Test Zone', size: 10 }],
+    ['empty name', { id: 'zone-9', name: '', size: 10 }],
+    ['blank name', { id: 'zone-9', name: '   ', size: 10 }],
+    ['oversized name', { id: 'zone-9', name: 'x'.repeat(81), size: 10 }],
+    ['non-string name', { id: 'zone-9', name: 9, size: 10 }],
+    ['list name', { id: 'zone-9', name: ['Test Zone'], size: 10 }],
+    ['string size', { id: 'zone-9', name: 'Test Zone', size: '10' }],
+    ['non-map snapshot', null],
+  ]
+  for (const [label, invalid] of invalidSnapshots) {
+    test(`the tenth snapshot with ${label} is refused`, async () => {
+      await expectDenied(changeRaid({ changes: { zones: [...tenZones().slice(0, 9), invalid] } }))
+      assert.equal(await stored(`auditLog/raid_${RAID}_1`), undefined)
+    })
+  }
+
+  const falseAudits: [string, (zones: ReturnType<typeof tenZones>, next: ReturnType<typeof tenZones>) => Change][] = [
+    ['missing entry', () => ({ skipEntry: true })],
+    ['missing zone change', () => ({ entry: { changed: [], before: {}, after: {} } })],
+    ['truncated before snapshots', (zones, next) => ({ entry: { before: { zones: zones.slice(0, 9) }, after: { zones: next } } })],
+    ['incorrect tenth after snapshot', (zones, next) => ({ entry: { before: { zones }, after: { zones: next.map((zone, index) => index === 9 ? { ...zone, name: 'False Name' } : zone) } } })],
+  ]
+  for (const [label, override] of falseAudits) {
+    test(`ten-zone changes with ${label} are refused atomically`, async () => {
+      const zones = tenZones()
+      const next = [...zones].reverse()
+      await seed(raidDoc(UID.raidLeader, { zones }))
+      await expectDenied(changeRaid({ changes: { zones: next }, ...override(zones, next) }))
+      assert.deepEqual((await stored(`raids/${RAID}`))?.zones, zones)
+      assert.equal(await stored(`auditLog/raid_${RAID}_1`), undefined)
+    })
+  }
+
+  test('members cannot make a ten-zone edit even with an honest entry', async () => {
+    await expectDenied(changeRaid({ who: 'member', changes: { zones: tenZones() } }))
+  })
+
+  test('an unrelated edit cannot preserve a malformed legacy tenth zone', async () => {
+    await seed(raidDoc(UID.raidLeader, { zones: [...tenZones().slice(0, 9), { id: 'zone-9', name: 'Test Zone', size: 25 }] }))
+    await expectDenied(changeRaid({ changes: { name: 'Revised Raid' } }))
+  })
+
+  const invalidLists: [string, unknown][] = [
+    ['empty', []],
+    ['eleven snapshots', [...tenZones(), { id: 'zone-10', name: 'Eleventh Zone', size: 10 }]],
+    ['null', null], ['string', 'zones'], ['map', {}],
+  ]
+  for (const [label, zones] of invalidLists) {
+    test(`an invalid zone list (${label}) is refused`, async () => {
+      await expectDenied(changeRaid({ changes: { zones } }))
+    })
+  }
 })
 
 describe('a raid description', () => {

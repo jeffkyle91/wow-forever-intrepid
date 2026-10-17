@@ -44,6 +44,7 @@ It takes under a minute and needs no Firebase login, no Firebase project and no 
 The tests are in `tests/rules/`, written in TypeScript and run by Node's built-in test runner. `access-matrix.test.ts` lists, per collection, which role may get, list, create, update and delete; the other files cover the rules that depend on the data (join requests, the account-to-character link, award snapshots, availability, raid zones and raids, and how large a batch can be). A comment above each group says who may do what.
 
 - Change a rule and its tests in the same pull request. Add a case for every new branch, and for the thing it must still refuse.
+- Raid-rule changes must keep ten-zone creation and audited edits passing, including an edit of every mutable detail and cancellation/restore. Retain malformed-snapshot and dishonest-audit refusals; testing only a smaller zone list can hide Firestore's 1000-expression limit.
 - Tests named "KNOWN GAP" record what the rules do today even though it is arguably wrong or weak. They are not approvals. When a rules change closes a gap, that test fails: flip it to expect a refusal and remove the label.
 - `tests/rules/support/client.ts` repeats the multi-document batches from `src/guildApi.ts`. If you change how `approveJoinRequest` or `updateMembershipAccess` build their batches, change the copy too.
 - Use invented names and uids in tests, as everywhere else in this repository.

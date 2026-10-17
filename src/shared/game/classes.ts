@@ -16,6 +16,11 @@ export function classAccentRow(className?: string) {
   return className ? `class-accent-row class-color-${classColorKey(className)}` : undefined
 }
 
+// A class-coloured name only (see .class-text in App.css).
+export function classText(className?: string) {
+  return className ? `class-text class-color-${classColorKey(className)}` : undefined
+}
+
 export const classSpecializations: Record<string, SpecializationOption[]> = {
   Warrior: [
     { name: 'Arms', role: 'Melee' },

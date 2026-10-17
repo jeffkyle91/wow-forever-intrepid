@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "zoneId": 491,
+  "name": "Razorfen Kraul",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=491/razorfen-kraul",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected."
+  ],
+  "sources": [
+    {
+      "npcId": 6168,
+      "name": "Roogug",
+      "kind": "boss",
+      "itemIds": [274149, 274152, 274155]
+    },
+    {
+      "npcId": 4424,
+      "name": "Aggem Thorncurse",
+      "kind": "boss",
+      "itemIds": [6681, 274158, 274159]
+    },
+    {
+      "npcId": 4428,
+      "name": "Death Speaker Jargba",
+      "kind": "boss",
+      "itemIds": [2816, 6682, 6685]
+    },
+    {
+      "npcId": 4420,
+      "name": "Overlord Ramtusk",
+      "kind": "boss",
+      "itemIds": [6686, 6687, 274161]
+    },
+    {
+      "npcId": 4422,
+      "name": "Agathelos the Raging",
+      "kind": "boss",
+      "itemIds": [6690, 6691, 274160]
+    },
+    {
+      "npcId": 4421,
+      "name": "Charlga Razorflank",
+      "kind": "boss",
+      "itemIds": [6692, 6693, 6694]
+    },
+    {
+      "npcId": 4842,
+      "name": "Earthcaller Halmgar",
+      "kind": "rare",
+      "itemIds": [6688, 6689]
+    },
+    {
+      "npcId": 4425,
+      "name": "Blind Hunter",
+      "kind": "rare",
+      "itemIds": [6695, 6696, 6697]
+    },
+    {
+      "npcId": 4517,
+      "name": "Death's Head Priest",
+      "kind": "trash",
+      "itemIds": [3569]
+    },
+    {
+      "npcId": 4438,
+      "name": "Razorfen Spearhide",
+      "kind": "trash",
+      "itemIds": [6679]
+    }
+  ],
+  "zoneWideItemIds": [776, 1488, 1727, 1975, 1976, 1978, 2039, 2264, 2549, 4438]
+}

@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "zoneId": 721,
+  "name": "Gnomeregan",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=721/gnomeregan",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected.",
+    "1 item comes from something that is not a creature (a chest, a quest or similar) and is not in this file: 6672.",
+    "Mekgineer Thermaplugg is listed twice: npc 7800 (level 34) is the dungeon boss; npc 218537 is a second entry that Wowhead shows at level 9999, probably a placeholder in the beta data. Match drops on the npc id."
+  ],
+  "sources": [
+    {
+      "npcId": 7361,
+      "name": "Grubbis",
+      "kind": "boss",
+      "itemIds": [9445, 274042, 274043]
+    },
+    {
+      "npcId": 7079,
+      "name": "Viscous Fallout",
+      "kind": "boss",
+      "itemIds": [9452, 9453, 9454]
+    },
+    {
+      "npcId": 6235,
+      "name": "Electrocutioner 6000",
+      "kind": "boss",
+      "itemIds": [9446, 9447, 9448]
+    },
+    {
+      "npcId": 6229,
+      "name": "Crowd Pummeler 9-60",
+      "kind": "boss",
+      "itemIds": [9450, 274049, 274068]
+    },
+    {
+      "npcId": 7800,
+      "name": "Mekgineer Thermaplugg",
+      "kind": "boss",
+      "itemIds": [9458, 9459, 9461, 9492]
+    },
+    {
+      "npcId": 218537,
+      "name": "Mekgineer Thermaplugg",
+      "kind": "boss",
+      "itemIds": [13325]
+    },
+    {
+      "npcId": 6228,
+      "name": "Dark Iron Ambassador",
+      "kind": "rare",
+      "itemIds": [9455, 9456, 9457]
+    }
+  ],
+  "zoneWideItemIds": [213427, 4411, 4413, 7192, 9327, 9449, 9485, 9486, 9487, 9488, 9489, 9490, 9491, 9508, 9509, 9510]
+}

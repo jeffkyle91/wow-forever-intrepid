@@ -1,0 +1,108 @@
+{
+  "format": 1,
+  "zoneId": 796,
+  "name": "Scarlet Monastery",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=796/scarlet-monastery",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected.",
+    "2 items come from something that is not a creature (a chest, a quest or similar) and is not in this file: 7146, 213143."
+  ],
+  "sources": [
+    {
+      "npcId": 3974,
+      "name": "Houndmaster Loksey",
+      "kind": "boss",
+      "itemIds": [3456, 7710, 7756, 273109, 274292]
+    },
+    {
+      "npcId": 3983,
+      "name": "Interrogator Vishas",
+      "kind": "boss",
+      "itemIds": [7682, 7683, 274290]
+    },
+    {
+      "npcId": 4543,
+      "name": "Bloodmage Thalnos",
+      "kind": "boss",
+      "itemIds": [7684, 7685, 274291]
+    },
+    {
+      "npcId": 6487,
+      "name": "Arcanist Doan",
+      "kind": "boss",
+      "itemIds": [7711, 7712, 7713, 7714, 252845, 252847, 252899, 274293, 274294]
+    },
+    {
+      "npcId": 3975,
+      "name": "Herod",
+      "kind": "boss",
+      "itemIds": [7717, 7718, 7719]
+    },
+    {
+      "npcId": 4542,
+      "name": "High Inquisitor Fairbanks",
+      "kind": "boss",
+      "itemIds": [19507, 19508, 19509]
+    },
+    {
+      "npcId": 3976,
+      "name": "Scarlet Commander Mograine",
+      "kind": "boss",
+      "itemIds": [7723, 7724, 7726]
+    },
+    {
+      "npcId": 3977,
+      "name": "High Inquisitor Whitemane",
+      "kind": "boss",
+      "itemIds": [7721, 7722]
+    },
+    {
+      "npcId": 6489,
+      "name": "Ironspine",
+      "kind": "rare",
+      "itemIds": [7686, 7687, 7688]
+    },
+    {
+      "npcId": 6488,
+      "name": "Fallen Champion",
+      "kind": "rare",
+      "itemIds": [7689, 7690, 7691]
+    },
+    {
+      "npcId": 6490,
+      "name": "Azshir the Sleepless",
+      "kind": "rare",
+      "itemIds": [7708, 7709, 7731]
+    },
+    {
+      "npcId": 14693,
+      "name": "Scorn",
+      "kind": "rare",
+      "itemIds": [23169]
+    },
+    {
+      "npcId": 4302,
+      "name": "Scarlet Champion",
+      "kind": "trash",
+      "itemIds": [10328]
+    },
+    {
+      "npcId": 4301,
+      "name": "Scarlet Centurion",
+      "kind": "trash",
+      "itemIds": [10331]
+    },
+    {
+      "npcId": 4292,
+      "name": "Scarlet Protector",
+      "kind": "trash",
+      "itemIds": [217276]
+    }
+  ],
+  "zoneWideItemIds": [1992, 2262, 5756, 5819, 7730, 7736, 7755, 7757, 7759, 7760, 7761, 8225, 10329, 10330, 10332, 10333]
+}

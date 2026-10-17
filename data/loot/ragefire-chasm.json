@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "zoneId": 2437,
+  "name": "Ragefire Chasm",
+  "kind": "dungeon",
+  "players": 5,
+  "source": "https://www.wowhead.com/forever/zone=2437/ragefire-chasm",
+  "capturedAt": "2026-10-16",
+  "dataStatus": "Forever beta data. Recapture after the beta ends and in launch week, then check again.",
+  "notes": [
+    "Item ids only: names, icons and tooltips are fetched live by id (https://nether.wowhead.com/tooltip/item/{id}?dataEnv=16&locale=0).",
+    "Wowhead does not flag bosses. The kind of each source (boss, rare, trash) is a person's reading and may be corrected."
+  ],
+  "sources": [
+    {
+      "npcId": 11517,
+      "name": "Oggleflint",
+      "kind": "boss",
+      "itemIds": [272996, 272998, 272999]
+    },
+    {
+      "npcId": 11520,
+      "name": "Taragaman the Hungerer",
+      "kind": "boss",
+      "itemIds": [14145, 14148, 14149]
+    },
+    {
+      "npcId": 11518,
+      "name": "Jergosh the Invoker",
+      "kind": "boss",
+      "itemIds": [14147, 14150, 14151]
+    },
+    {
+      "npcId": 11519,
+      "name": "Bazzalan",
+      "kind": "boss",
+      "itemIds": [273003, 273005, 273007]
+    }
+  ],
+  "zoneWideItemIds": []
+}

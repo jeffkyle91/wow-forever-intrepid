@@ -50,6 +50,8 @@ export function normalizePriority(id: string, data: RawDoc): PriorityRecord | nu
     if (value !== undefined && !(typeof value === 'number' && Number.isInteger(value) && value > 0)) delete priority[key]
   }
   // phaseNo is a whole number of 0 or more and carriedFrom the id of another priority; one that is not is removed (no phaseNo means the first phase).
+  // hidden (a priority taken off the list but kept) is only ever true; anything else is removed.
+  if (data.hidden !== undefined && data.hidden !== true) delete priority.hidden
   return withoutBadPhaseFields(priority)
 }
 

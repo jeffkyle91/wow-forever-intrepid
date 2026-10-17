@@ -35,7 +35,7 @@ export type RaidGroup = 'green' | 'pink' | 'brown'
 // in data/loot and the creature that drops it. A priority typed by hand has none of them.
 // phaseNo is the phase the priority belongs to (see shared/game/phases.ts); none means the first phase. carriedFrom is the id of the
 // priority an item was carried over from, in an earlier phase.
-export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string; rev?: number }
+export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string; rev?: number; hidden?: true }
 export type AwardRecord = {
   id: string
   priorityId: string
@@ -340,7 +340,7 @@ export const AUDITED_BATCH_SIZE = 10
 
 export type NewPriority = { item: string; encounter: string; rankedPlayers: string[]; councilNote: string; phaseNo: number; itemId?: number; zoneId?: number; npcId?: number; carriedFrom?: string }
 // A field set to undefined is taken away.
-export type PriorityChanges = Partial<Pick<PriorityRecord, 'item' | 'encounter' | 'rankedPlayers' | 'councilNote' | 'itemId' | 'zoneId' | 'npcId'>>
+export type PriorityChanges = Partial<Pick<PriorityRecord, 'item' | 'encounter' | 'rankedPlayers' | 'councilNote' | 'itemId' | 'zoneId' | 'npcId' | 'hidden'>>
 export type NewAward = { priorityId: string; item: string; encounter: string; recipient: string; awardedAt: string; prioritySnapshot: string[]; councilNoteSnapshot: string; awardNote: string; phaseNo: number }
 
 // A fresh id for every new priority: an entry id (`priority_{id}_{rev}`) can be used only once, so the id of a deleted priority cannot be created again.
@@ -382,6 +382,26 @@ export async function editPriority(existing: PriorityRecord, changes: PriorityCh
   batch.set(doc(database, 'guilds', guildId, 'auditLog', `priority_${existing.id}_${rev}`), auditEntry(who, 'priority', existing.id, rev, action, existing.item, description))
   await batch.commit()
   return true
+}
+
+// Takes priorities off the list without losing them (hidden: true), or puts them back. A hidden priority keeps its candidates and the awards
+// recorded from it, and is left out of every list and count; ticking its item again in Browse drops brings it back as it was. In batches like the rest.
+export async function setPrioritiesHidden(priorities: PriorityRecord[], hidden: boolean, who: AuditWho, onDone?: (ids: string[]) => void) {
+  const database = requireDb()
+  for (const group of inBatches(priorities)) {
+    const batch = writeBatch(database)
+    const written: string[] = []
+    for (const priority of group) {
+      const description = describeEdit(priority as unknown as Record<string, unknown>, { hidden: hidden ? true : undefined }, priorityAuditFields)
+      if (!description) continue
+      const rev = (priority.rev ?? 0) + 1
+      batch.update(doc(database, 'guilds', guildId, 'lootPriorities', priority.id), { hidden: hidden ? true : deleteField(), rev, updatedBy: who.uid, updatedAt: serverTimestamp() })
+      batch.set(doc(database, 'guilds', guildId, 'auditLog', `priority_${priority.id}_${rev}`), auditEntry(who, 'priority', priority.id, rev, 'edit', priority.item, description))
+      written.push(priority.id)
+    }
+    if (written.length) await batch.commit()
+    onDone?.(group.map((priority) => priority.id))
+  }
 }
 
 // Removes priorities. The awards that were recorded from one keep their own copy of the candidate order, so history is not touched.

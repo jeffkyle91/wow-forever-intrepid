@@ -87,14 +87,18 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   // `priorities` is the current phase's list, which is what the dashboard, the counters and Browse drops want; `allPriorities` holds every
   // phase (the Loot priorities tab picks one). See shared/game/phases.ts.
   const phaseNow = currentPhaseNo(settings)
-  const currentPriorities = useMemo(() => priorities.filter((priority) => phaseNoOf(priority) === phaseNow), [priorities, phaseNow])
+  // A priority taken off the list (hidden) is kept but left out of everything: `hiddenPriorities` has them, for Browse drops to bring back.
+  const visiblePriorities = useMemo(() => priorities.filter((priority) => !priority.hidden), [priorities])
+  const hiddenPriorities = useMemo(() => priorities.filter((priority) => priority.hidden), [priorities])
+  const currentPriorities = useMemo(() => visiblePriorities.filter((priority) => phaseNoOf(priority) === phaseNow), [visiblePriorities, phaseNow])
 
   return {
     comments,
     roster,
     assignments,
     priorities: currentPriorities,
-    allPriorities: priorities,
+    allPriorities: visiblePriorities,
+    hiddenPriorities,
     awards,
     afkEntries,
     raids,

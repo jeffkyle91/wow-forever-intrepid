@@ -30,7 +30,9 @@ export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
 // itemId, zoneId and npcId are set when a priority was added from the drop lists (Browse drops): the Wowhead item id, the dungeon
 // in data/loot and the creature that drops it. A priority typed by hand has none of them.
-export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number }
+// phaseNo is the phase the priority belongs to (see shared/game/phases.ts); none means the first phase. carriedFrom is the id of the
+// priority an item was carried over from, in an earlier phase.
+export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string }
 export type AwardRecord = {
   id: string
   priorityId: string
@@ -41,6 +43,8 @@ export type AwardRecord = {
   prioritySnapshot: string[]
   councilNoteSnapshot: string
   awardNote: string
+  // The phase the award was recorded in; none means the first phase.
+  phaseNo?: number
 }
 export type AfkEntryRecord = { id: string; userId: string; displayName: string; startDate: string; endDate: string; createdAt?: unknown }
 export type CommentKind = 'public' | 'leadership'
@@ -81,6 +85,8 @@ export type GuildSettings = {
   councilStatus: CouncilStatus
   teamNames: Record<TenManTeam, string>
   groupNames: Record<RaidGroup, string>
+  // The names of the finished phases, oldest first. Its length is the number of the current phase. Absent until a phase has been closed.
+  phaseHistory?: string[]
 }
 export type GuildSettingsRecord = GuildSettings & { id: string }
 

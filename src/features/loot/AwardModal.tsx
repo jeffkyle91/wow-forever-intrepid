@@ -5,6 +5,7 @@ import { coinsArt } from '../../shared/art'
 import type { TabContext } from '../../shared/tabs/types'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
 import { Modal } from '../../shared/ui/Modal'
+import { phaseNoOf } from '../../shared/game/phases'
 import { listingProgress, nameKey, recipientChoices } from './completion'
 
 // The award snapshot (candidate order and council note at decision time) is built here,
@@ -29,6 +30,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
       prioritySnapshot: [...priority.rankedPlayers],
       councilNoteSnapshot: priority.councilNote,
       awardNote: String(data.get('awardNote')).trim(),
+      phaseNo: phaseNoOf(priority),
     }
     setBusy(true)
     try {

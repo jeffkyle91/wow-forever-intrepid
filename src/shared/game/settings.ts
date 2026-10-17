@@ -1,4 +1,5 @@
 import type { CouncilStatus, GuildSettings, StatusTone } from '../../guildApi'
+import { readPhaseHistory } from './phases.ts'
 
 export const SETTINGS_LABEL_MAX = 40
 
@@ -14,6 +15,7 @@ export const councilStatuses: { value: CouncilStatus; label: string; hint: strin
 ]
 
 // What the app shows until a Guild Leader saves settings, and for any field that cannot be read.
+// The rules (validPhaseHistory) name currentPhase's default as the one phase a first save of the settings may close, so keep the two together.
 export const defaultGuildSettings: GuildSettings = {
   currentPhase: 'Launch prep',
   nextPhase: 'To be announced',
@@ -34,6 +36,7 @@ export function resolveGuildSettings(data: Record<string, unknown> | null | unde
   const source = data ?? {}
   const groups = source.groupNames && typeof source.groupNames === 'object' ? (source.groupNames as Record<string, unknown>) : {}
   const names = source.teamNames && typeof source.teamNames === 'object' ? (source.teamNames as Record<string, unknown>) : {}
+  const history = readPhaseHistory(source.phaseHistory, label)
   return {
     currentPhase: label(source.currentPhase, defaults.currentPhase),
     nextPhase: label(source.nextPhase, defaults.nextPhase),
@@ -53,5 +56,6 @@ export function resolveGuildSettings(data: Record<string, unknown> | null | unde
       pink: label(groups.pink, defaults.groupNames.pink),
       brown: label(groups.brown, defaults.groupNames.brown),
     },
+    ...(history ? { phaseHistory: history } : {}),
   }
 }

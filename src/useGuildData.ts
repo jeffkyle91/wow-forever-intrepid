@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   subscribeGuildCollection,
   subscribeRaidZones,
@@ -17,6 +17,7 @@ import {
 } from './guildApi'
 import type { GuildRole } from './security'
 import { useRosterComments } from './rosterComments'
+import { currentPhaseNo, phaseNoOf } from './shared/game/phases'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
 import { normalizeAward, normalizeJoinRequest, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 import type { CharacterRequest } from './shared/characters/requests'
@@ -83,11 +84,17 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
     }
   }, [enabled, actualRole, actualUid])
 
+  // `priorities` is the current phase's list, which is what the dashboard, the counters and Browse drops want; `allPriorities` holds every
+  // phase (the Loot priorities tab picks one). See shared/game/phases.ts.
+  const phaseNow = currentPhaseNo(settings)
+  const currentPriorities = useMemo(() => priorities.filter((priority) => phaseNoOf(priority) === phaseNow), [priorities, phaseNow])
+
   return {
     comments,
     roster,
     assignments,
-    priorities,
+    priorities: currentPriorities,
+    allPriorities: priorities,
     awards,
     afkEntries,
     raids,

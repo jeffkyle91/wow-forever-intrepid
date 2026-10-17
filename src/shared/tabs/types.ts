@@ -68,7 +68,8 @@ export type TabDefinition = {
   // Count badge in the sidebar.
   navCount?: (ctx: TabContext) => number
   // Text beside the panel title.
-  recordCount: (ctx: TabContext) => string
+  // A component is allowed, for a count that depends on a view choice the tab keeps itself (the phase of Loot priorities).
+  recordCount: (ctx: TabContext) => ReactNode
   // Left side of the panel footer.
   footer: (ctx: TabContext) => ReactNode
   // Buttons beside the page title.

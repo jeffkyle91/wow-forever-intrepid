@@ -4,6 +4,7 @@ import { filterAwards } from './filters'
 import { HistoryTab } from './HistoryTab'
 import { PrioritiesFooter } from './PrioritiesFooter'
 import { PrioritiesHeadingActions } from './PrioritiesHeadingActions'
+import { PrioritiesRecordCount } from './PrioritiesRecordCount'
 import { PrioritiesTab } from './PrioritiesTab'
 import { PrioritiesToolbar } from './PrioritiesToolbar'
 
@@ -15,7 +16,7 @@ export const prioritiesTab = {
   panelTitle: 'Upcoming loot',
   search: { placeholder: 'Find item or player...' },
   navCount: (ctx) => ctx.data.priorities.length,
-  recordCount: (ctx) => `${ctx.data.priorities.length} records`,
+  recordCount: (ctx) => <PrioritiesRecordCount ctx={ctx} />,
   footer: (ctx) => <PrioritiesFooter ctx={ctx} />,
   HeadingActions: PrioritiesHeadingActions,
   Toolbar: PrioritiesToolbar,

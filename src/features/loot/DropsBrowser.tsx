@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { deleteLootPriority, saveGuildRecord } from '../../guildApi'
 import { lootCaptureItemIds } from '../../shared/game/lootTables'
+import { phaseNoOf, type PhaseOption } from '../../shared/game/phases'
 import { peekItem, requestItem, retryItem, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
@@ -16,7 +17,7 @@ import './Drops.css'
 // unticking one that is on the list marks it to be removed. Nothing changes until the bar at the bottom is used, so a whole zone can
 // be added or taken off ("Add all", "Remove all") and checked first. Removing an item whose priority has players assigned asks once
 // more, because that order is lost. There is one priority per item, so an item that is on the list cannot be added twice.
-export function DropsBrowser({ live }: { live: TabContext }) {
+export function DropsBrowser({ live, phase }: { live: TabContext; phase: PhaseOption }) {
   const [zoneId, setZoneId] = useState<number | null>(null)
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState<Map<number, DropPick>>(new Map())
@@ -25,7 +26,9 @@ export function DropsBrowser({ live }: { live: TabContext }) {
   useItemInfoVersion() // so that the list filters again when item names arrive
   const table = dropTables.find((candidate) => candidate.zoneId === zoneId) ?? dropTables[0]
   const { busy, setBusy, setMutationError, setNotice } = live.feedback
-  const canAdd = live.identity.canEditRaidData
+  // Items are added to, and listed for, the phase the dialog was opened from. A closed phase can be looked at but not changed.
+  const canAdd = live.identity.canEditRaidData && phase.kind !== 'past'
+  const phasePriorities = live.data.allPriorities.filter((priority) => phaseNoOf(priority) === phase.no)
 
   // Look up every item of the zone, not only the ones on screen, so that searching by item name finds them. An item whose lookup
   // failed earlier (for example in an outage) is tried again when the zone is opened.
@@ -38,7 +41,7 @@ export function DropsBrowser({ live }: { live: TabContext }) {
 
   // The priorities that stand for an item. It is on the list when there is one. Only an item whose name is known can be added, because
   // the name is stored on the priority.
-  const listedBy = (id: number) => prioritiesForItem(live.data.priorities, id, nameOf(id))
+  const listedBy = (id: number) => prioritiesForItem(phasePriorities, id, nameOf(id))
   const isListed = (id: number) => listedBy(id).length > 0
   const canTick = (id: number) => canAdd && !isListed(id) && nameOf(id) !== undefined
 
@@ -83,7 +86,7 @@ export function DropsBrowser({ live }: { live: TabContext }) {
     let removed = 0
     try {
       for (const pick of toAdd) {
-        await saveGuildRecord('lootPriorities', dropPriorityId(pick.itemId), dropPriorityRecord(pick, nameOf(pick.itemId) ?? `Item ${pick.itemId}`))
+        await saveGuildRecord('lootPriorities', dropPriorityId(pick.itemId, phase.no), dropPriorityRecord(pick, nameOf(pick.itemId) ?? `Item ${pick.itemId}`, phase.no))
         added++
         setAdding((current) => { const next = new Map(current); next.delete(pick.itemId); return next })
       }
@@ -115,7 +118,7 @@ export function DropsBrowser({ live }: { live: TabContext }) {
       <button type="button" className="button button-secondary" onClick={removeAll} disabled={busy || listedInZone.length === 0} title={listedInZone.length ? `Mark every item of ${table.name} that is on the list for removal` : `Nothing in ${table.name} is on the list`}>Remove all ({listedInZone.length})</button>
     </div>}
     <div className="drops-intro">
-      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}. Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{canAdd && ' A ticked item is on the priority list: tick one to add it, untick one that is on the list to take it off, then use the bar at the bottom.'}</p>
+      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}. Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{canAdd && ` A ticked item is on the ${phase.name} priority list: tick one to add it, untick one that is on the list to take it off, then use the bar at the bottom.`}{phase.kind === 'past' && ` ${phase.name} is closed, so its list can be looked at but not changed.`}</p>
       {table.dataStatus && <p className="drops-status">{table.dataStatus}</p>}
       {table.notes && table.notes.length > 0 && <details className="drops-notes"><summary>About this data</summary><ul>{table.notes.map((note) => <li key={note}>{note}</li>)}</ul></details>}
     </div>

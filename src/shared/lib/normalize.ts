@@ -1,5 +1,6 @@
 import type { AwardRecord, GuildSettingsRecord, JoinRequestRecord, MembershipRecord, PlayerRecord, PriorityRecord } from '../../guildApi'
 import { guildRoles, type GuildRole } from '../../security'
+import { withoutBadPhaseFields } from '../game/phases'
 import { resolveGuildSettings } from '../game/settings'
 
 // Tolerant readers for the five collections whose documents the Firestore rules do not validate:
@@ -48,7 +49,8 @@ export function normalizePriority(id: string, data: RawDoc): PriorityRecord | nu
     const value = data[key]
     if (value !== undefined && !(typeof value === 'number' && Number.isInteger(value) && value > 0)) delete priority[key]
   }
-  return priority
+  // phaseNo is a whole number of 0 or more and carriedFrom the id of another priority; one that is not is removed (no phaseNo means the first phase).
+  return withoutBadPhaseFields(priority)
 }
 
 // An award whose item is missing or not text is dropped. A blank item text is kept: awards are the permanent
@@ -56,7 +58,7 @@ export function normalizePriority(id: string, data: RawDoc): PriorityRecord | nu
 // becomes '' and the history row shows an invalid date instead of the whole list failing.
 export function normalizeAward(id: string, data: RawDoc): AwardRecord | null {
   if (!id || !isText(data.item)) return null
-  return {
+  return withoutBadPhaseFields({
     ...data,
     id,
     priorityId: text(data.priorityId),
@@ -66,7 +68,7 @@ export function normalizeAward(id: string, data: RawDoc): AwardRecord | null {
     prioritySnapshot: strings(data.prioritySnapshot),
     councilNoteSnapshot: text(data.councilNoteSnapshot),
     awardNote: text(data.awardNote),
-  } as AwardRecord
+  } as AwardRecord)
 }
 
 // A member whose role is not a guild role or Removed is dropped: the access table would otherwise

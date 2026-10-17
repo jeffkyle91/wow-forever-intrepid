@@ -40,9 +40,15 @@ export function normalizePlayer(id: string, data: RawDoc): PlayerRecord | null {
 }
 
 // A priority whose item is missing or not text is dropped. A blank item text is kept (the Add dialog can save one).
+// itemId, zoneId and npcId are optional: one that is not a positive whole number is removed rather than trusted.
 export function normalizePriority(id: string, data: RawDoc): PriorityRecord | null {
   if (!id || !isText(data.item)) return null
-  return { ...data, id, encounter: text(data.encounter), rankedPlayers: strings(data.rankedPlayers), councilNote: text(data.councilNote) } as PriorityRecord
+  const priority = { ...data, id, encounter: text(data.encounter), rankedPlayers: strings(data.rankedPlayers), councilNote: text(data.councilNote) } as PriorityRecord
+  for (const key of ['itemId', 'zoneId', 'npcId'] as const) {
+    const value = data[key]
+    if (value !== undefined && !(typeof value === 'number' && Number.isInteger(value) && value > 0)) delete priority[key]
+  }
+  return priority
 }
 
 // An award whose item is missing or not text is dropped. A blank item text is kept: awards are the permanent

@@ -28,7 +28,9 @@ export type { PlayerRecord } from './shared/game/players'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
-export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string }
+// itemId, zoneId and npcId are set when a priority was added from the drop lists (Browse drops): the Wowhead item id, the dungeon
+// in data/loot and the creature that drops it. A priority typed by hand has none of them.
+export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number }
 export type AwardRecord = {
   id: string
   priorityId: string

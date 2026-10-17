@@ -147,7 +147,7 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       assert.equal(saved?.updatedBy, UID[who])
       assert.deepEqual(saved?.rankedPlayers, [PLAYER_3, PLAYER_1])
       const logged = await stored(`auditLog/${entryId('priority', PRIORITY_ID, 1)}`)
-      assert.deepEqual([...(logged?.changed as string[])].sort(), ['councilNote', 'encounter', 'item', 'itemId', 'npcId', 'rankedPlayers', 'zoneId'])
+      assert.deepEqual([...((logged?.changed ?? []) as string[])].sort(), ['councilNote', 'encounter', 'item', 'itemId', 'npcId', 'rankedPlayers', 'zoneId'])
     })
 
     test('a reorder is accepted and logged as one', async () => {
@@ -294,7 +294,7 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       assert.equal(await stored(`lootPriorities/${PRIORITY_ID}`), undefined)
       const logged = await stored(`auditLog/${entryId('priority', PRIORITY_ID, 4)}`)
       assert.equal(logged?.action, 'delete')
-      assert.deepEqual([...(logged?.changed as string[])].sort(), ['councilNote', 'encounter', 'item', 'itemId', 'npcId', 'phaseNo', 'rankedPlayers', 'zoneId'])
+      assert.deepEqual([...((logged?.changed ?? []) as string[])].sort(), ['councilNote', 'encounter', 'item', 'itemId', 'npcId', 'phaseNo', 'rankedPlayers', 'zoneId'])
       assert.equal(logged?.before?.itemId, 872)
     })
 

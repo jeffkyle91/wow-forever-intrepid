@@ -304,7 +304,7 @@ describe('audit entries for priorities', () => {
     await expectAllowed(createPriority(dbFor('raidLeader'), 'raidLeader'))
     const logged = await stored(`auditLog/${entryId('priority', 'priority-2', 1)}`)
     assert.equal(logged?.action, 'create')
-    assert.deepEqual([...(logged?.changed as string[])].sort(), Object.keys(newPriorityDoc()).sort())
+    assert.deepEqual([...((logged?.changed ?? []) as string[])].sort(), Object.keys(newPriorityDoc()).sort())
   })
 
   test('a create entry is refused for a priority that already exists, at a revision other than 1, or that lists other fields', async () => {

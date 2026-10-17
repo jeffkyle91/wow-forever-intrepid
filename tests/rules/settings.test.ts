@@ -305,7 +305,7 @@ describe('the change log entry of a phase', () => {
     const logged = await stored(`auditLog/${entryId('phase', 'settings', 2)}`)
     assert.equal(logged?.action, 'start')
     assert.equal(logged?.item, 'Phase two')
-    assert.deepEqual([...(logged?.changed as string[])].sort(), ['currentPhase', 'nextPhase', 'phaseHistory'])
+    assert.deepEqual([...((logged?.changed ?? []) as string[])].sort(), ['currentPhase', 'nextPhase', 'phaseHistory'])
     assert.deepEqual(logged?.before, { currentPhase: 'Phase one', nextPhase: 'Phase two', phaseHistory: ['Launch prep'] })
     assert.deepEqual(logged?.after, { currentPhase: 'Phase two', nextPhase: 'To be announced', phaseHistory: ['Launch prep', 'Phase one'] })
   })
@@ -361,7 +361,7 @@ describe('the change log entry of a phase', () => {
     await expectDenied(go({ audit: { changed: ['currentPhase', 'phaseHistory', 'nextPhase'] } }), 'a field that did not change listed as well')
     await expectDenied(go({ audit: { changed: ['currentPhase', 'currentPhase', 'phaseHistory'] } }), 'a field listed twice')
     await expectAllowed(go(), 'the honest entry, which lists only the two that changed')
-    assert.deepEqual([...((await stored(`auditLog/${entryId('phase', 'settings', 2)}`))?.changed as string[])].sort(), ['currentPhase', 'phaseHistory'])
+    assert.deepEqual([...(((await stored(`auditLog/${entryId('phase', 'settings', 2)}`))?.changed ?? []) as string[])].sort(), ['currentPhase', 'phaseHistory'])
   })
 
   test('an entry for a phase has to be a start or a reopen, whatever else the history does', async () => {

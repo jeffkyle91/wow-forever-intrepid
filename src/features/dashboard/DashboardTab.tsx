@@ -11,6 +11,7 @@ import { RaidSignupButton } from './RaidSignupButton'
 import { AbsenceModal } from './AbsenceModal'
 import { CommentsPanel } from './CommentsPanel'
 import { findMyCharacters, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
+import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
 import './Dashboard.css'
 
 const dateLabel = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
@@ -26,7 +27,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   const { linked, characters } = findMyCharacters(roster, ctx.identity.uid)
 
   if (!linked) {
-    return <div className="dash-empty">
+    return <><div className="dash-empty">
       <Shield size={26} />
       <h3>No character linked to your account yet</h3>
       <p>Ask a Guild Leader to link your character in Member Access. Your characters, raid team, loot priorities and upcoming raids will appear here once they do.</p>
@@ -36,7 +37,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <button className="button button-secondary" onClick={() => ctx.navigate('teams')}>Raid teams</button>
         <button className="button button-secondary" onClick={() => ctx.navigate('priorities')}>Loot priorities</button>
       </div>
-    </div>
+    </div><CharacterRequestsPanel ctx={ctx} /></>
   }
 
   const raidList = upcomingRaids(raids, afkEntries, ctx.identity.uid, today)
@@ -114,5 +115,6 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
     <Panel icon={<MessageSquare size={15} />} title="Comments">
       <CommentsPanel ctx={ctx} />
     </Panel>
+    <CharacterRequestsPanel ctx={ctx} />
   </div>
 }

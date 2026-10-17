@@ -14,8 +14,9 @@ export const kindLabels: Record<LootGroup['kind'], string> = { boss: 'Boss', rar
 export function filterGroups(table: TableLike, query: string, nameOf: (itemId: number) => string | undefined): LootGroup[] {
   const text = query.trim().toLowerCase()
   const itemMatches = (id: number) => String(id).includes(text) || (nameOf(id) ?? '').toLowerCase().includes(text)
-  const groups: LootGroup[] = table.sources.map((source) => ({
-    key: `npc-${source.npcId}`, name: source.name, kind: source.kind as LootGroup['kind'], npcId: source.npcId,
+  // A creature the guild added has no game number when it is not known: the merged table says 0, which is no number (it gets its own key and no id).
+  const groups: LootGroup[] = table.sources.map((source, index) => ({
+    key: source.npcId > 0 ? `npc-${source.npcId}` : `creature-${index}`, name: source.name, kind: source.kind as LootGroup['kind'], ...(source.npcId > 0 ? { npcId: source.npcId } : {}),
     itemIds: !text || source.name.toLowerCase().includes(text) || source.kind.includes(text) ? source.itemIds : source.itemIds.filter(itemMatches),
   }))
   groups.push({ key: 'zone-wide', name: zoneWideName, kind: 'zone', itemIds: !text || zoneWideName.toLowerCase().includes(text) ? table.zoneWideItemIds : table.zoneWideItemIds.filter(itemMatches) })

@@ -101,3 +101,13 @@ describe('prioritiesForItem', () => {
     assert.equal(JSON.stringify(priorities), before)
   })
 })
+
+describe('filterGroups for creatures the guild added', () => {
+  const table = { sources: [{ npcId: 0, name: 'First Add', kind: 'boss', itemIds: [1] }, { npcId: 0, name: 'Second Add', kind: 'rare', itemIds: [2] }, { npcId: 77, name: 'Known', kind: 'boss', itemIds: [3] }], zoneWideItemIds: [] }
+  it('gives a creature with no number its own key and no creature number, so two of them never share a group or a priority id', () => {
+    const groups = filterGroups(table, '', () => undefined)
+    assert.deepEqual(groups.map((group) => group.key), ['creature-0', 'creature-1', 'npc-77'])
+    assert.deepEqual(groups.map((group) => group.npcId), [undefined, undefined, 77])
+    assert.ok(!('npcId' in groups[0]))
+  })
+})

@@ -1,5 +1,6 @@
 import type { AwardRecord, GuildSettingsRecord, JoinRequestRecord, MembershipRecord, PlayerRecord, PriorityRecord } from '../../guildApi'
 import { guildRoles, type GuildRole } from '../../security'
+import { readTableDoc, type LootTableDoc } from '../game/guildTables'
 import { withoutBadPhaseFields } from '../game/phases'
 import { resolveGuildSettings } from '../game/settings'
 
@@ -88,6 +89,10 @@ export function normalizeJoinRequest(id: string, data: RawDoc): JoinRequestRecor
   if (!id || !requestStatuses.includes(data.status)) return null
   return { ...data, id, userId: id, email: text(data.email), displayName: text(data.displayName) } as JoinRequestRecord
 }
+
+// A loot table document (the guild's own additions to the drop lists) is read by readTableDoc: lists keep only whole item numbers, and one that
+// fits no id of its own is dropped.
+export const normalizeLootTable: Normalizer<LootTableDoc> = (id, data) => readTableDoc(id, data)
 
 // A settings document is never dropped: any field that cannot be read falls back to its default.
 export function normalizeSettings(id: string, data: RawDoc): GuildSettingsRecord {

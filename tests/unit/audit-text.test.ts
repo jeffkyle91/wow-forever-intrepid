@@ -90,3 +90,107 @@ describe('describeEntry', () => {
     assert.equal(text({ action: 'create', item: '' }).title, 'Added \u201cUntitled\u201d to the list')
   })
 })
+
+describe('describeEntry for a drop list', () => {
+  const LAIR = 60000001
+  const firstZone = new Map([[LAIR, 2]])
+  const firstSource = new Map([[`${LAIR}_cabc`, 2]])
+  const lookups = {
+    zoneName: (id: number) => (id === 900 ? 'Test Hollow' : id === LAIR ? 'Guild Lair' : undefined),
+    itemName: (id: number) => (id === 104 ? 'Iron Ring' : undefined),
+    firstZonePhase: (id: number) => firstZone.get(id),
+    firstSourcePhase: (id: number, key: string) => firstSource.get(`${id}_${key}`),
+  }
+  const table = (overrides: Partial<AuditEntry>) => describeEntry(entry({ targetType: 'table', targetId: 's900_npc11_2', item: 'First Warden', ...overrides }), phaseName, lookups)
+  const warden = '\u201cFirst Warden\u201d in \u201cTest Hollow\u201d (Phase 2)'
+
+  it('a new zone and a new creature are read as additions in the phase they were made', () => {
+    const zone = table({ targetId: `z${LAIR}_2`, item: 'Guild Lair', action: 'create', changed: ['type', 'zoneId', 'phaseNo', 'name', 'kind', 'players'], after: { type: 'zone', zoneId: LAIR, phaseNo: 2, name: 'Guild Lair', kind: 'raid', players: 25 } })
+    assert.equal(zone.title, 'Added the zone \u201cGuild Lair\u201d (Phase 2)')
+    assert.deepEqual(zone.details, ['Kind: raid', 'Players: 25'])
+    const creature = table({ targetId: `s${LAIR}_cabc_2`, item: 'Lair Boss', action: 'create', changed: ['name', 'itemIds'], after: { name: 'Lair Boss', itemIds: [601, 602] } })
+    assert.equal(creature.title, 'Added \u201cLair Boss\u201d to \u201cGuild Lair\u201d (Phase 2)')
+    assert.deepEqual(creature.details, ['Items: 601, 602'])
+    const named = table({ targetId: `s${LAIR}_cabc_2`, item: 'Lair Boss', action: 'create', changed: ['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'npcId', 'order', 'itemIds', 'hiddenItemIds'], after: { type: 'source', zoneId: LAIR, key: 'cabc', phaseNo: 2, name: 'Lair Boss', kind: 'boss', npcId: 90001, order: 10, itemIds: [], hiddenItemIds: [] } })
+    assert.deepEqual(named.details, ['Kind: boss', 'Creature id: 90001'])
+  })
+
+  it('a later phase\'s first document for the same creature is a change to it, not an addition', () => {
+    const later = table({ targetId: `s${LAIR}_cabc_4`, item: 'Lair Boss', action: 'create', changed: ['name', 'itemIds', 'hiddenItemIds'], after: { name: 'Lair Boss', itemIds: [700], hiddenItemIds: [] } })
+    assert.equal(later.title, 'Added 1 item to \u201cLair Boss\u201d in \u201cGuild Lair\u201d (Phase 4)')
+  })
+
+  it('the first change to a creature of a built-in zone creates its document, and reads as the change it is', () => {
+    const first = table({ action: 'create', changed: ['type', 'zoneId', 'key', 'phaseNo', 'itemIds', 'hiddenItemIds'], after: { type: 'source', zoneId: 900, key: 'npc11', phaseNo: 2, itemIds: [104], hiddenItemIds: [] } })
+    assert.equal(first.title, `Added 1 item to ${warden}`)
+    assert.deepEqual(first.details, ['Added: Iron Ring (104)'])
+    const off = table({ action: 'create', changed: ['type', 'itemIds', 'hiddenItemIds'], after: { type: 'source', itemIds: [], hiddenItemIds: [102] } })
+    assert.equal(off.title, `Took 1 item off ${warden}`)
+    assert.deepEqual(off.details, ['Taken off from here on: 102'])
+    const wide = table({ targetId: 's900_zonewide_3', item: 'Any creature in the zone', action: 'create', changed: ['itemIds'], after: { itemIds: [905] } })
+    assert.equal(wide.title, 'Added 1 item to \u201cAny creature in the zone\u201d in \u201cTest Hollow\u201d (Phase 3)')
+  })
+
+  it('items added to a creature are counted, and named where the name is known', () => {
+    const added = table({ action: 'edit', changed: ['itemIds'], before: { itemIds: [101] }, after: { itemIds: [101, 104, 105] } })
+    assert.equal(added.title, `Added 2 items to ${warden}`)
+    assert.deepEqual(added.details, ['Added: Iron Ring (104), 105'])
+  })
+
+  it('items taken off (a phase\'s own addition taken back, or an older item taken off from here on) and brought back each say so', () => {
+    assert.equal(table({ changed: ['itemIds'], before: { itemIds: [1, 2] }, after: { itemIds: [1] } }).title, `Took 1 item off ${warden}`)
+    const off = table({ changed: ['hiddenItemIds'], before: { hiddenItemIds: [] }, after: { hiddenItemIds: [102, 103] } })
+    assert.equal(off.title, `Took 2 items off ${warden}`)
+    assert.deepEqual(off.details, ['Taken off from here on: 102, 103'])
+    const back = table({ changed: ['hiddenItemIds'], before: { hiddenItemIds: [102] }, after: { hiddenItemIds: [] } })
+    assert.equal(back.title, `Brought back 1 item of ${warden}`)
+  })
+
+  it('one edit that brings an item back and adds another says both, with the other fields after', () => {
+    const both = table({ changed: ['itemIds', 'hiddenItemIds', 'order'], before: { itemIds: [], hiddenItemIds: [102], order: 10 }, after: { itemIds: [900], hiddenItemIds: [], order: 20 } })
+    assert.equal(both.title, `Added 1 item to ${warden}`)
+    assert.deepEqual(both.details, ['Added: 900', 'Brought back: 102', 'Place in the order: 10 \u2192 20'])
+  })
+
+  it('a document made only to move a creature lists the place, and one that also takes an item off lists both', () => {
+    const moved = table({ action: 'create', changed: ['type', 'zoneId', 'key', 'phaseNo', 'order', 'itemIds', 'hiddenItemIds'], after: { type: 'source', order: 20, itemIds: [], hiddenItemIds: [] } })
+    assert.equal(moved.title, `Changed ${warden}`)
+    assert.deepEqual(moved.details, ['Place in the order: 20'])
+    const both = table({ action: 'create', changed: ['type', 'order', 'itemIds', 'hiddenItemIds'], after: { type: 'source', order: 20, itemIds: [], hiddenItemIds: [102] } })
+    assert.equal(both.title, `Took 1 item off ${warden}`)
+    assert.deepEqual(both.details, ['Taken off from here on: 102', 'Place in the order: 20'])
+  })
+
+  it('a rename is listed with what it was, and a removal also lists what else the document changed', () => {
+    const renamed = table({ changed: ['name'], before: { name: 'First Warden' }, after: { name: 'Warden One' } })
+    assert.deepEqual(renamed.details, ['Name: First Warden \u2192 Warden One'])
+    const gone = table({ targetId: `s${LAIR}_cabc_3`, item: 'Lair Boss', changed: ['removed', 'hiddenItemIds', 'name'], before: { name: 'Lair Boss', hiddenItemIds: [] }, after: { removed: true, hiddenItemIds: [601], name: 'Lair Boss II' } })
+    assert.equal(gone.title, 'Took \u201cLair Boss\u201d out of \u201cGuild Lair\u201d from here on (Phase 3)')
+    assert.deepEqual(gone.details, ['Taken off from here on: 601', 'Name: Lair Boss \u2192 Lair Boss II'])
+  })
+
+  it('a document that sets no name is named from the lists, and a document that takes removed away says the phase follows the earlier one again', () => {
+    const named = describeEntry(entry({ targetType: 'table', targetId: 's900_npc11_2', item: '', changed: ['itemIds'], before: { itemIds: [] }, after: { itemIds: [104] } }), phaseName, { ...lookups, sourceName: () => 'First Warden' })
+    assert.equal(named.title, `Added 1 item to ${warden}`)
+    assert.equal(table({ targetId: `s${LAIR}_cabc_3`, item: '', changed: ['removed'], before: { removed: true }, after: { removed: null } }).title, 'Made \u201ca creature\u201d in \u201cGuild Lair\u201d follow the earlier phase again (Phase 3)')
+    assert.equal(table({ targetId: 'z900_3', item: '', changed: ['removed'], before: { removed: true }, after: { removed: null } }).title, 'Made \u201cTest Hollow\u201d follow the earlier phase again (Phase 3)')
+  })
+
+  it('taking a creature or a zone out of the lists from a phase, and putting it back', () => {
+    assert.equal(table({ targetId: `s${LAIR}_cabc_3`, item: 'Lair Boss', action: 'create', changed: ['removed'], after: { removed: true } }).title, 'Took \u201cLair Boss\u201d out of \u201cGuild Lair\u201d from here on (Phase 3)')
+    assert.equal(table({ targetId: `s${LAIR}_cabc_3`, item: 'Lair Boss', changed: ['removed'], before: { removed: true }, after: { removed: false } }).title, 'Put \u201cLair Boss\u201d back in \u201cGuild Lair\u201d (Phase 3)')
+    assert.equal(table({ targetId: `z${LAIR}_3`, item: 'Guild Lair', action: 'create', changed: ['removed'], after: { removed: true } }).title, 'Took the zone \u201cGuild Lair\u201d out of the lists from here on (Phase 3)')
+    assert.equal(table({ targetId: `z${LAIR}_3`, item: 'Guild Lair', changed: ['name'], before: { name: 'Guild Lair' }, after: { name: 'The Lair' } }).title, 'Changed the zone \u201cGuild Lair\u201d (Phase 3)')
+  })
+
+  it('a zone of the built-in lists has no name in its entry, so it is named from the capture', () => {
+    const out = table({ targetId: 'z900_2', item: '', action: 'create', changed: ['type', 'zoneId', 'phaseNo', 'removed'], after: { type: 'zone', zoneId: 900, phaseNo: 2, removed: true } })
+    assert.equal(out.title, 'Took the zone \u201cTest Hollow\u201d out of the lists from here on (Phase 2)')
+    const back = table({ targetId: 'z900_3', item: '', action: 'edit', changed: ['removed'], before: { removed: true }, after: { removed: false } })
+    assert.equal(back.title, 'Put the zone \u201cTest Hollow\u201d back in the lists (Phase 3)')
+  })
+
+  it('a zone it cannot name is called "a zone"', () => {
+    assert.equal(table({ targetId: 's777_c1_2', changed: ['name'], before: { name: 'Old' }, after: { name: 'First Warden' } }).title, 'Changed \u201cFirst Warden\u201d in \u201ca zone\u201d (Phase 2)')
+  })
+})

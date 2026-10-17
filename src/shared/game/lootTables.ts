@@ -19,6 +19,12 @@ export type LootTableCapture = {
   sources: LootSource[]
   // Items that drop from any creature in the zone and have no single source.
   zoneWideItemIds: number[]
+  // The first loot phase this zone is in the lists of (default 0, every phase). Below it the zone is out unless the guild's own documents put it in,
+  // so a raid captured early can be kept out of the phases before it unlocks.
+  fromPhase?: number
+  // Set by the app when it merges the guild's own tables with a capture (see guildTables.ts); a capture file has neither.
+  custom?: boolean // a zone the guild made
+  edited?: boolean // the guild changed something in this zone
 }
 
 const isId = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value > 0
@@ -37,6 +43,7 @@ export function checkLootCapture(data: unknown): { ok: true; table: LootTableCap
   if (!isText(record.source, 300)) errors.push('source must be text (the page the capture was read from).')
   if (typeof record.capturedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.capturedAt)) errors.push('capturedAt must be a date like 2026-10-16.')
   if (record.notes !== undefined && (!Array.isArray(record.notes) || record.notes.some((note) => !isText(note, 500)))) errors.push('notes must be a list of short texts.')
+  if (record.fromPhase !== undefined && !(typeof record.fromPhase === 'number' && Number.isInteger(record.fromPhase) && record.fromPhase >= 0 && record.fromPhase <= 31)) errors.push('fromPhase must be a whole number from 0 to 31.')
 
   const seen = new Map<number, string>()
   const note = (id: number, where: string) => {

@@ -32,6 +32,7 @@ describe('logFacts', () => {
   })
   it('has nothing to say about an item for a phase entry, and never throws on odd values', () => {
     assert.equal(logFacts(entry({ targetType: 'phase', targetId: 'settings' }), byId).about, 'phase')
+    assert.equal(logFacts(entry({ targetType: 'table', targetId: 's900_npc11' }), byId).about, 'table')
     assert.deepEqual(logFacts(entry({ targetId: 'p2', after: { rankedPlayers: 'Cleo', itemId: 'x', encounter: 5 } }), byId).players, ['Cleo'])
   })
 })
@@ -61,6 +62,8 @@ describe('matchesLogFilter', () => {
     assert.ok(matchesLogFilter(facts, { player: 'Brock', slot: 'Finger', encounter: 'd:test hall' }, slotOf))
     assert.equal(matchesLogFilter(facts, { player: 'Brock', slot: 'Head', encounter: 'd:test hall' }, slotOf), false)
     assert.equal(matchesLogFilter({ about: 'phase', item: '', encounter: '', players: [] }, { ...noLogFilter, player: 'Aria' }, slotOf), false)
+    assert.equal(matchesLogFilter({ about: 'table', item: '', encounter: '', players: [] }, { ...noLogFilter, player: 'Aria' }, slotOf), false)
+    assert.ok(matchesLogFilter({ about: 'table', item: '', encounter: '', players: [] }, noLogFilter, slotOf))
   })
   it('knows whether any dropdown is set', () => {
     assert.equal(logFilterActive(noLogFilter), false)

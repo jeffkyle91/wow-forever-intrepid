@@ -21,7 +21,8 @@ import { auth, db, functions, guildId } from './firebase'
 import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
 import { nextPhaseRev } from './shared/game/phases'
-import { awardCreateFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, type AuditEntry } from './shared/game/lootAudit'
+import type { TableWrite } from './shared/game/guildTables'
+import { awardCreateFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, tableAuditFields, type AuditEntry } from './shared/game/lootAudit'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
@@ -346,7 +347,7 @@ export type NewAward = { priorityId: string; item: string; encounter: string; re
 // A fresh id for every new priority: an entry id (`priority_{id}_{rev}`) can be used only once, so the id of a deleted priority cannot be created again.
 export const newPriorityId = () => crypto.randomUUID()
 
-function auditEntry(who: AuditWho, targetType: 'priority' | 'award' | 'phase', targetId: string, rev: number, action: string, item: string, description: Record<string, unknown>) {
+function auditEntry(who: AuditWho, targetType: 'priority' | 'award' | 'phase' | 'table', targetId: string, rev: number, action: string, item: string, description: Record<string, unknown>) {
   return { at: serverTimestamp(), by: who.uid, byName: who.displayName, targetType, targetId, rev, action, item, ...description }
 }
 
@@ -416,6 +417,34 @@ export async function deletePriorities(priorities: PriorityRecord[], who: AuditW
     }
     await batch.commit()
     onDeleted?.(group.map((priority) => priority.id))
+  }
+}
+
+// The guild's own loot tables (the lootTables collection, see shared/game/guildTables.ts): each write is a new document (revision 1) or an edit of
+// one that exists, with its entry (`table_{id}_{rev}`) in the same batch. A table is never deleted; taking one away sets `removed`. The rules check
+// the entry like any other (docs/design/audit-first-loot.md). `onWritten` is told which ids a batch wrote, as for priorities.
+export async function writeLootTables(writes: TableWrite[], who: AuditWho, onWritten?: (ids: string[]) => void) {
+  const database = requireDb()
+  for (const group of inBatches(writes)) {
+    const batch = writeBatch(database)
+    const written: string[] = []
+    for (const write of group) {
+      if ('create' in write) {
+        const record = Object.fromEntries(Object.entries(write.create).filter(([, value]) => value !== undefined))
+        batch.set(doc(database, 'guilds', guildId, 'lootTables', write.id), { ...record, rev: 1, updatedBy: who.uid, updatedAt: serverTimestamp() })
+        batch.set(doc(database, 'guilds', guildId, 'auditLog', `table_${write.id}_1`), auditEntry(who, 'table', write.id, 1, 'create', String(record.name ?? ''), describeCreate(record, tableAuditFields)))
+      } else {
+        const description = describeEdit(write.existing as unknown as Record<string, unknown>, write.changes, tableAuditFields)
+        if (!description) continue
+        const rev = write.existing.rev + 1
+        const update = Object.fromEntries(description.changed.map((key) => [key, write.changes[key as keyof typeof write.changes] === undefined ? deleteField() : write.changes[key as keyof typeof write.changes]]))
+        batch.update(doc(database, 'guilds', guildId, 'lootTables', write.id), { ...update, rev, updatedBy: who.uid, updatedAt: serverTimestamp() })
+        batch.set(doc(database, 'guilds', guildId, 'auditLog', `table_${write.id}_${rev}`), auditEntry(who, 'table', write.id, rev, 'edit', write.existing.name ?? '', description))
+      }
+      written.push(write.id)
+    }
+    if (written.length) await batch.commit()
+    onWritten?.(written)
   }
 }
 

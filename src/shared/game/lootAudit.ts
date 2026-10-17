@@ -5,6 +5,8 @@
 
 // The fields an entry may list for a priority or an award. The stamps (rev, updatedBy, updatedAt, createdBy, createdAt) are never listed.
 export const priorityAuditFields = ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'] as const
+// The fields an entry may list for a loot table document (a custom zone or a creature; see shared/game/guildTables.ts).
+export const tableAuditFields = ['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'players', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed'] as const
 // The settings fields a phase entry lists (when a phase is started or reopened): the ones that differ, each with its old and new value.
 export const phaseAuditFields = ['currentPhase', 'nextPhase', 'phaseHistory'] as const
 export const awardCreateFields = ['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo'] as const
@@ -42,7 +44,7 @@ export function describeDelete(current: Values, listed: readonly string[]) {
   return { changed: present, before: Object.fromEntries(present.map((key) => [key, current[key]])) }
 }
 
-export type AuditTarget = 'award' | 'priority' | 'raid'
+export type AuditTarget = 'award' | 'priority' | 'raid' | 'phase' | 'table'
 export type AuditEntry = {
   id: string
   at: Date | null

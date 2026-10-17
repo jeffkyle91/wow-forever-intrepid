@@ -7,8 +7,8 @@ type EntryLike = { targetType: string; targetId: string; item: string; before: R
 type PriorityLike = { id: string; item: string; encounter: string; rankedPlayers: string[]; itemId?: number }
 
 export type LogFacts = {
-  // False for entries that are about no item (a phase started or reopened): they match none of the item filters.
-  about: 'item' | 'phase'
+  // False for entries that are about no item (a phase started or reopened, a drop list changed): they match none of the item filters.
+  about: 'item' | 'phase' | 'table'
   item: string
   itemId?: number
   encounter: string
@@ -23,6 +23,7 @@ const unique = (players: string[]) => [...new Map(players.filter((name) => name.
 
 export function logFacts(entry: EntryLike, priorityById: (id: string) => PriorityLike | undefined): LogFacts {
   if (entry.targetType === 'phase') return { about: 'phase', item: '', encounter: '', players: [] }
+  if (entry.targetType === 'table') return { about: 'table', item: '', encounter: '', players: [] }
   const field = (name: string) => entry.after[name] ?? entry.before[name]
   const priority = priorityById(entry.targetType === 'award' ? text(field('priorityId')) : entry.targetId)
   const itemId = typeof field('itemId') === 'number' ? (field('itemId') as number) : priority?.itemId
@@ -40,7 +41,7 @@ export const logFilterActive = (filter: LogFilter) => !!(filter.player || filter
 // no slot until it has).
 export function matchesLogFilter(facts: LogFacts, filter: LogFilter, slotOf: (item: { item: string; itemId?: number }) => string | undefined): boolean {
   if (!logFilterActive(filter)) return true
-  if (facts.about === 'phase') return false
+  if (facts.about !== 'item') return false
   const player = nameKey(filter.player)
   return (!filter.encounter || (facts.encounter !== '' && matchesEncounterScope(facts.encounter, filter.encounter)))
     && (!player || facts.players.some((name) => nameKey(name) === player))

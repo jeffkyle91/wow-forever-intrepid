@@ -88,12 +88,109 @@ service cloud.firestore {
         && request.resource.data.item == get(priorityPath).data.item
         && request.resource.data.encounter == get(priorityPath).data.encounter
         && request.resource.data.recipient in get(priorityPath).data.rankedPlayers
-        && (!('phaseNo' in request.resource.data) || validPhaseNo(request.resource.data.phaseNo));
+        && !('hidden' in get(priorityPath).data)
+        && validPhaseNo(request.resource.data.phaseNo)
+        && request.resource.data.phaseNo == get(priorityPath).data.get('phaseNo', 0);
     }
 
     // A loot phase number: a whole number of 0 to 30 (a guild can have at most 30 finished phases, so the current one is at most 30).
     function validPhaseNo(value) {
       return value is int && value >= 0 && value <= 30;
+    }
+
+    // The number of the current loot phase: how many finished phases the settings list (see validPhaseHistory). A guild that never saved its
+    // settings is in phase 0. The two lookups are shared by every write in a batch.
+    function currentPhaseNo(guildId) {
+      let settingsPath = /databases/$(database)/documents/guilds/$(guildId)/settings/general;
+      return exists(settingsPath) ? get(settingsPath).data.get('phaseHistory', []).size() : 0;
+    }
+
+    // The entry at `path` is one this request writes. An entry stays for ever, so one left from an earlier life of the same id (a priority that
+    // was created, changed and deleted) would satisfy a plain existence check and let a write go unlogged; `at` is the server time of the request
+    // that wrote the entry (the entry rule requires it), so only an entry written in this very batch passes. getAfter also fails when there is none.
+    function writtenNow(path) {
+      return getAfter(path).data.at == request.time;
+    }
+
+    // A priority is written only together with its audit entry (type 'priority'), in the same batch, like an award edit or a raid edit.
+    // Its fields are bounded, rev goes up by one on every change, and updatedBy and updatedAt are stamped by the rules. A priority can be
+    // created, changed or deleted only in the current phase or the next one (a finished phase is a record), and never moved to another
+    // phase. A field that is not changed is not checked again, so a document written before these limits can still be reordered.
+    function validGameId(value) {
+      return value is int && value > 0 && value <= 100000000;
+    }
+
+    function validPriorityFields(before, after) {
+      return (unchanged(before, after, 'item') || (after.item is string && after.item.size() >= 1 && after.item.size() <= 120))
+        && (unchanged(before, after, 'encounter') || (after.encounter is string && after.encounter.size() <= 120))
+        && (unchanged(before, after, 'rankedPlayers') || (after.rankedPlayers is list && after.rankedPlayers.size() <= 60))
+        && (unchanged(before, after, 'councilNote') || (after.councilNote is string && after.councilNote.size() <= 500))
+        && (!('itemId' in after) || validGameId(after.itemId))
+        && (!('zoneId' in after) || validGameId(after.zoneId))
+        && (!('npcId' in after) || validGameId(after.npcId))
+        && (!('carriedFrom' in after) || (after.carriedFrom is string && after.carriedFrom.matches('^[A-Za-z0-9_-]{1,100}$')))
+        && (!('hidden' in after) || after.hidden == true);
+    }
+
+    // `hidden` (only ever true, and only on an edit: a priority is never created hidden) takes a priority off the list while keeping it, its candidate
+    // list and the awards recorded from it, so ticking the item again in Browse drops brings it back as it was. No award can be made from a hidden priority.
+    function validPriorityCreate(guildId, priorityId) {
+      let data = request.resource.data;
+      let current = currentPhaseNo(guildId);
+      return data.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'rev', 'updatedBy', 'updatedAt'])
+        && data.keys().hasAll(['item', 'encounter', 'rankedPlayers', 'councilNote', 'phaseNo', 'rev', 'updatedBy', 'updatedAt'])
+        && data.rev is int && data.rev == 1
+        && data.updatedBy == request.auth.uid
+        && data.updatedAt == request.time
+        && validPriorityFields({}, data)
+        && data.phaseNo is int && (data.phaseNo == current || data.phaseNo == current + 1)
+        && writtenNow(auditEntryPath(guildId, 'priority', priorityId, 1));
+    }
+
+    function validPriorityEdit(guildId, priorityId) {
+      let before = resource.data;
+      let after = request.resource.data;
+      let current = currentPhaseNo(guildId);
+      let rev = before.get('rev', 0) + 1;
+      let entryPath = auditEntryPath(guildId, 'priority', priorityId, rev);
+      return after.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden', 'rev', 'updatedBy', 'updatedAt'])
+        && before.get('rev', 0) is int
+        && after.rev is int
+        && after.rev == rev
+        && writtenNow(entryPath)
+        && getAfter(entryPath).data.targetType == 'priority'
+        && getAfter(entryPath).data.targetId == priorityId
+        && after.updatedBy == request.auth.uid
+        && after.updatedAt == request.time
+        && unchanged(before, after, 'phaseNo')
+        && unchanged(before, after, 'carriedFrom')
+        && (before.get('phaseNo', 0) == current || before.get('phaseNo', 0) == current + 1)
+        && validPriorityFields(before, after);
+    }
+
+    function validPriorityDelete(guildId, priorityId) {
+      let before = resource.data;
+      let current = currentPhaseNo(guildId);
+      return before.get('rev', 0) is int
+        && (before.get('phaseNo', 0) == current || before.get('phaseNo', 0) == current + 1)
+        && writtenNow(auditEntryPath(guildId, 'priority', priorityId, before.get('rev', 0) + 1));
+    }
+
+    // An award made from a priority. It copies the priority as it stands (hasPrioritySnapshot), is recorded in the current phase, carries
+    // the stamps the rules set (rev 1, createdBy, createdAt), and needs its audit entry (type 'award', revision 1) in the same batch.
+    function validPriorityAward(guildId, awardId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
+        && data.keys().hasAll(['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
+        && data.rev is int && data.rev == 1
+        && data.createdBy == request.auth.uid
+        && data.createdAt == request.time
+        && data.recipient is string && data.recipient.size() >= 1 && data.recipient.size() <= 60
+        && validIsoDate(data.awardedAt)
+        && data.awardNote is string && data.awardNote.size() <= 500
+        && data.phaseNo == currentPhaseNo(guildId)
+        && hasPrioritySnapshot(guildId)
+        && writtenNow(auditEntryPath(guildId, 'award', awardId, 1));
     }
 
     // A manual award is recorded without a priority, for example a need-before-greed roll or a decision made on the night.
@@ -117,7 +214,8 @@ service cloud.firestore {
         && data.awardNote is string && data.awardNote.size() <= 500
         && data.decision in ['roll', 'council', 'other']
         && validPhaseNo(data.phaseNo)
-        && existsAfter(auditEntryPath(guildId, 'award', awardId, 1));
+        && data.phaseNo == currentPhaseNo(guildId)
+        && writtenNow(auditEntryPath(guildId, 'award', awardId, 1));
     }
 
     // Audit log. A change to an award is accepted only together with its audit entry, written in the same batch;
@@ -142,6 +240,7 @@ service cloud.firestore {
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
+        && writtenNow(entryPath)
         && getAfter(entryPath).data.targetType == 'award'
         && getAfter(entryPath).data.targetId == awardId
         && unchanged(before, after, 'priorityId')
@@ -159,6 +258,7 @@ service cloud.firestore {
         && after.awardNote is string && after.awardNote.size() <= 500
         && (!('decision' in after) || after.decision in ['roll', 'council', 'other'])
         && (!('phaseNo' in after) || validPhaseNo(after.phaseNo))
+        && (unchanged(before, after, 'phaseNo') || after.phaseNo <= currentPhaseNo(guildId))
         && (!('phaseNo' in before) || 'phaseNo' in after)
         && after.get('status', 'active') in ['active', 'removed']
         && (!('removedReason' in after) || (after.removedReason is string && after.removedReason.size() <= 300))
@@ -259,7 +359,7 @@ service cloud.firestore {
         ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
           ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
-          : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
+          : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
         && data.changed.toSet() == touched
@@ -293,7 +393,13 @@ service cloud.firestore {
             : auditFieldLogged(data, oldDoc, newDoc, 'item')
               && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
               && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
-              && auditFieldLogged(data, oldDoc, newDoc, 'councilNote'))
+              && auditFieldLogged(data, oldDoc, newDoc, 'councilNote')
+              && auditFieldLogged(data, oldDoc, newDoc, 'itemId')
+              && auditFieldLogged(data, oldDoc, newDoc, 'zoneId')
+              && auditFieldLogged(data, oldDoc, newDoc, 'npcId')
+              && auditFieldLogged(data, oldDoc, newDoc, 'phaseNo')
+              && auditFieldLogged(data, oldDoc, newDoc, 'carriedFrom')
+              && auditFieldLogged(data, oldDoc, newDoc, 'hidden'))
         && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
         && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
         && (data.action != ending || data.get('reason', '') == newDoc.get(reasonField, ''))
@@ -313,11 +419,11 @@ service cloud.firestore {
         && data.by == request.auth.uid
         && data.byName is string && data.byName.size() <= 100
         && data.byName == get(memberPath(guildId, request.auth.uid)).data.get('displayName', '')
-        && data.targetType in ['award', 'priority', 'raid']
+        && data.targetType in ['award', 'priority', 'raid', 'phase']
         && data.targetId is string && data.targetId.matches('^[A-Za-z0-9_-]{1,100}$')
         && data.rev is int && data.rev >= 1
         && entryId == data.targetType + '_' + data.targetId + '_' + string(data.rev)
-        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
+        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.targetType == 'phase' ? data.action in ['start', 'reopen'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
         && (data.targetType != 'award' || data.action in ['create', 'edit', 'remove'])
         && data.item is string && data.item.size() <= 120
         && data.changed is list && data.changed.size() <= 20
@@ -325,7 +431,7 @@ service cloud.firestore {
         && (!('after' in data) || data.after is map)
         && (!('reason' in data) || (data.reason is string && data.reason.size() <= 300))
         && (!(data.action in ['remove', 'cancel']) || ('reason' in data && data.reason.trim().size() >= 1))
-        && (data.action == 'create'
+        && (data.targetType == 'phase' ? validPhaseEntry(guildId, data) : data.action == 'create'
           ? data.rev == 1 && !exists(targetPath) && getAfter(targetPath).data.get('rev', 0) is int && getAfter(targetPath).data.get('rev', 0) == 1
             && (data.targetType != 'award' || getAfter(targetPath).data.get('createdBy', data.by) == data.by)
             && auditDescribesChange(data, {}, getAfter(targetPath).data)
@@ -335,6 +441,29 @@ service cloud.firestore {
             : data.rev == get(targetPath).data.get('rev', 0) + 1
               && getAfter(targetPath).data.get('rev', 0) == data.rev
               && auditDescribesChange(data, get(targetPath).data, getAfter(targetPath).data));
+    }
+
+    // The entry for starting or reopening a loot phase (type 'phase', id phase_settings_{n}, n counting every start and reopen). The settings
+    // document is the target and its `phaseRev` is the revision. The entry lists exactly the phase fields (currentPhase, nextPhase, phaseHistory)
+    // that differ between what was stored and what the batch stores, with their old and new values; a first save has nothing stored, so those
+    // fields read as nothing before. Other settings changed in the same save (the status label, say) are not part of the entry.
+    function validPhaseEntry(guildId, data) {
+      let path = /databases/$(database)/documents/guilds/$(guildId)/settings/general;
+      let oldDoc = exists(path) ? get(path).data : {};
+      let newDoc = getAfter(path).data;
+      let touched = newDoc.diff(oldDoc).affectedKeys().intersection(['currentPhase', 'nextPhase', 'phaseHistory'].toSet());
+      return data.targetId == 'settings'
+        && data.rev == oldDoc.get('phaseRev', 0) + 1
+        && newDoc.get('phaseRev', 0) == data.rev
+        && data.item == newDoc.currentPhase
+        && data.changed.toSet() == touched
+        && data.changed.size() == touched.size()
+        && data.get('before', {}).keys().hasOnly(data.changed)
+        && data.get('after', {}).keys().hasOnly(data.changed)
+        && auditFieldLogged(data, oldDoc, newDoc, 'currentPhase')
+        && auditFieldLogged(data, oldDoc, newDoc, 'nextPhase')
+        && auditFieldLogged(data, oldDoc, newDoc, 'phaseHistory')
+        && (data.action == 'start') == (newDoc.get('phaseHistory', []).size() > oldDoc.get('phaseHistory', []).size());
     }
 
     function validLabel(value) {
@@ -366,10 +495,23 @@ service cloud.firestore {
           : validPhaseSteps(resource.data, after));
     }
 
-    function validGuildSettings() {
+    // Starting or reopening a phase (the history changes) is one more step of `phaseRev` and needs its change log entry in the same batch (see
+    // validPhaseEntry). A save that leaves the history alone, a rename of the current phase included, leaves `phaseRev` alone and needs none.
+    function validPhaseRev(guildId) {
       let data = request.resource.data;
-      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory'])
+      let old = resource == null ? {} : resource.data;
+      let rev = data.get('phaseRev', 0);
+      return rev is int && rev >= 0 && rev <= 1000000
+        && (data.get('phaseHistory', []) != old.get('phaseHistory', [])
+          ? rev == old.get('phaseRev', 0) + 1 && writtenNow(auditEntryPath(guildId, 'phase', 'settings', rev))
+          : rev == old.get('phaseRev', 0));
+    }
+
+    function validGuildSettings(guildId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory', 'phaseRev'])
         && validPhaseHistory()
+        && validPhaseRev(guildId)
         && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames'])
         && validLabel(data.currentPhase)
         && validLabel(data.nextPhase)
@@ -448,19 +590,21 @@ service cloud.firestore {
 
       match /settings/{settingId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings();
+        allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings(guildId);
         allow delete: if false;
       }
 
       match /lootPriorities/{priorityId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create, update, delete: if canManageRaid(guildId);
+        allow create: if canManageRaid(guildId) && validPriorityCreate(guildId, priorityId);
+        allow update: if canManageRaid(guildId) && validPriorityEdit(guildId, priorityId);
+        allow delete: if canManageRaid(guildId) && validPriorityDelete(guildId, priorityId);
       }
 
       match /awards/{awardId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create: if isGuildLeader(guildId)
-          || (canManageRaid(guildId) && (!('priorityId' in request.resource.data) ? validManualAward(guildId, awardId) : hasPrioritySnapshot(guildId)));
+        allow create: if canManageRaid(guildId)
+          && (!('priorityId' in request.resource.data) ? validManualAward(guildId, awardId) : validPriorityAward(guildId, awardId));
         allow update: if canManageRaid(guildId) && validAwardEdit(guildId, awardId);
         allow delete: if false;
       }

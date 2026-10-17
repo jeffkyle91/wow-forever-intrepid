@@ -28,11 +28,9 @@ import {
   RAID_STAFF,
   SIGNED_IN,
   afkDoc,
-  awardDoc,
   displayNameOf,
   joinRequestDoc,
   memberDoc,
-  priorityDoc,
   raidDoc,
   rosterDoc,
   UID,
@@ -40,10 +38,14 @@ import {
   type Persona,
 } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildCollection, guildDoc, outcomeOf, resetData, setUpGuildEmulator } from './support/harness.ts'
+import { createAward, createPriority, deletePriority, editPriority, type Staff } from './support/audit.ts'
 
 setUpGuildEmulator()
 
 type Operation = 'get' | 'list' | 'create' | 'update' | 'delete'
+
+/** Loot writes carry an audit entry in the name of whoever writes. A persona that is not staff sends the payload a Raid Leader would, so only its role can refuse it. */
+const asStaff = (who: Persona): Staff => (who === 'guildLeader' ? 'guildLeader' : 'raidLeader')
 
 interface Row {
   op: Operation
@@ -129,27 +131,27 @@ defineMatrix('teamAssignments', [
 ])
 
 // match /lootPriorities/{priorityId}
-// Any role can read the priorities. Guild and Raid Leaders can create, edit and delete them.
+// Any role can read the priorities. Guild and Raid Leaders can create, edit and delete them, each together with its audit entry (see priority-audit.test.ts).
 defineMatrix('lootPriorities', [
   { op: 'get', what: 'read a priority', allow: ANY_ROLE, run: (db) => getDoc(guildDoc(db, `lootPriorities/${PRIORITY_ID}`)) },
   { op: 'list', what: 'list the priorities', allow: ANY_ROLE, run: (db) => getDocs(guildCollection(db, 'lootPriorities')) },
-  { op: 'create', what: 'create a priority', allow: RAID_STAFF, run: (db) => setDoc(guildDoc(db, 'lootPriorities/priority-2'), priorityDoc()) },
+  { op: 'create', what: 'create a priority', allow: RAID_STAFF, run: (db, who) => createPriority(db, asStaff(who)) },
   {
     op: 'update',
     what: 'reorder a priority',
     allow: RAID_STAFF,
-    run: (db) => updateDoc(guildDoc(db, `lootPriorities/${PRIORITY_ID}`), { rankedPlayers: [PLAYER_3, PLAYER_2, PLAYER_1] }),
+    run: (db, who) => editPriority(db, asStaff(who), { changes: { rankedPlayers: [PLAYER_3, PLAYER_2, PLAYER_1] }, action: 'reorder' }),
   },
-  { op: 'delete', what: 'delete a priority', allow: RAID_STAFF, run: (db) => deleteDoc(guildDoc(db, `lootPriorities/${PRIORITY_ID}`)) },
+  { op: 'delete', what: 'delete a priority', allow: RAID_STAFF, run: (db, who) => deletePriority(db, asStaff(who)) },
 ])
 
 // match /awards/{awardId}
-// Any role can read awards. Guild and Raid Leaders can create them (a Raid Leader's must carry a snapshot
-// of the priority; see awards.test.ts). Nobody can change or delete one, not even the leader who made it.
+// Any role can read awards. Guild and Raid Leaders can create them (each must carry a snapshot of the priority and its audit entry;
+// see awards.test.ts). Nobody can change or delete one without an audit entry, and nobody can delete one at all.
 defineMatrix('awards', [
   { op: 'get', what: 'read an award', allow: ANY_ROLE, run: (db) => getDoc(guildDoc(db, 'awards/award-1')) },
   { op: 'list', what: 'list the awards', allow: ANY_ROLE, run: (db) => getDocs(guildCollection(db, 'awards')) },
-  { op: 'create', what: 'record an award that matches its priority', allow: RAID_STAFF, run: (db) => addDoc(guildCollection(db, 'awards'), awardDoc()) },
+  { op: 'create', what: 'record an award that matches its priority', allow: RAID_STAFF, run: (db, who) => createAward(db, asStaff(who)) },
   { op: 'update', what: 'change an award', allow: 'nobody', run: (db) => updateDoc(guildDoc(db, 'awards/award-1'), { awardNote: 'edited' }) },
   { op: 'delete', what: 'delete an award', allow: 'nobody', run: (db) => deleteDoc(guildDoc(db, 'awards/award-1')) },
 ])

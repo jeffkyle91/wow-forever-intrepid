@@ -7,8 +7,8 @@
 // removal. Entries can never be edited or deleted, by anyone. The snapshot an award was decided with, and who
 // created it and when, never change. See docs/design/audit-first-loot.md.
 //
-// This stage only adds the ability to edit awards and to write entries. Creating an award and writing a
-// priority still do not require an entry: the client starts writing them first, then a later change requires them.
+// Everything loot writes now needs its entry: an award edit, a new award (awards.test.ts, manual-awards.test.ts) and every priority
+// create, edit and delete (priority-audit.test.ts). The entry rules are tested here and in audit-details.test.ts.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { deleteDoc, deleteField, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, writeBatch, type DocumentData } from 'firebase/firestore'
@@ -16,7 +16,7 @@ import {
   ANY_ROLE, LABEL, PERSONAS, PLAYER_1, PLAYER_2, PLAYER_3, PRIORITY_ID, RAID_STAFF, UID, awardDoc, displayNameOf, priorityDoc, uidOf,
 } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildCollection, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
-import { AWARD, clean, describeChange, editAward, entry, entryId, reorderPriority, stamp, stampedAward, type Staff } from './support/audit.ts'
+import { AWARD, clean, createPriority, deletePriority, describeChange, editAward, editPriority, entry, entryId, newPriorityDoc, reorderPriority, stamp, stampedAward, type Staff } from './support/audit.ts'
 import { asDouble, rawCommit, requestTime } from './support/raw.ts'
 
 setUpGuildEmulator()
@@ -247,10 +247,7 @@ for (const who of RAID_STAFF as readonly Staff[]) {
 describe('entry ids and revisions', () => {
   test('a priority with the id of an award does not block that award\'s edits', async () => {
     const db = dbFor('raidLeader')
-    const batch = writeBatch(db)
-    batch.set(guildDoc(db, `lootPriorities/${AWARD}`), priorityDoc({ rev: 1 }))
-    batch.set(guildDoc(db, `auditLog/${entryId('priority', AWARD, 1)}`), entry('raidLeader', 'priority', AWARD, 1, { action: 'create', ...describeChange(undefined, priorityDoc()) }))
-    await expectAllowed(batch.commit(), 'writing a priority that has the award\'s id, with its create entry')
+    await expectAllowed(createPriority(db, 'raidLeader', { id: AWARD }), 'writing a priority that has the award\'s id, with its create entry')
     await expectAllowed(editAward(db, 'raidLeader'), 'the honest edit of the award')
   })
 
@@ -304,20 +301,18 @@ describe('entry ids and revisions', () => {
 // An entry stands for one real change, so it can only be written together with that change.
 describe('audit entries for priorities', () => {
   test('a new priority at revision 1 can be created with a create entry that lists its fields', async () => {
-    const db = dbFor('raidLeader')
-    const fields = priorityDoc()
-    const batch = writeBatch(db)
-    batch.set(guildDoc(db, 'lootPriorities/priority-2'), { ...fields, rev: 1, updatedBy: UID.raidLeader, updatedAt: serverTimestamp() })
-    batch.set(guildDoc(db, `auditLog/${entryId('priority', 'priority-2', 1)}`), entry('raidLeader', 'priority', 'priority-2', 1, { action: 'create', ...describeChange(undefined, fields) }))
-    await expectAllowed(batch.commit())
+    await expectAllowed(createPriority(dbFor('raidLeader'), 'raidLeader'))
+    const logged = await stored(`auditLog/${entryId('priority', 'priority-2', 1)}`)
+    assert.equal(logged?.action, 'create')
+    assert.deepEqual([...((logged?.changed ?? []) as string[])].sort(), Object.keys(newPriorityDoc()).sort())
   })
 
   test('a create entry is refused for a priority that already exists, at a revision other than 1, or that lists other fields', async () => {
     const db = dbFor('raidLeader')
     const create = (id: string, docRev: number | undefined, entryRev: number, audit: DocumentData = {}, extra: DocumentData = {}) => {
-      const fields = priorityDoc(extra)
+      const fields = newPriorityDoc(extra)
       const batch = writeBatch(db)
-      batch.set(guildDoc(db, `lootPriorities/${id}`), clean({ ...fields, rev: docRev }))
+      batch.set(guildDoc(db, `lootPriorities/${id}`), clean({ ...fields, rev: docRev, updatedBy: UID.raidLeader, updatedAt: serverTimestamp() }))
       batch.set(guildDoc(db, `auditLog/${entryId('priority', id, entryRev)}`), clean(entry('raidLeader', 'priority', id, entryRev, { action: 'create', ...describeChange(undefined, fields), ...audit })))
       return batch.commit()
     }
@@ -368,8 +363,9 @@ describe('audit entries for priorities', () => {
   test('an existing entry cannot be rewritten, even by a request that passes every entry check', async () => {
     const db = dbFor('raidLeader')
     await expectAllowed(reorderPriority(db, 'raidLeader', { rev: 1 }))
-    // Priority writes carry no entry in this stage, so the revision can be wound back and then used again.
-    await expectAllowed(updateDoc(guildDoc(db, `lootPriorities/${PRIORITY_ID}`), { rev: 0, rankedPlayers: [PLAYER_1, PLAYER_2, PLAYER_3] }), 'winding the priority back')
+    // Wind the priority's revision back behind the rules' back (an admin tool, say), so that revision 1 is open again. The entry for it is
+    // already stored, and an entry can never be rewritten, whatever the target looks like.
+    await asAdmin((admin) => setDoc(guildDoc(admin, `lootPriorities/${PRIORITY_ID}`), priorityDoc({ rev: 0 })))
     const before = await stored(`auditLog/${entryId('priority', PRIORITY_ID, 1)}`)
     await expectDenied(reorderPriority(db, 'raidLeader', { rev: 1, audit: { reason: 'history rewritten' } }), 'overwriting an existing entry')
     assert.deepEqual(await stored(`auditLog/${entryId('priority', PRIORITY_ID, 1)}`), before)
@@ -394,9 +390,19 @@ describe('audit entries for priorities', () => {
     await expectAllowed(editAward(dbFor('raidLeader'), 'raidLeader', { awardId: 'a'.repeat(100) }))
   })
 
-  test('writing priorities without an entry is still allowed in this stage', async () => {
-    await expectAllowed(updateDoc(guildDoc(dbFor('raidLeader'), `lootPriorities/${PRIORITY_ID}`), { rankedPlayers: [PLAYER_3, PLAYER_2, PLAYER_1] }))
-  })
+  // Stage 3: a priority is never written without its entry, by anyone, whatever else the write gets right.
+  for (const who of RAID_STAFF as readonly Staff[]) {
+    test(`a priority write without its entry is refused for a ${LABEL[who]}, even with every stamp in place`, async () => {
+      const db = dbFor(who)
+      await expectDenied(updateDoc(guildDoc(db, `lootPriorities/${PRIORITY_ID}`), { rankedPlayers: [PLAYER_3, PLAYER_2, PLAYER_1] }), 'a plain reorder')
+      await expectDenied(editPriority(db, who, { skipEntry: true }), 'a stamped edit')
+      await expectDenied(createPriority(db, who, { skipEntry: true }), 'a stamped create')
+      await expectDenied(deletePriority(db, who, { skipEntry: true }), 'a delete')
+      await expectDenied(setDoc(guildDoc(db, 'lootPriorities/priority-plain'), priorityDoc()), 'a plain create')
+      await expectDenied(deleteDoc(guildDoc(db, `lootPriorities/${PRIORITY_ID}`)), 'a plain delete')
+      assert.deepEqual(await stored(`lootPriorities/${PRIORITY_ID}`), priorityDoc())
+    })
+  }
 })
 
 // match /auditLog/{entryId}: read, create, update and delete

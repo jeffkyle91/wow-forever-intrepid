@@ -1,0 +1,44 @@
+/* The Browse drops dialog on Loot priorities. Every class starts with drops-. */
+.modal:has(.drops-browser) { width: min(100%, 720px); }
+.drops-browser { display: grid; gap: 12px; padding-top: 16px; }
+.drops-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.drops-search { flex: 1 1 200px; min-width: 0; height: 31px; box-sizing: border-box; padding: 0 9px; border: 1px solid #dfe7ef; border-radius: 4px; color: #33443a; background: #fff; font: inherit; font-size: 11px; }
+.drops-count { margin: 0; color: #526158; font-size: 10px; }
+.drops-intro p { margin: 0 0 6px; color: #526158; font-size: 11px; }
+.drops-intro a { color: #427296; }
+.drops-status { color: #7a6a3a; }
+.drops-notes { margin-top: 4px; color: #526158; font-size: 11px; }
+.drops-notes summary { cursor: pointer; }
+.drops-notes ul { margin: 6px 0 0; padding-left: 18px; }
+.drops-empty { margin: 0; padding: 18px 0; color: #626e7b; font-size: 12px; }
+.drops-zone-select { min-width: 0; max-width: 190px; height: 31px; padding: 0 8px; border: 1px solid #dfe7ef; border-radius: 4px; color: #3f566b; background: #fff; font: inherit; font-size: 10px; }
+
+.drops-group { border: 1px solid #e3e8e0; border-left-width: 4px; border-radius: 5px; background: #fff; }
+.drops-group header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 9px 12px 0; }
+.drops-group h3 { margin: 0; color: #29372f; font: 600 13px/1.3 var(--display); }
+.drops-kind { padding: 1px 7px; border-radius: 9px; color: #3f566b; background: #eef2f6; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.drops-npc { color: #626e7b; font-size: 9px; }
+.drops-group ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 9px 12px 11px; list-style: none; }
+.drops-boss { border-left-color: #a8812f; }
+.drops-rare { border-left-color: #4b82aa; }
+.drops-trash { border-left-color: #b9c2bc; }
+.drops-zone { border-left-color: #8e9bb0; border-left-style: dashed; }
+
+:root[data-theme='dark'] .drops-intro p, :root[data-theme='dark'] .drops-notes { color: #bfccd9; }
+:root[data-theme='dark'] .drops-intro a { color: #8fc2e6; }
+:root[data-theme='dark'] .drops-status { color: #d6c37a; }
+:root[data-theme='dark'] .drops-empty, :root[data-theme='dark'] .drops-npc { color: #9fb0c3; }
+:root[data-theme='dark'] .drops-search { border-color: #3a4b61; color: #e8edf3; background: #182536; }
+:root[data-theme='dark'] .drops-count { color: #bfccd9; }
+:root[data-theme='dark'] .drops-zone-select { border-color: #3a4b61; color: #d3deea; background: #182536; }
+:root[data-theme='dark'] .drops-group { border-color: #33465c; background: #14202f; }
+:root[data-theme='dark'] .drops-group h3 { color: #e8edf3; }
+:root[data-theme='dark'] .drops-kind { color: #d3deea; background: #22334a; }
+:root[data-theme='dark'] .drops-boss { border-left-color: #c9a24a; }
+:root[data-theme='dark'] .drops-rare { border-left-color: #6aa6d4; }
+:root[data-theme='dark'] .drops-trash { border-left-color: #5d6c80; }
+:root[data-theme='dark'] .drops-zone { border-left-color: #7886a0; }
+
+@media (max-width: 600px) {
+  .drops-zone-select { flex: 1 1 100%; max-width: none; }
+}

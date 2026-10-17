@@ -88,6 +88,10 @@ Firestore triggers synchronize newly scheduled/rescheduled/restored raids and ne
 
 New raids store `startsAt` as a Firestore timestamp derived from their Eastern date/time in `shared/lib/raidStart.ts`. Saving an older raid initializes it; rescheduling updates it in the same audited change. Nonexistent spring-forward times are rejected, and the repeated fall hour uses its first occurrence. Existing raids without `startsAt` remain readable/editable, but the response callable refuses manual sign-ups until a leader saves their details. This cutoff does not freeze team assignments; the dialog explicitly labels them as a live preview until server-side locking is built.
 
+### Item tooltips
+
+Item names, icons and tooltips are read live from Wowhead's public tooltip endpoint by item id (`shared/game/itemTooltip.ts` has the addresses; `shared/lib/itemInfo.ts` keeps an in-memory cache, runs four requests at a time and retries once; `shared/ui/ItemTooltip.tsx` shows an item as a chip that opens its tooltip when a mouse rests on it and on click, tap or Enter; hover is a mouse-only convenience, since touch and keyboard have no hover). The tooltip HTML comes from a third party, so it is never put into the page: `sanitizeTooltipHtml` reads it into a tree of allowed elements and allowed class names (no links, images, styles or scripts), and the component renders that tree as ordinary React elements with prefixed class names. Use `ItemTooltip` wherever an item id should show a tooltip; a failed lookup leaves the id (or a typed name) in place, so manual entry never depends on Wowhead. Capture files in `data/loot/` hold ids only (see `data/loot/README.md`).
+
 ### Reading data safely
 
 Raid zone snapshots are compared by ordered zone values (`id`, `name`, `size`) in `shared/raids/zoneSnapshots.ts`, not by JSON text. Firestore map key order is not significant; logging an unchanged zone list as changed makes the audit entry inconsistent and the batch is refused.

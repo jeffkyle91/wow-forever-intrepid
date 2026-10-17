@@ -8,6 +8,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 - Right-aligned the My dashboard raider-type, help and attendance controls on mobile, including when they wrap.
 - Fixed raid edits with ten selected zones being rejected by Firestore's rule-expression limit, while preserving complete zone validation and truthful, atomic audit entries. Pending merge and rules deployment.
+- Loot priorities has a new Browse drops button: pick a dungeon to see which creature drops which item, with each item's name, icon and full tooltip read live from Wowhead. Point at an item with a mouse, or tap or select it, to read its tooltip. The nine dungeons are practice data for the beta; leaders cannot edit them in the app yet (LOOT-007, LOOT-008).
 
 ## 2026-10-16 - f42a14d
 

@@ -1,4 +1,6 @@
-// Which creatures and items of a loot table match the search text. No imports, so Node can run it in the unit tests.
+// Which creatures and items of a loot table match the search text, and what a drop has to do with the priorities. Node runs it in the unit tests.
+import { nameKey } from './completion.ts'
+
 type TableLike = { sources: { npcId: number; name: string; kind: string; itemIds: number[] }[]; zoneWideItemIds: number[] }
 
 export type LootGroup = { key: string; name: string; kind: 'boss' | 'rare' | 'trash' | 'zone'; npcId?: number; itemIds: number[] }
@@ -37,4 +39,11 @@ export function dropPriorityRecord(pick: DropPick, itemName: string) {
     item: itemName, encounter: pick.encounter, rankedPlayers: [] as string[], councilNote: '',
     itemId: pick.itemId, zoneId: pick.zoneId, ...(pick.npcId !== undefined ? { npcId: pick.npcId } : {}),
   }
+}
+
+// The priorities that stand for an item: those that carry its id, and, for one typed by hand, those with the same name. An item is "on the
+// list" when this is not empty; removing it from the list removes all of them. The name may be unknown (not looked up yet): then only the id counts.
+export function prioritiesForItem<T extends { item: string; itemId?: number }>(priorities: T[], itemId: number, itemName?: string): T[] {
+  const name = itemName ? nameKey(itemName) : ''
+  return priorities.filter((priority) => priority.itemId === itemId || (name !== '' && nameKey(priority.item) === name))
 }

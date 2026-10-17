@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { countItems, dropEncounter, dropPriorityId, dropPriorityRecord, filterGroups, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
+import { countItems, dropEncounter, dropPriorityId, dropPriorityRecord, filterGroups, prioritiesForItem, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
 
 // Invented creatures and items.
 const table = {
@@ -75,5 +75,31 @@ describe('priorities made from drops', () => {
     const b = dropPriorityRecord({ itemId: 2, zoneId: 1, encounter: 'x' }, 'B')
     a.rankedPlayers.push('someone')
     assert.deepEqual(b.rankedPlayers, [])
+  })
+})
+
+describe('prioritiesForItem', () => {
+  const priorities = [
+    { id: 'drop-101', item: 'Iron Ring', itemId: 101 },
+    { id: 'typed-1', item: '  iron   RING ' },
+    { id: 'typed-2', item: 'Moss Cloak' },
+    { id: 'drop-300', item: 'Moss Cloak', itemId: 300 },
+    { id: 'blank', item: '' },
+  ]
+  const ids = (found: { id: string }[]) => found.map((priority) => priority.id)
+  it('finds the priority that carries the id', () => assert.deepEqual(ids(prioritiesForItem(priorities, 101)), ['drop-101']))
+  it('also finds one typed by hand with the same name, ignoring case and extra spaces', () => assert.deepEqual(ids(prioritiesForItem(priorities, 101, 'Iron Ring')), ['drop-101', 'typed-1']))
+  it('finds every priority that stands for the item, so removing it takes them all off', () => assert.deepEqual(ids(prioritiesForItem(priorities, 300, 'Moss Cloak')), ['typed-2', 'drop-300']))
+  it('finds nothing for an item that is not on the list', () => assert.deepEqual(prioritiesForItem(priorities, 999, 'Plain Boots'), []))
+  it('does not match by name when the name is not known yet, and never matches a blank name', () => {
+    assert.deepEqual(prioritiesForItem(priorities, 999), [])
+    assert.deepEqual(prioritiesForItem(priorities, 999, ''), [])
+    assert.deepEqual(prioritiesForItem(priorities, 999, '   '), [])
+  })
+  it('does not match an id on a different item just because the name differs in spelling', () => assert.deepEqual(prioritiesForItem(priorities, 101, 'Iron Rings'), ['drop-101'].map((id) => priorities.find((priority) => priority.id === id))))
+  it('does not change its input', () => {
+    const before = JSON.stringify(priorities)
+    prioritiesForItem(priorities, 101, 'Iron Ring')
+    assert.equal(JSON.stringify(priorities), before)
   })
 })

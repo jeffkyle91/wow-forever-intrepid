@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, isPhaseNo, phaseLabel, phaseName, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
+import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, isPhaseNo, isPhaseRev, nextPhaseRev, phaseLabel, phaseName, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
 
 // Invented phase names.
 const fresh = { currentPhase: 'Launch', nextPhase: 'Second' }
@@ -37,6 +37,21 @@ describe('phaseOptions', () => {
   })
   it('labels the current and next phase and leaves a finished one as it is named', () => {
     assert.deepEqual(phaseOptions(later, true).map(phaseLabel), ['Fourth (next)', 'Third (current)', 'Second', 'Launch'])
+  })
+})
+
+describe('phase revisions', () => {
+  it('counts from 1, and a settings document that never changed phase is at 0', () => {
+    assert.equal(nextPhaseRev({}), 1)
+    assert.equal(nextPhaseRev({ phaseRev: 1 }), 2)
+    assert.equal(nextPhaseRev({ phaseRev: 41 }), 42)
+  })
+  it('does not trust a revision that is not a whole number from 1 to a million', () => {
+    for (const bad of [0, -1, 1.5, '2', null, NaN, 1_000_001]) {
+      assert.equal(isPhaseRev(bad), false)
+      assert.equal(nextPhaseRev({ phaseRev: bad }), 1)
+    }
+    assert.ok(isPhaseRev(1) && isPhaseRev(1_000_000))
   })
 })
 

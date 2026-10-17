@@ -20,7 +20,8 @@ import {
 import { auth, db, functions, guildId } from './firebase'
 import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
-import { awardCreateFields, describeCreate, describeDelete, describeEdit, priorityAuditFields, readAuditEntry, type AuditEntry } from './shared/game/lootAudit'
+import { nextPhaseRev } from './shared/game/phases'
+import { awardCreateFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, type AuditEntry } from './shared/game/lootAudit'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
@@ -89,6 +90,8 @@ export type GuildSettings = {
   groupNames: Record<RaidGroup, string>
   // The names of the finished phases, oldest first. Its length is the number of the current phase. Absent until a phase has been closed.
   phaseHistory?: string[]
+  // How many times a phase has been started or reopened (each one is in the change log). Absent until the first.
+  phaseRev?: number
 }
 export type GuildSettingsRecord = GuildSettings & { id: string }
 
@@ -190,6 +193,22 @@ export function subscribeRaidZones(onData: (zones: RaidZoneRecord[]) => void, on
 // Guild Leaders only: the rules refuse everyone else, and refuse a document that is not exactly this shape.
 export async function saveGuildSettings(settings: GuildSettings) {
   await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'general'), settings)
+}
+
+// Starting a phase or reopening one saves the settings together with its change log entry (`phase_settings_{n}`, n counting every start and reopen),
+// which the rules require, so nobody can move the phase without it showing. The entry says what the phase fields were before: what is stored now
+// (nothing on a guild's first save, which is why the stored document is read here), not what this browser last showed.
+export async function changePhase(next: GuildSettings, action: 'start' | 'reopen', who: AuditWho) {
+  const database = requireDb()
+  const ref = doc(database, 'guilds', guildId, 'settings', 'general')
+  const stored = (await getDoc(ref)).data() ?? {}
+  const rev = nextPhaseRev(stored)
+  const description = describeEdit(stored, { currentPhase: next.currentPhase, nextPhase: next.nextPhase, phaseHistory: next.phaseHistory }, phaseAuditFields)
+  if (!description) throw new Error('Nothing was changed.')
+  const batch = writeBatch(database)
+  batch.set(ref, { ...next, phaseRev: rev })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `phase_settings_${rev}`), auditEntry(who, 'phase', 'settings', rev, action, next.currentPhase, description))
+  await batch.commit()
 }
 
 export async function createAfkEntry(data: Omit<AfkEntryRecord, 'id' | 'createdAt'>) {
@@ -325,7 +344,7 @@ export type NewAward = { priorityId: string; item: string; encounter: string; re
 // A fresh id for every new priority: an entry id (`priority_{id}_{rev}`) can be used only once, so the id of a deleted priority cannot be created again.
 export const newPriorityId = () => crypto.randomUUID()
 
-function auditEntry(who: AuditWho, targetType: 'priority' | 'award', targetId: string, rev: number, action: string, item: string, description: Record<string, unknown>) {
+function auditEntry(who: AuditWho, targetType: 'priority' | 'award' | 'phase', targetId: string, rev: number, action: string, item: string, description: Record<string, unknown>) {
   return { at: serverTimestamp(), by: who.uid, byName: who.displayName, targetType, targetId, rev, action, item, ...description }
 }
 

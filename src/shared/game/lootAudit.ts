@@ -5,6 +5,8 @@
 
 // The fields an entry may list for a priority or an award. The stamps (rev, updatedBy, updatedAt, createdBy, createdAt) are never listed.
 export const priorityAuditFields = ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom'] as const
+// The settings fields a phase entry lists (when a phase is started or reopened): the ones that differ, each with its old and new value.
+export const phaseAuditFields = ['currentPhase', 'nextPhase', 'phaseHistory'] as const
 export const awardCreateFields = ['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo'] as const
 
 type Values = Record<string, unknown>

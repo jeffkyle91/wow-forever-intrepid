@@ -54,6 +54,10 @@ describe('checkLootCapture', () => {
     const ids = valid(); ids.sources[0].itemIds = [100, 1.5, -2, '7'] as unknown as number[]
     assert.equal(errorsOf(ids).length, 1)
   })
+  it('accepts an optional fromPhase of 0 to 31 and refuses anything else', () => {
+    for (const fromPhase of [0, 1, 31]) assert.deepEqual(errorsOf({ ...valid(), fromPhase }), [])
+    for (const fromPhase of [-1, 32, 1.5, '2', null]) assert.equal(errorsOf({ ...valid(), fromPhase }).length, 1)
+  })
   it('refuses a missing sources list, a bad date and more than 40 players', () => {
     const noSources = valid() as Record<string, unknown>; delete noSources.sources
     assert.match(errorsOf(noSources).join(' '), /sources must be a list/)

@@ -33,3 +33,5 @@
 :root[data-theme='dark'] .audit-body { color: #c8d5e3; }
 :root[data-theme='dark'] .audit-error { color: #f0a090; }
 :root[data-theme='dark'] .audit-search { border-color: #3a4b61; color: #e8edf3; background: #182536; }
+.audit-count { margin: 0; color: #626e7b; font-size: 10px; text-align: center; }
+:root[data-theme='dark'] .audit-count { color: #9fb0c3; }

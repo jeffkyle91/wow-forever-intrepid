@@ -186,7 +186,7 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       ['a recipientId over 100 characters', { recipientId: 'x'.repeat(101) }],
       ['a removedReason that is a list while the award stays active', { removedReason: ['x'] }],
       ['a removedReason over 300 characters while the award stays active', { removedReason: 'x'.repeat(301) }],
-      ['an extra field', { favourite: true }],
+      ['an extra field', { favorite: true }],
     ]
     for (const [what, change] of invalidFields) {
       test(`an edit with ${what} is refused`, async () => {

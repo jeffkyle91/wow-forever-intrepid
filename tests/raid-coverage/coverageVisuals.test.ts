@@ -374,12 +374,13 @@ describe('per-provider scope inside one requirement', () => {
     assert.equal(status([member('1', 'Mage')]), 'party-unknown')
   })
 })
-describe('mouseover tooltip rendering', () => {
+describe('coverage help popover rendering', () => {
   it('renders only the selected spell name and its stored description', () => {
     const source = readFileSync(new URL('../../src/features/raid-coverage/RaidCoverageStrip.tsx', import.meta.url), 'utf8')
-    const tip = source.slice(source.indexOf('role="tooltip"'))
-    assert.match(tip, /tip\.tile\.spellName/)
-    assert.match(tip, /tip\.tile\.description/)
+    const tip = source.slice(source.indexOf('</>}>'), source.indexOf('</HelpPopover>'))
+    assert.match(source, /<HelpPopover label=\{tile\.label\}/)
+    assert.match(tip, /tile\.spellName/)
+    assert.match(tip, /tile\.description/)
     assert.doesNotMatch(tip, /tooltip\.|statusLabel|\.lines|\.team|providerClasses|alternatives|basis|estimated|confidence/)
   })
 })

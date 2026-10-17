@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { HelpPopover } from '../../shared/ui/HelpPopover'
 import type { RaidGroup, TenManTeam } from '../../guildApi'
 import type { RaidView, TeamOption } from '../../shared/game/teams'
 import { calculateCoverage, summaryText } from './calculateCoverage'
@@ -33,7 +34,9 @@ function RequirementRow({ requirement }: { requirement: RequirementResult }) {
   return <li className="cov-row">
     <div className="cov-row-head">
       <strong>{requirement.name}</strong>
-      <span className={`cov-status cov-status-${estimate.status}${estimated ? ' cov-status-est' : ''}`} title={displayHint(estimate.status, estimated)}><span aria-hidden="true">{statusGlyphs[estimate.status]} </span>{displayLabel(estimate.status, estimated)}</span>
+      <HelpPopover label={`${requirement.name}: ${displayLabel(estimate.status, estimated)}`} triggerClassName={`cov-status cov-status-${estimate.status}${estimated ? ' cov-status-est' : ''}`} trigger={<><span aria-hidden="true">{statusGlyphs[estimate.status]} </span>{displayLabel(estimate.status, estimated)}</>}>
+        <p>{displayHint(estimate.status, estimated)}</p>
+      </HelpPopover>
     </div>
     <p className="cov-scope">{[...new Set(requirement.effects.map((effect) => kindLabels[effect.kind]))].join(' / ')}{estimate.required > 1 ? `, needs ${estimate.required} different players (${estimate.availableCount} counting guaranteed or specialization-assumed providers, ${estimate.potentialCount} including possible talents)` : ''}</p>
     {requirement.basis !== 'verified' && <p className="cov-note">{requirement.basis === 'estimated' ? 'Estimate from provisional data; not verified in game. Unverified effects are not counted.' : 'No effect here has supported data, so no coverage is estimated.'}</p>}

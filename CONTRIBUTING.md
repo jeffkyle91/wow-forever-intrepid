@@ -29,6 +29,8 @@ If you changed `firestore.rules`, also run `npm run test:rules` (see "Testing th
 
 Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. Automated checks cover the Firestore rules, the pure raid-preview helpers and the pure functions in `tests/unit/` (`npm run test:unit`, run directly by Node, no emulator), not the rendered UI, so say in the PR what you checked in the app.
 
+For explanatory help or expandable read-only text, use the shared `HelpPopover` and follow [its interaction and browser-check contract](ARCHITECTURE.md#help-and-popovers). Do not put essential help only in `title` or hover handlers. Reading help must never trigger a save or change a selection.
+
 ## Testing the Firestore rules
 
 The rules are the authorization boundary, so they have tests that run against the local Firestore emulator. You need a JDK, version 21 or newer, because the emulator is a Java program (check with `java -version`; Temurin from adoptium.net is fine, or `brew install openjdk@21` on macOS, which also needs adding to your `PATH`). Then:

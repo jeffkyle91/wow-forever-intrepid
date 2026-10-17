@@ -12,7 +12,8 @@
 .cov-list { display: grid; gap: 8px; }
 .cov-row { padding: 8px 10px; border: 1px solid #e9edf1; border-radius: 5px; background: #fafbfd; }
 .cov-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.cov-status { padding: 1px 7px; border: 1px solid currentColor; border-radius: 9px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.cov-status { min-height: 44px; padding: 1px 7px; border: 1px solid currentColor; border-radius: 9px; background: transparent; font: inherit; font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; }
+.cov-status:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .cov-status-available { color: #1f7a45; }
 .cov-status-missing { color: #b3261e; }
 .cov-status-potential { color: #8a5a00; }
@@ -39,12 +40,12 @@
 .cov-strip-label { margin: 0; color: #6b7a88; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .cov-strip-counts { display: inline-flex; flex-wrap: wrap; gap: 4px 6px; }
 .cov-chip { padding: 0 6px; border: 1px solid currentColor; border-radius: 9px; font-size: 11px; line-height: 17px; white-space: nowrap; }
-.cov-chip-available, .cov-tip-status-available { color: #1f7a45; }
-.cov-chip-missing, .cov-tip-status-missing { color: #b3261e; }
-.cov-chip-potential, .cov-tip-status-potential { color: #8a5a00; }
-.cov-chip-contested, .cov-tip-status-contested { color: #a34a00; }
-.cov-chip-party-unknown, .cov-tip-status-party-unknown { color: #5f6b77; }
-.cov-chip-unverified, .cov-chip-indeterminate, .cov-tip-status-unverified, .cov-tip-status-indeterminate { color: #5f6b77; }
+.cov-chip-available { color: #1f7a45; }
+.cov-chip-missing { color: #b3261e; }
+.cov-chip-potential { color: #8a5a00; }
+.cov-chip-contested { color: #a34a00; }
+.cov-chip-party-unknown { color: #5f6b77; }
+.cov-chip-unverified, .cov-chip-indeterminate { color: #5f6b77; }
 .cov-chip-unverified, .cov-chip-indeterminate, .cov-chip-est { border-style: dashed; }
 .cov-status-est { border-style: dashed; }
 .cov-icon-est { border-style: dashed; }
@@ -56,8 +57,8 @@
 :root[data-theme='dark'] .cov-icon-est.cov-icon-missing { color: #ff9d96; }
 :root[data-theme='dark'] .cov-icon-est.cov-icon-potential { color: #f0d797; }
 :root[data-theme='dark'] .cov-icon-est.cov-icon-contested { color: #ffb877; }
-.cov-icons { display: grid; grid-template-columns: repeat(auto-fill, 36px); gap: 7px; margin: 8px 0 2px; padding: 0 4px 0 0; list-style: none; }
-.cov-icon { position: relative; box-sizing: border-box; width: 36px; height: 36px; border: 2px solid; border-radius: 5px; background: #eef2f6; cursor: default; }
+.cov-icons { display: grid; grid-template-columns: repeat(auto-fill, 44px); gap: 7px; margin: 8px 0 2px; padding: 0 4px 0 0; list-style: none; }
+.cov-icon { position: relative; box-sizing: border-box; width: 44px; height: 44px; padding: 0; border: 2px solid; border-radius: 5px; background: #eef2f6; cursor: pointer; }
 .cov-icon img { display: block; position: relative; width: 100%; height: 100%; border-radius: 3px; object-fit: cover; }
 .cov-icon-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #47596c; font-size: 12px; font-weight: 700; }
 .cov-icon:focus-visible { outline: 2px solid #3c75a2; outline-offset: 2px; }
@@ -67,10 +68,6 @@
 .cov-icon-contested { border-color: #e07b1f; }
 .cov-icon-party-unknown { border-color: #8a96a3; }
 .cov-icon-unverified, .cov-icon-indeterminate { border-style: dashed; border-color: #8a96a3; }
-.cov-tip { position: fixed; z-index: 50; display: grid; gap: 3px; box-sizing: border-box; padding: 8px 10px; border: 1px solid #4a5a6c; border-radius: 6px; background: #1f2a36; color: #eef3f8; font-size: 12px; line-height: 1.35; pointer-events: none; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
-.cov-tip strong { font-size: 13px; }
-.cov-tip span { white-space: pre-line; }
-.cov-tip .cov-tip-unavailable { color: #c3ceda; font-style: italic; }
 :root[data-theme='dark'] .cov-strip-caret { border-left-color: #9fb0c1; }
 :root[data-theme='dark'] .cov-strip-label { color: #9fb0c1; }
 :root[data-theme='dark'] .cov-icon { background: #263649; }
@@ -86,7 +83,6 @@
 :root[data-theme='dark'] .cov-chip-potential { color: #f0d797; }
 :root[data-theme='dark'] .cov-chip-contested { color: #ffb877; }
 :root[data-theme='dark'] .cov-chip-party-unknown, :root[data-theme='dark'] .cov-chip-unverified, :root[data-theme='dark'] .cov-chip-indeterminate { color: #b6c2cf; }
-:root[data-theme='dark'] .cov-tip { border-color: #5a6c80; background: #0f1720; }
 :root[data-theme='dark'] .cov-panel { border-color: #2f3d4b; background: #18222c; color: #d1dce8; }
 :root[data-theme='dark'] .cov-row { border-color: #2f3d4b; background: #1d2935; }
 :root[data-theme='dark'] .cov-controls select { border-color: #3a4b61; color: #d3deea; background-color: #182536; }
@@ -116,9 +112,3 @@
 .cov-consumables label { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0; }
 :root[data-theme='dark'] .cov-consumables { border-color: #7a6a2c; color: #d1dce8; }
 :root[data-theme='dark'] .cov-consumables legend { color: #e3c76a; }
-.cov-tip .cov-tip-headline { color: #c3ceda; font-size: 11px; }
-.cov-tip-spell { display: grid; grid-template-columns: 20px 1fr; column-gap: 6px; row-gap: 1px; margin-top: 3px; }
-.cov-tip-spell img { grid-column: 1; grid-row: 1 / span 3; width: 20px; height: 20px; border-radius: 3px; }
-.cov-tip-spell > span, .cov-tip-spell > b { grid-column: 2; white-space: pre-line; }
-.cov-tip .cov-tip-providers, .cov-tip .cov-tip-note { color: #aebccb; font-size: 11px; }
-.cov-tip-consumable { border-color: #b8962e; }

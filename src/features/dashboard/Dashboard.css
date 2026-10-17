@@ -61,12 +61,13 @@
 
 @media (max-width: 900px) { .dash-grid { grid-template-columns: minmax(0, 1fr); } }
 
-.dash-head { display: flex; align-items: center; gap: 12px; }
+.dash-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .dash-raider-type { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; }
-.dash-raider-type button { padding: 4px 12px; border: 0; border-radius: 4px; color: #5d7388; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer; }
+.dash-raider-type button { min-height: 44px; padding: 4px 12px; border: 0; border-radius: 4px; color: #5d7388; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer; }
 .dash-raider-type button[aria-pressed='true'] { color: #fff; background: #4a6a85; }
 .dash-raider-type button:disabled { cursor: default; opacity: 0.7; }
-.dash-attendance-chip { display: inline-flex; align-items: baseline; gap: 7px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; color: #5d7388; font-size: 11px; }
+.dash-attendance-chip { display: inline-flex; align-items: baseline; gap: 7px; min-height: 44px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 6px; color: #5d7388; background: transparent; font: inherit; font-size: 11px; cursor: pointer; }
+.dash-attendance-chip:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .dash-attendance-chip strong { color: #40566b; font: 600 15px/1 var(--display); }
 :root[data-theme='dark'] .dash-raider-type button { color: #93a6b8; }
 :root[data-theme='dark'] .dash-raider-type button[aria-pressed='true'] { color: #fff; background: #3d6286; }

@@ -98,9 +98,21 @@ Guild settings (`guilds/<id>/settings/general`) are a single document read throu
 
 Render errors are contained by `shared/ui/ErrorBoundary`: one around the workspace panel (reset when the tab changes), one around the dialog host (reset when the open dialog changes) and one around the whole app in `main.tsx`. A boundary adds no element when nothing has thrown, and a healthy panel stays mounted across tab switches. Once it has caught an error it stays up until its `resetKey` changes (the tab id, or the open dialog's key) or the page reloads, even if the data heals. It does not catch errors in event handlers or async code.
 
+## Help and popovers
+
+Use `shared/ui/HelpPopover.tsx` for explanatory help and expandable read-only text. Pass an accessible `label`, the button's `trigger` content, and the panel's `children`; `triggerClassName` can preserve an existing button layout. Do not nest it inside another button or a label, or put a mutation on its trigger. Dashboard raider-type help is a separate control so reading it cannot save a preference.
+
+The shared component uses a native auto popover in the top layer, without a layout wrapper. Tap/click, Enter and Space toggle it; desktop coverage details also use this explicit activation instead of hover. Only one auto popover is open at once. Escape closes it and restores trigger focus. Outside pointer/click interaction, focus leaving the trigger/panel, page or nested-container scrolling, and viewport resize/scroll dismiss it. Scrolling or interacting inside the panel does not dismiss it. Navigation normally unmounts the component, and navigation clicks dismiss it before switching context. Panels are viewport-constrained, scrollable and positioned above the trigger when there is insufficient room below; opening them must not change table row height.
+
+Use a separate help trigger for disabled controls that need an explanation. Native `title` may supplement an action's visible/accessibility label, but must not be the only way to read substantive help. Do not add a second bespoke tooltip implementation. Keep native popovers as read-only help, not a replacement for the dialog host or an authorization boundary.
+
+Before shipping a migrated use, check tap and keyboard activation, Escape/focus return, outside interaction, one-open behavior, page and nested scrolling, scrolling long panel content, viewport edges at narrow widths, light/dark themes and unchanged surrounding layout. Pure positioning regression cases live in `tests/unit/popover-position.test.ts`; dismissal and native activation require a browser check.
+
 ## CSS
 
 `App.css` holds the shared layout and primitive styles and is global. `./App.css` must stay the last stylesheet import in `App.tsx`: several selectors rely on load order and on `:nth-child` positions, so do not add wrapper elements or reorder children inside existing components. A feature that needs new styles adds its own stylesheet with a unique prefix on every class (for example `.cov-...`), imports it from the feature, and does not edit another feature's stylesheet. `AfkCalendar.css` is the existing example.
+
+Keep `.table-scroll` positioned: it contains absolutely positioned accessibility labels inside wide tables. Without that containing block, visually hidden column labels can escape the table's scroll boundary and widen the mobile page. Verify the document stays viewport-width while the table and mobile navigation still scroll independently; root-level overflow clipping alone does not prevent this.
 
 ## Known quirks (unchanged on purpose)
 

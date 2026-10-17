@@ -619,3 +619,20 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 .class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); border-radius: 4px; background-image: linear-gradient(color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent), color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent)); box-shadow: inset var(--class-stripe-width, 6px) 0 0 var(--wow-class-exact, transparent), inset calc(var(--class-stripe-width, 6px) + 1px) 0 0 rgba(23, 38, 59, .35); }
 .class-accent strong, .class-accent .ranked-name { color: var(--wow-class-color); }
 :root[data-theme='dark'] .class-accent strong, :root[data-theme='dark'] .class-accent .ranked-name { color: var(--wow-class-dark-color); }
+
+/* Text on a class fade. The fade tints the background, so text that was written for a plain background (grey secondary text,
+   tags, names in the same hue as the fade) can lose contrast. Inside an accent the secondary text, the tags and the received
+   names are re-inked, and on the dark theme the fade is darkened a little so coloured names stay readable. */
+.class-accent, .class-accent-row { --accent-ink: #172536; --accent-chip: rgba(255, 255, 255, .88); --accent-chip-ink: #1e4261; --accent-chip-green: #1b6440; }
+:root[data-theme='dark'] .class-accent, :root[data-theme='dark'] .class-accent-row { --accent-ink: #ffffff; --accent-chip: rgba(7, 14, 25, .82); --accent-chip-ink: #dcecf9; --accent-chip-green: #94e5b2; }
+:root[data-theme='dark'] .class-accent { background-image: linear-gradient(rgba(6, 12, 22, .5), rgba(6, 12, 22, .5)), linear-gradient(color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent), color-mix(in srgb, var(--wow-class-exact) var(--class-fade, 40%), transparent)); }
+:root[data-theme='dark'] .class-accent-row > td { background-image: linear-gradient(rgba(6, 12, 22, .5), rgba(6, 12, 22, .5)), linear-gradient(color-mix(in srgb, var(--wow-class-exact) 26%, transparent), color-mix(in srgb, var(--wow-class-exact) 26%, transparent)); }
+.class-accent small, .class-accent .table-subtext, .class-accent-row .table-subtext, .class-accent-row .unassigned-label, .class-accent-row .linked-account-status, .class-accent-row .date-cell, .class-accent-row .award-note-cell, .class-accent-row .snapshot-order b, .class-accent-row .snapshot-order span { color: var(--accent-ink) !important; }
+.class-accent .top-pick, .class-accent .received-tag { padding: 1px 5px; border-radius: 3px; background: var(--accent-chip); color: var(--accent-chip-ink) !important; }
+.class-accent .received-tag { color: var(--accent-chip-green) !important; }
+.class-accent.listing-received .ranked-name { color: var(--accent-ink) !important; opacity: .8; }
+:root[data-theme='dark'] .class-color-shaman { --wow-class-dark-color: #4DA6FF; }
+:root[data-theme='dark'] .class-color-warlock { --wow-class-dark-color: #9697F1; }
+/* Light theme: the tuned name colours are darkened a little more on top of a fade, and a received candidate's number stays readable. */
+:root:not([data-theme='dark']) .class-accent strong, :root:not([data-theme='dark']) .class-accent .ranked-name, :root:not([data-theme='dark']) .class-accent-row .character-cell strong, :root:not([data-theme='dark']) .class-accent-row .class-name, :root:not([data-theme='dark']) .class-accent-row .specialization-name { color: color-mix(in srgb, var(--wow-class-color) 68%, #0b1420); }
+.priority-ranking li.class-accent.listing-received .rank-number { opacity: .85; }

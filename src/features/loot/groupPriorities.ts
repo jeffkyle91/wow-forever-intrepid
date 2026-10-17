@@ -37,3 +37,23 @@ export function groupPriorities<T extends { encounter: string }>(priorities: T[]
   // Dungeons by name, and the ones with no dungeon last.
   return groups.sort((a, b) => (a.dungeon === '' ? 1 : 0) - (b.dungeon === '' ? 1 : 0) || a.dungeon.localeCompare(b.dungeon))
 }
+
+// The choices of the encounter filter: each dungeon, then its bosses below it, in the order the list is grouped. A choice is a scope: "d:" and
+// the dungeon for a whole dungeon, "b:" and the dungeon and boss for one boss. The group with no dungeon is offered as "Other priorities".
+export type EncounterOption = { value: string; label: string; level: 0 | 1 }
+
+export function encounterOptions<T extends { encounter: string }>(priorities: T[], bossOrder: (dungeon: string) => string[] = () => []): EncounterOption[] {
+  return groupPriorities(priorities, bossOrder).flatMap((group) => [
+    { value: `d:${group.key}`, label: group.dungeon || 'Other priorities', level: 0 as const },
+    ...group.bosses.map((boss) => ({ value: `b:${boss.key}`, label: boss.boss || 'No encounter noted', level: 1 as const })),
+  ])
+}
+
+// Whether an encounter text is in a scope. An empty scope is everything; a scope this does not understand is nothing.
+export function matchesEncounterScope(encounter: string, scope: string): boolean {
+  if (!scope) return true
+  const { dungeon, boss } = splitEncounter(encounter)
+  if (scope.startsWith('d:')) return key(dungeon) === scope.slice(2)
+  if (scope.startsWith('b:')) return `${key(dungeon)}|${key(boss)}` === scope.slice(2)
+  return false
+}

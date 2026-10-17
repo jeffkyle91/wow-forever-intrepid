@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { groupPriorities, splitEncounter } from '../../src/features/loot/groupPriorities.ts'
+import { encounterOptions, groupPriorities, matchesEncounterScope, splitEncounter } from '../../src/features/loot/groupPriorities.ts'
 
 // Invented dungeons, bosses and items.
 const p = (id: string, encounter: string) => ({ id, encounter })
@@ -67,4 +67,49 @@ describe('groupPriorities', () => {
     assert.deepEqual(ids, ['a', 'b', 'c', 'd'])
     assert.equal(groups.reduce((total, group) => total + group.count, 0), 4)
   })
+})
+
+describe('encounterOptions', () => {
+  const list = [p('a', 'Test Hall \u00b7 Old Mossback'), p('b', 'Test Hall \u00b7 Hall Warden'), p('c', 'Alpha Caves \u00b7 Digger'), p('d', 'Boss only'), p('e', 'Test Hall \u00b7 Hall Warden')]
+  it('lists each dungeon, then its bosses below it, in the order the list is grouped', () => {
+    assert.deepEqual(encounterOptions(list, bossOrder).map((option) => [option.level, option.label]), [
+      [0, 'Alpha Caves'], [1, 'Digger'], [0, 'Test Hall'], [1, 'Hall Warden'], [1, 'Old Mossback'], [0, 'Other priorities'], [1, 'Boss only'],
+    ])
+  })
+  it('lists each boss once, however many priorities it has', () => assert.equal(encounterOptions(list, bossOrder).filter((option) => option.label === 'Hall Warden').length, 1))
+  it('offers nothing for no priorities', () => assert.deepEqual(encounterOptions([], bossOrder), []))
+  it('gives every choice a value that selects exactly its own priorities', () => {
+    for (const option of encounterOptions(list, bossOrder)) {
+      const found = list.filter((priority) => matchesEncounterScope(priority.encounter, option.value))
+      assert.ok(found.length > 0, option.label)
+      if (option.level === 1) assert.ok(found.every((priority) => splitEncounter(priority.encounter).boss === option.label || option.label === 'No encounter noted'))
+    }
+  })
+})
+
+describe('matchesEncounterScope', () => {
+  const options = encounterOptions([p('a', 'Alpha Caves \u00b7 Digger'), p('b', 'Test Hall \u00b7 Hall Warden'), p('c', 'Boss only')], bossOrder)
+  const scope = (label: string) => (options.find((option) => option.label === label) as { value: string }).value
+  const alpha = scope('Alpha Caves')
+  const hall = scope('Test Hall')
+  const hallBoss = scope('Hall Warden')
+  const other = scope('Other priorities')
+  it('matches everything for an empty scope', () => {
+    assert.equal(matchesEncounterScope('Test Hall \u00b7 Hall Warden', ''), true)
+    assert.equal(matchesEncounterScope('', ''), true)
+  })
+  it('matches a whole dungeon, ignoring case and extra spaces, and nothing outside it', () => {
+    assert.equal(matchesEncounterScope('test  hall \u00b7 anyone', hall), true)
+    assert.equal(matchesEncounterScope('Test Hall \u00b7 Hall Warden', alpha), false)
+  })
+  it('matches one boss only', () => {
+    assert.equal(matchesEncounterScope('Test Hall \u00b7 hall   warden', hallBoss), true)
+    assert.equal(matchesEncounterScope('Test Hall \u00b7 Old Mossback', hallBoss), false)
+    assert.equal(matchesEncounterScope('Other Hall \u00b7 Hall Warden', hallBoss), false)
+  })
+  it('matches the priorities that have no dungeon through "Other priorities"', () => {
+    assert.equal(matchesEncounterScope('Boss only', other), true)
+    assert.equal(matchesEncounterScope('Test Hall \u00b7 Hall Warden', 'd:'), false)
+  })
+  it('matches nothing for a scope it does not understand', () => assert.equal(matchesEncounterScope('Test Hall \u00b7 Hall Warden', 'x:whatever'), false))
 })

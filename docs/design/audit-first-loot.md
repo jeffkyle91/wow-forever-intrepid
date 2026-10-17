@@ -53,11 +53,16 @@ Priorities are not adopted until around December 15, so the first raid is decide
 | `recipient` | that character's name as the roster has it when the award is made; a later rename does not rewrite the award |
 | `awardedAt` | the raid date, `YYYY-MM-DD`. It is kept apart from `createdAt`, the time the award was entered, so a spreadsheet upload or a late entry never looks like a decision made later |
 | `decision` | how it was decided: `roll`, `council` or `other` |
+| `phaseNo` | the loot phase it belongs to: a whole number from 0 to 30 (see "Loot phases" below). Required, so a phase can never be guessed later |
 | `rev`, `createdBy`, `createdAt` | 1, the uid of the leader, and server time |
 
 The create rule (`validManualAward`) applies when the document has no `priorityId`. Guild and Raid Leaders may write it; it allows exactly the fields above (no status, no `updatedBy`/`updatedAt`: a new award is active), checks their types and sizes, requires the roster character to exist with that name, and requires the audit entry (type `award`, revision 1) in the same batch. The entry's own rule is unchanged: it has to describe the new document truthfully. `decision` is part of what an entry may list and must log, and it can be corrected later like any other field (with an entry); the snapshot fields can never be added to a manual award afterwards. A document with a `priorityId` follows the snapshot rule exactly as before.
 
 Not changed here: the Guild Leader exception in the create rule (it goes away in stage 3, with the local-preview import), and the date check, which tests the format only.
+
+## Loot phases
+
+The loot lists are kept per phase (a priority and an award carry `phaseNo`; none means phase 0). The current phase's number is the length of `phaseHistory` in the settings document, the names of the finished phases, oldest first. `validGuildSettings` accepts that list only when it is unchanged, grows by one name (the name the current phase had, with `currentPhase` becoming the new name) or shrinks by one (the last name becomes `currentPhase` again and the phase being left becomes `nextPhase`), at most 30 names, so a Guild Leader cannot quietly move the phase back or rewrite its history. The first save of a guild's settings (no document stored yet) may close only "Launch prep", the name the app shows until then. `phaseNo` (0 to 30) is checked wherever an award is created or edited, is part of what an award entry may list and must log, and can be corrected like any other field, with an entry (a correction cannot take it away). The rule that a closed phase cannot be written to comes with the priority rules in stage 3.
 
 ## Rules
 

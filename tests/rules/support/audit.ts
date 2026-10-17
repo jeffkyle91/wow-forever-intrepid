@@ -76,7 +76,7 @@ export const MANUAL = 'award-manual'
 
 /** A manual award (no priority): the seeded roster character PLAYER_2, decided by a roll. Valid unless a test overrides a field. */
 export const manualAwardDoc = (overrides: DocumentData = {}): DocumentData => ({
-  item: 'Test Sword', encounter: 'Test Boss', recipient: rosterDoc(2).name, recipientId: PLAYER_2, awardedAt: '2026-12-09', awardNote: '', decision: 'roll', ...overrides,
+  item: 'Test Sword', encounter: 'Test Boss', recipient: rosterDoc(2).name, recipientId: PLAYER_2, awardedAt: '2026-12-09', awardNote: '', decision: 'roll', phaseNo: 0, ...overrides,
 })
 
 /** Create a manual award at revision 1 with its create entry. Honest unless a test overrides a part, or leaves the entry out. */

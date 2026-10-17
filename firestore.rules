@@ -87,18 +87,24 @@ service cloud.firestore {
         && request.resource.data.councilNoteSnapshot == get(priorityPath).data.councilNote
         && request.resource.data.item == get(priorityPath).data.item
         && request.resource.data.encounter == get(priorityPath).data.encounter
-        && request.resource.data.recipient in get(priorityPath).data.rankedPlayers;
+        && request.resource.data.recipient in get(priorityPath).data.rankedPlayers
+        && (!('phaseNo' in request.resource.data) || validPhaseNo(request.resource.data.phaseNo));
+    }
+
+    // A loot phase number: a whole number of 0 to 30 (a guild can have at most 30 finished phases, so the current one is at most 30).
+    function validPhaseNo(value) {
+      return value is int && value >= 0 && value <= 30;
     }
 
     // A manual award is recorded without a priority, for example a need-before-greed roll or a decision made on the night.
     // It carries no priorityId and no snapshot, so nothing pretends that a candidate order existed. The recipient is a roster
     // character, by id, and the recipient name is the one the roster has now (a later rename does not rewrite the award).
-    // `decision` says how it was decided. awardedAt is the raid date and is kept apart from createdAt, the time of entry. The
+    // `decision` says how it was decided and `phaseNo` is the loot phase it belongs to (see validPhaseHistory). awardedAt is the raid date and is kept apart from createdAt, the time of entry. The
     // audit entry (type 'award', revision 1) has to be written in the same batch; its own rule ties it back to this document.
     function validManualAward(guildId, awardId) {
       let data = request.resource.data;
-      return data.keys().hasOnly(['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'rev', 'createdBy', 'createdAt'])
-        && data.keys().hasAll(['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'rev', 'createdBy', 'createdAt'])
+      return data.keys().hasOnly(['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
+        && data.keys().hasAll(['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
         && data.rev is int && data.rev == 1
         && data.createdBy == request.auth.uid
         && data.createdAt == request.time
@@ -110,6 +116,7 @@ service cloud.firestore {
         && validIsoDate(data.awardedAt)
         && data.awardNote is string && data.awardNote.size() <= 500
         && data.decision in ['roll', 'council', 'other']
+        && validPhaseNo(data.phaseNo)
         && existsAfter(auditEntryPath(guildId, 'award', awardId, 1));
     }
 
@@ -131,7 +138,7 @@ service cloud.firestore {
       let after = request.resource.data;
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'award', awardId, rev);
-      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'decision', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
+      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'decision', 'phaseNo', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -151,6 +158,8 @@ service cloud.firestore {
         && validIsoDate(after.awardedAt)
         && after.awardNote is string && after.awardNote.size() <= 500
         && (!('decision' in after) || after.decision in ['roll', 'council', 'other'])
+        && (!('phaseNo' in after) || validPhaseNo(after.phaseNo))
+        && (!('phaseNo' in before) || 'phaseNo' in after)
         && after.get('status', 'active') in ['active', 'removed']
         && (!('removedReason' in after) || (after.removedReason is string && after.removedReason.size() <= 300))
         && (after.get('status', 'active') != 'removed' || (after.get('removedReason', null) is string && after.removedReason.trim().size() >= 1));
@@ -249,7 +258,7 @@ service cloud.firestore {
       let fields = raid
         ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
-          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
+          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
           : ['item', 'encounter', 'rankedPlayers', 'councilNote'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
@@ -275,6 +284,7 @@ service cloud.firestore {
               && auditFieldLogged(data, oldDoc, newDoc, 'awardedAt')
               && auditFieldLogged(data, oldDoc, newDoc, 'awardNote')
               && auditFieldLogged(data, oldDoc, newDoc, 'decision')
+              && auditFieldLogged(data, oldDoc, newDoc, 'phaseNo')
               && auditFieldLogged(data, oldDoc, newDoc, 'status')
               && auditFieldLogged(data, oldDoc, newDoc, 'removedReason')
               && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
@@ -331,9 +341,35 @@ service cloud.firestore {
       return value is string && value.size() >= 1 && value.size() <= 40;
     }
 
+    // The loot phases. The number of the current phase is the length of `phaseHistory`, the names of the finished phases, oldest first
+    // (a guild that never closed one has none). The list can change in only two ways, so a leader cannot quietly move the phase back or
+    // rewrite its history: starting a phase appends the name the current phase had (and `currentPhase` becomes the new name), and
+    // reopening the last one takes its name off the end (it becomes `currentPhase` again, and the name of the phase being left becomes
+    // `nextPhase`). Every name in the list was a valid current phase name when it was written, so no entry needs checking here.
+    // The first save of a guild's settings has nothing stored to compare with. The app shows 'Launch prep' as the current phase until
+    // then (defaultGuildSettings), so that is the one name a first save may close. (An empty range such as [0:0] is an error in the
+    // rules, so a prefix is compared only when it is not empty.)
+    function validPhaseSteps(old, after) {
+      let data = request.resource.data;
+      let before = old.get('phaseHistory', []);
+      return before is list
+        && (after == before
+          || (after.size() == before.size() + 1 && (before.size() == 0 || after[0:before.size()] == before) && after[before.size()] == old.currentPhase)
+          || (after.size() + 1 == before.size() && (after.size() == 0 || before[0:after.size()] == after) && data.currentPhase == before[after.size()] && data.nextPhase == old.currentPhase));
+    }
+
+    function validPhaseHistory() {
+      let after = request.resource.data.get('phaseHistory', []);
+      return after is list && after.size() <= 30
+        && (resource == null
+          ? (after.size() == 0 || (after.size() == 1 && after[0] == 'Launch prep'))
+          : validPhaseSteps(resource.data, after));
+    }
+
     function validGuildSettings() {
       let data = request.resource.data;
-      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames'])
+      return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory'])
+        && validPhaseHistory()
         && data.keys().hasAll(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames'])
         && validLabel(data.currentPhase)
         && validLabel(data.nextPhase)

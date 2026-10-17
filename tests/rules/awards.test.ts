@@ -47,6 +47,20 @@ describe("a Raid Leader's award must match the stored priority", () => {
     })
   }
 
+  // The loot phase an award belongs to is optional here (an award from a priority takes its phase from the priority), but if it is there it
+  // has to be a real phase number.
+  test('an award with a valid phase number is accepted', async () => {
+    for (const phaseNo of [0, 1, 30]) await expectAllowed(raidLeaderAward(awardDoc({ phaseNo })), String(phaseNo))
+  })
+  test('an award with no phase number is accepted, as before phases existed', async () => {
+    await expectAllowed(raidLeaderAward(awardDoc()))
+  })
+  for (const [what, phaseNo] of [['-5', -5], ['1.5', 1.5], ['31', 31], ['9999', 9999], ['text', '1'], ['null', null], ['a list', [1]], ['a map', { n: 1 }], ['true', true]] as [string, unknown][]) {
+    test(`an award with a phase number of ${what} is refused`, async () => {
+      await expectDenied(raidLeaderAward(awardDoc({ phaseNo })))
+    })
+  }
+
   // A number in a path becomes its text, so priorityId 42 would find the priority "42" if there is one. With
   // one in place, the `is string` test in the rules is the only thing that can refuse the award.
   test('an award with a priorityId that is a number is refused even when a priority has that id', async () => {

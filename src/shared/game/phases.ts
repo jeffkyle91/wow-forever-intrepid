@@ -34,7 +34,7 @@ export function withoutBadPhaseFields<T extends object>(record: T): T {
   return clean
 }
 
-// How many times a phase has been started or reopened. Each one is in the change log under the entry id `phase_settings_{phaseRev}`, written in the
+// How many times a phase has been started or reopened. Each one is in the Log under the entry id `phase_settings_{phaseRev}`, written in the
 // same batch as the settings (so the number can be used only once), and the rules accept a change of the phase history only with the next number.
 export const PHASE_REV_MAX = 1_000_000
 export const isPhaseRev = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= PHASE_REV_MAX

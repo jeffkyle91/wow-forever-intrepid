@@ -104,7 +104,7 @@ A phase is a number (`shared/game/phases.ts`), not a name, so renaming one in Se
 
 ### Carrying an item over
 
-The Carry over dialog (`features/loot/CarryOverModal.tsx`) creates a new priority in the phase being looked at from one in an earlier phase: `carryOverFields` (`carryOver.ts`) copies the item, boss, note and the whole candidate list and sets `phaseNo` and `carriedFrom`; it is written with `createPriorities`, so it is in the change log. Nothing about "received" is copied. `awardsForPriority` (`completion.ts`) follows `carriedFrom` back through the priorities it names (at most 20 steps, never twice the same one) and counts the awards recorded from any of them, and unlinked awards of the same item name in any of their phases, so a carried priority shows who already got it and who still needs it, while the earlier phase's record never changes. The lookup is built from `ctx.data.allPriorities` (`usePhaseView`).
+The Carry over dialog (`features/loot/CarryOverModal.tsx`) creates a new priority in the phase being looked at from one in an earlier phase: `carryOverFields` (`carryOver.ts`) copies the item, boss, note and the whole candidate list and sets `phaseNo` and `carriedFrom`; it is written with `createPriorities`, so it is in the Log. Nothing about "received" is copied. `awardsForPriority` (`completion.ts`) follows `carriedFrom` back through the priorities it names (at most 20 steps, never twice the same one) and counts the awards recorded from any of them, and unlinked awards of the same item name in any of their phases, so a carried priority shows who already got it and who still needs it, while the earlier phase's record never changes. The lookup is built from `ctx.data.allPriorities` (`usePhaseView`).
 
 ### The audit of loot changes
 

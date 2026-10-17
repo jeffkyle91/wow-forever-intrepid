@@ -14,7 +14,7 @@ import './CarryOver.css'
 // Bring items from an earlier phase into `target` (the phase being looked at: the current one, or the next one a leader is preparing). Each
 // ticked item becomes a new priority there with the same item, boss, note and the whole candidate list; who already received it comes with it
 // (the awards of the priority it came from count toward it) and who still needs it stays open. The earlier phase is never touched. Every
-// new priority is written through the audited helpers, so it is in the change log.
+// new priority is written through the audited helpers, so it is in the Log.
 export function CarryOverModal({ close, live, target }: { close: () => void; live: TabContext; target: PhaseOption }) {
   const { busy, setBusy, setMutationError, setNotice } = live.feedback
   const { settings, allPriorities, awards } = live.data

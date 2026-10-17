@@ -92,7 +92,7 @@ export type GuildSettings = {
   groupNames: Record<RaidGroup, string>
   // The names of the finished phases, oldest first. Its length is the number of the current phase. Absent until a phase has been closed.
   phaseHistory?: string[]
-  // How many times a phase has been started or reopened (each one is in the change log). Absent until the first.
+  // How many times a phase has been started or reopened (each one is in the Log). Absent until the first.
   phaseRev?: number
 }
 export type GuildSettingsRecord = GuildSettings & { id: string }
@@ -197,7 +197,7 @@ export async function saveGuildSettings(settings: GuildSettings) {
   await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'general'), settings)
 }
 
-// Starting a phase or reopening one saves the settings together with its change log entry (`phase_settings_{n}`, n counting every start and reopen),
+// Starting a phase or reopening one saves the settings together with its Log entry (`phase_settings_{n}`, n counting every start and reopen),
 // which the rules require, so nobody can move the phase without it showing. The entry says what the phase fields were before: what is stored now
 // (nothing on a guild's first save, which is why the stored document is read here), not what this browser last showed.
 export async function changePhase(next: GuildSettings, action: 'start' | 'reopen', who: AuditWho) {

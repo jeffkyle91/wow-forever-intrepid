@@ -1,6 +1,6 @@
 import type { AuditEntry } from '../../shared/game/lootAudit.ts'
 
-// The change log in words: one line for what happened, then what changed. Pure, so Node tests it; the dialog only lays it out.
+// The Log in words: one line for what happened, then what changed. Pure, so Node tests it; the dialog only lays it out.
 
 const fieldLabels: Record<string, string> = {
   currentPhase: 'Current phase', nextPhase: 'Next phase', phaseHistory: 'Finished phases',

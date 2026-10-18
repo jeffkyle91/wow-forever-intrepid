@@ -177,10 +177,11 @@ export async function changePhase(db: Firestore, who: Staff, { into, settings, r
   return into ? undefined : batch.commit()
 }
 
-// Loot tables (the lootTables collection). Three kinds of document, all filed under the loot phase they were written in (`phaseNo`) and all saying
+// Loot tables (the lootTables collection). Four kinds of document, all filed under the loot phase they were written in (`phaseNo`) and all saying
 // only what their phase changes: a zone (type 'zone') the guild made, whose number is 50 million or more; a "presence" document (type 'zone', a
-// number below that), which only says whether a zone of the built-in captures is in the lists; and a creature or the zone-wide list (type 'source').
-// The id comes from the fields: z{zoneId}_{phaseNo} and s{zoneId}_{key}_{phaseNo}. See loot-tables.test.ts.
+// number below that), which only says whether a zone of the built-in captures is in the lists; a creature or the zone-wide list (type 'source'); and
+// the phase itself (type 'phase'), which says which earlier phase it follows.
+// The id comes from the fields: z{zoneId}_{phaseNo}, s{zoneId}_{key}_{phaseNo} and p{phaseNo}. See loot-tables.test.ts and phase-follow.test.ts.
 
 export const ZONE_NO = 60_000_001 // a custom zone: numbers from 50 million up are the guild's own
 export const BUILT_IN_ZONE_NO = 1581 // a zone of the built-in captures
@@ -188,7 +189,8 @@ export const NPC_KEY = 'npc4887' // a creature of the built-in captures
 export const zoneTableId = (zoneId: unknown, phaseNo: unknown) => `z${zoneId}_${phaseNo}`
 export const sourceTableId = (zoneId: unknown, key: unknown, phaseNo: unknown) => `s${zoneId}_${key}_${phaseNo}`
 /** The id the rules require for a new document: the one its fields make. */
-export const tableIdOf = (fields: DocumentData): string => (fields.type === 'source' ? sourceTableId(fields.zoneId, fields.key, fields.phaseNo) : zoneTableId(fields.zoneId, fields.phaseNo))
+export const phaseTableId = (phaseNo: unknown) => `p${phaseNo}`
+export const tableIdOf = (fields: DocumentData): string => (fields.type === 'source' ? sourceTableId(fields.zoneId, fields.key, fields.phaseNo) : fields.type === 'phase' ? phaseTableId(fields.phaseNo) : zoneTableId(fields.zoneId, fields.phaseNo))
 
 export const ZONE_TABLE = zoneTableId(ZONE_NO, 0)
 export const PRESENCE_TABLE = zoneTableId(BUILT_IN_ZONE_NO, 0)
@@ -203,6 +205,9 @@ export const presenceTableDoc = (overrides: DocumentData = {}): DocumentData => 
 export const sourceTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'source', zoneId: ZONE_NO, key: 'c1', phaseNo: 0, name: 'Test Boss', kind: 'boss', order: 10, itemIds: [1111, 2222], hiddenItemIds: [], ...overrides })
 /** What a phase changes about a creature of the built-in captures: items added and items taken off, and nothing else (no name, no number). */
 export const overlayTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'source', zoneId: BUILT_IN_ZONE_NO, key: NPC_KEY, phaseNo: 0, itemIds: [3333], hiddenItemIds: [4444], ...overrides })
+
+/** The document of a phase: phase 1 follows phase 0. */
+export const phaseTableDoc = (overrides: DocumentData = {}): DocumentData => ({ type: 'phase', phaseNo: 1, follows: 0, ...overrides })
 
 /** Put the guild in phase `n`: n finished phases in its settings (none stored means phase 0). */
 export const inPhase = (n: number) => asAdmin((db) => setDoc(guildDoc(db, 'settings/general'), { currentPhase: `Phase ${n}`, nextPhase: 'Next', phaseHistory: Array.from({ length: n }, (_, index) => `Earlier ${index}`) }))

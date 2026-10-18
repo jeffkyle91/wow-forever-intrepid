@@ -6,6 +6,10 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Loot priorities: the pencil on each priority is now a labelled Edit Prio button, and a priority without a council note says to use Edit Prio to add one.
+- Loot priorities: a candidate who has received the item is faded instead of crossed out, keeping the class color and stripe and the green Received tag, so the name stays easy to read.
+- Drop list editor: the "Creature number" field is now "Creature ID", with a line saying where to find it (the number after npc= in the creature's Wowhead address).
+
 ## 2026-10-17 - 92dbc71
 
 Production deployments through 92dbc71 and matching live HTML/assets verified. This summarizes changes since the f42a14d announcement. Refresh open tabs before using the updated loot workflow.

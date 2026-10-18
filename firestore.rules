@@ -706,6 +706,23 @@ service cloud.firestore {
         && data.updatedAt == request.time;
     }
 
+    // The zone artwork (guilds/{id}/settings/zoneArt, a document of its own like the colors): `images` is the list of pictures a Guild Leader uploaded to Cloud
+    // Storage (a map from the picture's id to its name, address, size and rev, at most 200) and `art` says which picture each zone uses (a map from a zone's
+    // key, as for the colors, to a picture's id, at most 200). Only a Guild Leader writes it, and the files themselves are governed by storage.rules. As
+    // with the colors the rules can count the entries but cannot look at each one, so the app reads both maps safely (readZoneArt) and ignores an entry that
+    // is not a picture of this guild's storage or a zone that is not there. Cosmetic, so a change is not logged.
+    function validZoneArt() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['images', 'art', 'updatedBy', 'updatedAt'])
+        && data.keys().hasAll(['images', 'art', 'updatedBy', 'updatedAt'])
+        && data.images is map
+        && data.images.size() <= 200
+        && data.art is map
+        && data.art.size() <= 200
+        && data.updatedBy == request.auth.uid
+        && data.updatedAt == request.time;
+    }
+
     function validGuildSettings(guildId) {
       let data = request.resource.data;
       return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory', 'phaseRev'])
@@ -813,7 +830,8 @@ service cloud.firestore {
       match /settings/{settingId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create, update: if (settingId == 'general' && isGuildLeader(guildId) && validGuildSettings(guildId))
-          || (settingId == 'zoneColors' && isGuildLeader(guildId) && validZoneColors());
+          || (settingId == 'zoneColors' && isGuildLeader(guildId) && validZoneColors())
+          || (settingId == 'zoneArt' && isGuildLeader(guildId) && validZoneArt());
         allow delete: if false;
       }
 

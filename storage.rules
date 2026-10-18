@@ -1,0 +1,54 @@
+rules_version = '2';
+// Cloud Storage holds one kind of file: the artwork a Guild Leader uploads for the zones (Settings > Zone images).
+//   guilds/{guildId}/zone-art/{imageId}/full-{rev}.jpg|png|webp   the picture as uploaded
+//   guilds/{guildId}/zone-art/{imageId}/thumb-{rev}.jpg           a small copy the browser makes for lists and the dropdown
+// A file is never overwritten (an upload to a name that is taken is refused, `resource == null`): replacing a picture uploads the next rev and the app removes the old files. Who may do what is decided from the member's
+// role in Firestore (guilds/{guildId}/members/{uid}), the same document the Firestore rules use, so the two services cannot disagree. Anything not listed
+// here is refused. Which image a zone uses, and the list of images, are in Firestore (settings/zoneArt), not here.
+// How a picture is SHOWN is not decided here: the app keeps each file's download address (a link with an unguessable token) in the members-only settings/zoneArt
+// document and shows it with an ordinary image request, which Storage does not check against these rules. So `read` below is what the Storage SDK needs (making an
+// address, reading metadata, listing a picture's folder), and a link that was copied keeps working until its file is deleted; who may see where the links are, and who
+// may add or delete a file, are decided by the rules.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function memberPath(guildId) {
+      return /databases/(default)/documents/guilds/$(guildId)/members/$(request.auth.uid);
+    }
+
+    function hasGuildRole(guildId, allowedRoles) {
+      return request.auth != null
+        && firestore.exists(memberPath(guildId))
+        && firestore.get(memberPath(guildId)).data.role in allowedRoles;
+    }
+
+    function isThumbnail(file) {
+      return file.matches('thumb-[0-9]+[.]jpg')
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= 300 * 1024;
+    }
+
+    function isFullSize(file) {
+      return request.resource.size <= 5 * 1024 * 1024
+        && ((file.matches('full-[0-9]+[.]jpg') && request.resource.contentType == 'image/jpeg')
+          || (file.matches('full-[0-9]+[.]png') && request.resource.contentType == 'image/png')
+          || (file.matches('full-[0-9]+[.]webp') && request.resource.contentType == 'image/webp'));
+    }
+
+    match /guilds/{guildId}/zone-art/{imageId}/{file} {
+      allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+      allow create: if resource == null
+        && hasGuildRole(guildId, ['Guild Leader'])
+        && imageId.matches('[a-z0-9]{6,40}')
+        && (isThumbnail(file) || isFullSize(file));
+      allow update: if false;
+      allow delete: if hasGuildRole(guildId, ['Guild Leader']);
+    }
+
+    // A picture's own folder can be listed (the app sweeps it when a picture is removed, so a file an interrupted upload left behind goes too). Listing is all this
+    // grants: it does not allow reading or writing anything below the folder. (Whether a list of the folder above, zone-art, is allowed is left to how Storage reads a list
+    // path; it shows nothing a member cannot already see in settings/zoneArt, and the tests do not rely on it either way.)
+    match /guilds/{guildId}/zone-art/{imageId}/{rest=**} {
+      allow list: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+    }
+  }
+}

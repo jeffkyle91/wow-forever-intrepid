@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { countItems, dropEncounter, dropPriorityId, dropPriorityRecord, filterGroups, prioritiesForItem, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
+import { countItems, dropEncounter, dropPriorityRecord, filterGroups, prioritiesForItem, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
 
 // Invented creatures and items.
 const table = {
@@ -52,17 +52,6 @@ describe('filterGroups', () => {
 })
 
 describe('priorities made from drops', () => {
-  it('has one fixed id per item in a phase, so an item can be on a phase\'s list only once', () => {
-    assert.equal(dropPriorityId(872), 'drop-872')
-    assert.equal(dropPriorityId(872, 0), 'drop-872')
-    assert.equal(dropPriorityId(872), dropPriorityId(872))
-    assert.match(dropPriorityId(273289), /^[A-Za-z0-9_-]{1,100}$/)
-  })
-  it('gives the same item a different id in every phase, so it can be on each phase\'s list', () => {
-    assert.equal(dropPriorityId(872, 2), 'drop-872-p2')
-    assert.equal(new Set([0, 1, 2, 3].map((phase) => dropPriorityId(872, phase))).size, 4)
-    assert.match(dropPriorityId(273289, 30), /^[A-Za-z0-9_-]{1,100}$/)
-  })
   it('writes the dungeon and boss in the same form as a priority typed by hand', () => {
     assert.equal(dropEncounter('Test Hall', { kind: 'boss', name: 'Hall Warden' }), 'Test Hall \u00b7 Hall Warden')
     assert.equal(dropEncounter('Test Hall', { kind: 'zone', name: 'Any creature in the zone' }), 'Test Hall \u00b7 any creature')
@@ -110,5 +99,15 @@ describe('prioritiesForItem', () => {
     const before = JSON.stringify(priorities)
     prioritiesForItem(priorities, 101, 'Iron Ring')
     assert.equal(JSON.stringify(priorities), before)
+  })
+})
+
+describe('filterGroups for creatures the guild added', () => {
+  const table = { sources: [{ npcId: 0, name: 'First Add', kind: 'boss', itemIds: [1] }, { npcId: 0, name: 'Second Add', kind: 'rare', itemIds: [2] }, { npcId: 77, name: 'Known', kind: 'boss', itemIds: [3] }], zoneWideItemIds: [] }
+  it('gives a creature with no number its own key and no creature number, so two of them never share a group or a priority id', () => {
+    const groups = filterGroups(table, '', () => undefined)
+    assert.deepEqual(groups.map((group) => group.key), ['creature-0', 'creature-1', 'npc-77'])
+    assert.deepEqual(groups.map((group) => group.npcId), [undefined, undefined, 77])
+    assert.ok(!('npcId' in groups[0]))
   })
 })

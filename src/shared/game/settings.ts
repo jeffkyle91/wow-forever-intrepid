@@ -1,5 +1,5 @@
 import type { CouncilStatus, GuildSettings, StatusTone } from '../../guildApi'
-import { readPhaseHistory } from './phases.ts'
+import { isPhaseRev, readPhaseHistory } from './phases.ts'
 
 export const SETTINGS_LABEL_MAX = 40
 
@@ -57,5 +57,6 @@ export function resolveGuildSettings(data: Record<string, unknown> | null | unde
       brown: label(groups.brown, defaults.groupNames.brown),
     },
     ...(history ? { phaseHistory: history } : {}),
+    ...(isPhaseRev(source.phaseRev) ? { phaseRev: source.phaseRev } : {}),
   }
 }

@@ -5,15 +5,15 @@ import { encounterArt, lootArt } from '../../shared/art'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import { classAccent } from '../../shared/game/classes'
-import { awardsForPriority, isRemovedAward, listingProgress } from './completion'
+import { awardsForPriority, isRemovedAward, listingProgress, type PriorityLookup } from './completion'
 import { groupPriorities } from './groupPriorities'
 import './PriorityList.css'
 
 // canEdit: the list can be changed (Add, Edit, reorder). canAward: loot can be awarded from it. Neither holds in a closed phase; `notice` says why.
-export function PriorityList({ priorities, awards, classOf, canEdit, canAward, notice, busy, grouped, bossOrder, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; grouped: boolean; bossOrder: (dungeon: string) => string[]; awards: Award[]; classOf: (name: string) => string | undefined; canEdit: boolean; canAward: boolean; notice?: string; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void }) {
+export function PriorityList({ priorities, awards, lookup, classOf, canEdit, canAward, notice, busy, grouped, bossOrder, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; grouped: boolean; bossOrder: (dungeon: string) => string[]; awards: Award[]; lookup: PriorityLookup; classOf: (name: string) => string | undefined; canEdit: boolean; canAward: boolean; notice?: string; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void }) {
   const row = (priority: LootPriority, index: number) => {
-    const progress = listingProgress(priority, awards)
-    const recentAward = awardsForPriority(priority, awards).filter((award) => !isRemovedAward(award)).sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))[0]
+    const progress = listingProgress(priority, awards, lookup)
+    const recentAward = awardsForPriority(priority, awards, lookup).filter((award) => !isRemovedAward(award)).sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))[0]
     return <article className={progress.complete ? 'priority-row stagger-row complete' : 'priority-row stagger-row'} key={priority.id} style={{ '--row-index': index } as CSSProperties}>
       <div className="priority-main"><div className="priority-item-line">{!priority.itemId && <span className="item-gem"><ArtIcon src={lootArt} className="priority-loot-icon" /></span>}<div><h3>{priority.itemId ? <ItemTooltip itemId={priority.itemId} fallbackName={priority.item} /> : priority.item}</h3><span className="encounter-label"><ArtIcon src={encounterArt} className="encounter-art-icon" /> {priority.encounter}</span></div></div><p className="council-note">{priority.councilNote || <span className="muted">No council note yet</span>}</p></div>
       <div className="priority-ranking"><div className="ranking-heading"><span>COUNCIL ORDER</span><span className="rank-count">{priority.rankedPlayers.length ? `${priority.rankedPlayers.length} ranked` : <span className="needs-players">Needs players</span>}{progress.complete && <span className="complete-tag">COMPLETE</span>}</span></div>
@@ -31,5 +31,5 @@ export function PriorityList({ priorities, awards, classOf, canEdit, canAward, n
       ...boss.priorities.map((priority) => row(priority, position++)),
     ]),
   ])
-  return <div className="priority-list">{notice && <p className="phase-notice" role="note">{notice}</p>}{grouped ? groupedRows() : priorities.map(row)}{!priorities.length && <div className="empty-state"><span className="empty-icon"><ClipboardList size={21} /></span><strong>No priorities found</strong><p>Add a loot item or adjust your search or filters.</p></div>}</div>
+  return <div className="priority-list">{notice && <p className="phase-notice" role="note">{notice}</p>}{grouped ? groupedRows() : priorities.map(row)}{!priorities.length && <div className="empty-state"><span className="empty-icon"><ClipboardList size={21} /></span><strong>No priorities found</strong><p>Leaders add items from Browse drops. Adjust your search or filters to see more.</p></div>}</div>
 }

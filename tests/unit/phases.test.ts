@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, isPhaseNo, phaseLabel, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
+import { NEXT_PHASE_PLACEHOLDER, currentPhaseNo, matchesPhrase, startPhrase, isPhaseNo, isPhaseRev, nextPhaseRev, phaseLabel, phaseName, phaseNoOf, phaseOptions, readPhaseHistory, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, viewedPhase, withoutBadPhaseFields } from '../../src/shared/game/phases.ts'
 
 // Invented phase names.
 const fresh = { currentPhase: 'Launch', nextPhase: 'Second' }
@@ -37,6 +37,39 @@ describe('phaseOptions', () => {
   })
   it('labels the current and next phase and leaves a finished one as it is named', () => {
     assert.deepEqual(phaseOptions(later, true).map(phaseLabel), ['Fourth (next)', 'Third (current)', 'Second', 'Launch'])
+  })
+})
+
+describe('the words that confirm a start', () => {
+  it('are "Start" and the name of the phase', () => {
+    assert.equal(startPhrase('Phase 2'), 'Start Phase 2')
+    assert.equal(startPhrase('  Phase 2  '), 'Start Phase 2')
+  })
+  it('match what is typed whatever its case and spacing, and nothing else', () => {
+    assert.ok(matchesPhrase('Start Phase 2', 'Start Phase 2'))
+    assert.ok(matchesPhrase('  start   phase 2 ', 'Start Phase 2'))
+    for (const wrong of ['', ' ', 'Start', 'Phase 2', 'Start Phase 3', 'Start Phase 22', 'Start Phase', 'Starts Phase 2', 'Start Phase 2!']) assert.equal(matchesPhrase(wrong, 'Start Phase 2'), false, wrong)
+  })
+})
+
+describe('phase revisions', () => {
+  it('counts from 1, and a settings document that never changed phase is at 0', () => {
+    assert.equal(nextPhaseRev({}), 1)
+    assert.equal(nextPhaseRev({ phaseRev: 1 }), 2)
+    assert.equal(nextPhaseRev({ phaseRev: 41 }), 42)
+  })
+  it('does not trust a revision that is not a whole number from 1 to a million', () => {
+    for (const bad of [0, -1, 1.5, '2', null, NaN, 1_000_001]) {
+      assert.equal(isPhaseRev(bad), false)
+      assert.equal(nextPhaseRev({ phaseRev: bad }), 1)
+    }
+    assert.ok(isPhaseRev(1) && isPhaseRev(1_000_000))
+  })
+})
+
+describe('phaseName', () => {
+  it('names a finished, the current and the next phase, and falls back to a number for any other', () => {
+    assert.deepEqual([0, 1, 2, 3, 9].map((no) => phaseName(later, no)), ['Launch', 'Second', 'Third', 'Fourth', 'Phase 9'])
   })
 })
 

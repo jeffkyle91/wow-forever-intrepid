@@ -17,9 +17,10 @@ import {
 } from './guildApi'
 import type { GuildRole } from './security'
 import { useRosterComments } from './rosterComments'
+import type { LootTableDoc } from './shared/game/guildTables'
 import { currentPhaseNo, phaseNoOf } from './shared/game/phases'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
-import { normalizeAward, normalizeJoinRequest, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
+import { normalizeAward, normalizeJoinRequest, normalizeLootTable, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 import type { CharacterRequest } from './shared/characters/requests'
 
 export function useGuildData(enabled: boolean, actualRole: GuildRole | null, actualUid: string) {
@@ -28,6 +29,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   const [assignments, setAssignments] = useState<Record<string, TeamAssignmentRecord['team']>>({})
   const [priorities, setPriorities] = useState<PriorityRecord[]>([])
   const [awards, setAwards] = useState<AwardRecord[]>([])
+  const [lootTables, setLootTables] = useState<LootTableDoc[]>([])
   const [afkEntries, setAfkEntries] = useState<AfkEntryRecord[]>([])
   const [raids, setRaids] = useState<RaidRecord[]>([])
   const [raidZones, setRaidZones] = useState<RaidZoneRecord[]>([])
@@ -51,6 +53,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       subscribeGuildCollection<GuildSettingsRecord>('settings', (records) => setSettings(resolveGuildSettings(records.find((record) => record.id === 'general'))), (error) => console.warn(`settings: ${error.message}`), normalizeSettings),
       subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))), onError),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
+      // The guild's own drop lists are an addition to the built-in ones: if they cannot be read (rules not deployed yet), the built-in lists still work.
+      subscribeGuildCollection<LootTableDoc>('lootTables', (records) => setLootTables(records), (error) => console.warn(`lootTables: ${error.message}`), normalizeLootTable),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),
       subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
       subscribeGuildCollection<RaidRecord>('raids', (records) => setRaids(records.sort((a, b) => a.date.localeCompare(b.date))), onError),
@@ -70,6 +74,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       setAssignments({})
       setPriorities([])
       setAwards([])
+      setLootTables([])
       setAfkEntries([])
       setRaids([])
       setRaidZones([])
@@ -87,15 +92,20 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   // `priorities` is the current phase's list, which is what the dashboard, the counters and Browse drops want; `allPriorities` holds every
   // phase (the Loot priorities tab picks one). See shared/game/phases.ts.
   const phaseNow = currentPhaseNo(settings)
-  const currentPriorities = useMemo(() => priorities.filter((priority) => phaseNoOf(priority) === phaseNow), [priorities, phaseNow])
+  // A priority taken off the list (hidden) is kept but left out of everything: `hiddenPriorities` has them, for Browse drops to bring back.
+  const visiblePriorities = useMemo(() => priorities.filter((priority) => !priority.hidden), [priorities])
+  const hiddenPriorities = useMemo(() => priorities.filter((priority) => priority.hidden), [priorities])
+  const currentPriorities = useMemo(() => visiblePriorities.filter((priority) => phaseNoOf(priority) === phaseNow), [visiblePriorities, phaseNow])
 
   return {
     comments,
     roster,
     assignments,
     priorities: currentPriorities,
-    allPriorities: priorities,
+    allPriorities: visiblePriorities,
+    hiddenPriorities,
     awards,
+    lootTables,
     afkEntries,
     raids,
     raidZones,

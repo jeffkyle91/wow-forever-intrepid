@@ -9,7 +9,7 @@
 
 export const PHASE_HISTORY_MAX = 30
 
-export type PhaseSettings = { currentPhase: string; nextPhase: string; phaseHistory?: string[] }
+export type PhaseSettings = { currentPhase: string; nextPhase: string; phaseHistory?: string[]; phaseRev?: number }
 export type PhaseKind = 'past' | 'current' | 'next'
 export type PhaseOption = { no: number; name: string; kind: PhaseKind }
 
@@ -34,6 +34,12 @@ export function withoutBadPhaseFields<T extends object>(record: T): T {
   return clean
 }
 
+// How many times a phase has been started or reopened. Each one is in the Log under the entry id `phase_settings_{phaseRev}`, written in the
+// same batch as the settings (so the number can be used only once), and the rules accept a change of the phase history only with the next number.
+export const PHASE_REV_MAX = 1_000_000
+export const isPhaseRev = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= PHASE_REV_MAX
+export const nextPhaseRev = (settings: { phaseRev?: unknown }) => (isPhaseRev(settings.phaseRev) ? settings.phaseRev : 0) + 1
+
 export const currentPhaseNo = (settings: Partial<PhaseSettings>) => settings.phaseHistory?.length ?? 0
 
 // Every phase that can be looked at, newest first: the next one (only when asked for), the current one, then the finished ones.
@@ -53,6 +59,13 @@ export function viewedPhase(settings: PhaseSettings, wanted: number | null, incl
   return options.find((option) => option.no === wanted) ?? options.find((option) => option.kind === 'current')!
 }
 
+// The name of a phase by number: a finished phase's name from the history, the current and next phase's from the settings. A number nothing
+// names (an entry from before the history was edited, say) reads as "Phase <n>".
+export function phaseName(settings: PhaseSettings, no: number): string {
+  const options = phaseOptions(settings, true)
+  return options.find((option) => option.no === no)?.name ?? `Phase ${no}`
+}
+
 export const phaseLabel = (option: PhaseOption) => (option.kind === 'past' ? option.name : `${option.name} (${option.kind})`)
 
 // Starting and reopening a phase. Both are one save of the settings document, so nothing about a priority or an award changes: the lists of
@@ -65,6 +78,11 @@ type PhaseStatus = { currentStatusLabel: string; currentStatusTone: string; next
 export type RollableSettings = PhaseSettings & PhaseStatus
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
+
+// The words a Guild Leader types to start a phase ("Start Phase 2"), and whether what was typed matches them: case and extra spaces do not matter,
+// nothing else may differ.
+export const startPhrase = (name: string) => `Start ${name.trim()}`
+export const matchesPhrase = (typed: string, phrase: string) => typed.trim() !== '' && sameName(typed, phrase)
 
 // Why a name cannot be the next phase's, or undefined when it can. A name already used is refused so two phases never look alike in the list.
 export function startPhaseProblem(settings: PhaseSettings, name: string): string | undefined {

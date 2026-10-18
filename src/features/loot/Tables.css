@@ -1,0 +1,48 @@
+/* The drop list editor inside the Browse drops dialog. Every class starts with tables-. It reuses the drops- classes for creatures and zones. */
+.tables-editor { display: grid; gap: 12px; padding-top: 16px; }
+.tables-intro { margin: 0; color: #526158; font-size: 11px; }
+.tables-intro code { font-size: 10px; }
+.tables-small { min-height: 0; padding: 4px 9px; font-size: 10px; }
+.tables-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-left: auto; }
+.tables-move { flex: 0 0 24px; width: 24px; height: 24px; }
+.tables-item { display: inline-flex; align-items: center; gap: 2px; }
+.tables-item-added { padding-right: 2px; border-radius: 6px; outline: 1px dashed #4b8a63; outline-offset: 1px; }
+.tables-item-hidden { opacity: .55; }
+.tables-chip-button { padding: 2px 4px; border: 0; color: #427296; background: none; font: inherit; font-size: 9px; text-decoration: underline; cursor: pointer; }
+.tables-chip-button:disabled { opacity: .5; cursor: default; }
+.tables-foot { padding: 0 12px 11px; }
+.tables-add { display: grid; gap: 8px; padding: 10px 12px; border: 1px dashed #c9d3dc; border-radius: 5px; }
+.tables-add h4 { margin: 0; color: #29372f; font: 600 12px/1.3 var(--display); }
+.tables-add label { display: grid; gap: 3px; color: #3f566b; font-size: 10px; }
+.tables-add input:not([type='checkbox']), .tables-add textarea, .tables-add select { min-width: 0; box-sizing: border-box; padding: 6px 8px; border: 1px solid #dfe7ef; border-radius: 4px; color: #33443a; background: #fff; font: inherit; font-size: 11px; }
+.tables-add textarea { resize: vertical; }
+.tables-confirm { display: flex !important; align-items: center; gap: 6px; }
+.tables-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.drops-group .tables-preview { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tables-pasted { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; }
+.tables-held { opacity: .75; }
+.tables-bad { color: #a8402f; }
+.tables-note, .tables-message { margin: 0; font-size: 11px; }
+.tables-message { padding: 6px 9px; border-radius: 4px; color: #2f5a3f; background: #e9f3ec; }
+.tables-message.tables-bad { color: #8e3426; background: #f8e8e4; }
+.tables-removed { opacity: .6; }
+.tables-live { margin: 0; padding: 6px 9px; border-radius: 4px; color: #6b4a14; background: #fbf1da; font-size: 11px; }
+.tables-gone { padding: 0 12px 4px; font-size: 11px; }
+.tables-gone summary { cursor: pointer; color: #526158; }
+.tables-added { color: #2f5a3f; background: #e1f0e6; }
+.drops-group .tables-empty { color: #626e7b; font-size: 11px; }
+
+:root[data-theme='dark'] .tables-intro { color: #bfccd9; }
+:root[data-theme='dark'] .tables-chip-button { color: #8fc2e6; }
+:root[data-theme='dark'] .tables-item-added { outline-color: #6bb98a; }
+:root[data-theme='dark'] .tables-add { border-color: #3a4b61; }
+:root[data-theme='dark'] .tables-add h4 { color: #e8edf3; }
+:root[data-theme='dark'] .tables-add label { color: #bfccd9; }
+:root[data-theme='dark'] .tables-add input:not([type='checkbox']), :root[data-theme='dark'] .tables-add textarea, :root[data-theme='dark'] .tables-add select { border-color: #3a4b61; color: #e8edf3; background: #182536; }
+:root[data-theme='dark'] .tables-bad { color: #f0a698; }
+:root[data-theme='dark'] .tables-message { color: #bfe3cb; background: #1f3a2b; }
+:root[data-theme='dark'] .tables-message.tables-bad { color: #f6c4ba; background: #4a2620; }
+:root[data-theme='dark'] .tables-live { color: #f0d9a0; background: #3d3218; }
+:root[data-theme='dark'] .tables-gone summary { color: #bfccd9; }
+:root[data-theme='dark'] .tables-added { color: #bfe3cb; background: #1f3a2b; }
+:root[data-theme='dark'] .drops-group .tables-empty { color: #9fb0c3; }

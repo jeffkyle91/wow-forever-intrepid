@@ -38,7 +38,7 @@ Start with the [canonical backlog](docs/backlog.json) and follow the [shared wor
 - **Raid Calendar:** [src/features/calendar/AfkCalendar.tsx](src/features/calendar/AfkCalendar.tsx) and [src/features/calendar/AfkCalendar.css](src/features/calendar/AfkCalendar.css) render the month, availability ranges, and scheduled raids. [src/guildApi.ts](src/guildApi.ts) defines and writes records, while [src/useGuildData.ts](src/useGuildData.ts) subscribes to live guild data.
 - **Authentication and role checks:** [src/useGuildSession.ts](src/useGuildSession.ts) resolves sign-in and membership; [src/security.ts](src/security.ts) controls which actions the UI presents.
 - **Authorization:** [firestore.rules](firestore.rules) is the backend permission boundary for guild records, raid scheduling, and member availability.
-- **Firebase configuration and hosting:** [src/firebase.ts](src/firebase.ts) initializes the client from environment values; [firebase.json](firebase.json) configures Firestore rules and Hosting rewrites; [vite.config.ts](vite.config.ts) configures the frontend build.
+- **Firebase configuration and hosting:** [src/firebase.ts](src/firebase.ts) initializes the client from environment values; [firebase.json](firebase.json) configures Firestore rules, Cloud Storage rules ([storage.rules](storage.rules), for the zone artwork) and Hosting rewrites; [vite.config.ts](vite.config.ts) configures the frontend build.
 
 ## Discussed future work
 
@@ -85,7 +85,7 @@ npm run dev
 npm run dev:emulator
 ```
 
-Starts the Firebase Auth, Firestore and Functions emulators with your current rules and server code, seeds an invented guild, and runs the app against them (it ignores `.env.local`). Install the Functions dependencies above first. It needs Java 21, the same as `npm run test:rules`. Functions run on port 15001, Auth on 19099 and Firestore on 18080. Sign in as `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader) or `member@example.test` (Member) with the password `password123`. Data is discarded when you stop it and nothing reaches the live Firebase project, so rules and server changes can be tried here before they are deployed.
+Starts the Firebase Auth, Firestore, Functions and Cloud Storage emulators with your current rules and server code, seeds an invented guild, and runs the app against them (it ignores `.env.local`). Install the Functions dependencies above first. It needs Java 21, the same as `npm run test:rules`. Functions run on port 15001, Auth on 19099, Firestore on 18080 and Cloud Storage on 19199. Sign in as `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader) or `member@example.test` (Member) with the password `password123`. Data is discarded when you stop it and nothing reaches the live Firebase project, so rules and server changes can be tried here before they are deployed.
 
 ### Server-side sign-ups and unavailable dates
 
@@ -168,7 +168,7 @@ npm run lint
 
 `npm run lint` treats warnings as errors. GitHub Actions (`.github/workflows/ci.yml`) runs both commands on every pull request and on pushes to `main`.
 
-The Firestore rules have their own tests, which run against the local emulator and need JDK 21 (see [CONTRIBUTING.md](CONTRIBUTING.md#testing-the-firestore-rules)):
+The Firestore and Cloud Storage rules have their own tests, which run against the local emulators and need JDK 21 (see [CONTRIBUTING.md](CONTRIBUTING.md#testing-the-firestore-rules)):
 
 ```powershell
 npm run test:rules

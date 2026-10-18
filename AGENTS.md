@@ -10,7 +10,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Commands
 
-- `npm run build`, `npm run lint` and `npm run test:unit` must all pass. If you change `firestore.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests (`test:unit` covers pure functions only), so check the app by hand in your own Firebase project.
+- `npm run build`, `npm run lint` and `npm run test:unit` must all pass. If you change `firestore.rules` or `storage.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests (`test:unit` covers pure functions only), so check the app by hand in your own Firebase project.
 - Deploy to Firebase only when you are asked to.
 - Follow [post-merge branch cleanup](CONTRIBUTING.md#branch-cleanup-after-merge). The maintainer normally deletes remote feature branches after merge; prominently set **KEEP BRANCH: YES** in the PR with reason, owner and dependencies if retention is needed. Contributors handle local cleanup. Assistants must obtain explicit approval for the exact branch before deleting it themselves, verify its merged PR and unchanged head, and preserve ongoing/unmerged work. No bulk cleanup or automatic force-deletion fallback.
 
@@ -31,7 +31,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Shared files
 
-Changes to these need their own commit and a note in the PR: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc`, and everything under `.github/`. Keep `./App.css` as the last import in `App.tsx`.
+Changes to these need their own commit and a note in the PR: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `storage.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc`, and everything under `.github/`. Keep `./App.css` as the last import in `App.tsx`.
 
 ## Vocabulary
 

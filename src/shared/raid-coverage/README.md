@@ -1,6 +1,6 @@
 # Raid coverage checklist: how to correct a fact
 
-The panel on Raid Teams ("Buff and debuff coverage") is read-only and computed from the players assigned to the selected team. All game facts live in one file, [`coverageData.ts`](./coverageData.ts). Nothing else needs to change.
+The shared panel on Raid Teams and Leadership ("Buff and debuff coverage") is read-only and computed from the players assigned to the selected team, not sign-ups or raid-readiness flags. All game facts live in one file, [`coverageData.ts`](./coverageData.ts). Nothing else needs to change.
 
 ## Current state
 

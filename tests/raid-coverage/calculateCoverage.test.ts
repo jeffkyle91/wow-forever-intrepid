@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage, summaryText, validateEffects } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { coverageEffects } from '../../src/features/raid-coverage/coverageData.ts'
-import { assignedMembers, coverageTargets } from '../../src/features/raid-coverage/teamSelection.ts'
+import { calculateCoverage, summaryText, validateEffects } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
+import { assignedMembers, coverageTargets } from '../../src/shared/raid-coverage/teamSelection.ts'
 import type { TenManTeam } from '../../src/guildApi.ts'
 import { namedTeams } from '../../src/shared/game/teams.ts'
-import type { CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 // Invented effects and players: these test the engine, not the game.
 const effect = (over: Partial<CoverageEffect> & Pick<CoverageEffect, 'id' | 'kind'>): CoverageEffect => ({

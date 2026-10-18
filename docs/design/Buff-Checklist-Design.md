@@ -50,7 +50,7 @@ An effect's **mechanical scope** (raid-wide, party-wide, targeted, enemy-debuff)
 
 ## 5. Catalog schema
 
-Keep actual game facts in one editable file, such as `src/features/raid-coverage/coverageData.ts`. Supporting TypeScript types and calculation code can be separate.
+Keep actual game facts in one editable file, `src/shared/raid-coverage/coverageData.ts`. Supporting TypeScript types and calculation code can be separate.
 
 Each effect should capture:
 
@@ -93,7 +93,7 @@ A fact is **confirmed** only when the team has evidence specific to WoW Forever 
 
 ## 8. Implementation boundaries
 
-Feature code belongs in `src/features/raid-coverage/`. Integration should change only the minimum necessary lines in `src/features/teams/RaidTeamsView.tsx`. No modifications to Firestore, authentication, `App.tsx`, routing or shared state are required.
+Coverage code lives in `src/shared/raid-coverage/` for reuse by Teams and Leadership. Integration should change only the minimum necessary lines in the consuming feature. Coverage itself needs no Firestore, authentication, `App.tsx`, routing or shared-state changes.
 
 **Architecture decision needed:** `AGENTS.md`/`ARCHITECTURE.md` prohibit importing one feature from another. Importing `RaidCoveragePanel` directly into `RaidTeamsView.tsx` is a cross-feature import, even if Issue #16 permits editing that file. The repository maintainer must approve a narrow exception or specify a compliant integration approach before merge. Do not silently treat the issue's allowed file list as an override.
 

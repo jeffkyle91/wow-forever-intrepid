@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { coverageEffects } from '../../src/features/raid-coverage/coverageData.ts'
-import { coverageTiles, standardEffects } from '../../src/features/raid-coverage/coverageDisplay.ts'
-import { spellInfo } from '../../src/features/raid-coverage/spellDescriptions.ts'
-import type { CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import { calculateCoverage } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
+import { coverageTiles, standardEffects } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import { spellInfo } from '../../src/shared/raid-coverage/spellDescriptions.ts'
+import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 // Party size audit. Rosters are invented; only the first `providers` players are Alpha, the rest Beta.
 const sizes = [5, 10, 20, 40]

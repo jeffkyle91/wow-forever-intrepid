@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage, summaryText } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { coverageEffects } from '../../src/features/raid-coverage/coverageData.ts'
-import { coverageTiles, standardEffects, statusCounts } from '../../src/features/raid-coverage/coverageDisplay.ts'
-import type { CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import { calculateCoverage, summaryText } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
+import { coverageTiles, standardEffects, statusCounts } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 const effect = (over: Partial<CoverageEffect> & Pick<CoverageEffect, 'id' | 'kind'>): CoverageEffect => ({
   name: over.id,

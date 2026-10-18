@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage, summaryText, validateEffects } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { conflictExplanation, coverageTiles } from '../../src/features/raid-coverage/coverageDisplay.ts'
-import { classifySlot, DEFAULT_NODE_LIMIT, MAX_GROUP_SIZE, type SlotOutcome, type SlotRequirement } from '../../src/features/raid-coverage/slotConflicts.ts'
-import type { CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import { calculateCoverage, summaryText, validateEffects } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { conflictExplanation, coverageTiles } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import { classifySlot, DEFAULT_NODE_LIMIT, MAX_GROUP_SIZE, type SlotOutcome, type SlotRequirement } from '../../src/shared/raid-coverage/slotConflicts.ts'
+import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 // Invented requirements and players: these test the algorithm, not the game.
 const req = (key: string, demand: number, eligible: string[]): SlotRequirement => ({ key, demand, eligible })

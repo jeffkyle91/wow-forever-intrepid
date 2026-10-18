@@ -81,7 +81,7 @@ export function RaidCoveragePanel({ view, teams, groupNames, players, assignment
           <ul>{report.catalogErrors.map((problem) => <li key={problem}>{problem}</li>)}</ul>
         </div>
         : report.requirements.length === 0
-        ? <p className="cov-empty">No coverage data yet. Game facts are waiting on a verified source; see src/features/raid-coverage/README.md.</p>
+        ? <p className="cov-empty">No coverage data yet. Game facts are waiting on a verified source; see src/shared/raid-coverage/README.md.</p>
         : statusOrder.flatMap((status) => [false, true].map((estimated) => {
           const rows = report.requirements.filter((requirement) => requirement.estimate.status === status && isEstimatedResult(requirement.basis, status) === estimated)
           if (!rows.length) return null

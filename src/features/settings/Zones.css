@@ -18,7 +18,7 @@
 .zones-list { display: grid; gap: 8px; margin: 0; padding: 0 10px 10px; list-style: none; }
 /* A zone that comes with the app: its name and its color on one line. A zone with fields to change has them on a row of their own, its color below. */
 .zones-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; padding: 9px 11px; border: 1px solid rgba(212, 175, 55, 0.18); border-left: 4px solid var(--zone-color, transparent); border-radius: 6px; }
-.zones-row > .zones-fields { grid-column: 1 / -1; }
+.zones-row > .zones-fields, .zones-row > .zones-art { grid-column: 1 / -1; }
 .zones-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-weight: 600; }
 .zones-name small, .zones-older { font-weight: 400; opacity: 0.7; }
 .zones-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, max-content)); align-items: end; gap: 10px; }
@@ -27,6 +27,12 @@
 .zones-reset { padding: 3px 9px; min-height: 0; font-size: 0.75rem; }
 .zones-footer { display: flex; flex-wrap: wrap; gap: 10px; }
 .zones-empty { opacity: 0.7; }
+/* The picture a zone uses: a dropdown of the library, with a small preview. */
+.zones-art { display: flex; flex-wrap: wrap; align-items: end; gap: 6px 12px; }
+.zones-art .settings-field { flex: 1 1 180px; min-width: 0; max-width: 100%; }
+.zones-art select { width: 100%; min-width: 0; }
+.zones-art-thumb { width: 64px; height: 36px; border-radius: 4px; object-fit: cover; box-shadow: 0 0 0 1px rgba(120, 130, 140, 0.35); }
+.zones-art small { align-self: center; opacity: 0.7; }
 @media (max-width: 640px) {
   .zones-row { grid-template-columns: 1fr; }
 }

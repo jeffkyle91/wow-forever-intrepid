@@ -1,8 +1,9 @@
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
 import { Plus, Save, Trash2 } from 'lucide-react'
-import { clearZoneColors, deleteRaidZone, saveRaidZone, saveZoneColor, saveZoneColors, writeLootTables, type RaidSize } from '../../guildApi'
+import { clearZoneColors, deleteRaidZone, pickZoneArt, pickZoneArts, saveRaidZone, saveZoneColor, saveZoneColors, writeLootTables, type RaidSize } from '../../guildApi'
 import { addZone, editZone, hasText, type LootTableDoc, type ZoneKind } from '../../shared/game/guildTables'
 import { currentPhaseNo } from '../../shared/game/phases'
+import { imageOfZone, matchImagesToZones, type ZoneImage } from '../../shared/game/zoneArt'
 import { groupZones } from '../../shared/game/zoneGroups'
 import { isZoneKey, spreadColors, suggestColor, zoneColor } from '../../shared/game/zoneColors'
 import { RAID_ZONE_NAME_MAX as NAME_MAX, zoneNameKey, type ListedZone } from '../../shared/game/zoneList'
@@ -27,6 +28,7 @@ export function ZonesPanel({ ctx }: { ctx: TabContext }) {
   const chosen = ctx.data.zoneColors
   const who = { uid: ctx.identity.uid, displayName: ctx.identity.displayName }
   const colorOf = (zone: ListedZone) => zoneColor(zone.key, chosen)
+  const artwork = ctx.data.zoneArt
   const groups = useMemo(() => groupZones(zones), [zones])
   const withChoice = zones.filter((zone) => chosen[zone.key] !== undefined)
   const withoutChoice = zones.filter((zone) => chosen[zone.key] === undefined && isZoneKey(zone.key))
@@ -51,20 +53,26 @@ export function ZonesPanel({ ctx }: { ctx: TabContext }) {
     await run(() => saveZoneColor(zone.key, color, who), `${zone.name} has a new color.`)
   }
 
+  // Choosing the picture a zone has already writes nothing (pickZoneArt), so the dropdown can be left as it was without a fuss.
+  const byName = useMemo(() => matchImagesToZones(zones, artwork), [zones, artwork])
+  const pickArt = (zone: ListedZone, imageId: string | null) => run(() => pickZoneArt(zone.key, imageId, who), imageId === null ? `${zone.name} has no artwork now.` : `${zone.name} has new artwork.`, 'Could not save the artwork.')
+
   return <section className="settings-section zones-panel">
     <header>
       <h3>Zones</h3>
-      <p>Every dungeon and raid the guild uses, each with a color shown as a bar on its loot priorities, in Browse drops and in Edit the drop lists. The zones that come with the app show up here on their own; add any other below. A raid of 10, 20 or 40 can be scheduled in the Raid Calendar. Every zone except the ones marked as from the older raid zone list is ticked into the phases that use it in Edit the drop lists.</p>
+      <p>Every dungeon and raid the guild uses, each with a color shown as a bar on its loot priorities, in Browse drops and in Edit the drop lists. The zones that come with the app show up here on their own; add any other below. A raid of 10, 20 or 40 can be scheduled in the Raid Calendar. Every zone except the ones marked as from the older raid zone list is ticked into the phases that use it in Edit the drop lists. Each zone can also have a picture, chosen from the library under Zone images below.</p>
     </header>
     <AddZone ctx={ctx} zones={zones} chosen={chosen} run={run} />
     {groups.map((group) => <details key={group.key} className="zones-group" open>
       <summary><span>{group.label}</span><small>{group.zones.length}</small></summary>
       <ul className="zones-list">
-        {group.zones.map((zone) => <ZoneRow key={zone.key} zone={zone} zones={zones} color={colorOf(zone)} isChosen={chosen[zone.key] !== undefined} ctx={ctx} busy={busy} run={run} onPick={(color) => void pick(zone, color)} onReset={() => void run(() => saveZoneColor(zone.key, null, who), `${zone.name} has its automatic color again.`)} />)}
+        {group.zones.map((zone) => <ZoneRow key={zone.key} zone={zone} zones={zones} color={colorOf(zone)} isChosen={chosen[zone.key] !== undefined} ctx={ctx} busy={busy} run={run} images={artwork.images} imageId={imageOfZone(artwork, zone.key)?.id} onArt={(imageId) => void pickArt(zone, imageId)} onPick={(color) => void pick(zone, color)} onReset={() => void run(() => saveZoneColor(zone.key, null, who), `${zone.name} has its automatic color again.`)} />)}
       </ul>
     </details>)}
     {zones.length === 0 && <p className="zones-empty">There are no zones yet. Add one above.</p>}
     <div className="zones-footer">
+      <button type="button" className="button button-secondary" disabled={busy || Object.keys(byName).length === 0}
+        title="Gives each zone that has no picture the picture with the same name, where the library has one" onClick={() => void run(async () => { await pickZoneArts(byName, who) }, `${Object.keys(byName).length} ${Object.keys(byName).length === 1 ? 'zone has' : 'zones have'} the picture with ${Object.keys(byName).length === 1 ? 'its' : 'their'} name.`, 'Could not save the artwork.')}>Pick pictures by name</button>
       <button type="button" className="button button-secondary" disabled={busy || withoutChoice.length === 0}
         title="Gives each zone that has no color chosen a color of its own, one no other zone has while the palette lasts" onClick={() => void run(() => saveZoneColors(spreadColors(withoutChoice.map((zone) => zone.key), withChoice.map(colorOf)), who), 'Every zone has a color of its own.')}>Give each zone its own color</button>
       {withChoice.length > 0 && <button type="button" className="button button-secondary" disabled={busy} onClick={() => void run(() => clearZoneColors(who), 'Every zone has its automatic color again.')}>Use the automatic color for every zone</button>}
@@ -111,7 +119,7 @@ function AddZone({ ctx, zones, chosen, run }: { ctx: TabContext; zones: ListedZo
   </form>
 }
 
-function ZoneRow({ zone, zones, color, isChosen, ctx, busy, run, onPick, onReset }: { zone: ListedZone; zones: ListedZone[]; color: string; isChosen: boolean; ctx: TabContext; busy: boolean; run: Run; onPick: (color: string) => void; onReset: () => void }) {
+function ZoneRow({ zone, zones, color, isChosen, images, imageId, ctx, busy, run, onArt, onPick, onReset }: { zone: ListedZone; zones: ListedZone[]; color: string; isChosen: boolean; images: ZoneImage[]; imageId: string | undefined; ctx: TabContext; busy: boolean; run: Run; onArt: (imageId: string | null) => void; onPick: (color: string) => void; onReset: () => void }) {
   return <li className="zones-row" style={{ '--zone-color': color } as CSSProperties}>
     {zone.source === 'built-in'
       ? <div className="zones-name"><span className="zone-dot">{zone.name}</span><small>{describe(zone)}, comes with the app</small></div>
@@ -120,6 +128,10 @@ function ZoneRow({ zone, zones, color, isChosen, ctx, busy, run, onPick, onReset
     <div className="zones-color">
       <ColorSelect value={color} label={`Color of ${zone.name}`} disabled={busy} onChange={onPick} />
       {isChosen && <button type="button" className="button button-secondary zones-reset" disabled={busy} onClick={onReset}>Use the automatic color</button>}
+    </div>
+    <div className="zones-art">
+      <ArtworkSelect zone={zone} images={images} imageId={imageId} onPick={onArt} />
+      {imageId !== undefined && <img className="zones-art-thumb" src={images.find((image) => image.id === imageId)?.thumbUrl} alt="" width={64} height={36} loading="lazy" decoding="async" />}
     </div>
   </li>
 }
@@ -158,4 +170,28 @@ function OlderZoneFields({ zone, busy, run }: { zone: ListedZone; busy: boolean;
       onClick={() => void run(() => deleteRaidZone(id), `${zone.name} was removed. Raids already scheduled keep their saved zone details.`)}><Trash2 size={14} /> Remove</button>
     <small className="zones-older">From the older raid zone list</small>
   </form>
+}
+
+// The Artwork dropdown of a zone. A native select writes its value on every arrow key (and a screen reader user moves through the options the same way), so a pick is saved
+// when the choice has rested for a moment, or when the select loses focus, and not on each change; the select is never switched off while a save runs.
+function ArtworkSelect({ zone, images, imageId, onPick }: { zone: ListedZone; images: ZoneImage[]; imageId: string | undefined; onPick: (imageId: string | null) => void }) {
+  const stored = imageId ?? ''
+  const [draft, setDraft] = useState(stored)
+  const [seen, setSeen] = useState(stored)
+  if (seen !== stored) { setSeen(stored); setDraft(stored) } // what is stored changed (a save finished, or another leader chose): the select shows it
+  const timer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(timer.current), [])
+  const commit = (value: string) => {
+    window.clearTimeout(timer.current)
+    timer.current = undefined
+    if (value !== stored) onPick(value || null)
+  }
+  return <label className="settings-field">Artwork
+    <select value={draft} aria-label={`Artwork of ${zone.name}`}
+      onChange={(event) => { const value = event.target.value; setDraft(value); window.clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(value), 700) }}
+      onBlur={(event) => { if (timer.current !== undefined) commit(event.target.value) }}>
+      <option value="">None</option>
+      {images.map((image) => <option key={image.id} value={image.id}>{image.name}</option>)}
+    </select>
+  </label>
 }

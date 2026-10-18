@@ -40,8 +40,7 @@
 :root[data-theme='dark'] .ranking-heading .order-lock:hover { color: #b9dcf5; border-color: #3a4b61; background: #2a4058; }
 :root[data-theme='dark'] .ranking-heading .order-lock[aria-pressed='true'] { color: #f0c987; border-color: #6d5a2a; background: #4a3a1c; }
 
-/* Where a priority came from, when it was carried over, and the button that takes it off again. */
+/* Where a priority came from, when it was carried over. */
 .carried-tag { display: block; margin-top: 3px; color: #7a8a7f; font-size: 9px; font-weight: 700; letter-spacing: .02em; }
 :root[data-theme='dark'] .carried-tag { color: #94a5b6; }
-.priority-row .priority-actions { flex-wrap: wrap; }
 

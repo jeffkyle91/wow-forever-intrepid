@@ -5,12 +5,10 @@ import { phaseName } from '../../shared/game/phases'
 import { requestItem } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { AwardModal } from './AwardModal'
-import { awardsRecordedFrom, carriedFromName } from './carried'
 import { visiblePriorities } from './filters'
 import { useBossOrder } from './useDropTables'
 import { PriorityList } from './PriorityList'
 import { PriorityModal } from './PriorityModal'
-import { RemoveCarriedModal } from './RemoveCarriedModal'
 import { usePriorityFilters } from './priorityFilters'
 import { usePhaseView } from './usePhaseView'
 import { useSlotOf } from './useSlotOf'
@@ -32,11 +30,6 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
     ctx.openModal(({ close, live }) => <AwardModal priority={priority} awardedAt={localDate} close={close} live={live} />)
   }
 
-  function openRemove(priority: LootPriority) {
-    const from = carriedFromName(priority, lookup, (no) => phaseName(ctx.data.settings, no)) ?? ''
-    ctx.openModal(({ close, live }) => <RemoveCarriedModal priority={priority} from={from} phase={view.name} awards={awardsRecordedFrom(priority, awards)} close={close} live={live} />)
-  }
-
   async function moveCandidate(priority: LootPriority, index: number, direction: -1 | 1) {
     const lines = readLines(priority)
     const moved = moveLine(lines, index, direction)
@@ -53,5 +46,5 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const notice = view.kind === 'past' ? `${view.name} is closed. This is a record of its lists: nothing here can be changed.`
     : view.kind === 'next' ? `${view.name} has not started. Only leaders see it. Prepare its lists here; nothing can be awarded until it starts.` : undefined
 
-  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup, who)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} who={who} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} phaseName={(no) => phaseName(ctx.data.settings, no)} onRemove={openRemove} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
+  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup, who)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} who={who} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} phaseName={(no) => phaseName(ctx.data.settings, no)} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
 }

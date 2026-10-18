@@ -9,6 +9,10 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 - Loot priorities: the pencil on each priority is now a labelled Edit Prio button, and a priority without a council note says to use Edit Prio to add one.
 - Loot priorities: a candidate who has received the item is faded instead of crossed out, keeping the class color and stripe and the green Received tag, so the name stays easy to read.
 - Drop list editor: the "Creature number" field is now "Creature ID", with a line saying where to find it (the number after npc= in the creature's Wowhead address).
+- Loot priorities: candidates are picked from the roster instead of typed. Search it, order it by class (with the class colors) or by name, tick several characters and add them at once, move them up and down or take them off. A priority can also hold a note line for something that is not a person, for example "Any warlock who didn't get the Test Staff last phase"; it can be reworded and marked finished (crossed off).
+- Loot priorities: recording an award through a note puts the winner on the list where the note was and moves the note down, so the list shows who has received it and the note stays for the next one. The award dialog offers the people on the list and, under each open note, the rest of the roster.
+- Characters keep their loot when renamed: priorities, completion, the filters, the Log's player filter and My dashboard follow the character, while award rows and Log lines keep the name they were written with. An older priority is converted to roster characters the next time a leader edits it (a name the roster does not have stays as a note).
+- My dashboard shows the priorities and awards of every phase up to the current one, the latest first, with a received mark and the phase for earlier ones.
 
 ## 2026-10-17 - 92dbc71
 

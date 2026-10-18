@@ -4,11 +4,14 @@ import {
   deleteField,
   deleteDoc,
   doc,
+  FieldPath,
   getDoc,
+  getDocFromServer,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   where,
   serverTimestamp,
   setDoc,
@@ -17,12 +20,14 @@ import {
   Timestamp,
   type Firestore,
 } from 'firebase/firestore'
-import { auth, db, functions, guildId } from './firebase'
+import { deleteObject, getDownloadURL, getMetadata, listAll, ref as storageRef, uploadBytes, type StorageReference } from 'firebase/storage'
+import { auth, db, functions, guildId, storage, storageBucket } from './firebase'
 import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
 import { nextPhaseRev } from './shared/game/phases'
 import type { TableWrite } from './shared/game/guildTables'
 import { isHexColor, isZoneKey } from './shared/game/zoneColors'
+import { EMPTY_ZONE_ART, ZONE_IMAGE_LIMIT, fullPath, isImageName, newImageId, readZoneArt, thumbPath, zonesUsing, type ZoneArt, type ZoneImage } from './shared/game/zoneArt'
 import { awardCreateFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, tableAuditFields, type AuditEntry } from './shared/game/lootAudit'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
@@ -233,6 +238,185 @@ export async function saveZoneColors(colors: Record<string, string>, who: { uid:
 // Every zone back to its default color.
 export async function clearZoneColors(who: { uid: string }) {
   await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'zoneColors'), { colors: {}, updatedBy: who.uid, updatedAt: serverTimestamp() })
+}
+
+// ---- The artwork of the zones (settings/zoneArt and the files in Cloud Storage; see shared/game/zoneArt.ts). Every change goes through a transaction that reads the
+// document first, so a picture removed, replaced or renamed by another leader in the meantime is noticed instead of half-recreated. The files are never overwritten
+// (a replaced picture is the next rev, a new file with a new address) and are told to be cached for a year, so a browser fetches each picture once.
+const IMAGE_CACHE = 'public, max-age=31536000, immutable'
+
+/** A picture ready to upload: the file as chosen, a small JPEG copy of it, and its size. Made in the browser by the Settings page. */
+export type PreparedImage = { blob: Blob; type: string; extension: 'jpg' | 'png' | 'webp'; thumb: Blob; width: number; height: number }
+
+const artRef = () => doc(requireDb(), 'guilds', guildId, 'settings', 'zoneArt')
+
+function requireStorage() {
+  if (!storage) throw new Error('File storage is not set up for this app.')
+  return storage
+}
+
+// What a person should read when Cloud Storage says no.
+function storageProblem(error: unknown): Error {
+  const code = (error as { code?: unknown } | null)?.code
+  if (code === 'storage/unauthorized' || code === 'storage/unauthenticated') return new Error('Cloud Storage refused that. Only a Guild Leader can change pictures, and the storage rules have to be deployed on this Firebase project.')
+  if (code === 'storage/bucket-not-found' || code === 'storage/project-not-found' || code === 'storage/no-default-bucket') return new Error('Cloud Storage is not turned on for this Firebase project yet. Open Build > Storage in the Firebase console and click Get started.')
+  if (code === 'storage/quota-exceeded') return new Error('The Cloud Storage quota is used up.')
+  if (code === 'storage/retry-limit-exceeded' || code === 'storage/canceled') return new Error('The upload did not finish. Check the connection and try again.')
+  return error instanceof Error ? error : new Error('Could not upload the picture.')
+}
+
+// A file is only ever created, never overwritten (storage.rules), so what this call uploaded is what it may delete if the change fails: a refused upload to a name another
+// leader just took must not take that leader's files with it.
+async function uploadImageFiles(id: string, rev: number, prepared: PreparedImage) {
+  const bucket = requireStorage()
+  const full = fullPath(guildId, id, rev, prepared.extension)
+  const thumb = thumbPath(guildId, id, rev)
+  const fullRef = storageRef(bucket, full)
+  const thumbRef = storageRef(bucket, thumb)
+  const created: StorageReference[] = []
+  try {
+    await uploadBytes(fullRef, prepared.blob, { contentType: prepared.type, cacheControl: IMAGE_CACHE })
+    created.push(fullRef)
+    await uploadBytes(thumbRef, prepared.thumb, { contentType: 'image/jpeg', cacheControl: IMAGE_CACHE })
+    created.push(thumbRef)
+    const [fullUrl, thumbUrl] = await Promise.all([getDownloadURL(fullRef), getDownloadURL(thumbRef)])
+    return { full, fullUrl, thumb, thumbUrl }
+  } catch (error) {
+    await Promise.allSettled(created.map((file) => deleteObject(file)))
+    // Refused although the person may add pictures: the name is taken, so someone else is changing this very picture.
+    const taken = (await Promise.all([fullRef, thumbRef].map((file) => getMetadata(file).then(() => true, () => false)))).some(Boolean)
+    if (taken && (error as { code?: unknown } | null)?.code === 'storage/unauthorized') throw new Error('Someone else changed this picture just now. Reload the page and try again.')
+    throw storageProblem(error)
+  }
+}
+
+// Whether a change that reported a failure actually went through (a commit whose answer was lost on the way back): the picture is in the document with these very files.
+async function landed(id: string, full: string): Promise<boolean> {
+  try {
+    return currentArt((await getDocFromServer(artRef())).data()).images.some((entry) => entry.id === id && entry.full === full)
+  } catch {
+    return false
+  }
+}
+
+// Files nobody points at any more are removed without failing the change that made them useless: a leftover file is harmless (and a later removal of the picture sweeps its folder).
+async function dropFiles(paths: string[]) {
+  if (!storage) return
+  const bucket = storage
+  await Promise.allSettled(paths.map((path) => deleteObject(storageRef(bucket, path))))
+}
+
+const artStamps = (who: { uid: string }) => ['updatedBy', who.uid, 'updatedAt', serverTimestamp()] as const
+const currentArt = (data: { images?: unknown; art?: unknown } | undefined): ZoneArt => (data ? readZoneArt(data.images, data.art, { guildId, bucket: storageBucket }) : EMPTY_ZONE_ART)
+
+/** Add a picture to the library. Returns its id. */
+export async function addZoneImage(name: string, prepared: PreparedImage, who: { uid: string }): Promise<string> {
+  const title = name.trim()
+  if (!isImageName(title)) throw new Error(`Give the picture a name of 1 to 60 characters.`)
+  const id = newImageId()
+  const files = await uploadImageFiles(id, 1, prepared)
+  const entry = { name: title, rev: 1, bytes: prepared.blob.size, width: prepared.width, height: prepared.height, ...files }
+  try {
+    await runTransaction(requireDb(), async (transaction) => {
+      const snapshot = await transaction.get(artRef())
+      if (currentArt(snapshot.data()).images.length >= ZONE_IMAGE_LIMIT) throw new Error(`The guild can keep ${ZONE_IMAGE_LIMIT} pictures. Remove one first.`)
+      if (snapshot.exists()) transaction.update(artRef(), new FieldPath('images', id), entry, ...artStamps(who))
+      else transaction.set(artRef(), { images: { [id]: entry }, art: {}, updatedBy: who.uid, updatedAt: serverTimestamp() })
+    })
+  } catch (error) {
+    if (await landed(id, files.full)) return id
+    await dropFiles([files.full, files.thumb])
+    throw error
+  }
+  return id
+}
+
+/** Put a new file in place of a picture: the next rev, the same name, the same zones. */
+export async function replaceZoneImage(image: ZoneImage, prepared: PreparedImage, who: { uid: string }): Promise<void> {
+  const rev = image.rev + 1
+  const files = await uploadImageFiles(image.id, rev, prepared)
+  let before: ZoneImage | undefined
+  try {
+    await runTransaction(requireDb(), async (transaction) => {
+      const snapshot = await transaction.get(artRef())
+      before = currentArt(snapshot.data()).images.find((entry) => entry.id === image.id)
+      if (!before) throw new Error('That picture was removed by someone else. Reload the page.')
+      if (before.rev !== image.rev) throw new Error('That picture was replaced by someone else just now. Reload the page and try again.')
+      transaction.update(artRef(), new FieldPath('images', image.id), { name: before.name, rev, bytes: prepared.blob.size, width: prepared.width, height: prepared.height, ...files }, ...artStamps(who))
+    })
+  } catch (error) {
+    if (!(await landed(image.id, files.full))) {
+      await dropFiles([files.full, files.thumb])
+      throw error
+    }
+  }
+  const old = before ?? image
+  await dropFiles([old.full, old.thumb])
+}
+
+export async function renameZoneImage(image: ZoneImage, name: string, who: { uid: string }): Promise<void> {
+  const title = name.trim()
+  if (!isImageName(title)) throw new Error('Give the picture a name of 1 to 60 characters.')
+  await runTransaction(requireDb(), async (transaction) => {
+    const snapshot = await transaction.get(artRef())
+    if (!currentArt(snapshot.data()).images.some((entry) => entry.id === image.id)) throw new Error('That picture was removed by someone else. Reload the page.')
+    transaction.update(artRef(), new FieldPath('images', image.id, 'name'), title, ...artStamps(who))
+  })
+}
+
+/** Remove a picture: its entry, the choice of every zone that used it (those zones have no artwork again), and its files. */
+export async function removeZoneImage(image: ZoneImage, who: { uid: string }): Promise<void> {
+  let known: ZoneImage | undefined
+  await runTransaction(requireDb(), async (transaction) => {
+    const snapshot = await transaction.get(artRef())
+    const art = currentArt(snapshot.data())
+    const raw = (snapshot.data()?.images ?? {}) as Record<string, unknown>
+    if (!(image.id in raw)) return // already gone
+    known = art.images.find((entry) => entry.id === image.id)
+    const zones = zonesUsing(art, image.id)
+    transaction.update(artRef(), new FieldPath('images', image.id), deleteField(), ...zones.flatMap((zone) => [new FieldPath('art', zone), deleteField()] as const), ...artStamps(who))
+  })
+  if (!storage) return
+  const bucket = storage
+  // The files the document names are removed by their paths; then the picture's whole folder is swept for anything an interrupted upload or replace left behind.
+  if (known) await dropFiles([known.full, known.thumb])
+  try {
+    const listing = await listAll(storageRef(bucket, `guilds/${guildId}/zone-art/${image.id}`))
+    await Promise.allSettled(listing.items.map((item) => deleteObject(item)))
+  } catch {
+    // A leftover file is harmless; the picture is already gone from the library.
+  }
+}
+
+/** Several zones' pictures in one write (zone key to picture id). Each has to be a zone and a picture that is there; one a zone already has is left out. */
+export async function pickZoneArts(picks: Record<string, string>, who: { uid: string }): Promise<number> {
+  const entries = Object.entries(picks)
+  if (entries.some(([zone]) => !isZoneKey(zone))) throw new Error('That is not a zone.')
+  let written = 0
+  await runTransaction(requireDb(), async (transaction) => {
+    const snapshot = await transaction.get(artRef())
+    const art = currentArt(snapshot.data())
+    const changes = entries.filter(([zone, imageId]) => art.art[zone] !== imageId)
+    if (changes.some(([, imageId]) => !art.images.some((entry) => entry.id === imageId))) throw new Error('A picture was removed by someone else. Reload the page.')
+    written = changes.length
+    if (!changes.length || !snapshot.exists()) { written = 0; return }
+    const [[firstZone, firstId], ...others] = changes
+    transaction.update(artRef(), new FieldPath('art', firstZone), firstId, ...others.flatMap(([zone, imageId]) => [new FieldPath('art', zone), imageId]), ...artStamps(who))
+  })
+  return written
+}
+
+/** Choose the picture of a zone, or none (`null`). Choosing what the zone already has writes nothing. */
+export async function pickZoneArt(zoneKey: string, imageId: string | null, who: { uid: string }): Promise<void> {
+  if (!isZoneKey(zoneKey)) throw new Error('That is not a zone.')
+  await runTransaction(requireDb(), async (transaction) => {
+    const snapshot = await transaction.get(artRef())
+    const art = currentArt(snapshot.data())
+    if (imageId !== null && !art.images.some((entry) => entry.id === imageId)) throw new Error('That picture was removed by someone else. Reload the page.')
+    if ((art.art[zoneKey] ?? null) === imageId) return
+    if (!snapshot.exists()) return // nothing to take away from a guild that has no artwork yet
+    transaction.update(artRef(), new FieldPath('art', zoneKey), imageId === null ? deleteField() : imageId, ...artStamps(who))
+  })
 }
 
 // Starting a phase or reopening one saves the settings together with its Log entry (`phase_settings_{n}`, n counting every start and reopen),

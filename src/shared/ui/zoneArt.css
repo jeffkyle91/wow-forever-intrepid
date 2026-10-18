@@ -1,0 +1,7 @@
+/* A zone's picture (--zone-art, set inline from shared/game/zoneArt.ts) behind the title block of a zone. The block that has the class `zone-arted` paints the picture on
+   its own ::before, behind its content and above its own background (isolation: isolate + z-index: -1), so no element is added and the order of children stays as it was.
+   The picture goes on the zone's title block only, never on the rows of loot under it. Each feature's stylesheet says where the picture sits, how strong it is
+   (--zone-art-wash, and its own rule for the dark theme) and how it fades; the text keeps the page's ink on a plain background. */
+.zone-arted { position: relative; isolation: isolate; }
+.zone-arted::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; background: var(--zone-art) center / cover no-repeat; opacity: var(--zone-art-wash, .5); }
+@media print { .zone-arted::before { display: none; } }

@@ -444,7 +444,7 @@ export async function writeLootTables(writes: TableWrite[], who: AuditWho, onWri
         const rev = write.existing.rev + 1
         const update = Object.fromEntries(description.changed.map((key) => [key, write.changes[key as keyof typeof write.changes] === undefined ? deleteField() : write.changes[key as keyof typeof write.changes]]))
         batch.update(doc(database, 'guilds', guildId, 'lootTables', write.id), { ...update, rev, updatedBy: who.uid, updatedAt: serverTimestamp() })
-        batch.set(doc(database, 'guilds', guildId, 'auditLog', `table_${write.id}_${rev}`), auditEntry(who, 'table', write.id, rev, 'edit', write.existing.name ?? '', description))
+        batch.set(doc(database, 'guilds', guildId, 'auditLog', `table_${write.id}_${rev}`), auditEntry(who, 'table', write.id, rev, 'edit', ('name' in write.existing ? write.existing.name : undefined) ?? '', description))
       }
       written.push(write.id)
     }

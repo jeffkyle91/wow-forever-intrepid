@@ -6,6 +6,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Drop lists: each phase has its own zones. In Edit the drop lists a collapsible Zones section lets a leader pick a phase and tick the zones it has (Browse drops shows only the ticked ones), in groups that open and close on their own: Dungeons, 10-man raids, 20-man raids, 40-man raids (a group nobody has is not listed). Each phase has a Follows choice: Nothing, or an earlier phase, whose zones, creatures and items the phase then has, with its own changes on top. A phase starts with no zones; nothing is copied from the one before unless you make it follow it. This replaces "Put the zone back in Phase 2" and the Follow buttons on each zone and creature. Phase 1 needs its zones ticked once after this is deployed; until then Browse drops says it has none.
 - Loot priorities: the pencil on each priority is now a labelled Edit Prio button, and a priority without a council note says to use Edit Prio to add one.
 - Loot priorities: a candidate who has received the item is faded instead of crossed out, keeping the class color and stripe and the green Received tag, so the name stays easy to read.
 - Drop list editor: the "Creature number" field is now "Creature ID", with a line saying where to find it (the number after npc= in the creature's Wowhead address).

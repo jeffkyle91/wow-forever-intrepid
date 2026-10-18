@@ -1,21 +1,21 @@
 // Property tests of the write builders of src/shared/game/guildTables.ts (addItems, takeOffItem, restoreItem, addCreature, setCreatureRemoved,
-// renameCreature, moveCreature, resetCreature, addZone, editZone, setZoneInPhase, resetZone), from the spec (PR-texts/Design-loot-tables-phases.md,
-// "Edits in the editor"). A write is applied to a list of documents the way the audited helper does (support/tableWrites.ts), the lists are merged again
+// renameCreature, moveCreature, addZone, editZone, setZoneInPhase, setFollows), from the spec (PR-texts/Design-loot-tables-phases.md,
+// "Edits in the editor", and PR-texts/Design-zone-editor.md). A write is applied to a list of documents the way the audited helper does (support/tableWrites.ts), the lists are merged again
 // at the same phase and the intended effect is checked, together with what must stay as it was: the lists of earlier phases, the other creatures and
 // zones, the documents of other phases. Every document a write leaves behind is checked against the shape rules of the spec. Single operations on
 // random states, then sequences of 2 to 6 operations across phases N and N+1. Deterministic: seeded, and Math.random is replaced while a builder
 // that uses it runs. To prove the tests can fail, point GUILD_TABLES_MODULE at a changed copy of the module.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { LootTableDoc, MergedSource, MergedZone, SourceTableDoc, TableWrite, ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
+import type { LootTableDoc, MergedSource, MergedZone, PhaseTableDoc, SourceTableDoc, TableWrite, ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootSourceKind, LootTableCapture } from '../../src/shared/game/lootTables.ts'
 import { firstDiff, firstDropDiff } from './support/mergeCompare.ts'
-import { referenceDropTables, referenceMerge } from './support/mergeReference.ts'
+import { chainOf, referenceDropTables, referenceMerge } from './support/mergeReference.ts'
 import { applyWrite, rulesProblems } from './support/tableWrites.ts'
 import { deepFreeze, formatCase, genCase, makeRng, type Rng } from './support/tablesGen.ts'
 import { tables } from './support/tablesUnderTest.ts'
 
-const { mergeTables, dropTablesOf, addItems, takeOffItem, restoreItem, addCreature, setCreatureRemoved, renameCreature, moveCreature, resetCreature, addZone, editZone, setZoneInPhase, resetZone, newCreatureKey, newZoneId } = tables
+const { mergeTables, dropTablesOf, addItems, takeOffItem, restoreItem, addCreature, setCreatureRemoved, renameCreature, moveCreature, addZone, editZone, setZoneInPhase, setFollows, setZonesInPhase: tablesSetZones, newCreatureKey, newZoneId } = tables
 
 type State = { captures: LootTableCapture[]; docs: LootTableDoc[] }
 const ITEMS = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 900, 901]
@@ -29,7 +29,6 @@ const sortKeys = (value: unknown): unknown => (Array.isArray(value) ? value.map(
 const json = (value: unknown) => JSON.stringify(sortKeys(value))
 const sdoc = (docs: LootTableDoc[], zoneId: number, key: string, phaseNo: number) => docs.find((doc): doc is SourceTableDoc => doc.type === 'source' && doc.zoneId === zoneId && doc.key === key && doc.phaseNo === phaseNo)
 const zdoc = (docs: LootTableDoc[], zoneId: number, phaseNo: number) => docs.find((doc): doc is ZoneTableDoc => doc.type === 'zone' && doc.zoneId === zoneId && doc.phaseNo === phaseNo)
-const firstPhaseOf = (docs: LootTableDoc[], match: (doc: LootTableDoc) => boolean) => Math.min(...docs.filter(match).map((doc) => doc.phaseNo))
 const sourceOf = (zone: MergedZone | undefined, key: string) => (key === 'zonewide' ? zone?.zoneWide : zone?.sources.find((candidate) => candidate.key === key))
 const holderOf = (zone: MergedZone, id: number) => [...zone.sources.filter((candidate) => !candidate.removed), zone.zoneWide].find((candidate) => candidate.itemIds.includes(id))
 const withoutDoc = ({ doc: _doc, ...rest }: MergedSource) => rest
@@ -62,6 +61,8 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
   }
   const merged = (from: State, phaseNo: number) => mergeTables(from.captures, deepFreeze(from.docs), phaseNo)
   const zoneIn = (from: State, phaseNo: number, zoneId: number) => merged(from, phaseNo).find((zone) => zone.zoneId === zoneId)
+  // A change in this phase reaches the next phase only when the next phase follows this one (directly, or through the phases it follows).
+  const reaches = () => chainOf(state.docs, phase + 1).includes(phase)
 
   // Applies the writes of one operation and checks what every write must satisfy, whatever it was meant to do.
   function commit(writes: TableWrite[]): State {
@@ -120,7 +121,7 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         same(attributesOf(sdoc(before.docs, zone.zoneId, source.key, phase)), attributesOf(sdoc(state.docs, zone.zoneId, source.key, phase)), 'adding items wrote an attribute (name, kind, place, number, removed) into the document')
         // a change in this phase reaches the next one unless the next phase's own document says something about the item
         const next = sdoc(state.docs, zone.zoneId, source.key, phase + 1)
-        for (const id of result.added) if (!next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} added in phase ${phase} is not in phase ${phase + 1}`)
+        for (const id of result.added) if (reaches() && !next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} added in phase ${phase} is not in phase ${phase + 1}`)
         return true
       },
     },
@@ -144,13 +145,14 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         const wasBefore = source.beforeItemIds.includes(id)
         check(sourceAfter.hiddenItemIds.includes(id) === wasBefore, wasBefore ? 'an item of the earlier phases taken off is not reported as taken off by this phase' : 'an item this phase added is reported as taken off')
         if (wasBefore) check(!sourceAfter.goneItemIds.includes(id), 'an item this phase took off is listed as gone')
-        // earlier phases keep it
-        if (wasBefore && phase > 0) check(sourceOf(zoneIn(state, phase - 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} is gone from phase ${phase - 1} too`)
+        // the phase it follows keeps it
+        const followed = chainOf(state.docs, phase).at(-2)
+        if (wasBefore && followed !== undefined) check(sourceOf(zoneIn(state, followed, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} is gone from phase ${followed} too`)
         for (let earlier = 0; earlier < phase; earlier += 1) same(sourceOf(zoneIn(before, earlier, zone.zoneId), source.key)?.itemIds, sourceOf(zoneIn(state, earlier, zone.zoneId), source.key)?.itemIds, `the items of phase ${earlier} changed`)
         same(zone.sources.filter((candidate) => candidate.key !== source.key), zoneAfter.sources.filter((candidate) => candidate.key !== source.key), 'another creature changed')
         same(attributesOf(sdoc(before.docs, zone.zoneId, source.key, phase)), attributesOf(sdoc(state.docs, zone.zoneId, source.key, phase)), 'taking an item off wrote an attribute into the document')
         const next = sdoc(state.docs, zone.zoneId, source.key, phase + 1)
-        if (!next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(!sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} taken off in phase ${phase} is back in phase ${phase + 1}`)
+        if (reaches() && !next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(!sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} taken off in phase ${phase} is back in phase ${phase + 1}`)
         return true
       },
     },
@@ -173,7 +175,7 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         same(source.itemIds, sourceAfter.itemIds.filter((candidate) => candidate !== id), 'the other items did not stay as they were')
         same(attributesOf(sdoc(before.docs, zone.zoneId, source.key, phase)), attributesOf(sdoc(state.docs, zone.zoneId, source.key, phase)), 'putting an item back wrote an attribute into the document')
         const next = sdoc(state.docs, zone.zoneId, source.key, phase + 1)
-        if (!next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} put back in phase ${phase} is not in phase ${phase + 1}`)
+        if (reaches() && !next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} put back in phase ${phase} is not in phase ${phase + 1}`)
         return true
       },
     },
@@ -221,7 +223,7 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         const create = 'create' in write ? (write.create as Record<string, unknown>) : {}
         same(['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'order', 'itemIds', 'hiddenItemIds', ...(npcId === undefined ? [] : ['npcId'])].sort(), Object.keys(create).filter((field) => create[field] !== undefined).sort(), 'the first document of a creature does not say exactly what it should')
         const next = sourceOf(zoneIn(state, phase + 1, zone.zoneId), key)
-        check(next && next.name === name.trim() && next.kind === kind && next.order === added!.order, 'the new creature is not in the next phase as it is in this one')
+        if (reaches()) check(next && next.name === name.trim() && next.kind === kind && next.order === added!.order, 'the new creature is not in the next phase as it is in this one')
         return true
       },
     },
@@ -246,7 +248,7 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         same(source.itemIds, sourceAfter.itemIds, 'taking a creature out or bringing it back lost its items')
         same(json(ATTRIBUTES.filter((field) => field !== 'removed').map((field) => sdoc(before.docs, zone.zoneId, source.key, phase)?.[field])), json(ATTRIBUTES.filter((field) => field !== 'removed').map((field) => sdoc(state.docs, zone.zoneId, source.key, phase)?.[field])), 'removal wrote another attribute into the document')
         const next = sdoc(state.docs, zone.zoneId, source.key, phase + 1)
-        if (typeof next?.removed !== 'boolean') check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.removed === removed, `removed (${removed}) set in phase ${phase} does not reach phase ${phase + 1}`)
+        if (reaches() && typeof next?.removed !== 'boolean') check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.removed === removed, `removed (${removed}) set in phase ${phase} does not reach phase ${phase + 1}`)
         return true
       },
     },
@@ -279,8 +281,8 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         // what the rename changed reaches the next phase unless that phase's own document sets it
         const next = sdoc(state.docs, zone.zoneId, source.key, phase + 1)
         const nextSource = sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!
-        if (nameChanged && next?.name === undefined) check(nextSource.name === name.trim(), `the new name does not reach phase ${phase + 1}`)
-        if (kindChanged && next?.kind === undefined) check(nextSource.kind === kind, `the new kind does not reach phase ${phase + 1}`)
+        if (reaches() && nameChanged && next?.name === undefined) check(nextSource.name === name.trim(), `the new name does not reach phase ${phase + 1}`)
+        if (reaches() && kindChanged && next?.kind === undefined) check(nextSource.kind === kind, `the new kind does not reach phase ${phase + 1}`)
         return true
       },
     },
@@ -321,37 +323,10 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
       },
     },
 
-    resetCreature: {
-      weight: 2,
-      run: () => {
-        const zone = pickZone()
-        const source = rng.pick([...zone.sources, zone.zoneWide])
-        const write = resetCreature(zone, source)
-        trail.push(`resetCreature zone ${zone.zoneId} ${source.key} at ${phase}`)
-        const doc = source.doc
-        const says = !!doc && (doc.itemIds.length > 0 || doc.hiddenItemIds.length > 0 || ATTRIBUTES.some((field) => doc[field] !== undefined))
-        const startsHere = !source.builtIn && source.key !== 'zonewide' && firstPhaseOf(state.docs, (candidate) => candidate.type === 'source' && candidate.zoneId === zone.zoneId && candidate.key === source.key) === phase
-        if (!says || startsHere) { check(write === null, !says ? 'a reset of a document that says nothing' : 'a reset offered for a creature that starts in this phase'); return true }
-        check(write !== null, 'no write to follow the previous phase again')
-        const before = state
-        commit([write!])
-        const after = sourceOf(zoneIn(state, phase, zone.zoneId), source.key)!
-        if (zone.custom && firstPhaseOf(state.docs, (candidate) => candidate.type === 'zone' && candidate.zoneId === zone.zoneId) === phase) {
-          // (the zone-wide list of a zone that starts in this phase: there is no earlier phase to follow, the reset just empties the list)
-          check(source.key === 'zonewide' && after.itemIds.length === 0, 'a reset offered for a creature of a zone that starts in this phase')
-          return true
-        }
-        const earlierOnly = sourceOf(zoneIn({ captures: before.captures, docs: before.docs.filter((candidate) => candidate.phaseNo < phase) }, phase, zone.zoneId), source.key)
-        check(earlierOnly, 'the creature does not exist in the earlier phases, yet a reset was offered')
-        same(withoutDoc(earlierOnly!), withoutDoc(after), 'after "follow the previous phase again" the creature is not what the documents of earlier phases give')
-        return true
-      },
-    },
-
     addZone: {
       weight: 1,
       run: () => {
-        const taken = [...state.captures.map((capture) => capture.zoneId), ...state.docs.map((doc) => doc.zoneId)]
+        const taken = [...state.captures.map((capture) => capture.zoneId), ...state.docs.flatMap((doc) => (doc.type === 'phase' ? [] : [doc.zoneId]))]
         const name = rng.chance(0.3) ? ` ${rng.pick(ZONE_NAMES)} ` : rng.pick(ZONE_NAMES)
         const kind = rng.pick(['dungeon', 'raid'] as const)
         const players = rng.pick([5, 10, 25, 40])
@@ -364,7 +339,7 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         const zone = zoneIn(state, phase, zoneId)
         check(zone, 'the new zone does not exist')
         check(zone!.name === name.trim() && zone!.kind === kind && zone!.players === players && zone!.custom && zone!.inPhase && zone!.introducedAt === phase && zone!.sources.length === 0, `the new zone is not as asked: ${json(zone)}`)
-        same(['kind', 'name', 'phaseNo', 'players', 'type', 'zoneId'], Object.keys((write as { create: object }).create).sort(), 'the first document of a zone does not say exactly name, kind and size')
+        same(['kind', 'name', 'phaseNo', 'players', 'removed', 'type', 'zoneId'], Object.keys((write as { create: object }).create).sort(), 'the first document of a zone does not say exactly name, kind, size and that it is in the lists')
         same(merged(before, phase), merged(state, phase).filter((candidate) => candidate.zoneId !== zoneId), 'another zone changed')
         const next = zoneIn(state, phase + 1, zoneId)
         check(next && next.name === zone!.name && next.kind === kind && next.players === players, 'the new zone is not in the next phase')
@@ -421,29 +396,44 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         const docAfter = zdoc(state.docs, zone.zoneId, phase)!
         same(json([docBefore?.name, docBefore?.kind, docBefore?.players]), json([docAfter.name, docAfter.kind, docAfter.players]), 'taking a zone out or putting it back wrote another attribute into the document')
         const next = zdoc(state.docs, zone.zoneId, phase + 1)
-        if (typeof next?.removed !== 'boolean') check(zoneIn(state, phase + 1, zone.zoneId)!.inPhase === inPhase, `inPhase (${inPhase}) set in phase ${phase} does not reach phase ${phase + 1}`)
+        if (reaches() && typeof next?.removed !== 'boolean') check(zoneIn(state, phase + 1, zone.zoneId)!.inPhase === inPhase, `inPhase (${inPhase}) set in phase ${phase} does not reach phase ${phase + 1}`)
         return true
       },
     },
 
-    resetZone: {
-      weight: 1,
+    setFollows: {
+      weight: 2,
       run: () => {
-        const zone = pickZone()
-        const write = resetZone(zone)
-        trail.push(`resetZone ${zone.zoneId} at ${phase}`)
-        const doc = zone.doc
-        const says = !!doc && (doc.removed !== undefined || doc.name !== undefined || doc.kind !== undefined || doc.players !== undefined)
-        const startsHere = zone.custom && firstPhaseOf(state.docs, (candidate) => candidate.type === 'zone' && candidate.zoneId === zone.zoneId) === phase
-        if (!says || startsHere) { check(write === null, !says ? 'a reset of a document that says nothing' : 'a reset offered for a zone that starts in this phase'); return true }
-        check(write !== null, 'no write to follow the previous phase again')
+        if (phase === 0) return false // nothing is earlier than the first phase
+        const follows = rng.pick([undefined, ...Array.from({ length: phase }, (_, no) => no)])
+        const stored = state.docs.find((doc): doc is PhaseTableDoc => doc.type === 'phase' && doc.phaseNo === phase)?.follows
+        const write = setFollows(state.docs, phase, follows)
+        trail.push(`setFollows phase ${phase} -> ${follows ?? 'nothing'}`)
+        if (stored === follows) { check(write === null, 'a write that changes nothing'); return true }
+        check(write !== null, `no write to make phase ${phase} follow ${follows ?? 'nothing'}`)
+        check(write!.id === `p${phase}`, `the phase document is filed under ${write!.id}`)
         const before = state
         commit([write!])
-        const after = zoneIn(state, phase, zone.zoneId)!
-        const earlierOnly = zoneIn({ captures: before.captures, docs: before.docs.filter((candidate) => candidate.phaseNo < phase) }, phase, zone.zoneId)
-        check(earlierOnly, 'the zone does not exist in the earlier phases, yet a reset was offered')
-        same({ ...earlierOnly!, doc: 0, sources: 0, zoneWide: 0, edited: 0 }, { ...after, doc: 0, sources: 0, zoneWide: 0, edited: 0 }, 'after "follow the previous phase again" the zone is not what the documents of earlier phases give')
-        same(zone.sources, after.sources, 'resetting a zone changed its creatures')
+        const chain = chainOf(state.docs, phase)
+        same(follows === undefined ? [phase] : [...chainOf(state.docs, follows), phase], chain, 'the chain of the phase is not what it was made to follow')
+        same(before.docs.filter((doc) => doc.type !== 'phase' || doc.phaseNo !== phase), state.docs.filter((doc) => doc.type !== 'phase' || doc.phaseNo !== phase), 'following changed a document that is not the phase document')
+        const created = 'create' in write! ? (write as { create: Record<string, unknown> }).create : {}
+        if ('create' in write!) same(['follows', 'phaseNo', 'type'], Object.keys(created).filter((field) => created[field] !== undefined).sort(), 'the first document of a phase does not say exactly what it follows')
+        return true
+      },
+    },
+
+    tickEveryZone: {
+      weight: 1,
+      run: () => {
+        const zones = merged(state, phase)
+        const inPhase = rng.chance(0.7)
+        const writes = tablesSetZones(zones, inPhase)
+        trail.push(`setZonesInPhase ${inPhase} at ${phase}`)
+        same(zones.filter((zone) => zone.inPhase !== inPhase).map((zone) => zone.zoneId), writes.map((write) => Number(write.id.slice(1, write.id.indexOf('_')))), 'one write for every zone that is not already so, and none for the others')
+        if (writes.length === 0) return true
+        commit(writes)
+        check(merged(state, phase).every((zone) => zone.inPhase === inPhase), `not every zone is ${inPhase ? 'in' : 'out of'} the lists`)
         return true
       },
     },
@@ -503,7 +493,7 @@ describe('the write builders keep to the spec', () => {
       run.finish()
     }
     // every kind of operation was exercised many times
-    for (const name of ['addItems', 'takeOffItem', 'restoreItem', 'takeOffThenRestore', 'addCreature', 'setCreatureRemoved', 'renameCreature', 'moveCreature', 'resetCreature', 'addZone', 'editZone', 'setZoneInPhase', 'resetZone']) {
+    for (const name of ['addItems', 'takeOffItem', 'restoreItem', 'takeOffThenRestore', 'addCreature', 'setCreatureRemoved', 'renameCreature', 'moveCreature', 'addZone', 'editZone', 'setZoneInPhase', 'setFollows', 'tickEveryZone']) {
       assert.ok((counts[name] ?? 0) > 400, `coverage: ${name} ran ${counts[name] ?? 0} times`)
     }
     if (process.env.FUZZ_VERBOSE) {
@@ -549,7 +539,7 @@ describe('the write builders keep to the spec', () => {
     // makes 'same unless changed' true for attributes too." editZone writes only what changed; renameCreature writes both.
     const capture: LootTableCapture = { format: 1, zoneId: 5, name: 'Test Hollow', kind: 'dungeon', players: 5, source: 'https://example.test', capturedAt: '2026-10-16', sources: [{ npcId: 1, name: 'Ash', kind: 'boss', itemIds: [1] }], zoneWideItemIds: [] }
     const first: SourceTableDoc = { id: 's5_cq1_1', type: 'source', zoneId: 5, key: 'cq1', phaseNo: 1, name: 'Bog', kind: 'boss', order: 30, itemIds: [], hiddenItemIds: [], rev: 1 }
-    const zone = mergeTables([capture], [first], 2)[0]
+    const zone = mergeTables([capture], [first, { id: 'p2', type: 'phase', phaseNo: 2, follows: 1, rev: 1 }], 2)[0]
     const bog = zone.sources.find((candidate) => candidate.key === 'cq1')!
     const write = renameCreature(zone, bog, 'Bog the Elder', 'boss') // only the name changes
     assert.ok(write && 'create' in write)
@@ -562,7 +552,7 @@ describe('the write builders keep to the spec', () => {
       format: 1, zoneId: 5, name: 'Test Hollow', kind: 'dungeon', players: 5, source: 'https://example.test', capturedAt: '2026-10-16',
       sources: [{ npcId: 1, name: 'Ash', kind: 'boss', itemIds: [1] }, { npcId: 2, name: 'Dusk', kind: 'boss', itemIds: [2] }, { npcId: 3, name: 'Cinder', kind: 'boss', itemIds: [3] }], zoneWideItemIds: [],
     }
-    let docs: LootTableDoc[] = []
+    let docs: LootTableDoc[] = [{ id: 'p2', type: 'phase', phaseNo: 2, follows: 1, rev: 1 }] // phase 2 follows phase 1
     const move = (phaseNo: number, key: string, direction: -1 | 1) => {
       const zone = mergeTables([capture], docs, phaseNo)[0]
       for (const write of moveCreature(zone, zone.sources.find((candidate) => candidate.key === key)!, direction)) docs = applyWrite(docs, write)

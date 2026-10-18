@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  CUSTOM_ZONE_MIN, describePreparedTables, hasText, resetCreature, resetZone, TABLE_ITEMS_MAX, ZONE_WIDE_KEY, addCreature, addItems, addZone, builtInKey, dropTablesOf, editZone, firstPhases, itemHolders, mergeTables, moveCreature,
+  CUSTOM_ZONE_MIN, describePreparedTables, followChain, followedBy, hasText, phaseDocId, phaseDocOf, setFollows, setZonesInPhase, TABLE_ITEMS_MAX, ZONE_WIDE_KEY, addCreature, addItems, addZone, builtInKey, dropTablesOf as dropTablesAlone, editZone, firstPhases, itemHolders, mergeTables as mergeTablesAlone, moveCreature,
   newCreatureKey, newZoneId, parseItemIds, readTableDoc, renameCreature, restoreItem, setCreatureRemoved, setZoneInPhase, sourceDocId, takeOffItem, zoneDocId,
-  type LootTableDoc, type SourceTableDoc, type ZoneTableDoc,
+  type LootTableDoc, type PhaseTableDoc, type SourceTableDoc, type ZoneTableDoc,
 } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
 
@@ -29,27 +29,36 @@ const overlay = (npc: string, phaseNo: number, fields: Partial<SourceTableDoc> =
 const zoneDoc = (zoneId: number, phaseNo: number, fields: Partial<ZoneTableDoc> = {}): ZoneTableDoc => ({ id: zoneDocId(zoneId, phaseNo), type: 'zone', zoneId, phaseNo, name: 'Guild Lair', kind: 'raid', players: 25, rev: 1, ...fields })
 const presence = (zoneId: number, phaseNo: number, removed: boolean): ZoneTableDoc => ({ id: zoneDocId(zoneId, phaseNo), type: 'zone', zoneId, phaseNo, removed, rev: 1 })
 
+const phaseDoc = (phaseNo: number, follows?: number): PhaseTableDoc => ({ id: phaseDocId(phaseNo), type: 'phase', phaseNo, rev: 1, ...(follows === undefined ? {} : { follows }) })
+// The suites about how documents fold from phase to phase ask for the lists of a guild where every phase follows the one before it (phase 1 follows 0,
+// 2 follows 1, and so on), so the documents of every earlier phase count. What a phase that follows nothing, or something else, has is in the suites on
+// following at the end of this file, which call mergeTablesAlone. The two zones of the captures are ticked in phase 0, so they are in the lists of every phase.
+const followEach: PhaseTableDoc[] = Array.from({ length: 31 }, (_, index) => phaseDoc(index + 1, index))
+const ticked = [presence(900, 0, false), presence(800, 0, false)]
+const mergeTables = (captures: LootTableCapture[], docs: LootTableDoc[], phaseNo: number) => mergeTablesAlone(captures, [...docs, ...followEach, ...ticked], phaseNo)
+const dropTablesOf = (captures: LootTableCapture[], docs: LootTableDoc[], phaseNo: number) => dropTablesAlone(captures, [...docs, ...followEach, ...ticked], phaseNo)
+
 const zoneOf = (docs: LootTableDoc[], phaseNo: number, zoneId = 900) => mergeTables([capture, other], docs, phaseNo).find((zone) => zone.zoneId === zoneId)!
 const sourceOf = (docs: LootTableDoc[], phaseNo: number, key: string, zoneId = 900) => zoneOf(docs, phaseNo, zoneId).sources.find((candidate) => candidate.key === key)!
 const items = (docs: LootTableDoc[], phaseNo: number, key = builtInKey(11)) => sourceOf(docs, phaseNo, key).itemIds
 
 describe('mergeTables with no documents', () => {
-  it('is the built-in captures in name order in every phase, nothing edited', () => {
+  it('is the built-in captures in name order in every phase, nothing edited, and no zone in the lists (a phase starts from nothing)', () => {
     for (const phaseNo of [0, 1, 5]) {
-      const zones = mergeTables([capture, other], [], phaseNo)
+      const zones = mergeTablesAlone([capture, other], [], phaseNo)
       assert.deepEqual(zones.map((zone) => zone.name), ['Another Cave', 'Test Hollow'])
-      assert.ok(zones.every((zone) => !zone.custom && zone.inPhase && !zone.edited && zone.phaseNo === phaseNo))
+      assert.ok(zones.every((zone) => !zone.custom && !zone.inPhase && !zone.edited && zone.phaseNo === phaseNo))
     }
+    assert.deepEqual(dropTablesAlone([capture, other], [], 2), [])
     assert.deepEqual(zoneOf([], 1).sources.map((entry) => [entry.key, entry.name, entry.itemIds]), [[builtInKey(11), 'First Warden', [101, 102, 103]], [builtInKey(12), 'Second Warden', [201, 202]], [builtInKey(13), 'Rare Hound', [301]]])
     assert.deepEqual(zoneOf([], 1).zoneWide.itemIds, [901, 902])
   })
 
-  it('gives back the capture itself through dropTablesOf, with nothing marked edited or custom', () => {
-    const tables = dropTablesOf([capture], [], 2)
+  it('gives back the capture itself through dropTablesOf once its zone is ticked, with nothing marked custom', () => {
+    const tables = dropTablesAlone([capture], [presence(900, 2, false)], 2)
     assert.deepEqual(tables[0].sources, capture.sources)
     assert.deepEqual(tables[0].zoneWideItemIds, capture.zoneWideItemIds)
     assert.equal(tables[0].custom, false)
-    assert.equal(tables[0].edited, false)
   })
 })
 
@@ -165,7 +174,7 @@ describe('creatures follow the phases', () => {
 })
 
 describe('zones follow the phases', () => {
-  const lair = zoneDoc(LAIR, 2)
+  const lair = zoneDoc(LAIR, 2, { removed: false }) // a zone the guild makes is in the lists of the phase it is made in
   const boss = source(LAIR, 'cb1', 2, { name: 'Lair Boss', order: 10, itemIds: [601, 602] })
 
   it('a zone the guild made does not exist before its first document, and is a zone of its own after it', () => {
@@ -187,7 +196,7 @@ describe('zones follow the phases', () => {
     assert.deepEqual([at4.name, at4.kind, at4.players], ['The Lair', 'dungeon', 10])
   })
 
-  it('a zone is in the lists until a zone document takes it out, and again from the one that puts it back', () => {
+  it('a zone is in the lists from the document that puts it in until one takes it out, and again from the one that puts it back', () => {
     const docs = [lair, zoneDoc(LAIR, 3, { removed: true }), zoneDoc(LAIR, 5, { removed: false }), boss]
     const inAt = (phaseNo: number) => mergeTables([], docs, phaseNo).find((zone) => zone.zoneId === LAIR)?.inPhase
     assert.deepEqual([1, 2, 3, 4, 5, 6].map(inAt), [undefined, true, false, false, true, true])
@@ -210,11 +219,13 @@ describe('zones follow the phases', () => {
   })
 
   it('edited says whether the guild wrote anything about the zone by then', () => {
-    assert.equal(zoneOf([], 3).edited, false)
-    assert.equal(zoneOf([overlay('11', 2, { itemIds: [104] })], 1).edited, false)
-    assert.equal(zoneOf([overlay('11', 2, { itemIds: [104] })], 2).edited, true)
-    assert.equal(zoneOf([presence(900, 2, true)], 3).edited, true)
-    assert.equal(dropTablesOf([capture], [overlay('11', 2, { itemIds: [104] })], 2)[0].edited, true)
+    const editedAt = (docs: LootTableDoc[], phaseNo: number) => mergeTablesAlone([capture], docs, phaseNo)[0].edited
+    assert.equal(editedAt([], 3), false)
+    assert.equal(editedAt([overlay('11', 2, { itemIds: [104] })], 1), false)
+    assert.equal(editedAt([overlay('11', 2, { itemIds: [104] })], 2), true)
+    assert.equal(editedAt([presence(900, 2, true)], 3), true) // a zone document of any earlier phase counts
+    assert.equal(editedAt([overlay('11', 2, { itemIds: [104] })], 3), false) // a creature document only when it is in the phase's chain
+    assert.equal(dropTablesAlone([capture], [presence(900, 2, false), overlay('11', 2, { itemIds: [104] })], 2)[0].edited, true)
   })
 
   it('the zone document written in exactly this phase is reported', () => {
@@ -415,7 +426,7 @@ describe('zones in a phase', () => {
     const { zoneId, write } = addZone({ name: ' Guild Lair ', kind: 'raid', players: 25 }, [], 3)
     assert.ok(zoneId >= CUSTOM_ZONE_MIN)
     assert.ok('create' in write)
-    if ('create' in write) assert.deepEqual(write.create, { type: 'zone', zoneId, phaseNo: 3, name: 'Guild Lair', kind: 'raid', players: 25 })
+    if ('create' in write) assert.deepEqual(write.create, { type: 'zone', zoneId, phaseNo: 3, name: 'Guild Lair', kind: 'raid', players: 25, removed: false })
     assert.equal(write.id, zoneDocId(zoneId, 3))
   })
 
@@ -441,7 +452,7 @@ describe('zones in a phase', () => {
     assert.ok(out && 'create' in out)
     if (out && 'create' in out) assert.deepEqual(out.create, { type: 'zone', zoneId: 900, phaseNo: 2, removed: true })
     assert.equal(setZoneInPhase(builtIn, true), null) // already in
-    const custom = mergeTables([], [zoneDoc(LAIR, 1)], 2)[0]
+    const custom = mergeTables([], [zoneDoc(LAIR, 1, { removed: false })], 2)[0]
     const customOut = setZoneInPhase(custom, false)
     assert.ok(customOut && 'create' in customOut)
     if (customOut && 'create' in customOut) assert.deepEqual(customOut.create, { type: 'zone', zoneId: LAIR, phaseNo: 2, removed: true })
@@ -473,6 +484,16 @@ describe('readTableDoc', () => {
     assert.deepEqual(readTableDoc(zoneDocId(900, 3), { type: 'zone', zoneId: 900, phaseNo: 3 }), { id: 'z900_3', type: 'zone', zoneId: 900, phaseNo: 3, rev: 0 })
     assert.equal((readTableDoc(zoneDocId(900, 3), { type: 'zone', zoneId: 900, phaseNo: 3, removed: false, name: 'Impostor' }) as ZoneTableDoc).name, undefined)
     assert.deepEqual(mergeTables([capture], [readTableDoc(zoneDocId(900, 3), { type: 'zone', zoneId: 900, phaseNo: 3 }) as ZoneTableDoc], 3).map((zone) => zone.inPhase), [true])
+  })
+
+  it('reads the document of a phase: its number and what it follows, which has to be an earlier phase', () => {
+    assert.deepEqual(readTableDoc(phaseDocId(2), { type: 'phase', phaseNo: 2, follows: 1, rev: 3 }), { id: 'p2', type: 'phase', phaseNo: 2, follows: 1, rev: 3 })
+    assert.deepEqual(readTableDoc(phaseDocId(2), { type: 'phase', phaseNo: 2 }), { id: 'p2', type: 'phase', phaseNo: 2, rev: 0 })
+    for (const follows of [2, 3, -1, 1.5, '1', null, true]) assert.deepEqual(readTableDoc(phaseDocId(2), { type: 'phase', phaseNo: 2, follows }), { id: 'p2', type: 'phase', phaseNo: 2, rev: 0 }, String(follows))
+    assert.equal(readTableDoc(phaseDocId(2), { type: 'phase', phaseNo: 3 }), null) // filed under another phase
+    assert.equal(readTableDoc('p02', { type: 'phase', phaseNo: 2 }), null)
+    assert.equal(readTableDoc(phaseDocId(32), { type: 'phase', phaseNo: 32 }), null)
+    assert.equal(readTableDoc(phaseDocId(2), { type: 'phase', phaseNo: 'two' }), null)
   })
 
   it('a custom zone or creature that no document names does not exist', () => {
@@ -546,7 +567,7 @@ describe('"same unless changed" holds for attributes too', () => {
   })
 
   it('zone attributes follow the same way', () => {
-    const docs = [zoneDoc(LAIR, 1), zoneDoc(LAIR, 3, { name: undefined, kind: undefined, players: undefined, removed: true }), zoneDoc(LAIR, 2, { name: 'Fortress', players: 40, kind: undefined })]
+    const docs = [zoneDoc(LAIR, 1, { removed: false }), zoneDoc(LAIR, 3, { name: undefined, kind: undefined, players: undefined, removed: true }), zoneDoc(LAIR, 2, { name: 'Fortress', players: 40, kind: undefined })]
     const at = (phaseNo: number) => { const zone = mergeTables([], docs, phaseNo)[0]; return [zone.name, zone.kind, zone.players, zone.inPhase] }
     assert.deepEqual(at(1), ['Guild Lair', 'raid', 25, true])
     assert.deepEqual(at(2), ['Fortress', 'raid', 40, true])
@@ -588,39 +609,154 @@ describe('items that went away, items on two creatures, and the rules the merge 
     assert.deepEqual(dropTablesOf([capture], docs, 1)[0].sources.map((entry) => entry.name), ['First Warden', 'Second Warden', 'Rare Hound'])
   })
 
-  it('a zone of a capture with a fromPhase is out of the earlier phases unless a document says otherwise', () => {
+  it('the fromPhase of a capture is not read: a zone is in the lists only where a document of the chain puts it in', () => {
     const raid = { ...capture, zoneId: 950, name: 'Late Raid', fromPhase: 2 }
     const inAt = (docs: LootTableDoc[], phaseNo: number) => mergeTables([raid], docs, phaseNo)[0].inPhase
-    assert.deepEqual([0, 1, 2, 3].map((phaseNo) => inAt([], phaseNo)), [false, false, true, true])
+    assert.deepEqual([0, 1, 2, 3].map((phaseNo) => inAt([], phaseNo)), [false, false, false, false])
     assert.deepEqual([0, 1, 2, 3].map((phaseNo) => inAt([presence(950, 1, false)], phaseNo)), [false, true, true, true])
-    assert.deepEqual([0, 1, 2, 3].map((phaseNo) => inAt([presence(950, 3, true)], phaseNo)), [false, false, true, false])
+    assert.deepEqual([0, 1, 2, 3].map((phaseNo) => inAt([presence(950, 1, false), presence(950, 3, true)], phaseNo)), [false, true, true, false])
   })
 })
 
-describe('following the previous phase again', () => {
-  it('takes away everything a phase\'s document says about a creature, unless the creature starts there', () => {
-    const docs = [overlay('11', 2, { itemIds: [104], hiddenItemIds: [101], order: 5 })]
-    const zone = zoneOf(docs, 2)
-    const write = resetCreature(zone, zone.sources.find((entry) => entry.key === builtInKey(11))!)
-    assert.ok(write && 'existing' in write)
-    if (write && 'existing' in write) assert.deepEqual(write.changes, { itemIds: [], hiddenItemIds: [], name: undefined, kind: undefined, order: undefined, npcId: undefined, removed: undefined })
-    const starts = zoneOf([source(900, 'cabc', 2, { name: 'Mine', order: 40 })], 2)
-    assert.equal(resetCreature(starts, starts.sources.find((entry) => entry.key === 'cabc')!), null)
-    assert.equal(resetCreature(zoneOf([], 2), zoneOf([], 2).sources[0]), null) // no document to take away
-    const later = zoneOf([source(900, 'cabc', 1, { name: 'Mine', order: 40 }), source(900, 'cabc', 2, { itemIds: [5] })], 2)
-    assert.ok(resetCreature(later, later.sources.find((entry) => entry.key === 'cabc')!))
+describe('followChain and followedBy', () => {
+  it('a phase with no document, or a document with no link, is a chain of itself', () => {
+    assert.deepEqual(followChain([], 3), [3])
+    assert.deepEqual(followChain([phaseDoc(3)], 3), [3])
+    assert.equal(followedBy([phaseDoc(3)], 3), undefined)
   })
 
-  it('does the same for a zone, and a zone that starts in the phase has nothing to follow', () => {
-    const out = zoneOf([presence(900, 2, true)], 2)
-    const write = resetZone(out)
-    assert.ok(write && 'existing' in write)
-    if (write && 'existing' in write) assert.deepEqual(write.changes, { removed: undefined })
-    assert.equal(resetZone(mergeTables([], [zoneDoc(LAIR, 2)], 2)[0]), null)
-    const renamed = mergeTables([], [zoneDoc(LAIR, 1), zoneDoc(LAIR, 2, { name: 'Fort', kind: undefined, players: undefined })], 2)[0]
-    const zoneWrite = resetZone(renamed)
-    assert.ok(zoneWrite && 'existing' in zoneWrite)
-    if (zoneWrite && 'existing' in zoneWrite) assert.deepEqual(zoneWrite.changes, { removed: undefined, name: undefined, kind: undefined, players: undefined })
+  it('a phase that follows another has that phase before it, and what that one follows before that', () => {
+    const docs = [phaseDoc(3, 1), phaseDoc(1, 0), phaseDoc(4, 3)]
+    assert.deepEqual(followChain(docs, 1), [0, 1])
+    assert.deepEqual(followChain(docs, 3), [0, 1, 3])
+    assert.deepEqual(followChain(docs, 4), [0, 1, 3, 4])
+    assert.deepEqual(followChain(docs, 2), [2])
+    assert.equal(followedBy(docs, 4), 3)
+  })
+
+  it('a link that does not point to an earlier phase is no link, so a chain never loops', () => {
+    for (const follows of [2, 3, 9, -1, 1.5]) assert.deepEqual(followChain([phaseDoc(2, follows)], 2), [2], String(follows))
+    assert.equal(followedBy([phaseDoc(2, 2)], 2), undefined)
+    assert.deepEqual(followChain([phaseDoc(1, 2), phaseDoc(2, 1)], 2), [1, 2]) // 2 follows 1, and the link of 1 to a later phase is ignored
+  })
+
+  it('finds the document of a phase', () => {
+    assert.equal(phaseDocOf([phaseDoc(1, 0), phaseDoc(2, 1)], 2)?.follows, 1)
+    assert.equal(phaseDocOf([phaseDoc(1, 0)], 2), undefined)
+  })
+})
+
+describe('a phase starts from nothing and may follow an earlier one', () => {
+  const alone = (docs: LootTableDoc[], phaseNo: number, zoneId = 900) => mergeTablesAlone([capture, other], docs, phaseNo).find((zone) => zone.zoneId === zoneId)!
+  const warden = (docs: LootTableDoc[], phaseNo: number) => alone(docs, phaseNo).sources.find((entry) => entry.key === builtInKey(11))!
+  const phaseOne = [presence(900, 1, false), overlay('11', 1, { itemIds: [104] }), source(900, 'cabc', 1, { name: 'Added', order: 40, itemIds: [700] })]
+
+  it('has none of an earlier phase\'s zones, creatures or items unless it follows', () => {
+    assert.equal(alone(phaseOne, 1).inPhase, true)
+    assert.deepEqual(warden(phaseOne, 1).itemIds, [101, 102, 103, 104])
+    assert.equal(alone(phaseOne, 2).inPhase, false)
+    assert.deepEqual(warden(phaseOne, 2).itemIds, [101, 102, 103])
+    assert.equal(alone(phaseOne, 2).sources.some((entry) => entry.key === 'cabc'), false)
+    assert.deepEqual(dropTablesAlone([capture, other], phaseOne, 2), [])
+  })
+
+  it('has the zones, creatures and items of the phase it follows, as they stand', () => {
+    const docs = [...phaseOne, phaseDoc(2, 1)]
+    assert.equal(alone(docs, 2).inPhase, true)
+    assert.deepEqual(warden(docs, 2).itemIds, [101, 102, 103, 104])
+    assert.deepEqual(alone(docs, 2).sources.find((entry) => entry.key === 'cabc')?.itemIds, [700])
+    assert.equal(alone(docs, 2).doc, undefined) // the phase has no zone document of its own
+    assert.deepEqual(dropTablesAlone([capture, other], docs, 2).map((table) => table.name), ['Test Hollow'])
+  })
+
+  it('puts its own documents on top: ticking, unticking, adding and taking off', () => {
+    const docs = [...phaseOne, phaseDoc(2, 1), presence(900, 2, true), overlay('11', 2, { itemIds: [105], hiddenItemIds: [101] }), presence(800, 2, false)]
+    assert.equal(alone(docs, 2).inPhase, false) // unticked here
+    assert.equal(alone(docs, 2, 800).inPhase, true) // ticked here
+    assert.deepEqual(warden(docs, 2).itemIds, [102, 103, 104, 105])
+    assert.equal(alone(docs, 1).inPhase, true) // the followed phase is as it was
+    assert.deepEqual(warden(docs, 1).itemIds, [101, 102, 103, 104])
+  })
+
+  it('follows the followed phase live: what it changes shows in the follower', () => {
+    const before = [...phaseOne, phaseDoc(2, 1)]
+    const after = [...before, overlay('11', 1, { itemIds: [104] , hiddenItemIds: [] }), presence(800, 1, false)]
+    assert.equal(alone(before, 2, 800).inPhase, false)
+    assert.equal(alone(after, 2, 800).inPhase, true)
+  })
+
+  it('can follow a phase that is not the one before it, and what that phase follows is included', () => {
+    const docs = [...phaseOne, phaseDoc(2, 1), overlay('11', 2, { itemIds: [105] }), phaseDoc(4, 2), overlay('11', 3, { itemIds: [999] })]
+    assert.deepEqual(warden(docs, 4).itemIds, [101, 102, 103, 104, 105]) // phase 3's document is not in its chain
+    assert.equal(alone(docs, 4).inPhase, true)
+    assert.equal(alone(docs, 3).inPhase, false)
+  })
+
+  it('a link to a phase that has no documents is a link to nothing, and an invalid link is ignored', () => {
+    assert.equal(alone([phaseDoc(3, 2), ...phaseOne], 3).inPhase, false)
+    assert.equal(alone([phaseDoc(1, 1), ...phaseOne], 1).inPhase, true) // follows itself: no link, but its own documents count
+    assert.equal(alone([phaseDoc(2, 5), ...phaseOne], 2).inPhase, false)
+  })
+
+  it('a phase that stops following has only what it says itself again', () => {
+    const own = [presence(900, 2, false)]
+    assert.deepEqual(warden([...phaseOne, ...own, phaseDoc(2, 1)], 2).itemIds, [101, 102, 103, 104])
+    assert.deepEqual(warden([...phaseOne, ...own, phaseDoc(2)], 2).itemIds, [101, 102, 103])
+  })
+
+  it('a zone the guild made keeps its name, kind and size in every phase, and is in the lists only where a document of the chain puts it in', () => {
+    const docs = [zoneDoc(LAIR, 1, { removed: false })]
+    const lairAt = (list: LootTableDoc[], phaseNo: number) => mergeTablesAlone([], list, phaseNo).find((zone) => zone.zoneId === LAIR)
+    assert.equal(lairAt(docs, 0), undefined)
+    assert.deepEqual([lairAt(docs, 1)?.name, lairAt(docs, 1)?.inPhase], ['Guild Lair', true])
+    assert.deepEqual([lairAt(docs, 2)?.name, lairAt(docs, 2)?.kind, lairAt(docs, 2)?.players, lairAt(docs, 2)?.inPhase], ['Guild Lair', 'raid', 25, false]) // there to be ticked, not in
+    assert.equal(lairAt([...docs, phaseDoc(2, 1)], 2)?.inPhase, true)
+    assert.equal(lairAt([...docs, presence(LAIR, 2, false)], 2)?.inPhase, true)
+    assert.equal(lairAt([...docs, zoneDoc(LAIR, 2, { name: 'The Lair', kind: undefined, players: undefined, removed: false })], 2)?.name, 'The Lair')
+    assert.equal(lairAt([...docs, zoneDoc(LAIR, 2, { name: 'The Lair', kind: undefined, players: undefined, removed: false })], 1)?.name, 'Guild Lair')
+  })
+
+  it('everything counts the documents of every phase up to this one, whatever is followed (the Log names things from any phase)', () => {
+    const named = mergeTablesAlone([capture], [source(900, 'cabc', 1, { name: 'Added', order: 40 })], 31, true)[0]
+    assert.equal(named.sources.some((entry) => entry.name === 'Added'), true)
+    assert.equal(mergeTablesAlone([capture], [source(900, 'cabc', 1, { name: 'Added', order: 40 })], 31)[0].sources.some((entry) => entry.name === 'Added'), false)
+  })
+})
+
+describe('setFollows', () => {
+  it('makes the document of a phase the first time, and edits it after that', () => {
+    const first = setFollows([], 2, 1)
+    assert.ok(first && 'create' in first)
+    if (first && 'create' in first) { assert.equal(first.id, phaseDocId(2)); assert.deepEqual(first.create, { type: 'phase', phaseNo: 2, follows: 1 }) }
+    const again = setFollows([phaseDoc(2, 1)], 2, 0)
+    assert.ok(again && 'existing' in again)
+    if (again && 'existing' in again) assert.deepEqual(again.changes, { follows: 0 })
+  })
+
+  it('follows nothing by taking the link away, and does nothing when it is already so', () => {
+    const away = setFollows([phaseDoc(2, 1)], 2, undefined)
+    assert.ok(away && 'existing' in away)
+    if (away && 'existing' in away) assert.deepEqual(away.changes, { follows: undefined })
+    assert.equal(setFollows([], 2, undefined), null)
+    assert.equal(setFollows([phaseDoc(2)], 2, undefined), null)
+    assert.equal(setFollows([phaseDoc(2, 1)], 2, 1), null)
+  })
+
+  it('refuses a phase that is not an earlier one', () => {
+    for (const follows of [2, 3, -1, 1.5, Number.NaN]) assert.equal(setFollows([], 2, follows), null, String(follows))
+    assert.equal(setFollows([], 0, 0), null)
+  })
+})
+
+describe('setZonesInPhase', () => {
+  it('ticks or unticks every zone that is not already so, one document each', () => {
+    const zones = mergeTablesAlone([capture, other], [presence(900, 2, false)], 2)
+    const ticks = setZonesInPhase(zones, true)
+    assert.deepEqual(ticks.map((write) => write.id), [zoneDocId(800, 2)])
+    const unticks = setZonesInPhase(zones, false)
+    assert.deepEqual(unticks.map((write) => write.id), [zoneDocId(900, 2)])
+    assert.ok('existing' in unticks[0] && 'changes' in unticks[0] && unticks[0].changes.removed === true)
+    assert.deepEqual(setZonesInPhase([], true), [])
   })
 })
 
@@ -629,9 +765,16 @@ describe('describePreparedTables', () => {
     assert.equal(describePreparedTables([overlay('11', 1, { itemIds: [1] })], 2), '')
   })
   it('says what a phase adds, takes out and puts back', () => {
-    const docs: LootTableDoc[] = [zoneDoc(LAIR, 2, { name: 'Molten Test' }), presence(900, 2, true), presence(800, 2, false), overlay('11', 2, { itemIds: [1] }), overlay('11', 2, { itemIds: [1] }), overlay('12', 2, { itemIds: [1] })]
-    assert.equal(describePreparedTables(docs, 2), 'adds the zone Molten Test, takes 1 zone out of the lists, puts 1 zone back and changes 2 creatures')
+    const docs: LootTableDoc[] = [zoneDoc(LAIR, 2, { name: 'Molten Test', removed: false }), presence(900, 2, true), presence(800, 2, false), overlay('11', 2, { itemIds: [1] }), overlay('11', 2, { itemIds: [1] }), overlay('12', 2, { itemIds: [1] })]
+    assert.equal(describePreparedTables(docs, 2), 'adds the zone Molten Test, puts 1 zone in the lists, takes 1 zone out of the lists and changes 2 creatures')
     assert.equal(describePreparedTables([overlay('13', 3, { itemIds: [1] })], 3), 'changes 1 creature')
+  })
+  it('says which phase it follows, by name, with or without documents of its own', () => {
+    const named = (no: number) => ['Launch prep', 'Phase 1'][no] ?? `Phase ${no}`
+    assert.equal(describePreparedTables([phaseDoc(2, 1)], 2, named), 'follows Phase 1')
+    assert.equal(describePreparedTables([phaseDoc(2, 0), presence(900, 2, false)], 2, named), 'follows Launch prep and puts 1 zone in the lists')
+    assert.equal(describePreparedTables([phaseDoc(2)], 2, named), '') // follows nothing and writes nothing
+    assert.equal(describePreparedTables([phaseDoc(2, 1)], 2), 'follows phase 2')
   })
   it('does not count a custom zone that an earlier phase made as added', () => {
     assert.equal(describePreparedTables([zoneDoc(LAIR, 1), zoneDoc(LAIR, 2, { name: 'Renamed' })], 2), 'changes the zones')

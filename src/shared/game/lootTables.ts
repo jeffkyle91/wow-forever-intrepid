@@ -19,8 +19,7 @@ export type LootTableCapture = {
   sources: LootSource[]
   // Items that drop from any creature in the zone and have no single source.
   zoneWideItemIds: number[]
-  // The first loot phase this zone is in the lists of (default 0, every phase). Below it the zone is out unless the guild's own documents put it in,
-  // so a raid captured early can be kept out of the phases before it unlocks.
+  // No longer read. A phase starts with no zones and the guild ticks the zones it has (see guildTables.ts); the checker still accepts the field.
   fromPhase?: number
   // Set by the app when it merges the guild's own tables with a capture (see guildTables.ts); a capture file has neither.
   custom?: boolean // a zone the guild made

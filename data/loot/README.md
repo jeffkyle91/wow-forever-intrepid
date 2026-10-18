@@ -14,7 +14,7 @@ These files are the starter data for the app's drop lists (Browse drops). Guild 
 | `dataStatus`, `notes` | Optional free text: for example that the data is from the beta. |
 | `sources` | The creatures: `npcId` (the number in the creature GUID the game gives an addon when loot opens), `name`, `kind` (`boss`, `rare` or `trash`) and `itemIds`. |
 | `zoneWideItemIds` | Items that drop from any creature in the zone. May be empty. |
-| `fromPhase` | Optional. The first loot phase the zone is in the lists of (default 0, every phase). A raid captured early can be kept out of the phases before it unlocks; the guild's leaders can still put it into a phase from the drop list editor. |
+| `fromPhase` | Optional, and no longer read: a phase now starts with no zones and the guild's leaders tick the zones each phase has in the drop list editor. The checker still accepts it. |
 
 An item may appear once in the whole file. Wowhead does not flag bosses, so `kind` is a person's reading and may be corrected.
 

@@ -6,6 +6,10 @@ A React, TypeScript, and Vite guild-operations app backed by Firebase Authentica
 
 Intrepid Guild Raid Desk gives guild leaders, raid leaders, and members one shared place to maintain the roster, organize raid teams, prepare loot-council decisions, and review the log of every loot change. Guild data is shared through authenticated Firestore access; local browser data is not shared automatically.
 
+## Working together
+
+Start with the [canonical backlog](docs/backlog.json) and follow the [shared work process](CONTRIBUTING.md#shared-work-process) before coding. Every application feature or fix needs a backlog ID linked from its GitHub issue and PR; issue numbers, old lane labels and Discord posts are references, not separate backlogs. Check and claim work with the team to avoid duplicate implementations. Coding assistants must read [AGENTS.md](AGENTS.md). Only verified production delivery is marked released.
+
 ## Current functionality
 
 - **My dashboard:** The landing tab. For members with a linked character, the panel toolbar (next to the character count) includes a Casual / Hardcore raider type switch (hover text explains each; stored per member in `raiderTypes`, readable by every member) and a Raid attendance placeholder (`--`, to be filled in when attendance tracking is built). Below are that character and its alts, raid team, upcoming raids (with time and description, flagging dates the member marked unavailable, and a "View on calendar" link that opens the Raid Calendar on that raid's month with the raid highlighted), upcoming absences (with an Add absence button, the same unavailable dates as the Raid Calendar), loot priorities, awarded loot, and a Comments section. A comment is the member's own short note (300 characters), either Public (every guild member can read it) or Leadership (only Guild and Raid Leaders and the author). Each member has one of each, stored in `publicComments` and `leaderComments` with the member's uid as the document id. A member without a linked character sees a short note and keeps the other tabs.

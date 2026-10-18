@@ -64,6 +64,31 @@ Character-readiness changes must keep `tests/rules/character-readiness.test.ts` 
 - After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs server/rules tests, deploys Functions, Firestore rules, then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
 
+### Branch cleanup after merge
+
+The primary maintainer merges PRs and normally deletes their remote feature branches immediately afterward using GitHub's **Delete branch** button. Contributors must clearly mark **KEEP BRANCH: YES** in the PR's Branch retention section before merge if a branch is still needed, with the reason, owner and linked dependent work. Otherwise the maintainer will treat it as disposable after merge, subject to the safety checks below. Keep this field current and notify the maintainer if the requirement changes during review. Each contributor handles their own local branch cleanup separately.
+
+Clean up one verified PR branch at a time, not unrelated branches. Coding assistants must surface any known reason to retain a branch prominently in the PR; they still need explicit approval naming the branch before performing deletion themselves. This maintainer-operated default is not permission for automated or bulk deletion.
+
+1. **Verify the exact branch and merge.** Check that GitHub shows the PR as merged into the intended base, not merely closed. Confirm the head repository and branch name, fetch current refs, and compare the current remote branch tip with the PR's merged head commit. If more commits were pushed afterward, stop: those commits are not covered by the merge.
+2. **Check retention and dependencies.** Read the PR's Branch retention section and check for dependent open/stacked PRs or known shared use. Honor **KEEP BRANCH: YES** until the named owner confirms it can be removed. Missing retention information on an older PR or conflicting evidence of ongoing use requires coordination with the owner before deletion; an explicit **KEEP BRANCH: NO** on a current PR needs no separate routine confirmation. A contributor's leftover local checkout alone does not require keeping the remote branch, but ongoing work depending on it does. Never delete `main`, another protected/long-lived branch, or deployment refs such as the `last-deploy` tag. Do not choose branches for deletion based only on age, naming or a bulk "merged" list.
+3. **Delete only the approved remote branch.** Prefer the merged PR's **Delete branch** button after the checks above. For a branch in this repository, the equivalent command is `git push origin --delete <exact-branch-name>`; substitute only the verified branch, with no wildcards or bulk loops. A fork branch belongs to its owner; do not assume `origin` points to that fork. Recheck the remote tip immediately before deletion and stop if it changed.
+4. **Clean your own local checkout separately.** Inspect `git status --short` and preserve any uncommitted work before switching. With a clean checkout, fetch/prune the approved remote, switch to `main`, and fast-forward it. Stop on any failure; never reset or discard changes to make cleanup succeed. Pruning removes stale local remote-tracking refs, not other people's remote branches. If `main` cannot fast-forward, ask for help rather than forcing it.
+
+   ```powershell
+   git fetch origin --prune
+   git switch main
+   git merge --ff-only origin/main
+   git merge-base --is-ancestor <exact-local-branch-name> origin/main
+   # Only if the ancestry check succeeds and the branch is no longer needed:
+   git branch -d <exact-local-branch-name>
+   ```
+
+   Run each command separately and check its result. The explicit ancestry check guards against deleting local work just because its upstream contains it. `git branch -d` is an additional guard, not proof of the PR's status. If the branch is checked out in another worktree, stop and coordinate; do not remove the worktree to bypass the refusal.
+5. **Treat squash/rebase merges specially.** Their original commits may not be ancestors of `main`, so the ancestry check or safe deletion can refuse even when the intended changes landed. Do not automatically substitute `git branch -D`. Verify the merged PR, compare its delivered changes with the current local branch, preserve any unique work, and request explicit approval for that exact local force-deletion if still necessary. Uncertainty means keep the branch.
+
+Branch deletion does not deploy, mark a backlog item released, close unrelated issues or authorize Discord publication. Start subsequent work on a new branch from current `main`, rather than reusing the merged branch.
+
 ## Backlog, patch notes, and publishing
 
 ### Sources of truth
@@ -74,6 +99,20 @@ Character-readiness changes must keep `tests/rules/character-readiness.test.ts` 
 - [Publisher guide](docs/discord-backlog.md): local credentials, message tracking, previews, publishing and recovery.
 
 Discord is a published view, not the authoritative work tracker. Collaborators propose changes through PRs. The primary maintainer deploys and publishes from the designated Windows machine; collaborators do not need webhook credentials or local Discord tracking files. A merge, build or deployment does not itself authorize a Discord post.
+
+### Shared work process
+
+Everyone, including coding assistants, works from [docs/backlog.json](docs/backlog.json) on current `main`. GitHub issues hold discussion and acceptance criteria; PRs hold proposed implementation. Neither creates a separate priority or status list. Old lane labels such as B10 describe earlier work briefs, not canonical backlog IDs.
+
+1. **Find the item before coding.** Sync current `main`, read the backlog and roadmap decisions, and identify the permanent ID (for example `RAID-010`). Search existing issues and open PRs for that outcome, not just its title. Check prerequisites and shared-file coordination.
+2. **Reconcile gaps first.** If an issue has no backlog item, propose the mapping or a new item to the maintainer before implementation. Check current `main` and open PRs before allocating an ID. Do not force unrelated scope into an existing item, resurrect released work without explaining the new scope, or implement directly from an old list. Documentation/tooling-only maintenance can state `Backlog: N/A` with a reason; this is not an exemption for untracked application features or fixes.
+3. **Claim the work visibly.** Comment on the linked issue with the backlog ID, owner, intended scope and branch/PR when available. If there is no issue, open one using the work-item template. Confirm no other collaborator is already doing it; coordinate overlapping work before coding. Include `in-progress` and the claim/issue reference in the backlog update proposed with the work. Agree priority, dates and scope changes with the maintainer rather than changing them silently.
+4. **Keep the links together.** Use `Backlog: RAID-010` in the issue and PR body; use multiple IDs only when the change genuinely covers them. Link the GitHub issue from the PR and record its reference in the backlog item's `notes`. Add the PR number to `prs` once known. Do not add undeclared fields to the backlog schema. For example, `RAID-010` maps to issue #95 (old B10) and implementation PR #110.
+5. **Submit the whole delivery record.** Use the PR template. Include acceptance results, remaining scope, backlog status/PR references and a member-facing Unreleased bullet when applicable. Partial delivery keeps the item open with explicit remaining work. Only use `Closes #...` when the issue's required scope is fully satisfied; optional follow-ups must be identified, not falsely checked off.
+6. **Separate merge from release.** Implementation in an open PR is `in-progress`; merged but unverified application work is `awaiting-deployment`. The primary maintainer records `released` only after production verification, with the exact dated changelog heading. Update these transitions in the merge/release follow-up if they cannot be recorded in the implementation PR. A closed GitHub issue can mean implementation merged, not production availability; its discussion should make the distinction clear.
+7. **Reconcile existing issues with evidence.** Link each issue to a backlog item or explain why it is a duplicate, superseded or no longer needed. Before proposing closure as resolved, check required acceptance criteria against merged code, validation and deployment evidence where required. Record the evidence and any remaining work. Do not bulk-close from titles, checked boxes or a PR reference alone; ask the maintainer when scope or resolution is uncertain.
+
+Use the [GitHub work-item template](.github/ISSUE_TEMPLATE/work-item.md) and [PR checklist](.github/pull_request_template.md). Templates and assistant instructions are guidance, not an enforced gate: the contributor and reviewer must check the mapping and delivery record. Existing issues are not automatically migrated. After this process is merged, collaborators should pull current `main` and have their coding assistants reread `AGENTS.md` before starting the next task.
 
 ### Maintaining backlog items
 

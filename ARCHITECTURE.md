@@ -42,7 +42,7 @@ The shell passes each tab one `TabContext`:
 
 | Field | What it is |
 | --- | --- |
-| `data` | the live guild data (`roster`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `raidZones`, `settings`, `members`, `joinRequests`, `characterRequests`), request loading/error state, and `unreadable`, how many documents were skipped because they could not be read |
+| `data` | the live guild data (`roster`, `readiness`, `assignments`, `priorities`, `awards`, `afkEntries`, `raids`, `raidZones`, `settings`, `members`, `joinRequests`, `characterRequests`), readiness/request loading and error state, `leadershipLoaded`, and `unreadable`, how many documents were skipped because they could not be read |
 | `query` | the current search text |
 | `identity` | `uid`, `displayName`, `canEditRoster`, `canEditRaidData` |
 | `shell` | `raidView` and `setRaidView` (the 10/20/40 selector lives in the shell so it survives tab switches) |
@@ -71,6 +71,14 @@ Open a dialog with `ctx.openModal(({ close, live }) => <MyModal ... close={close
 - The renderer is a single JSX return of your modal component and contains no hooks. Put hooks inside the modal component.
 
 ## Data and rules
+
+### Leadership and character readiness
+
+`features/leadership/` defines the Guild Leader-only Leadership Overview tab, between Loot priorities and Member access. It is the sole location for the leader character-request review queue; members retain their own requests on My dashboard. It reuses the shared character-request queue and the coverage module in `shared/raid-coverage/` (also used by Raid Teams). No feature imports another feature. Selected-raid sign-ups use a scoped live subscription; roster, memberships, raids, assignments and readiness must finish loading before response counts are shown. Failures and unreadable records are not treated as empty results.
+
+`guilds/{guildId}/characterReadiness/{characterId}` stores `{ ready, updatedBy, updatedAt }`, independently of roster details and account links. Missing means not ready. All active guild roles read; Guild Leaders can set any existing character, while members (including Raid Leaders acting for themselves) can set only their reciprocal linked main and unlinked direct alts. Firestore rules enforce exact fields, boolean readiness, authenticated writer and server time; deletes are denied. Character IDs keep flags stable through renames and main promotion, without widening roster-edit permissions. `useGuildData` subscribes using the real session, never VIEW AS, and ignores pending readiness writes until their server timestamps resolve.
+
+My dashboard has per-character readiness controls; Guild Leaders also manage them in the roster's App access column. Leadership counts one active reciprocal-linked account with any ready owned character, regardless of whether it is a main or alt. Any response counts; Accept/Tentative/Late on an unready or no-longer-owned character gets a separate warning, even when the account has no ready characters left. Excluded/unlinked setup counts remain explicit. Readiness never modifies sign-ups or represents attendance. Coverage uses current assignments and retains provisional-data warnings.
 
 `useGuildData` subscribes to the guild's collections once and every tab reads them from `ctx.data`. Writes go through `guildApi.ts`. `navCount`, `recordCount` and `footer` are functions of `ctx.data`, so today a tab can only show counts for data the shell already loads. If a feature needs its own collection, agree on how it loads that data (a hook inside its content component, or a new shared subscription) before building it. Adding a new collection currently touches shared files: the record type and write helper in `guildApi.ts`, a subscription in `useGuildData.ts`, and a block in `firestore.rules` (Firebase deploys a single rules file) with its tests in `tests/rules/` (see "Testing the Firestore rules" in `CONTRIBUTING.md`). Do each in its own small commit and say so in the PR so a reviewer looks at the rules change on its own. Rules are the authorization boundary, so a feature that writes data needs a rules change and a rules deploy before the hosting build ships.
 
@@ -153,6 +161,8 @@ Use a separate help trigger for disabled controls that need an explanation. Nati
 Before shipping a migrated use, check tap and keyboard activation, Escape/focus return, outside interaction, one-open behavior, page and nested scrolling, scrolling long panel content, viewport edges at narrow widths, light/dark themes and unchanged surrounding layout. Pure positioning regression cases live in `tests/unit/popover-position.test.ts`; dismissal and native activation require a browser check.
 
 ## CSS
+
+Headings and column headers use title capitalization via `index.css`; existing explicit uppercase styles remain uppercase. This is presentation only and does not rewrite stored character, raid or item names. Help-popover body text keeps its original sentence case.
 
 `App.css` holds the shared layout and primitive styles and is global. `./App.css` must stay the last stylesheet import in `App.tsx`: several selectors rely on load order and on `:nth-child` positions, so do not add wrapper elements or reorder children inside existing components. A feature that needs new styles adds its own stylesheet with a unique prefix on every class (for example `.cov-...`), imports it from the feature, and does not edit another feature's stylesheet. `AfkCalendar.css` is the existing example.
 

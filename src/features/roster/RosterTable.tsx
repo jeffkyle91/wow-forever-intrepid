@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, CornerDownRight, Pencil } from 'lucide-react'
 import type { PlayerRecord as Player, TenManTeam } from '../../guildApi'
 import { classColorKey } from '../../shared/game/classes'
@@ -11,7 +11,7 @@ import type { CommentFeed } from '../../rosterComments'
 import { RosterCommentCell } from './RosterCommentCell'
 import { useShowComments } from './commentVisibility'
 
-export function RosterTable({ teams, players, allPlayers, hideAlts, keepAltsTogether, assignments, canEdit, onEdit, comments, showLeadership }: { teams: TeamOption[]; players: Player[]; allPlayers: Player[]; hideAlts: boolean; keepAltsTogether: boolean; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void; comments: { public: CommentFeed; leadership: CommentFeed | null }; showLeadership: boolean }) {
+export function RosterTable({ teams, players, allPlayers, hideAlts, keepAltsTogether, assignments, canEdit, onEdit, comments, showLeadership, readinessControl }: { teams: TeamOption[]; players: Player[]; allPlayers: Player[]; hideAlts: boolean; keepAltsTogether: boolean; assignments: Record<string, TenManTeam>; canEdit: boolean; onEdit: (player: Player) => void; comments: { public: CommentFeed; leadership: CommentFeed | null }; showLeadership: boolean; readinessControl?: (player: Player) => ReactNode }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const showComments = useShowComments()
   const { rows, mainNames } = groupAlts(players, allPlayers, collapsed, keepAltsTogether)
@@ -25,7 +25,7 @@ export function RosterTable({ teams, players, allPlayers, hideAlts, keepAltsToge
         <td><span className={`specialization-name class-color-${classColorKey(player.className)}`}>{player.specialization || 'Not set'}</span></td>
         <td><RolePill role={player.role} /></td>
         <td className="team-dot-cell">{assignedTeam ? <span className={`team-dot-indicator team-dot-${assignedTeam.key}`} role="img" aria-label={`${assignedTeam.name} team`} title={`${assignedTeam.name} team`} /> : <span className="unassigned-label">Unassigned</span>}</td>
-        <td><span className={player.linkedUid ? 'linked-account-status linked' : 'linked-account-status'}>{player.linkedUid ? 'Linked' : 'No account'}</span></td>
+        <td><span className={player.linkedUid ? 'linked-account-status linked' : 'linked-account-status'}>{player.linkedUid ? 'Linked' : 'No account'}</span>{readinessControl?.(player)}</td>
         {canEdit && <td><button className="row-action" onClick={() => onEdit(player)} title={`Edit ${player.name}`} aria-label={`Edit ${player.name}`}><Pencil size={15} /></button></td>}</>}
         {showComments && <><RosterCommentCell feed={comments.public} uid={player.linkedUid} audience="Public" name={player.name} />
         {showLeadership && comments.leadership && <RosterCommentCell feed={comments.leadership} uid={player.linkedUid} audience="Leadership" name={player.name} />}</>}

@@ -3,7 +3,6 @@ import type { GuildRole } from '../../security'
 import type { TabContext } from '../../shared/tabs/types'
 import { GuildAccessManager } from './GuildAccessManager'
 import { MemberAccessModal } from './MemberAccessModal'
-import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
 
 export function AccessTab({ ctx }: { ctx: TabContext }) {
   const { roster, members, joinRequests } = ctx.data
@@ -50,7 +49,5 @@ export function AccessTab({ ctx }: { ctx: TabContext }) {
     }
   }
 
-  return <><GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} currentUid={ctx.identity.uid}  onMemberChange={changeMemberAccess} onToggleRemoved={(uid, restore) => ctx.openModal(({ close, live }) => <MemberAccessModal uid={uid} restore={restore} close={close} live={live} />)} onApprove={approveRequest} onReject={rejectRequest} />
-    <CharacterRequestsPanel ctx={ctx} review />
-  </>
+  return <GuildAccessManager members={members} roster={roster} requests={joinRequests} busy={busy} currentUid={ctx.identity.uid}  onMemberChange={changeMemberAccess} onToggleRemoved={(uid, restore) => ctx.openModal(({ close, live }) => <MemberAccessModal uid={uid} restore={restore} close={close} live={live} />)} onApprove={approveRequest} onReject={rejectRequest} />
 }

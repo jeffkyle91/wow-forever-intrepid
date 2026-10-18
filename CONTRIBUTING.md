@@ -54,6 +54,8 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 
 ## Pull requests
 
+Character-readiness changes must keep `tests/rules/character-readiness.test.ts` passing: per-character owner/leader writes, reciprocal main/direct-alt ownership, removal, server stamps and field isolation. Leadership aggregation is covered in `tests/unit/leadership.test.ts`. Shared coverage changes also require `node --test tests/raid-coverage/*.test.ts`; the module is in `src/shared/raid-coverage/` and is reused by Teams and Leadership.
+
 - Keep them small and about one thing. A refactor and a feature are separate PRs.
 - Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
 - A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, tests for it in `tests/rules/`, and a note about deploy order: rules first, then hosting.

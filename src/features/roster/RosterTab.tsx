@@ -7,11 +7,12 @@ import { sortRoster } from './sort'
 import { useSortChoice } from './sortChoice'
 import { RosterTable } from './RosterTable'
 import './Roster.css'
+import { RaidReadyToggle } from '../../shared/members/RaidReadyToggle'
 
 export function RosterTab({ ctx }: { ctx: TabContext }) {
   const { roster, assignments } = ctx.data
   const hideAlts = useHideAlts()
   const sort = useSortChoice()
   const teams = namedTeams(ctx.data.settings.teamNames)
-  return <RosterTable teams={teams} players={sortRoster(filterRoster(roster, ctx.query, hideAlts), sort.key, sort.direction, (playerId) => assignments[playerId], teams.map((team) => team.key))} allPlayers={roster} hideAlts={hideAlts} keepAltsTogether={sort.keepAltsTogether} assignments={assignments} canEdit={ctx.identity.canEditRoster} comments={ctx.data.comments} showLeadership={ctx.identity.canEditRaidData && ctx.data.comments.leadership !== null} onEdit={(player) => ctx.openModal(({ close, live }) => <PlayerModal existing={player} close={close} live={live} />)} />
+  return <>{ctx.data.readinessError && <p role="alert">{ctx.data.readinessError}</p>}<RosterTable readinessControl={ctx.identity.canEditRoster ? (player) => <RaidReadyToggle characterId={player.id} name={player.name} ctx={ctx} /> : undefined} teams={teams} players={sortRoster(filterRoster(roster, ctx.query, hideAlts), sort.key, sort.direction, (playerId) => assignments[playerId], teams.map((team) => team.key))} allPlayers={roster} hideAlts={hideAlts} keepAltsTogether={sort.keepAltsTogether} assignments={assignments} canEdit={ctx.identity.canEditRoster} comments={ctx.data.comments} showLeadership={ctx.identity.canEditRaidData && ctx.data.comments.leadership !== null} onEdit={(player) => ctx.openModal(({ close, live }) => <PlayerModal existing={player} close={close} live={live} />)} /></>
 }

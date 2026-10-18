@@ -19,7 +19,10 @@ import type { GuildRole } from './security'
 import { useRosterComments } from './rosterComments'
 import type { LootTableDoc } from './shared/game/guildTables'
 import { currentPhaseNo, phaseNoOf } from './shared/game/phases'
+import { listZones, schedulableZones } from './shared/game/zoneList'
+import { dropTables } from './shared/lib/dropTables'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
+import { readZoneColors } from './shared/game/zoneColors'
 import { normalizeAward, normalizeJoinRequest, normalizeLootTable, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 import type { CharacterRequest } from './shared/characters/requests'
 
@@ -30,9 +33,10 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   const [priorities, setPriorities] = useState<PriorityRecord[]>([])
   const [awards, setAwards] = useState<AwardRecord[]>([])
   const [lootTables, setLootTables] = useState<LootTableDoc[]>([])
+  const [zoneColors, setZoneColors] = useState<Record<string, string>>({})
   const [afkEntries, setAfkEntries] = useState<AfkEntryRecord[]>([])
   const [raids, setRaids] = useState<RaidRecord[]>([])
-  const [raidZones, setRaidZones] = useState<RaidZoneRecord[]>([])
+  const [raidZoneCatalog, setRaidZoneCatalog] = useState<RaidZoneRecord[]>([])
   const [members, setMembers] = useState<MembershipRecord[]>([])
   const [joinRequests, setJoinRequests] = useState<JoinRequestRecord[]>([])
   const [characterRequests, setCharacterRequests] = useState<CharacterRequest[]>([])
@@ -54,11 +58,13 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))), onError),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
       // The guild's own drop lists are an addition to the built-in ones: if they cannot be read (rules not deployed yet), the built-in lists still work.
+      // The colors the guild chose for zones are one document of the settings collection; without it (or before the rules allow it) every zone has its default color.
+      subscribeGuildCollection<{ id: string; colors: unknown }>('settings', (records) => setZoneColors(readZoneColors(records.find((record) => record.id === 'zoneColors')?.colors)), (error) => console.warn(`zone colors: ${error.message}`), (id, data) => ({ id, colors: id === 'zoneColors' ? data.colors : undefined })),
       subscribeGuildCollection<LootTableDoc>('lootTables', (records) => setLootTables(records), (error) => console.warn(`lootTables: ${error.message}`), normalizeLootTable),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),
       subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
       subscribeGuildCollection<RaidRecord>('raids', (records) => setRaids(records.sort((a, b) => a.date.localeCompare(b.date))), onError),
-      subscribeRaidZones((records) => setRaidZones(records.sort((a, b) => a.name.localeCompare(b.name))), onError),
+      subscribeRaidZones((records) => setRaidZoneCatalog(records.sort((a, b) => a.name.localeCompare(b.name))), onError),
       subscribeCharacterRequests(actualUid, actualRole === 'Guild Leader', (records) => {
         setCharacterRequests(records)
         setCharacterRequestsLoaded(true)
@@ -75,9 +81,10 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       setPriorities([])
       setAwards([])
       setLootTables([])
+      setZoneColors({})
       setAfkEntries([])
       setRaids([])
-      setRaidZones([])
+      setRaidZoneCatalog([])
       setMembers([])
       setJoinRequests([])
       setCharacterRequests([])
@@ -92,6 +99,9 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   // `priorities` is the current phase's list, which is what the dashboard, the counters and Browse drops want; `allPriorities` holds every
   // phase (the Loot priorities tab picks one). See shared/game/phases.ts.
   const phaseNow = currentPhaseNo(settings)
+  // Every zone the guild has (the built-in ones, the ones made in Settings, the older raid zone list) and, of them, the raids a raid night can be scheduled in.
+  const zoneList = useMemo(() => listZones(dropTables, lootTables, raidZoneCatalog, phaseNow), [lootTables, raidZoneCatalog, phaseNow])
+  const raidZones = useMemo(() => schedulableZones(zoneList), [zoneList])
   // A priority taken off the list (hidden) is kept but left out of everything: `hiddenPriorities` has them, for Browse drops to bring back.
   const visiblePriorities = useMemo(() => priorities.filter((priority) => !priority.hidden), [priorities])
   const hiddenPriorities = useMemo(() => priorities.filter((priority) => priority.hidden), [priorities])
@@ -106,9 +116,12 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
     hiddenPriorities,
     awards,
     lootTables,
+    zoneColors,
     afkEntries,
     raids,
+    zoneList,
     raidZones,
+    raidZoneCatalog,
     settings,
     members: actualRole === 'Guild Leader' ? members : [],
     joinRequests: actualRole === 'Guild Leader' ? joinRequests : [],

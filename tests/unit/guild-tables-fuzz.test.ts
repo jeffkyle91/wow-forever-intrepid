@@ -4,19 +4,19 @@
 // To prove the fuzz can fail, point GUILD_TABLES_MODULE at a changed copy of the module. The write builders are in guild-tables-builders.test.ts.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { LootTableDoc, SourceTableDoc, ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
+import type { LootTableDoc, PhaseTableDoc, SourceTableDoc, ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
 import { byZone, firstDiff, firstDropDiff, projectZone, reversed, type Diff } from './support/mergeCompare.ts'
-import { referenceDropTables, referenceMerge, type RefZone } from './support/mergeReference.ts'
+import { chainOf, referenceDropTables, referenceMerge, type RefZone } from './support/mergeReference.ts'
 import { deepFreeze, formatCase, genCase, makeRng, phasesToCheck, shrinkCase, type CaseOptions } from './support/tablesGen.ts'
 import { tables } from './support/tablesUnderTest.ts'
 
-const { mergeTables, dropTablesOf, resetCreature } = tables
+const { mergeTables, dropTablesOf } = tables
 
 // What a run covered. A test asserts that each of these is well above zero, so the generator cannot go quiet unnoticed.
 const newStats = () => ({
   cases: 0, merges: 0, zones: 0, creatures: 0, byPhase: {} as Record<number, number>,
-  captureZonesOutByFromPhase: 0, captureZonesOutByDocument: 0, captureZonesBackByDocument: 0, customZonesExisting: 0, customZonesMissingAtPhase: 0, foreignZoneMerges: 0, laterPhaseDocsIgnored: 0,
+  captureZonesIn: 0, captureZonesOutNoStatement: 0, captureZonesOutByDocument: 0, phasesFollowing: 0, followsBeyondPrevious: 0, chainsOfThree: 0, customZonesExisting: 0, customZonesMissingAtPhase: 0, foreignZoneMerges: 0, laterPhaseDocsIgnored: 0,
   guildCreatures: 0, guildCreaturesNotYetNamed: 0, staleNpcKeys: 0, creaturesRemoved: 0, zoneWideEdited: 0,
   withAdded: 0, withHidden: 0, withGone: 0, hiddenNeverThere: 0, orderTies: 0, nameTies: 0, itemOnTwoCreatures: 0, creatureEmptiedByDedup: 0, noDocAtPhase: 0,
   introducedBeforeNamed: 0,
@@ -43,13 +43,16 @@ function count(stats: Stats, captures: LootTableCapture[], docs: LootTableDoc[],
   stats.merges += 1
   stats.byPhase[phaseNo] = (stats.byPhase[phaseNo] ?? 0) + 1
   if (docs.some((doc) => doc.phaseNo > phaseNo)) stats.laterPhaseDocsIgnored += 1
+  const chain = chainOf(docs, phaseNo)
+  if (chain.length > 1) { stats.phasesFollowing += 1; if (chain[chain.length - 2] !== phaseNo - 1) stats.followsBeyondPrevious += 1 }
+  if (chain.length > 2) stats.chainsOfThree += 1
   for (const zone of ref) {
     stats.zones += 1
     const capture = captures.find((candidate) => candidate.zoneId === zone.zoneId)
-    const zoneDocs = docs.filter((doc): doc is ZoneTableDoc => doc.type === 'zone' && doc.zoneId === zone.zoneId && doc.phaseNo <= phaseNo)
+    const zoneDocs = docs.filter((doc): doc is ZoneTableDoc => doc.type === 'zone' && doc.zoneId === zone.zoneId && chain.includes(doc.phaseNo))
     const said = zoneDocs.some((doc) => typeof doc.removed === 'boolean')
-    if (capture && !zone.inPhase) stats[said ? 'captureZonesOutByDocument' : 'captureZonesOutByFromPhase'] += 1
-    if (capture && zone.inPhase && said && capture.fromPhase !== undefined && phaseNo < capture.fromPhase) stats.captureZonesBackByDocument += 1
+    if (capture && zone.inPhase) stats.captureZonesIn += 1
+    if (capture && !zone.inPhase) stats[said ? 'captureZonesOutByDocument' : 'captureZonesOutNoStatement'] += 1
     if (zone.custom) stats.customZonesExisting += 1
     zone.sources.forEach((source, index) => {
       stats.creatures += 1
@@ -80,10 +83,11 @@ function count(stats: Stats, captures: LootTableCapture[], docs: LootTableDoc[],
     }
   }
   const shown = new Set(ref.map((zone) => zone.zoneId))
-  const customIds = new Set(docs.filter((doc) => doc.zoneId >= 50_000_000 && !captures.some((capture) => capture.zoneId === doc.zoneId) && doc.phaseNo <= phaseNo).map((doc) => doc.zoneId))
+  const ofZones = docs.filter((doc): doc is ZoneTableDoc | SourceTableDoc => doc.type !== 'phase')
+  const customIds = new Set(ofZones.filter((doc) => doc.zoneId >= 50_000_000 && !captures.some((capture) => capture.zoneId === doc.zoneId) && doc.phaseNo <= phaseNo).map((doc) => doc.zoneId))
   for (const id of customIds) if (!shown.has(id)) stats.customZonesMissingAtPhase += 1
-  if (docs.some((doc) => doc.zoneId < 50_000_000 && !captures.some((capture) => capture.zoneId === doc.zoneId) && doc.phaseNo <= phaseNo)) stats.foreignZoneMerges += 1
-  const namedLater = new Set(docs.filter((doc) => doc.type === 'source' && doc.name !== undefined && doc.phaseNo > phaseNo).map((doc) => `${doc.zoneId}/${(doc as SourceTableDoc).key}`))
+  if (ofZones.some((doc) => doc.zoneId < 50_000_000 && !captures.some((capture) => capture.zoneId === doc.zoneId) && doc.phaseNo <= phaseNo)) stats.foreignZoneMerges += 1
+  const namedLater = new Set(docs.filter((doc) => doc.type === 'source' && doc.name !== undefined && doc.phaseNo > phaseNo).map((doc) => `${(doc as SourceTableDoc).zoneId}/${(doc as SourceTableDoc).key}`))
   for (const id of namedLater) if (!ref.some((zone) => zone.sources.some((source) => `${zone.zoneId}/${source.key}` === id))) stats.guildCreaturesNotYetNamed += 1
 }
 
@@ -127,6 +131,8 @@ const CAPTURE: LootTableCapture = {
   sources: [{ npcId: 11, name: 'First Warden', kind: 'boss', itemIds: [101, 102] }, { npcId: 12, name: 'Second Warden', kind: 'boss', itemIds: [201] }], zoneWideItemIds: [901],
 }
 const zoneAt = (zoneId: number, phaseNo: number, name: string): ZoneTableDoc => ({ id: `z${zoneId}_${phaseNo}`, type: 'zone', zoneId, phaseNo, name, kind: 'raid', players: 25, rev: 1 })
+const zoneIn = (zoneId: number, phaseNo: number): ZoneTableDoc => ({ id: `z${zoneId}_${phaseNo}`, type: 'zone', zoneId, phaseNo, removed: false, rev: 1 })
+const phaseAt = (phaseNo: number, follows?: number): PhaseTableDoc => ({ id: `p${phaseNo}`, type: 'phase', phaseNo, rev: 1, ...(follows === undefined ? {} : { follows }) })
 const sourceAt = (zoneId: number, key: string, phaseNo: number, fields: Partial<SourceTableDoc> = {}): SourceTableDoc => ({ id: `s${zoneId}_${key}_${phaseNo}`, type: 'source', zoneId, key, phaseNo, itemIds: [], hiddenItemIds: [], rev: 1, ...fields })
 
 describe('mergeTables and dropTablesOf against the reference of the spec', () => {
@@ -194,18 +200,16 @@ describe('mergeTables and dropTablesOf against the reference of the spec', () =>
     assert.deepEqual(order(docs), order(reversed(docs)))
   })
 
-  it('a creature starts to exist when a document names it, so "Follow the previous phase again" is not offered there even if an unnamed document came first', () => {
-    // Spec, Edits in the editor: "Not offered for a creature or zone that starts in this phase". The client never writes a creature document without a name
-    // first, so this is reachable only with hand-made documents.
-    const docs = [sourceAt(900, 'cq1', 1, { itemIds: [7] }), sourceAt(900, 'cq1', 2, { name: 'Late Guest', kind: 'rare', order: 50 })]
+  it('a creature starts to exist when a document names it, even if an unnamed document came first', () => {
+    // The client never writes a creature document without a name first, so this is reachable only with hand-made documents.
+    const docs = [sourceAt(900, 'cq1', 1, { itemIds: [7] }), sourceAt(900, 'cq1', 2, { name: 'Late Guest', kind: 'rare', order: 50 }), phaseAt(2, 1)]
     const zone = mergeTables([CAPTURE], docs, 2).find((candidate) => candidate.zoneId === 900)!
     const guest = zone.sources.find((candidate) => candidate.key === 'cq1')!
     assert.equal(guest.introducedAt, 2)
-    assert.equal(resetCreature(zone, guest), null)
   })
 
   it('an item that a creature and the zone-wide list both came to have stays with the creature in Browse drops, as for two creatures', () => {
-    const docs = [sourceAt(900, 'npc12', 1, { itemIds: [901] })] // the zone-wide list has 901 in the capture; the second warden now drops it too
+    const docs = [zoneIn(900, 1), sourceAt(900, 'npc12', 1, { itemIds: [901] })] // the zone-wide list has 901 in the capture; the second warden now drops it too
     const drop = dropTablesOf([CAPTURE], docs, 1)[0]
     assert.deepEqual(drop.sources[1].itemIds, [201, 901])
     assert.ok(!drop.zoneWideItemIds.includes(901)) // a creature comes first, the zone-wide list last

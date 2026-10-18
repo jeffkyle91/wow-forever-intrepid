@@ -1,15 +1,18 @@
 // The guild's own loot tables: what leaders add to, take off or change in the drop lists of Browse drops, kept in Firestore (`lootTables`, see
 // firestore.rules) and merged here with the built-in captures in data/loot/.
 //
-// The lists belong to a PHASE. A document carries the phase number it was written in and means "from this phase on, until a later phase's
-// document says otherwise". The lists of phase N are the built-in captures with every document of phase N or earlier applied in phase order, so
-// a phase with no documents has the lists of the phase before it, and a change made in phase N never reaches an earlier phase. Only the current
-// and the next phase are written (the rules), so a finished phase's lists are a record.
+// The lists belong to a PHASE, and a phase starts from NOTHING: no zone is in its lists until a leader ticks it, and it has none of an earlier phase's
+// changes. It can instead FOLLOW an earlier phase (`follows`, a document of its own kind): the lists of the phase it follows, with its own documents on top.
+// The followed phase's lists in turn include what it follows, so the documents that make up a phase's lists are those of its follow chain, in phase
+// order. While the followed phase is still open, what is changed there shows in the phase that follows it; once the followed phase is finished (a later
+// phase has started) nothing in it can change, so the phase that follows it simply carries on from where it ended.
 //
-// A document says only what its phase changes: the items it adds and the items it takes off, and a creature's or zone's name, kind, place or size
-// only when that phase sets them (so a later correction in an earlier phase still reaches the phases after it). The documents come in two
-// kinds: a zone (`zone`) and a creature (`source`; the zone-wide list is a creature with the key "zonewide"). A zone document for a zone of the
-// built-in captures can only say whether the zone is in the lists from its phase on (`removed`). A document is never deleted.
+// Only the current and the next phase are written (the rules), so a finished phase's lists are a record. A document says only what its phase changes:
+// the items it adds and the items it takes off, a zone being in the lists (`removed: false`) or out of them (`removed: true`), and a creature's or
+// zone's name, kind, place or size only when that phase sets them. The documents come in three kinds: a zone (`zone`), a creature (`source`; the zone-wide
+// list is a creature with the key "zonewide") and a phase (`phase`, only `follows`). A zone document for a zone of the built-in captures can only say
+// whether the zone is in the lists (`removed`). A zone the guild made keeps its name, kind and size in every phase (a zone is the same zone wherever
+// it is ticked); whether it is in a phase's lists is stated per phase like any other zone. A document is never deleted.
 // No runtime imports, so Node runs its tests directly.
 import type { LootSourceKind, LootTableCapture } from './lootTables.ts'
 
@@ -26,14 +29,18 @@ export const ZONE_WIDE_NAME = 'Any creature in the zone'
 export type TableSourceKind = LootSourceKind | 'zonewide'
 export type ZoneKind = 'dungeon' | 'raid'
 // A zone document of a custom zone may carry name, kind and players (only what its phase sets); one for a zone of the built-in captures has at most
-// `removed`. `removed` is true when the zone is out of the lists from this phase on and false when it is back in.
+// `removed`. `removed` is false when the zone is in the lists in this phase (and in the phases that follow it) and true when it is out; a zone no
+// document of the phase's chain mentions is out.
 export type ZoneTableDoc = { id: string; type: 'zone'; zoneId: number; phaseNo: number; name?: string; kind?: ZoneKind; players?: number; removed?: boolean; rev: number }
 export type SourceTableDoc = {
   id: string; type: 'source'; zoneId: number; key: string; phaseNo: number; name?: string; kind?: TableSourceKind; npcId?: number; order?: number
   itemIds: number[]; hiddenItemIds: number[]; removed?: boolean; rev: number
 }
-export type LootTableDoc = ZoneTableDoc | SourceTableDoc
+// The phase itself: which earlier phase it follows (none when it starts from nothing). Filed as p{phaseNo}.
+export type PhaseTableDoc = { id: string; type: 'phase'; phaseNo: number; follows?: number; rev: number }
+export type LootTableDoc = ZoneTableDoc | SourceTableDoc | PhaseTableDoc
 
+export const phaseDocId = (phaseNo: number) => `p${phaseNo}`
 export const zoneDocId = (zoneId: number, phaseNo: number) => `z${zoneId}_${phaseNo}`
 export const sourceDocId = (zoneId: number, key: string, phaseNo: number) => `s${zoneId}_${key}_${phaseNo}`
 // The key of a creature of the built-in captures: its game number. A creature the guild adds gets a random key (newCreatureKey).
@@ -141,27 +148,55 @@ const kindOf = (kind: TableSourceKind | undefined) => (kind === 'zonewide' ? und
 
 const byOrder = (a: MergedSource, b: MergedSource) => a.order - b.order || a.name.localeCompare(b.name) || a.key.localeCompare(b.key)
 
-/** The lists of one phase: the built-in captures with the guild's documents of that phase and earlier applied. Documents that fit no zone are ignored. */
-export function mergeTables(captures: LootTableCapture[], docs: LootTableDoc[], phaseNo: number): MergedZone[] {
-  const zoneDocs = new Map<number, ZoneTableDoc[]>()
-  const sourceDocs = new Map<string, SourceTableDoc[]>() // by zone and key
+/** The follow link of every phase that has one (a number below the phase's own; anything else in a stored document is ignored). */
+const followsOf = (docs: readonly LootTableDoc[]) => new Map(docs.flatMap((doc) => (doc.type === 'phase' && Number.isInteger(doc.follows) && (doc.follows as number) >= 0 && (doc.follows as number) < doc.phaseNo ? [[doc.phaseNo, doc.follows as number] as const] : [])))
+
+/**
+ * The phases whose documents make up the lists of `phaseNo`, oldest first: the phase itself, the phase it follows, the phase that one follows, and so
+ * on. A phase that follows nothing is a chain of one. Each link points to a lower phase, so this ends.
+ */
+export function followChain(docs: readonly LootTableDoc[], phaseNo: number): number[] {
+  const follows = followsOf(docs)
+  const chain = [phaseNo]
+  for (let at = follows.get(phaseNo); at !== undefined; at = follows.get(at)) chain.unshift(at)
+  return chain
+}
+
+/** The phase `phaseNo` follows, when it follows one. */
+export const followedBy = (docs: readonly LootTableDoc[], phaseNo: number): number | undefined => followsOf(docs).get(phaseNo)
+
+/** The document of a phase (what it follows), when one was written. */
+export const phaseDocOf = (docs: readonly LootTableDoc[], phaseNo: number): PhaseTableDoc | undefined => docs.find((doc): doc is PhaseTableDoc => doc.type === 'phase' && doc.phaseNo === phaseNo)
+
+/**
+ * The lists of one phase: the built-in captures with the guild's documents applied. Which documents: those of the phase's follow chain (followChain), in
+ * phase order, for what is in the lists (zones ticked, creatures and their items); a zone the guild made also keeps its name, kind and size from its
+ * documents of any phase up to this one, so it is the same zone wherever it is ticked. With `everything` the chain is every phase up to this one (the Log
+ * names things from any phase). Documents that fit no zone are ignored.
+ */
+export function mergeTables(captures: LootTableCapture[], docs: LootTableDoc[], phaseNo: number, everything = false): MergedZone[] {
+  const chain = new Set(everything ? Array.from({ length: phaseNo + 1 }, (_, no) => no) : followChain(docs, phaseNo))
+  const identity = new Map<number, ZoneTableDoc[]>() // zone documents of any phase up to this one: names, kinds and sizes
+  const stated = new Map<number, ZoneTableDoc[]>() // those of the chain: whether the zone is in the lists
+  const sourceDocs = new Map<string, SourceTableDoc[]>() // by zone and key, of the chain
   for (const doc of docs) {
-    if (doc.phaseNo > phaseNo) continue
-    if (doc.type === 'zone') zoneDocs.set(doc.zoneId, [...(zoneDocs.get(doc.zoneId) ?? []), doc])
-    else sourceDocs.set(`${doc.zoneId}_${doc.key}`, [...(sourceDocs.get(`${doc.zoneId}_${doc.key}`) ?? []), doc])
+    if (doc.type === 'phase' || doc.phaseNo > phaseNo) continue
+    if (doc.type === 'zone') {
+      identity.set(doc.zoneId, [...(identity.get(doc.zoneId) ?? []), doc])
+      if (chain.has(doc.phaseNo)) stated.set(doc.zoneId, [...(stated.get(doc.zoneId) ?? []), doc])
+    } else if (chain.has(doc.phaseNo)) sourceDocs.set(`${doc.zoneId}_${doc.key}`, [...(sourceDocs.get(`${doc.zoneId}_${doc.key}`) ?? []), doc])
   }
   const sourcesOf = (zoneId: number, skip: Set<string>) => [...sourceDocs.values()].filter((list) => list[0].zoneId === zoneId && list[0].key !== ZONE_WIDE_KEY && !skip.has(list[0].key))
   const zoneWideOf = (zoneId: number, table: LootTableCapture | undefined): MergedSource => {
     const merged = mergeSource(zoneId, ZONE_WIDE_KEY, phaseNo, { name: ZONE_WIDE_NAME, kind: 'zonewide', itemIds: table?.zoneWideItemIds ?? [], order: TABLE_ORDER_MAX }, sourceDocs.get(`${zoneId}_${ZONE_WIDE_KEY}`) ?? []) as MergedSource
     return { ...merged, name: ZONE_WIDE_NAME, kind: 'zonewide', builtIn: false }
   }
-  // In the lists unless the latest document that says so takes it out; with no such document, a capture zone is in from its `fromPhase` on.
-  const presence = (list: ZoneTableDoc[], fromPhase = 0) => { const stated = latest(byPhase(list), (doc) => typeof doc.removed === 'boolean')?.removed; return stated === undefined ? phaseNo >= fromPhase : stated !== true }
-  const touched = (zoneId: number) => (zoneDocs.get(zoneId)?.length ?? 0) > 0 || [...sourceDocs.values()].some((list) => list[0].zoneId === zoneId)
+  // In the lists only when the latest document of the chain that says so puts it in (`removed: false`); with none, a zone is out.
+  const presence = (zoneId: number) => latest(byPhase(stated.get(zoneId) ?? []), (doc) => typeof doc.removed === 'boolean')?.removed === false
+  const touched = (zoneId: number) => (identity.get(zoneId)?.length ?? 0) > 0 || [...sourceDocs.values()].some((list) => list[0].zoneId === zoneId)
   const live = (merged: MergedSource | null): MergedSource[] => (merged ? [merged] : [])
 
   const zones: MergedZone[] = captures.map((table) => {
-    const list = byPhase(zoneDocs.get(table.zoneId) ?? [])
     const used = new Set<string>()
     const fromCapture = table.sources.flatMap((source, index) => {
       const key = builtInKey(source.npcId)
@@ -169,21 +204,21 @@ export function mergeTables(captures: LootTableCapture[], docs: LootTableDoc[], 
       return live(mergeSource(table.zoneId, key, phaseNo, { name: source.name, kind: source.kind, npcId: source.npcId, itemIds: source.itemIds, order: (index + 1) * 10 }, sourceDocs.get(`${table.zoneId}_${key}`) ?? []))
     })
     const added = sourcesOf(table.zoneId, used).flatMap((perKey) => live(mergeSource(table.zoneId, perKey[0].key, phaseNo, undefined, perKey)))
-    const here = list.find((doc) => doc.phaseNo === phaseNo)
+    const here = (stated.get(table.zoneId) ?? []).find((doc) => doc.phaseNo === phaseNo)
     return {
-      zoneId: table.zoneId, phaseNo, name: table.name, kind: table.kind, players: table.players, custom: false, inPhase: presence(list, table.fromPhase ?? 0), edited: touched(table.zoneId), ...(here ? { doc: here } : {}), builtIn: table,
+      zoneId: table.zoneId, phaseNo, name: table.name, kind: table.kind, players: table.players, custom: false, inPhase: presence(table.zoneId), edited: touched(table.zoneId), ...(here ? { doc: here } : {}), builtIn: table,
       sources: [...fromCapture, ...added].sort(byOrder), zoneWide: zoneWideOf(table.zoneId, table),
     }
   })
-  for (const [zoneId, unsorted] of zoneDocs) {
+  for (const [zoneId, unsorted] of identity) {
     if (zoneId < CUSTOM_ZONE_MIN || zones.some((zone) => zone.zoneId === zoneId)) continue
     const list = byPhase(unsorted)
     const withName = latest(list, (doc) => typeof doc.name === 'string')
     if (!withName) continue // a zone the guild made that no document names does not exist
-    const here = list.find((doc) => doc.phaseNo === phaseNo)
+    const here = (stated.get(zoneId) ?? []).find((doc) => doc.phaseNo === phaseNo)
     zones.push({
       zoneId, phaseNo, name: withName.name ?? '', kind: latest(list, (doc) => doc.kind !== undefined)?.kind ?? 'dungeon', players: latest(list, (doc) => doc.players !== undefined)?.players ?? 5, custom: true,
-      introducedAt: (list.find((doc) => typeof doc.name === 'string') as ZoneTableDoc).phaseNo, inPhase: presence(list), edited: true, ...(here ? { doc: here } : {}),
+      introducedAt: (list.find((doc) => typeof doc.name === 'string') as ZoneTableDoc).phaseNo, inPhase: presence(zoneId), edited: true, ...(here ? { doc: here } : {}),
       sources: sourcesOf(zoneId, new Set()).flatMap((perKey) => live(mergeSource(zoneId, perKey[0].key, phaseNo, undefined, perKey))).sort(byOrder),
       zoneWide: zoneWideOf(zoneId, undefined),
     })
@@ -231,8 +266,13 @@ const itemList = (value: unknown): number[] => (Array.isArray(value) ? unique(va
 const isName = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= TABLE_NAME_MAX
 
 export function readTableDoc(id: string, data: Record<string, unknown>): LootTableDoc | null {
-  if (!isGameId(data.zoneId) || !isPhase(data.phaseNo)) return null
   const rev = typeof data.rev === 'number' && Number.isInteger(data.rev) && data.rev >= 0 ? data.rev : 0
+  if (data.type === 'phase') {
+    if (!isPhase(data.phaseNo) || id !== phaseDocId(data.phaseNo)) return null
+    // A link that does not point to an earlier phase is left out: the phase then follows nothing.
+    return { id, type: 'phase', phaseNo: data.phaseNo, ...(isPhase(data.follows) && data.follows < data.phaseNo ? { follows: data.follows } : {}), rev }
+  }
+  if (!isGameId(data.zoneId) || !isPhase(data.phaseNo)) return null
   const removed = typeof data.removed === 'boolean' ? { removed: data.removed } : {}
   const name = isName(data.name) ? { name: data.name } : {}
   if (data.type === 'zone') {
@@ -260,28 +300,33 @@ export function firstPhases(docs: LootTableDoc[]): { zones: Map<number, number>;
   const keep = (map: Map<string | number, number>, key: string | number, phaseNo: number) => { if (!map.has(key) || (map.get(key) as number) > phaseNo) map.set(key, phaseNo) }
   for (const doc of docs) {
     if (doc.type === 'zone') keep(zones as Map<string | number, number>, doc.zoneId, doc.phaseNo)
-    else keep(sources as Map<string | number, number>, `${doc.zoneId}_${doc.key}`, doc.phaseNo)
+    else if (doc.type === 'source') keep(sources as Map<string | number, number>, `${doc.zoneId}_${doc.key}`, doc.phaseNo)
   }
   return { zones, sources }
 }
 
 /**
- * What the guild has written for one phase, in a few words for Settings (starting or reopening a phase changes what raiders see in Browse drops):
- * "adds the zone Molten Core, takes 1 zone out of the lists and changes 14 creatures". Empty when nothing is written for the phase.
+ * What the guild has prepared for one phase, in a few words for Settings (starting a phase makes these its lists):
+ * "follows Phase 1, adds the zone Molten Core, puts 2 zones in the lists, takes 1 zone out and changes 14 creatures". Empty when the phase follows
+ * nothing and has no document of its own.
  */
-export function describePreparedTables(docs: LootTableDoc[], phaseNo: number): string {
+export function describePreparedTables(docs: LootTableDoc[], phaseNo: number, phaseName: (no: number) => string = (no) => `phase ${no + 1}`): string {
   const here = docs.filter((doc) => doc.phaseNo === phaseNo)
-  if (!here.length) return ''
-  const earlier = new Set(docs.filter((doc) => doc.type === 'zone' && doc.phaseNo < phaseNo).map((doc) => doc.zoneId))
-  const added = here.flatMap((doc) => (doc.type === 'zone' && doc.zoneId >= CUSTOM_ZONE_MIN && !earlier.has(doc.zoneId) && doc.name ? [doc.name] : []))
-  const out = here.filter((doc) => doc.type === 'zone' && doc.removed === true).length
-  const back = here.filter((doc) => doc.type === 'zone' && doc.removed === false).length
-  const creatures = new Set(here.filter((doc) => doc.type === 'source').map((doc) => `${doc.zoneId}_${(doc as SourceTableDoc).key}`)).size
+  const followed = followedBy(docs, phaseNo)
+  if (followed === undefined && !here.some((doc) => doc.type !== 'phase')) return ''
+  const zoneDocs = here.filter((doc): doc is ZoneTableDoc => doc.type === 'zone')
+  const earlier = new Set(docs.flatMap((doc) => (doc.type === 'zone' && doc.phaseNo < phaseNo ? [doc.zoneId] : [])))
+  const added = zoneDocs.filter((doc) => doc.zoneId >= CUSTOM_ZONE_MIN && !earlier.has(doc.zoneId) && doc.name)
+  const addedIds = new Set(added.map((doc) => doc.zoneId))
+  const inLists = zoneDocs.filter((doc) => doc.removed === false && !addedIds.has(doc.zoneId)).length
+  const out = zoneDocs.filter((doc) => doc.removed === true).length
+  const creatures = new Set(here.flatMap((doc) => (doc.type === 'source' ? [`${doc.zoneId}_${doc.key}`] : []))).size
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
   const parts = [
-    ...(added.length ? [`adds ${added.length === 1 ? 'the zone' : 'the zones'} ${added.join(', ')}`] : []),
+    ...(followed === undefined ? [] : [`follows ${phaseName(followed)}`]),
+    ...(added.length ? [`adds ${added.length === 1 ? 'the zone' : 'the zones'} ${added.map((doc) => doc.name).join(', ')}`] : []),
+    ...(inLists ? [`puts ${plural(inLists, 'zone', 'zones')} in the lists`] : []),
     ...(out ? [`takes ${plural(out, 'zone', 'zones')} out of the lists`] : []),
-    ...(back ? [`puts ${plural(back, 'zone', 'zones')} back`] : []),
     ...(creatures ? [`changes ${plural(creatures, 'creature', 'creatures')}`] : []),
   ]
   return parts.length ? parts.join(', ').replace(/, ([^,]*)$/, ' and $1') : 'changes the zones'
@@ -308,8 +353,8 @@ export function parseItemIds(text: string): { ids: number[]; ignored: string[] }
 // still reaches this phase. A field of `changes` set to undefined is taken away. The editor builds them and the audited helper in guildApi.ts
 // writes them.
 
-export type TableChange = Partial<Record<'name' | 'kind' | 'players' | 'order' | 'npcId' | 'itemIds' | 'hiddenItemIds' | 'removed', unknown>>
-export type NewTableDoc = Omit<ZoneTableDoc, 'id' | 'rev'> | Omit<SourceTableDoc, 'id' | 'rev'>
+export type TableChange = Partial<Record<'name' | 'kind' | 'players' | 'order' | 'npcId' | 'itemIds' | 'hiddenItemIds' | 'removed' | 'follows', unknown>>
+export type NewTableDoc = Omit<ZoneTableDoc, 'id' | 'rev'> | Omit<SourceTableDoc, 'id' | 'rev'> | Omit<PhaseTableDoc, 'id' | 'rev'>
 export type TableWrite = { id: string; create: NewTableDoc } | { id: string; existing: LootTableDoc; changes: TableChange }
 
 type SourceFields = { itemIds?: number[]; hiddenItemIds?: number[]; order?: number; name?: string; kind?: TableSourceKind; removed?: boolean }
@@ -432,21 +477,10 @@ export function moveCreature(zone: MergedZone, source: MergedSource, direction: 
   return writes
 }
 
-/**
- * Make this phase follow the one before it again for a creature: everything this phase's document says is taken away. Not offered for a creature that
- * starts in this phase (there is nothing earlier to follow).
- */
-export function resetCreature(zone: MergedZone, source: MergedSource): TableWrite | null {
-  const doc = source.doc
-  if (!doc || (!source.builtIn && source.introducedAt === zone.phaseNo)) return null
-  const says = doc.itemIds.length > 0 || doc.hiddenItemIds.length > 0 || doc.name !== undefined || doc.kind !== undefined || doc.order !== undefined || doc.npcId !== undefined || doc.removed !== undefined
-  return says ? { id: doc.id, existing: doc, changes: { itemIds: [], hiddenItemIds: [], name: undefined, kind: undefined, order: undefined, npcId: undefined, removed: undefined } } : null
-}
-
-/** A zone the guild makes, in the lists from this phase on. The first document of a zone says everything about it. */
+/** A zone the guild makes, in the lists of this phase. The first document of a zone says everything about it, that it is in the lists included. */
 export function addZone(fields: { name: string; kind: ZoneKind; players: number }, taken: Iterable<number>, phaseNo: number): { zoneId: number; write: TableWrite } {
   const zoneId = newZoneId(taken)
-  return { zoneId, write: { id: zoneDocId(zoneId, phaseNo), create: { type: 'zone', zoneId, phaseNo, name: fields.name.trim(), kind: fields.kind, players: fields.players } } }
+  return { zoneId, write: { id: zoneDocId(zoneId, phaseNo), create: { type: 'zone', zoneId, phaseNo, name: fields.name.trim(), kind: fields.kind, players: fields.players, removed: false } } }
 }
 
 // A write to the zone's document of this phase: an edit when it exists, otherwise a new one that says only what the change says.
@@ -455,7 +489,7 @@ function writeZone(zone: MergedZone, fields: { name?: string; kind?: ZoneKind; p
   return { id: zoneDocId(zone.zoneId, zone.phaseNo), create: { type: 'zone', zoneId: zone.zoneId, phaseNo: zone.phaseNo, ...fields } as NewTableDoc }
 }
 
-/** Rename or resize a zone the guild made, from this phase on. */
+/** Rename or resize a zone the guild made (in every phase from this one on, as the name and size of a zone are the same wherever it is ticked). */
 export const editZone = (zone: MergedZone, fields: { name: string; kind: ZoneKind; players: number }): TableWrite | null => {
   if (!zone.custom) return null
   const changes: { name?: string; kind?: ZoneKind; players?: number } = {}
@@ -465,14 +499,19 @@ export const editZone = (zone: MergedZone, fields: { name: string; kind: ZoneKin
   return Object.keys(changes).length && hasText(fields.name) ? writeZone(zone, changes) : null
 }
 
-/** Take a zone out of the lists from this phase on, or put it back. Every zone can be, built-in or not; earlier phases are not touched. */
+/** Put a zone in the lists of this phase (and the phases that follow it), or take it out. Every zone can be, built-in or not; other phases are not touched. */
 export const setZoneInPhase = (zone: MergedZone, inPhase: boolean): TableWrite | null => (zone.inPhase === inPhase ? null : writeZone(zone, { removed: !inPhase }))
 
-/** Make this phase follow the one before it again for a zone: what this phase's document says about the zone is taken away. */
-export function resetZone(zone: MergedZone): TableWrite | null {
-  const doc = zone.doc
-  if (!doc || (zone.custom && zone.introducedAt === zone.phaseNo)) return null
-  const says = doc.removed !== undefined || doc.name !== undefined || doc.kind !== undefined || doc.players !== undefined
-  if (!says) return null
-  return { id: doc.id, existing: doc, changes: { removed: undefined, ...(zone.custom ? { name: undefined, kind: undefined, players: undefined } : {}) } }
+/** The writes that put every zone of `zones` in the lists of this phase, or take every one out; those already so need none. */
+export const setZonesInPhase = (zones: MergedZone[], inPhase: boolean): TableWrite[] => zones.flatMap((zone) => { const write = setZoneInPhase(zone, inPhase); return write ? [write] : [] })
+
+/**
+ * Make a phase follow an earlier one, or follow nothing (`undefined`). A phase follows only an earlier phase, so anything else answers nothing, as does
+ * a choice that is already so. The first time a phase is set, its document is made; after that it is edited (its link taken away to follow nothing).
+ */
+export function setFollows(docs: readonly LootTableDoc[], phaseNo: number, follows: number | undefined): TableWrite | null {
+  if (follows !== undefined && !(Number.isInteger(follows) && follows >= 0 && follows < phaseNo)) return null
+  const existing = phaseDocOf(docs, phaseNo)
+  if (!existing) return follows === undefined ? null : { id: phaseDocId(phaseNo), create: { type: 'phase', phaseNo, follows } }
+  return existing.follows === follows ? null : { id: existing.id, existing, changes: { follows } }
 }

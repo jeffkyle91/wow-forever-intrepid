@@ -179,15 +179,29 @@ describe('describeEntry for a drop list', () => {
   it('taking a creature or a zone out of the lists from a phase, and putting it back', () => {
     assert.equal(table({ targetId: `s${LAIR}_cabc_3`, item: 'Lair Boss', action: 'create', changed: ['removed'], after: { removed: true } }).title, 'Took \u201cLair Boss\u201d out of \u201cGuild Lair\u201d from here on (Phase 3)')
     assert.equal(table({ targetId: `s${LAIR}_cabc_3`, item: 'Lair Boss', changed: ['removed'], before: { removed: true }, after: { removed: false } }).title, 'Put \u201cLair Boss\u201d back in \u201cGuild Lair\u201d (Phase 3)')
-    assert.equal(table({ targetId: `z${LAIR}_3`, item: 'Guild Lair', action: 'create', changed: ['removed'], after: { removed: true } }).title, 'Took the zone \u201cGuild Lair\u201d out of the lists from here on (Phase 3)')
+    assert.equal(table({ targetId: `z${LAIR}_3`, item: 'Guild Lair', action: 'create', changed: ['removed'], after: { removed: true } }).title, 'Took the zone \u201cGuild Lair\u201d out of the lists (Phase 3)')
     assert.equal(table({ targetId: `z${LAIR}_3`, item: 'Guild Lair', changed: ['name'], before: { name: 'Guild Lair' }, after: { name: 'The Lair' } }).title, 'Changed the zone \u201cGuild Lair\u201d (Phase 3)')
   })
 
   it('a zone of the built-in lists has no name in its entry, so it is named from the capture', () => {
     const out = table({ targetId: 'z900_2', item: '', action: 'create', changed: ['type', 'zoneId', 'phaseNo', 'removed'], after: { type: 'zone', zoneId: 900, phaseNo: 2, removed: true } })
-    assert.equal(out.title, 'Took the zone \u201cTest Hollow\u201d out of the lists from here on (Phase 2)')
+    assert.equal(out.title, 'Took the zone \u201cTest Hollow\u201d out of the lists (Phase 2)')
     const back = table({ targetId: 'z900_3', item: '', action: 'edit', changed: ['removed'], before: { removed: true }, after: { removed: false } })
     assert.equal(back.title, 'Put the zone \u201cTest Hollow\u201d back in the lists (Phase 3)')
+    const ticked = table({ targetId: 'z900_2', item: '', action: 'create', changed: ['type', 'zoneId', 'phaseNo', 'removed'], after: { type: 'zone', zoneId: 900, phaseNo: 2, removed: false } })
+    assert.equal(ticked.title, 'Put the zone \u201cTest Hollow\u201d in the lists (Phase 2)') // first time in this phase: not "back"
+  })
+
+  it('the document of a phase says which phase it follows, or that it follows nothing', () => {
+    const made = table({ targetId: 'p2', item: '', action: 'create', changed: ['type', 'phaseNo', 'follows'], after: { type: 'phase', phaseNo: 2, follows: 1 } })
+    assert.equal(made.title, 'Phase 2 now follows Second')
+    assert.deepEqual(made.details, [])
+    const moved = table({ targetId: 'p3', item: '', changed: ['follows'], before: { follows: 1 }, after: { follows: 2 } })
+    assert.equal(moved.title, 'Phase 3 now follows Phase 2')
+    assert.deepEqual(moved.details, ['It followed Second'])
+    const stopped = table({ targetId: 'p3', item: '', changed: ['follows'], before: { follows: 2 }, after: { follows: null } })
+    assert.equal(stopped.title, 'Phase 3 now follows nothing')
+    assert.deepEqual(stopped.details, ['It followed Phase 2'])
   })
 
   it('a zone it cannot name is called "a zone"', () => {

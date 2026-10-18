@@ -1,6 +1,6 @@
 // Random but deterministic test data for the loot table fuzz tests: a seeded generator, random captures and documents of the guild, a compact printer for a
 // failing case, and a shrinker. Every name and number is invented. Nothing here uses Math.random: a case is a pure function of its seed and options.
-import type { LootTableDoc, SourceTableDoc, ZoneTableDoc } from '../../../src/shared/game/guildTables.ts'
+import type { LootTableDoc, PhaseTableDoc, SourceTableDoc, ZoneTableDoc } from '../../../src/shared/game/guildTables.ts'
 import type { LootSourceKind, LootTableCapture } from '../../../src/shared/game/lootTables.ts'
 
 export function makeRng(seed: number) {
@@ -29,7 +29,7 @@ export function makeRng(seed: number) {
 export type Rng = ReturnType<typeof makeRng>
 
 export type CaseOptions = {
-  hostile?: boolean // documents the rules would refuse: both lists naming one item, removed on a capture creature or the zone-wide list
+  hostile?: boolean // documents the rules would refuse: both lists naming one item, removed on a capture creature or the zone-wide list, a phase that follows itself or a later phase
   sparseIntro?: boolean // the first document of a guild creature or custom zone does not set every attribute
   density?: number // how likely a document is for a key in a phase (default 0.4)
   reachable?: boolean // only what the client can write: no creature that looks like a capture creature but is in no capture, no zone outside the captures and the custom range, and nothing before a creature or zone is named
@@ -50,6 +50,7 @@ const sourceDoc = (zoneId: number, key: string, phaseNo: number, fields: Partial
   ({ id: `s${zoneId}_${key}_${phaseNo}`, type: 'source', zoneId, key, phaseNo, itemIds: [], hiddenItemIds: [], rev: 1, ...fields })
 const zoneDoc = (zoneId: number, phaseNo: number, fields: Partial<ZoneTableDoc>): ZoneTableDoc =>
   ({ id: `z${zoneId}_${phaseNo}`, type: 'zone', zoneId, phaseNo, rev: 1, ...fields })
+const phaseDoc = (phaseNo: number, follows: number | undefined): PhaseTableDoc => ({ id: `p${phaseNo}`, type: 'phase', phaseNo, rev: 1, ...(follows === undefined ? {} : { follows }) })
 
 function genCapture(rng: Rng, zoneId: number, universe: number[]): LootTableCapture {
   const count = 1 + rng.int(4)
@@ -64,12 +65,10 @@ function genCapture(rng: Rng, zoneId: number, universe: number[]): LootTableCapt
   lists.forEach((list, index) => {
     if (list.length === 0) list.push(zoneWide.pop() ?? 900 + index) // a capture creature has at least one item
   })
-  const fromPhase = rng.chance(0.35) ? rng.pick([0, 1, 2, 3, 5, 6, 7]) : undefined
   return {
     format: 1, zoneId, name: rng.pick(ZONE_NAMES), kind: rng.pick(['dungeon', 'raid'] as const), players: rng.pick([5, 10, 20, 40]), source: 'https://example.test/zone', capturedAt: '2026-10-16',
     sources: npcIds.map((npcId, index) => ({ npcId, name: rng.pick(CREATURE_NAMES), kind: rng.pick(KINDS), itemIds: lists[index] })),
     zoneWideItemIds: zoneWide,
-    ...(fromPhase === undefined ? {} : { fromPhase }),
   }
 }
 
@@ -167,6 +166,13 @@ export function genCase(rng: Rng, options: CaseOptions = {}): TableCase {
     genZoneDocs(zoneId, true, true)
     genKeys(zoneId, undefined)
   }
+  // The phases: most follow an earlier phase (any lower number, not only the one before, and one that may have no document at all), some follow nothing.
+  for (const phaseNo of phases) {
+    if (phaseNo === 0 && !options.hostile) continue
+    if (!rng.chance(0.6)) continue
+    if (options.hostile && rng.chance(0.2)) docs.push(phaseDoc(phaseNo, rng.pick([phaseNo, phaseNo + 1, phaseNo + 5, -1, 0.5, phaseNo - 0.5]))) // a link the rules refuse: ignored
+    else if (phaseNo > 0) docs.push(phaseDoc(phaseNo, rng.chance(0.2) ? undefined : rng.int(phaseNo)))
+  }
   return { captures, docs: rng.shuffle(docs), phases, options }
 }
 
@@ -193,12 +199,15 @@ export function deepFreeze<T>(value: T): T {
 export function formatCase(captures: LootTableCapture[], docs: LootTableDoc[]): string {
   const lines: string[] = []
   for (const capture of captures) {
-    lines.push(`capture zone ${capture.zoneId} "${capture.name}" ${capture.kind} ${capture.players}p${capture.fromPhase === undefined ? '' : ` fromPhase=${capture.fromPhase}`} zonewide=[${capture.zoneWideItemIds}]`)
+    lines.push(`capture zone ${capture.zoneId} "${capture.name}" ${capture.kind} ${capture.players}p zonewide=[${capture.zoneWideItemIds}]`)
     capture.sources.forEach((entry, index) => lines.push(`  #${index} npc${entry.npcId} "${entry.name}" ${entry.kind} items=[${entry.itemIds}]`))
   }
-  const sorted = [...docs].sort((a, b) => a.zoneId - b.zoneId || a.phaseNo - b.phaseNo || a.id.localeCompare(b.id))
+  const zoneOf = (doc: LootTableDoc) => (doc.type === 'phase' ? 0 : doc.zoneId)
+  const sorted = [...docs].sort((a, b) => zoneOf(a) - zoneOf(b) || a.phaseNo - b.phaseNo || a.id.localeCompare(b.id))
   for (const doc of sorted) {
-    if (doc.type === 'zone') {
+    if (doc.type === 'phase') {
+      lines.push(`doc ${doc.id}: ${doc.follows === undefined ? 'follows nothing' : `follows=${doc.follows}`}`)
+    } else if (doc.type === 'zone') {
       const parts = [doc.name !== undefined && `name="${doc.name}"`, doc.kind !== undefined && `kind=${doc.kind}`, doc.players !== undefined && `players=${doc.players}`, doc.removed !== undefined && `removed=${doc.removed}`].filter(Boolean)
       lines.push(`doc ${doc.id}: ${parts.join(' ') || '(empty)'}`)
     } else {
@@ -239,13 +248,10 @@ export function shrinkCase(captures: LootTableCapture[], docs: LootTableDoc[], f
         next.captures[zone].sources.splice(index, 1)
         changed = attempt(next) || changed
       }
-      const withoutFrom = copy()
-      delete withoutFrom.captures[zone].fromPhase
-      changed = (current.captures[zone].fromPhase !== undefined && attempt(withoutFrom)) || changed
     }
     for (let index = 0; index < current.docs.length; index += 1) {
       const doc = current.docs[index]
-      const fieldNames = (doc.type === 'zone' ? ['name', 'kind', 'players', 'removed'] : ['name', 'kind', 'npcId', 'order', 'removed']) as string[]
+      const fieldNames = (doc.type === 'phase' ? ['follows'] : doc.type === 'zone' ? ['name', 'kind', 'players', 'removed'] : ['name', 'kind', 'npcId', 'order', 'removed']) as string[]
       for (const field of fieldNames) {
         if ((doc as Record<string, unknown>)[field] === undefined) continue
         const next = copy()

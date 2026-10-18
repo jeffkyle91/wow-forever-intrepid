@@ -1,6 +1,6 @@
 // Applying a TableWrite to a list of documents the way the audited write helper does (a create adds a document with rev 1, an edit patches the stored
 // one and a field set to undefined is taken away), and the shape rules of firestore.rules for a table document, written from the spec
-// (PR-texts/Design-loot-tables-phases.md, "Documents" and "What the rules check"), to check that no write would be refused.
+// (PR-texts/Design-loot-tables-phases.md, "Documents" and "What the rules check", and PR-texts/Design-zone-editor.md for the phase document), to check that no write would be refused.
 import { isDeepStrictEqual } from 'node:util'
 import type { LootTableDoc, TableWrite } from '../../../src/shared/game/guildTables.ts'
 
@@ -35,9 +35,14 @@ export function rulesProblems(doc: LootTableDoc, creating: boolean): string[] {
   const problems: string[] = []
   const has = (field: string) => raw[field] !== undefined
   const keys = Object.keys(raw).filter((field) => raw[field] !== undefined)
-  if (!isInt(raw.zoneId, 1, 100_000_000)) problems.push(`zoneId ${String(raw.zoneId)}`)
+  if (raw.type !== 'phase' && !isInt(raw.zoneId, 1, 100_000_000)) problems.push(`zoneId ${String(raw.zoneId)}`)
   if (!isInt(raw.phaseNo, 0, 31)) problems.push(`phaseNo ${String(raw.phaseNo)}`)
-  if (raw.type === 'zone') {
+  if (raw.type === 'phase') {
+    for (const field of ['type', 'phaseNo']) if (!has(field)) problems.push(`phase document lacks ${field}`)
+    for (const field of keys) if (!['type', 'phaseNo', 'follows', ...STAMPS].includes(field)) problems.push(`phase document has ${field}`)
+    if (has('follows') && !(isInt(raw.follows, 0, 31) && typeof raw.phaseNo === 'number' && (raw.follows as number) < raw.phaseNo)) problems.push(`follows ${String(raw.follows)} (phase ${String(raw.phaseNo)})`)
+    if (raw.id !== `p${String(raw.phaseNo)}`) problems.push(`id ${String(raw.id)} does not match the fields`)
+  } else if (raw.type === 'zone') {
     const custom = isInt(raw.zoneId, 50_000_000, 100_000_000)
     const allowed = [...ZONE_REQUIRED, ...(custom ? ['name', 'kind', 'players', 'removed'] : ['removed']), ...STAMPS]
     for (const field of ZONE_REQUIRED) if (!has(field)) problems.push(`zone document lacks ${field}`)

@@ -620,7 +620,6 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
 .class-accent small, .class-accent .table-subtext, .class-accent-row .table-subtext, .class-accent-row .unassigned-label, .class-accent-row .linked-account-status, .class-accent-row .date-cell, .class-accent-row .award-note-cell, .class-accent-row .snapshot-order b, .class-accent-row .snapshot-order span { color: var(--accent-ink) !important; }
 .class-accent .top-pick, .class-accent .received-tag { padding: 1px 5px; border-radius: 3px; background: var(--accent-chip); color: var(--accent-chip-ink) !important; }
 .class-accent .received-tag { color: var(--accent-chip-green) !important; }
-.class-accent.listing-received .ranked-name { color: var(--accent-ink) !important; opacity: .8; }
 :root[data-theme='dark'] .class-color-shaman { --wow-class-dark-color: #4DA6FF; }
 :root[data-theme='dark'] .class-color-warlock { --wow-class-dark-color: #9697F1; }
 /* Light theme: the tuned name colors are darkened a little more on top of a fade, and a received candidate's number stays readable. */

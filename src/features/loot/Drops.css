@@ -7,6 +7,8 @@
 .drops-count { margin: 0; color: #526158; font-size: 10px; }
 .drops-intro p { margin: 0 0 6px; color: #526158; font-size: 11px; }
 .drops-intro a { color: #427296; }
+/* The zone's color (--zone-color) as a bar and a tint on the zone's heading block. */
+.drops-intro.zone-colored { padding: 8px 12px 2px; border-left: 5px solid var(--zone-color); border-radius: 5px; background: color-mix(in srgb, var(--zone-color) 9%, transparent); }
 .drops-status { color: #7a6a3a; }
 .drops-notes { margin-top: 4px; color: #526158; font-size: 11px; }
 .drops-notes summary { cursor: pointer; }

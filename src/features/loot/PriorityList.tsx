@@ -8,12 +8,13 @@ import { readLines, type Who } from '../../shared/game/candidates'
 import { classAccent } from '../../shared/game/classes'
 import { awardsForPriority, isRemovedAward, listingProgress, type PriorityLookup } from './completion'
 import { carriedLabel } from './carried'
-import { groupPriorities } from './groupPriorities'
+import { groupPriorities, type DungeonGroup } from './groupPriorities'
 import { toggleOrderLock, useUnlockedOrders } from './orderLock'
+import { zoneStyle, type ZoneColors } from './useZoneColors'
 import './PriorityList.css'
 
 // canEdit: the list can be changed (Add, Edit, reorder). canAward: loot can be awarded from it. Neither holds in a closed phase; `notice` says why.
-export function PriorityList({ priorities, awards, lookup, who, canEdit, canAward, notice, busy, grouped, bossOrder, phaseName, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; grouped: boolean; bossOrder: (dungeon: string) => string[]; awards: Award[]; lookup: PriorityLookup; who: Who; canEdit: boolean; canAward: boolean; notice?: string; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void; phaseName: (no: number) => string }) {
+export function PriorityList({ priorities, awards, lookup, who, canEdit, canAward, notice, busy, grouped, bossOrder, zoneColors, phaseName, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; grouped: boolean; bossOrder: (dungeon: string) => string[]; zoneColors: ZoneColors; awards: Award[]; lookup: PriorityLookup; who: Who; canEdit: boolean; canAward: boolean; notice?: string; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void; phaseName: (no: number) => string }) {
   const unlocked = useUnlockedOrders()
   const row = (priority: LootPriority, index: number) => {
     const progress = listingProgress(priority, awards, lookup, who)
@@ -21,7 +22,8 @@ export function PriorityList({ priorities, awards, lookup, who, canEdit, canAwar
     const open = canEdit && unlocked.has(priority.id)
     const carried = carriedLabel(priority, lookup, phaseName)
     const recentAward = awardsForPriority(priority, awards, lookup).filter((award) => !isRemovedAward(award)).sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))[0]
-    return <article className={progress.complete ? 'priority-row stagger-row complete' : 'priority-row stagger-row'} key={priority.id} style={{ '--row-index': index } as CSSProperties}>
+    const zone = zoneColors.ofPriority(priority)
+    return <article className={['priority-row stagger-row', progress.complete ? 'complete' : '', zone ? 'zone-colored' : ''].filter(Boolean).join(' ')} key={priority.id} style={{ '--row-index': index, ...zoneStyle(zone) } as CSSProperties}>
       <div className="priority-main"><div className="priority-item-line">{!priority.itemId && <span className="item-gem"><ArtIcon src={lootArt} className="priority-loot-icon" /></span>}<div><h3>{priority.itemId ? <ItemTooltip itemId={priority.itemId} fallbackName={priority.item} /> : priority.item}</h3><span className="encounter-label"><ArtIcon src={encounterArt} className="encounter-art-icon" /> {priority.encounter}</span>{carried && <span className="carried-tag">{carried}</span>}</div></div><p className="council-note">{priority.councilNote || <span className="muted">{canEdit ? 'No council note yet. Use Edit Prio to add one.' : 'No council note yet'}</span>}</p></div>
       <div className="priority-ranking"><div className="ranking-heading"><span>COUNCIL ORDER{canEdit && <button className="order-lock" onClick={() => toggleOrderLock(priority.id)} aria-pressed={open} title={open ? 'Lock the order again' : 'Unlock to move the candidates up and down'} aria-label={open ? `Lock the order of ${priority.item}` : `Unlock the order of ${priority.item}`}>{open ? <LockOpen size={12} /> : <Lock size={12} />}</button>}</span><span className="rank-count">{priority.rankedPlayers.length ? `${priority.rankedPlayers.length} ranked` : <span className="needs-players">Needs players</span>}{progress.complete && <span className="complete-tag">COMPLETE</span>}</span></div>
         {lines.length ? <ol>{lines.map((line, rank) => {
@@ -39,10 +41,12 @@ export function PriorityList({ priorities, awards, lookup, who, canEdit, canAwar
   }
   // Grouped: a heading for each dungeon and for each boss in it, then its rows. The animation index runs on through all the rows.
   let position = 0
+  // The color of a dungeon's heading is that of its priorities (by their zone number, so a renamed zone keeps its color), else of the zone with that name.
+  const headingColor = (group: DungeonGroup<LootPriority>) => group.bosses.flatMap((boss) => boss.priorities).map((priority) => zoneColors.ofPriority(priority)).find(Boolean) ?? zoneColors.ofName(group.dungeon)
   const groupedRows = () => groupPriorities(priorities, bossOrder).flatMap((group) => [
-    <div key={`d-${group.key}`} className="priority-dungeon" role="heading" aria-level={3}>{group.dungeon || 'Other priorities'}<span>{group.count} {group.count === 1 ? 'item' : 'items'}</span></div>,
+    <div key={`d-${group.key}`} className={headingColor(group) ? 'priority-dungeon zone-colored' : 'priority-dungeon'} style={zoneStyle(headingColor(group))} role="heading" aria-level={3}>{group.dungeon || 'Other priorities'}<span>{group.count} {group.count === 1 ? 'item' : 'items'}</span></div>,
     ...group.bosses.flatMap((boss) => [
-      <div key={`b-${boss.key}`} className="priority-boss" role="heading" aria-level={4}>{boss.boss || 'No encounter noted'}<span>{boss.priorities.length}</span></div>,
+      <div key={`b-${boss.key}`} className={headingColor(group) ? 'priority-boss zone-colored' : 'priority-boss'} style={zoneStyle(headingColor(group))} role="heading" aria-level={4}>{boss.boss || 'No encounter noted'}<span>{boss.priorities.length}</span></div>,
       ...boss.priorities.map((priority) => row(priority, position++)),
     ]),
   ])

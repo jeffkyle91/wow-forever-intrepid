@@ -623,6 +623,21 @@ service cloud.firestore {
           : rev == old.get('phaseRev', 0));
     }
 
+    // The colors of the zones (guilds/{id}/settings/zoneColors, a document of its own so that a save of the general settings from an older app cannot wipe
+    // it): `colors` maps a zone's key to a #rrggbb color the guild chose (the zone's number, or r- and the id of a zone of the older raid zone list), and only
+    // a Guild Leader writes it. The rules can count the entries but cannot look
+    // at each key and value (a map cannot be looped over), so the app reads the map safely (readZoneColors) and ignores whatever is not a zone key with a
+    // valid color. Stamped by the rules like the other documents; the colors are cosmetic, so a change is not logged.
+    function validZoneColors() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['colors', 'updatedBy', 'updatedAt'])
+        && data.keys().hasAll(['colors', 'updatedBy', 'updatedAt'])
+        && data.colors is map
+        && data.colors.size() <= 200
+        && data.updatedBy == request.auth.uid
+        && data.updatedAt == request.time;
+    }
+
     function validGuildSettings(guildId) {
       let data = request.resource.data;
       return data.keys().hasOnly(['currentPhase', 'nextPhase', 'currentStatusLabel', 'currentStatusTone', 'nextStatusLabel', 'nextStatusTone', 'councilStatus', 'teamNames', 'groupNames', 'phaseHistory', 'phaseRev'])
@@ -706,7 +721,8 @@ service cloud.firestore {
 
       match /settings/{settingId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
-        allow create, update: if settingId == 'general' && isGuildLeader(guildId) && validGuildSettings(guildId);
+        allow create, update: if (settingId == 'general' && isGuildLeader(guildId) && validGuildSettings(guildId))
+          || (settingId == 'zoneColors' && isGuildLeader(guildId) && validZoneColors());
         allow delete: if false;
       }
 

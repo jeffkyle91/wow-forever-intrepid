@@ -67,3 +67,12 @@
 :root[data-theme='dark'] .drops-parked { color: #c8d5e3; background: #2a3a4d; }
 :root[data-theme='dark'] .drops-leaving { color: #f0c987; background: #4a3a1c; }
 :root[data-theme='dark'] .drops-warning { color: #f2a99d; }
+
+/* Priorities typed by hand: no tick box, a Take off button and its question on the same row. */
+.drops-typed .drops-typed-note { margin: 4px 0 8px; color: #7a877e; font-size: 10px; }
+.drops-typed ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.drops-typed .drops-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.drops-typed .drops-select-all { margin-left: auto; }
+.drops-typed .drops-typed-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; color: #8a5a12; font-size: 10px; }
+:root[data-theme='dark'] .drops-typed .drops-typed-note { color: #94a5b6; }
+:root[data-theme='dark'] .drops-typed .drops-typed-ask { color: #f0c987; }

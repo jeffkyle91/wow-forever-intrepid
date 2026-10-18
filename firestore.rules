@@ -189,7 +189,20 @@ service cloud.firestore {
     // away is `removed: true`, bringing it back `removed: false`, and both are plain edits. A creature of the built-in captures (key npc{id}) and the
     // zone-wide list can never be removed (their items can only be hidden). Only the sizes of the lists are checked; the app reads them safely, as it does
     // a priority's candidates.
+    //
+    // A third kind, one per phase (type 'phase', id p{phaseNo}), says which EARLIER phase this one follows (`follows`, a phase number below its own, or
+    // no `follows` at all for a phase that follows nothing). A phase that follows another has that phase's lists (zones, creatures, items) with its own
+    // documents on top, and the followed phase's lists in turn include what it follows. The number is always lower than the phase's own, so following
+    // never loops. It is an ordinary audited document: created or changed only in the current phase or the next one, never deleted (taking the link
+    // away is an edit that removes `follows`).
     function tableKeysOk(data, creating) {
+      return data.type == 'phase'
+        ? data.keys().hasOnly(['type', 'phaseNo', 'follows', 'rev', 'updatedBy', 'updatedAt'])
+          && data.keys().hasAll(['type', 'phaseNo', 'rev', 'updatedBy', 'updatedAt'])
+        : tableKeysOfZoneOrSource(data, creating);
+    }
+
+    function tableKeysOfZoneOrSource(data, creating) {
       return validGameId(data.zoneId)
         && (data.type == 'source'
           ? data.keys().hasOnly(['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed', 'rev', 'updatedBy', 'updatedAt'])
@@ -207,7 +220,9 @@ service cloud.firestore {
     }
 
     function validTableFields(after) {
-      return (after.type == 'zone'
+      return (after.type == 'phase'
+          ? !('follows' in after) || (after.follows is int && after.follows >= 0 && after.follows < after.phaseNo)
+          : after.type == 'zone'
           ? after.zoneId < 50000000
             || ((!('name' in after) || validTableName(after.name))
               && (!('kind' in after) || after.kind in ['dungeon', 'raid'])
@@ -231,7 +246,9 @@ service cloud.firestore {
         && data.updatedAt == request.time
         && data.phaseNo is int && (data.phaseNo == current || data.phaseNo == current + 1)
         && tableKeysOk(data, true)
-        && (data.type == 'zone'
+        && (data.type == 'phase'
+          ? tableId == 'p' + string(data.phaseNo)
+          : data.type == 'zone'
           ? tableId == 'z' + string(data.zoneId) + '_' + string(data.phaseNo)
           : data.key is string && data.key.matches('^[A-Za-z0-9]{1,30}$')
             && tableId == 's' + string(data.zoneId) + '_' + data.key + '_' + string(data.phaseNo))
@@ -442,6 +459,7 @@ service cloud.firestore {
         && (!('zoneId' in changed) || (before.get('zoneId', null) == oldDoc.get('zoneId', null) && after.get('zoneId', null) == newDoc.get('zoneId', null)))
         && (!('key' in changed) || (before.get('key', null) == oldDoc.get('key', null) && after.get('key', null) == newDoc.get('key', null)))
         && (!('phaseNo' in changed) || (before.get('phaseNo', null) == oldDoc.get('phaseNo', null) && after.get('phaseNo', null) == newDoc.get('phaseNo', null)))
+        && (!('follows' in changed) || (before.get('follows', null) == oldDoc.get('follows', null) && after.get('follows', null) == newDoc.get('follows', null)))
         && (!('name' in changed) || (before.get('name', null) == oldDoc.get('name', null) && after.get('name', null) == newDoc.get('name', null)))
         && (!('kind' in changed) || (before.get('kind', null) == oldDoc.get('kind', null) && after.get('kind', null) == newDoc.get('kind', null)))
         && (!('players' in changed) || (before.get('players', null) == oldDoc.get('players', null) && after.get('players', null) == newDoc.get('players', null)))
@@ -473,7 +491,8 @@ service cloud.firestore {
             ? ['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'players', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed']
             : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
-      return touched.hasOnly(fields)
+      // (a phase document also lists `follows`; it is added here and not in the list above)
+      return touched.hasOnly(table ? fields.concat(['follows']) : fields)
         && data.changed.toSet() == touched
         && data.changed.size() == touched.size()
         && data.get('before', {}).keys().hasOnly(data.changed)

@@ -50,7 +50,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   // prepared for the next phase has a name too, and an entry that sets no name is named from here).
   const nowNo = currentPhaseNo(live.data.settings)
   const bossOrder = useBossOrder(live.data.lootTables, nowNo)
-  const zones = useMergedTables(live.data.lootTables, TABLE_PHASE_MAX)
+  const zones = useMergedTables(live.data.lootTables, TABLE_PHASE_MAX, true)
   const first = useMemo(() => firstPhases(live.data.lootTables), [live.data.lootTables])
   const lookups = { firstZonePhase: (zoneId: number) => first.zones.get(zoneId), firstSourcePhase: (zoneId: number, key: string) => first.sources.get(`${zoneId}_${key}`), zoneName: (zoneId: number) => zones.find((zone) => zone.zoneId === zoneId)?.name, sourceName: (zoneId: number, key: string) => zones.find((zone) => zone.zoneId === zoneId)?.sources.find((source) => source.key === key)?.name, itemName: (itemId: number) => { const state = peekItem(itemId); return state?.status === 'ready' ? state.info.name : undefined } }
   // A phase started or reopened changes which lists are current, so it is shown with the priorities.

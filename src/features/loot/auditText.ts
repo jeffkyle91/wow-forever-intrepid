@@ -72,6 +72,16 @@ const CUSTOM_ZONE_MIN = 50_000_000 // the same number as shared/game/guildTables
 // or s{zone}_{key}_{phase}. A document means "from this phase on", so the title says the phase. A document says only what its phase changes, so
 // every name, kind, place, number or size it carries is a deliberate change and is always listed.
 function describeTableEntry(entry: AuditEntry, lookups: TableLookups, phaseName: (no: number) => string, change: (field: string) => string): EntryText {
+  // The document of a phase (p{phase}): which earlier phase it follows, or nothing.
+  if (/^p\d+$/.test(entry.targetId)) {
+    const phase = phaseName(Number(entry.targetId.slice(1)))
+    const now = entry.after.follows
+    const was = entry.before.follows
+    return {
+      title: typeof now === 'number' ? `${phase} now follows ${phaseName(now)}` : `${phase} now follows nothing`,
+      details: typeof was === 'number' ? [`It followed ${phaseName(was)}`] : [],
+    }
+  }
   const parts = entry.targetId.split('_')
   const isZone = entry.targetId.startsWith('z')
   const zoneNo = Number(parts[0].slice(1))
@@ -93,8 +103,8 @@ function describeTableEntry(entry: AuditEntry, lookups: TableLookups, phaseName:
     const introduced = zoneNo >= CUSTOM_ZONE_MIN && entry.action === 'create' && lookups.firstZonePhase?.(zoneNo) === phaseNo
     const details = attributes(['name', 'kind', 'players'])
     if (introduced) return result(`Added the zone ${item}`, attributes(['kind', 'players']))
-    if (removedNow === true) return result(`Took the zone ${item} out of the lists from here on`, details)
-    if (removedNow === false) return result(`Put the zone ${item} back in the lists`, details)
+    if (removedNow === true) return result(`Took the zone ${item} out of the lists`, details)
+    if (removedNow === false) return result(entry.before.removed === true ? `Put the zone ${item} back in the lists` : `Put the zone ${item} in the lists`, details)
     if (entry.changed.includes('removed')) return result(`Made ${item} follow the earlier phase again`, details) // `removed` was taken away
     return result(`Changed the zone ${item}`, details)
   }

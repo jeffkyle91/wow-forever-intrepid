@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { groupZones, openGroupKeys, zonesStartOpen } from '../../src/features/loot/zoneGroups.ts'
+import { groupZones, openGroupKeys, zonesStartOpen } from '../../src/shared/game/zoneGroups.ts'
 
 // Invented zones.
 const zone = (name: string, kind: 'dungeon' | 'raid', players: number, inPhase = false) => ({ name, kind, players, inPhase })

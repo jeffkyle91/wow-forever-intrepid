@@ -5,7 +5,9 @@ import { phaseLabel, phaseNoOf, phaseOptions } from '../../shared/game/phases'
 import { peekItem, requestItem, retryItem, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
+import '../../shared/ui/zoneColor.css'
 import { useDropTables } from './useDropTables'
+import { useZoneColors, zoneStyle } from './useZoneColors'
 import { countItems, dropEncounter, dropPriorityRecord, filterGroups, kindLabels, prioritiesForItem, type DropPick } from './dropsFilter'
 import './Drops.css'
 
@@ -38,6 +40,7 @@ export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; p
   // The drop lists of the phase picked here: the built-in lists with the guild's own changes for that phase and the ones before it.
   const dropTables = useDropTables(live.data.lootTables, selected.no)
   const table = dropTables.find((candidate) => candidate.zoneId === zoneId) ?? dropTables[0]
+  const zoneColors = useZoneColors(live.data.lootTables, live.data.zoneColors)
   const phasePriorities = live.data.allPriorities.filter((priority) => phaseNoOf(priority) === selected.no)
   // Priorities of this phase that were taken off the list and kept.
   const parked = live.data.hiddenPriorities.filter((priority) => phaseNoOf(priority) === selected.no)
@@ -183,8 +186,8 @@ export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; p
       <button type="button" className="button button-secondary" onClick={removeAll} disabled={busy || listedInZone.length === 0} title={listedInZone.length ? `Mark every item of ${table.name} that is on the list to be taken off` : `Nothing in ${table.name} is on the list`}>Remove all ({listedInZone.length})</button>
     </div>}
     {!table && <p className="drops-empty">{selected.name} has no zones in its drop lists{selected.kind === 'past' ? '. It is finished, so zones cannot be chosen for it any more.' : live.identity.canEditRaidData ? ' yet. Use Edit the drop lists to tick the zones it has, or to make it follow an earlier phase.' : ' yet. A leader chooses them.'}</p>}
-    {table && <div className="drops-intro">
-      <p><strong>{table.name}</strong>: {table.players}-player {table.kind}. {table.custom ? 'Added by the guild\u2019s leaders.' : <>Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}.{table.edited ? ' The guild\u2019s leaders have changed this list.' : ''}</>} Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{editable ? ` You are changing the ${selected.name} list (a finished phase cannot be changed). A ticked item is on it: tick one to add it, untick one that is on it to take it off (an item that has priorities keeps them and gets them back when you tick it again), then use the bar at the bottom.` : selected.kind === 'past' ? ` These are the ${selected.name} lists as they stood: a finished phase cannot be changed.` : ` A ticked item is on the ${selected.name} priority list.`}</p>
+    {table && <div className="drops-intro zone-colored" style={zoneStyle(zoneColors.ofZone(table.zoneId))}>
+      <p><strong className="zone-dot">{table.name}</strong>: {table.players}-player {table.kind}. {table.custom ? 'Added by the guild\u2019s leaders.' : <>Read from <a href={table.source} target="_blank" rel="noreferrer">Wowhead Forever</a> on {table.capturedAt}.{table.edited ? ' The guild\u2019s leaders have changed this list.' : ''}</>} Item names and tooltips are looked up live; point at an item, or select it, to read its tooltip.{editable ? ` You are changing the ${selected.name} list (a finished phase cannot be changed). A ticked item is on it: tick one to add it, untick one that is on it to take it off (an item that has priorities keeps them and gets them back when you tick it again), then use the bar at the bottom.` : selected.kind === 'past' ? ` These are the ${selected.name} lists as they stood: a finished phase cannot be changed.` : ` A ticked item is on the ${selected.name} priority list.`}</p>
       {table.dataStatus && <p className="drops-status">{table.dataStatus}</p>}
       {table.notes && table.notes.length > 0 && <details className="drops-notes"><summary>About this data</summary><ul>{table.notes.map((note) => <li key={note}>{note}</li>)}</ul></details>}
     </div>}

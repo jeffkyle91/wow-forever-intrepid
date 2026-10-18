@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { writeLootTables } from '../../guildApi'
 import {
-  GAME_ID_MAX, TABLE_ITEMS_MAX, TABLE_NAME_MAX, ZONE_WIDE_KEY, addCreature, addItems, addZone, editZone, followedBy, hasText, itemHolders, moveCreature, parseItemIds, renameCreature, restoreItem,
+  GAME_ID_MAX, TABLE_ITEMS_MAX, TABLE_NAME_MAX, ZONE_WIDE_KEY, addCreature, addItems, followedBy, hasText, itemHolders, moveCreature, parseItemIds, renameCreature, restoreItem,
   setCreatureRemoved, setFollows, setZoneInPhase, setZonesInPhase, takeOffItem, type LootTableDoc, type MergedSource, type MergedZone, type TableSourceKind, type TableWrite,
 } from '../../shared/game/guildTables'
 import { lootSourceKinds, type LootSourceKind } from '../../shared/game/lootTables'
@@ -9,17 +9,18 @@ import { phaseOptions } from '../../shared/game/phases'
 import { peekItem, useItemInfo, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
+import '../../shared/ui/zoneColor.css'
 import { useMergedTables } from './useDropTables'
-import { groupZones, openGroupKeys, zonesStartOpen, type ZoneGroup } from './zoneGroups'
+import { useZoneColors, zoneStyle } from './useZoneColors'
+import { groupZones, openGroupKeys, zonesStartOpen, type ZoneGroup } from '../../shared/game/zoneGroups'
 import './Tables.css'
 
 // The editor for the drop lists of Browse drops (Guild and Raid Leaders). The lists belong to a PHASE, and a phase starts with nothing: at the top, one
 // checklist of zones for the current phase and one for the next, each with a "Follows" choice (Nothing, or an earlier phase whose lists it then has, with
 // its own changes on top). Below, the creatures and items of one zone of the phase picked there. The built-in lists are never changed; the guild's changes
 // sit on top of them. Items can be added to a creature (by item number or Wowhead link, with the real name shown before anything is saved) and taken off
-// again, creatures and whole zones can be added and moved. Every change is a write with its entry in the Log (shared/game/guildTables.ts builds them,
+// again, and creatures can be added and moved. (A zone itself is added in Settings, under Zones.) Every change is a write with its entry in the Log (shared/game/guildTables.ts builds them,
 // writeLootTables writes them). Nothing is deleted.
-const sizes = [5, 10, 20, 25, 40]
 const kindLabel = (kind: TableSourceKind) => (kind === 'zonewide' ? 'zone-wide' : kind)
 const itemName = (id: number) => { const state = peekItem(id); return state?.status === 'ready' ? state.info.name : `item ${id}` }
 
@@ -122,7 +123,7 @@ type SetupPhase = { no: number; name: string; kind: string }
 
 // One group of the checklist (dungeons, 10-man raids, ...): a collapsible list of zones with a checkbox each, ticked when the zone is in the phase's lists.
 // Whether it starts open is decided once, when the phase is picked (`startOpen`), so ticking a zone does not close or open another group under the cursor.
-function ZoneGroupList({ group, phase, startOpen, busy, run }: { group: ZoneGroup<MergedZone>; phase: SetupPhase; startOpen: boolean; busy: boolean; run: Run }) {
+function ZoneGroupList({ group, phase, startOpen, colorOf, busy, run }: { group: ZoneGroup<MergedZone>; phase: SetupPhase; startOpen: boolean; colorOf: (zoneId: number) => string; busy: boolean; run: Run }) {
   const [open] = useState(startOpen)
   const chosen = group.zones.filter((zone) => zone.inPhase).length
   return <details className="tables-group" open={open}>
@@ -130,7 +131,7 @@ function ZoneGroupList({ group, phase, startOpen, busy, run }: { group: ZoneGrou
     <ul className="tables-checklist">
       {group.zones.map((zone) => <li key={zone.zoneId}><label>
         <input type="checkbox" checked={zone.inPhase} disabled={busy} onChange={(event) => { const write = setZoneInPhase(zone, event.target.checked); void run(write ? [write] : [], event.target.checked ? `${zone.name} is in ${phase.name}.` : `${zone.name} is out of ${phase.name}.`) }} />
-        <span>{zone.name}</span>{zone.custom && <small>added by the guild</small>}
+        <span className="zone-dot" style={zoneStyle(colorOf(zone.zoneId))}>{zone.name}</span>{zone.custom && <small>added by the guild</small>}
       </label></li>)}
     </ul>
     <div className="tables-row-actions">
@@ -142,7 +143,7 @@ function ZoneGroupList({ group, phase, startOpen, busy, run }: { group: ZoneGrou
 
 // The body of the Zones section for one phase: which earlier phase it follows, and its zones in groups. A phase starts with nothing ticked. Following a
 // phase shows that phase's zones ticked too; unticking one here takes it out of this phase only. Keyed by the phase, so each phase opens its own groups.
-function ZonesBody({ phase, zones, docs, earlier, busy, run }: { phase: SetupPhase; zones: MergedZone[]; docs: LootTableDoc[]; earlier: SetupPhase[]; busy: boolean; run: Run }) {
+function ZonesBody({ phase, zones, docs, earlier, colorOf, busy, run }: { phase: SetupPhase; zones: MergedZone[]; docs: LootTableDoc[]; earlier: SetupPhase[]; colorOf: (zoneId: number) => string; busy: boolean; run: Run }) {
   const follows = followedBy(docs, phase.no)
   const followed = earlier.find((option) => option.no === follows)
   const chosen = zones.filter((zone) => zone.inPhase)
@@ -165,8 +166,8 @@ function ZonesBody({ phase, zones, docs, earlier, busy, run }: { phase: SetupPha
     <p className="tables-note">{followed
       ? `${phase.name} has the zones, creatures and items of ${followed.name}, as they stand and as they change until ${followed.name} is finished. What you change in ${phase.name} sits on top.`
       : `${phase.name} has only the zones ticked here, and the creatures and items you set for it.`}</p>
-    {groups.map((group) => <ZoneGroupList key={group.key} group={group} phase={phase} startOpen={!first.keys.has(group.key) || first.open.has(group.key)} busy={busy} run={run} />)}
-    {zones.length === 0 && <p className="tables-empty">There are no zones yet. Add one below.</p>}
+    {groups.map((group) => <ZoneGroupList key={group.key} group={group} phase={phase} startOpen={!first.keys.has(group.key) || first.open.has(group.key)} colorOf={colorOf} busy={busy} run={run} />)}
+    {zones.length === 0 && <p className="tables-empty">There are no zones yet. A Guild Leader adds them in Settings, under Zones.</p>}
     {groups.length > 1 && <div className="tables-setup-foot">
       <span className="tables-note">{chosen.length} of {zones.length} zones in all</span>
       <span className="tables-actions">
@@ -179,7 +180,7 @@ function ZonesBody({ phase, zones, docs, earlier, busy, run }: { phase: SetupPha
 
 // The Zones section: collapsible (it starts open only for a phase with nothing set up), with the phase to set the zones of picked inside it, so the list
 // stays one phase long however many phases there are. The phase picked here is the one the creatures and items below are for as well.
-function ZonesSection({ phases, selected, onPhase, zones, docs, earlier, busy, run }: { phases: SetupPhase[]; selected: SetupPhase; onPhase: (no: number) => void; zones: MergedZone[]; docs: LootTableDoc[]; earlier: SetupPhase[]; busy: boolean; run: Run }) {
+function ZonesSection({ phases, selected, onPhase, zones, docs, earlier, colorOf, busy, run }: { phases: SetupPhase[]; selected: SetupPhase; onPhase: (no: number) => void; zones: MergedZone[]; docs: LootTableDoc[]; earlier: SetupPhase[]; colorOf: (zoneId: number) => string; busy: boolean; run: Run }) {
   const followed = earlier.find((option) => option.no === followedBy(docs, selected.no))
   const chosen = zones.filter((zone) => zone.inPhase).length
   const [open] = useState(() => zonesStartOpen(chosen, followed !== undefined))
@@ -191,7 +192,7 @@ function ZonesSection({ phases, selected, onPhase, zones, docs, earlier, busy, r
           {phases.map((option) => <option key={option.no} value={option.no}>{option.name} ({option.kind})</option>)}
         </select>
       </label>}
-      <ZonesBody key={selected.no} phase={selected} zones={zones} docs={docs} earlier={earlier} busy={busy} run={run} />
+      <ZonesBody key={selected.no} phase={selected} zones={zones} docs={docs} earlier={earlier} colorOf={colorOf} busy={busy} run={run} />
     </div>
   </details>
 }
@@ -203,12 +204,11 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
   const phases = everyPhase.filter((option) => option.kind !== 'past')
   const selected = phases.find((option) => option.no === phaseNo) ?? phases.find((option) => option.kind === 'current') ?? phases[0]
   const zones = useMergedTables(live.data.lootTables, selected.no)
+  const zoneColors = useZoneColors(live.data.lootTables, live.data.zoneColors)
   const inLists = zones.filter((candidate) => candidate.inPhase)
   const [zoneId, setZoneId] = useState<number | null>(null)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
   const [newCreature, setNewCreature] = useState({ name: '', kind: 'boss' as LootSourceKind, npc: '' })
-  const [newZone, setNewZone] = useState<{ name: string; kind: 'dungeon' | 'raid'; players: number } | null>(null)
-  const [editingZone, setEditingZone] = useState<{ name: string; kind: 'dungeon' | 'raid'; players: number } | null>(null)
   const { busy, setBusy, setMutationError } = live.feedback
   const zone = inLists.find((candidate) => candidate.zoneId === zoneId) ?? inLists[0]
   const who: Who = { uid: live.identity.uid, displayName: live.identity.displayName }
@@ -235,17 +235,16 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
   }
 
   // Picking another phase (in the Zones section or above the creatures) closes what was half done for the one before.
-  const changePhase = (no: number) => { onPhaseNo(no); setEditingZone(null); setNewZone(null); setMessage(null) }
+  const changePhase = (no: number) => { onPhaseNo(no); setMessage(null) }
 
   const liveSources = zone ? zone.sources.filter((source) => !source.removed) : []
   const npc = newCreature.npc.trim()
   const npcValid = npc === '' || (/^\d{1,9}$/.test(npc) && Number(npc) > 0 && Number(npc) <= GAME_ID_MAX)
   const creatureReady = hasText(newCreature.name) && newCreature.name.length <= TABLE_NAME_MAX && npcValid
-  const zoneFieldsReady = (fields: { name: string } | null) => !!fields && hasText(fields.name) && fields.name.length <= TABLE_NAME_MAX
 
   return <div className="tables-editor">
     <p className="tables-intro">Drop lists are chosen per phase. A phase starts with no zones: tick the zones it has, or make it follow an earlier phase to have that phase&rsquo;s lists. What you change below is in the phase you pick and in any phase that follows it, and never reaches a finished phase. The built-in lists are not changed, every change is in the Log, and nothing is ever deleted.</p>
-    <ZonesSection phases={phases} selected={selected} onPhase={changePhase} zones={zones} docs={live.data.lootTables} earlier={everyPhase.filter((candidate) => candidate.no < selected.no)} busy={busy} run={run} />
+    <ZonesSection phases={phases} selected={selected} onPhase={changePhase} zones={zones} docs={live.data.lootTables} earlier={everyPhase.filter((candidate) => candidate.no < selected.no)} colorOf={zoneColors.ofZone} busy={busy} run={run} />
     {message && <p className={message.error ? 'tables-message tables-bad' : 'tables-message'} role={message.error ? 'alert' : 'status'}>{message.text}</p>}
     <h3 className="tables-heading">Creatures and items</h3>
     <p className="tables-intro">Find an item&rsquo;s number in the address of its Wowhead page (<code>.../item=<strong>872</strong>/...</code>), or paste the whole address.</p>
@@ -253,41 +252,18 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
       {phases.length > 1 && <select className="drops-zone-select drops-phase-select phase-select" aria-label="Phase to edit" value={selected.no} onChange={(event) => changePhase(Number(event.target.value))} disabled={busy}>
         {phases.map((option) => <option key={option.no} value={option.no}>{option.name} ({option.kind})</option>)}
       </select>}
-      <select className="drops-zone-select" aria-label="Zone to edit" value={zone?.zoneId ?? ''} onChange={(event) => { setZoneId(Number(event.target.value)); setEditingZone(null) }} disabled={inLists.length === 0}>
+      <select className="drops-zone-select" aria-label="Zone to edit" value={zone?.zoneId ?? ''} onChange={(event) => setZoneId(Number(event.target.value))} disabled={inLists.length === 0}>
         {inLists.map((candidate) => <option key={candidate.zoneId} value={candidate.zoneId}>{candidate.name}{candidate.custom ? ' (added by the guild)' : ''}</option>)}
         {inLists.length === 0 && <option value="">No zone in {phase}</option>}
       </select>
-      <button type="button" className="button button-secondary" onClick={() => setNewZone(newZone ? null : { name: '', kind: 'raid', players: 40 })} disabled={busy}>Add a zone</button>
     </div>
     {selected.kind === 'current' && <p className="tables-live">{phase} is the live phase: everyone sees what you change here right away.{next ? ` To prepare something for later, pick ${next.name} above.` : ''}</p>}
-    {newZone && <div className="tables-add">
-      <label>Zone name<input value={newZone.name} maxLength={TABLE_NAME_MAX} onChange={(event) => setNewZone({ ...newZone, name: event.target.value })} /></label>
-      <label>Kind<select value={newZone.kind} onChange={(event) => setNewZone({ ...newZone, kind: event.target.value as 'dungeon' | 'raid' })}><option value="dungeon">Dungeon</option><option value="raid">Raid</option></select></label>
-      <label>Players<select value={newZone.players} onChange={(event) => setNewZone({ ...newZone, players: Number(event.target.value) })}>{sizes.map((size) => <option key={size} value={size}>{size}-player</option>)}</select></label>
-      <div className="tables-row-actions">
-        <button type="button" className="button button-secondary tables-small" onClick={() => setNewZone(null)} disabled={busy}>Cancel</button>
-        <button type="button" className="button button-primary tables-small" disabled={busy || !zoneFieldsReady(newZone)} onClick={async () => {
-          const made = addZone(newZone, zones.map((candidate) => candidate.zoneId), selected.no)
-          if (await run([made.write], `${newZone.name.trim()} added to ${phase}.`)) { setZoneId(made.zoneId); setNewZone(null) }
-        }}>Add the zone</button>
-      </div>
-    </div>}
-    {!zone && <p className="drops-empty">{phase} has no zone yet. Tick one in the Zones section above, or add a zone.</p>}
+    {!zone && <p className="drops-empty">{phase} has no zone yet. Tick one in the Zones section above. A Guild Leader adds a zone that is not in the list, in Settings under Zones.</p>}
     {zone && <>
-      <div className="drops-intro">
-        <p><strong>{zone.name}</strong>: {zone.players}-player {zone.kind}{zone.custom ? ', added by the guild.' : '. Built-in list with the guild\u2019s changes on top.'}
-          {zone.custom && <> <button type="button" className="button button-secondary tables-small" disabled={busy} onClick={() => setEditingZone(editingZone ? null : { name: zone.name, kind: zone.kind, players: zone.players })}>Rename or resize</button></>}
+      <div className="drops-intro zone-colored" style={zoneStyle(zoneColors.ofZone(zone.zoneId))}>
+        <p><strong className="zone-dot">{zone.name}</strong>: {zone.players}-player {zone.kind}{zone.custom ? ', added by the guild.' : '. Built-in list with the guild\u2019s changes on top.'}
         </p>
       </div>
-      {editingZone && <div className="tables-add">
-        <label>Zone name<input value={editingZone.name} maxLength={TABLE_NAME_MAX} onChange={(event) => setEditingZone({ ...editingZone, name: event.target.value })} /></label>
-        <label>Kind<select value={editingZone.kind} onChange={(event) => setEditingZone({ ...editingZone, kind: event.target.value as 'dungeon' | 'raid' })}><option value="dungeon">Dungeon</option><option value="raid">Raid</option></select></label>
-        <label>Players<select value={editingZone.players} onChange={(event) => setEditingZone({ ...editingZone, players: Number(event.target.value) })}>{sizes.map((size) => <option key={size} value={size}>{size}-player</option>)}</select></label>
-        <div className="tables-row-actions">
-          <button type="button" className="button button-secondary tables-small" onClick={() => setEditingZone(null)} disabled={busy}>Cancel</button>
-          <button type="button" className="button button-primary tables-small" disabled={busy || !zoneFieldsReady(editingZone) || !editZone(zone, editingZone)} onClick={async () => { const write = editZone(zone, editingZone); if (write && await run([write], `${zone.name} changed.`)) setEditingZone(null) }}>Save</button>
-        </div>
-      </div>}
       {zone.sources.map((source) => <Creature key={source.key} zone={zone} source={source} index={liveSources.findIndex((candidate) => candidate.key === source.key)} count={liveSources.length} phase={phase} busy={busy} run={run} />)}
       <Creature zone={zone} source={zone.zoneWide} index={0} count={1} phase={phase} busy={busy} run={run} />
       <div className="tables-add tables-new-creature">

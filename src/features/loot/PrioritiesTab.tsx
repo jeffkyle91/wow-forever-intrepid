@@ -7,6 +7,7 @@ import type { TabContext } from '../../shared/tabs/types'
 import { AwardModal } from './AwardModal'
 import { visiblePriorities } from './filters'
 import { useBossOrder } from './useDropTables'
+import { useZoneColors } from './useZoneColors'
 import { PriorityList } from './PriorityList'
 import { PriorityModal } from './PriorityModal'
 import { usePriorityFilters } from './priorityFilters'
@@ -19,6 +20,7 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const filters = usePriorityFilters()
   const { view, priorities, canEdit, canAward, lookup } = usePhaseView(ctx)
   const bossOrder = useBossOrder(ctx.data.lootTables, view.no)
+  const zoneColors = useZoneColors(ctx.data.lootTables, ctx.data.zoneColors)
   const slotOf = useSlotOf()
   const who = useMemo(() => makeWho(roster), [roster])
   // Look up every priority's item, not only the rows on screen, so that the slot filter can tell which ones match.
@@ -46,5 +48,5 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const notice = view.kind === 'past' ? `${view.name} is closed. This is a record of its lists: nothing here can be changed.`
     : view.kind === 'next' ? `${view.name} has not started. Only leaders see it. Prepare its lists here; nothing can be awarded until it starts.` : undefined
 
-  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup, who)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} who={who} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} phaseName={(no) => phaseName(ctx.data.settings, no)} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
+  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup, who)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} zoneColors={zoneColors} awards={awards} who={who} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} phaseName={(no) => phaseName(ctx.data.settings, no)} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
 }

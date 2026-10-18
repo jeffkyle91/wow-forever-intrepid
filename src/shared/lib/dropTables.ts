@@ -1,4 +1,4 @@
-import { checkLootCapture, type LootTableCapture } from '../../shared/game/lootTables'
+import { checkLootCapture, type LootTableCapture } from '../game/lootTables'
 
 // The drop lists (loot table captures) in data/loot/, bundled into the app. Item names, icons and tooltips are not in them: they are read live by
 // item id. A file that fails the shared validator is skipped and named in the console, so a bad capture cannot break the tab.

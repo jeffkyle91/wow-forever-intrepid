@@ -19,6 +19,14 @@
 :root[data-theme='dark'] .priority-dungeon { border-bottom-color: #33465c; color: #e8edf3; }
 :root[data-theme='dark'] .priority-dungeon span, :root[data-theme='dark'] .priority-boss span { color: #9fb0c3; }
 :root[data-theme='dark'] .priority-boss { color: #bfccd9; }
+
+/* A zone's color (--zone-color) on what belongs to the zone: a bar on its heading and its rows, and a tint on the encounter label. The text keeps its own color. */
+.priority-dungeon.zone-colored { padding-left: 9px; border-left: 5px solid var(--zone-color); border-bottom-color: color-mix(in srgb, var(--zone-color) 55%, #e3e8e0); }
+.priority-boss.zone-colored { padding-left: 9px; border-left: 3px solid color-mix(in srgb, var(--zone-color) 70%, transparent); }
+.priority-row.zone-colored { box-shadow: inset 4px 0 0 var(--zone-color); }
+.priority-row.zone-colored .encounter-label { padding: 1px 8px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--zone-color) 42%, transparent); color: #526158; background: color-mix(in srgb, var(--zone-color) 13%, transparent); }
+:root[data-theme='dark'] .priority-dungeon.zone-colored { border-bottom-color: color-mix(in srgb, var(--zone-color) 60%, #33465c); }
+:root[data-theme='dark'] .priority-row.zone-colored .encounter-label { color: #bfccd9; background: color-mix(in srgb, var(--zone-color) 20%, transparent); }
 .phase-notice { margin: 0 0 10px; padding: 9px 12px; border: 1px solid #d9e4ee; border-radius: 5px; color: #3e5368; background: #f2f6fa; font-size: 11px; line-height: 1.45; }
 :root[data-theme='dark'] .phase-notice { border-color: #3a4b61; color: #c8d5e3; background: #1c2838; }
 

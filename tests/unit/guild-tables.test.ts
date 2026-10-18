@@ -174,7 +174,7 @@ describe('creatures follow the phases', () => {
 })
 
 describe('zones follow the phases', () => {
-  const lair = zoneDoc(LAIR, 2, { removed: false }) // a zone the guild makes is in the lists of the phase it is made in
+  const lair = zoneDoc(LAIR, 2, { removed: false }) // a zone document that puts the zone in the lists of its phase
   const boss = source(LAIR, 'cb1', 2, { name: 'Lair Boss', order: 10, itemIds: [601, 602] })
 
   it('a zone the guild made does not exist before its first document, and is a zone of its own after it', () => {
@@ -426,7 +426,7 @@ describe('zones in a phase', () => {
     const { zoneId, write } = addZone({ name: ' Guild Lair ', kind: 'raid', players: 25 }, [], 3)
     assert.ok(zoneId >= CUSTOM_ZONE_MIN)
     assert.ok('create' in write)
-    if ('create' in write) assert.deepEqual(write.create, { type: 'zone', zoneId, phaseNo: 3, name: 'Guild Lair', kind: 'raid', players: 25, removed: false })
+    if ('create' in write) assert.deepEqual(write.create, { type: 'zone', zoneId, phaseNo: 3, name: 'Guild Lair', kind: 'raid', players: 25 })
     assert.equal(write.id, zoneDocId(zoneId, 3))
   })
 

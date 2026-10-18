@@ -477,10 +477,10 @@ export function moveCreature(zone: MergedZone, source: MergedSource, direction: 
   return writes
 }
 
-/** A zone the guild makes, in the lists of this phase. The first document of a zone says everything about it, that it is in the lists included. */
+/** A zone the guild makes (in Settings). The first document of a zone says everything about it: its name, kind and size. It is in no phase's lists until it is ticked in one. */
 export function addZone(fields: { name: string; kind: ZoneKind; players: number }, taken: Iterable<number>, phaseNo: number): { zoneId: number; write: TableWrite } {
   const zoneId = newZoneId(taken)
-  return { zoneId, write: { id: zoneDocId(zoneId, phaseNo), create: { type: 'zone', zoneId, phaseNo, name: fields.name.trim(), kind: fields.kind, players: fields.players, removed: false } } }
+  return { zoneId, write: { id: zoneDocId(zoneId, phaseNo), create: { type: 'zone', zoneId, phaseNo, name: fields.name.trim(), kind: fields.kind, players: fields.players } } }
 }
 
 // A write to the zone's document of this phase: an edit when it exists, otherwise a new one that says only what the change says.

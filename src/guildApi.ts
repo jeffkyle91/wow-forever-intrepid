@@ -22,6 +22,7 @@ import { httpsCallable } from 'firebase/functions'
 import type { GuildRole } from './security'
 import { nextPhaseRev } from './shared/game/phases'
 import type { TableWrite } from './shared/game/guildTables'
+import { isHexColor, isZoneKey } from './shared/game/zoneColors'
 import { awardCreateFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, tableAuditFields, type AuditEntry } from './shared/game/lootAudit'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
@@ -210,6 +211,28 @@ export function subscribeRaidZones(onData: (zones: RaidZoneRecord[]) => void, on
 // Guild Leaders only: the rules refuse everyone else, and refuse a document that is not exactly this shape.
 export async function saveGuildSettings(settings: GuildSettings) {
   await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'general'), settings)
+}
+
+// A Guild Leader sets the color of a zone (#rrggbb), or takes the choice away (null) so the zone has its default again. All the colors are one document, written
+// by merging, so a change touches only this zone and two leaders changing two zones do not undo each other. The rules refuse anyone else.
+export async function saveZoneColor(zone: number | string, color: string | null, who: { uid: string }) {
+  const key = String(zone)
+  if (!isZoneKey(key)) throw new Error('That is not a zone.')
+  if (color !== null && !isHexColor(color)) throw new Error('Choose a color like #278794.')
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'zoneColors'), { colors: { [key]: color === null ? deleteField() : color.toLowerCase() }, updatedBy: who.uid, updatedAt: serverTimestamp() }, { merge: true })
+}
+
+// Several zones' colors in one write (a zone made with its color, or every zone without a choice given its own color); every key has to be a zone and every color valid.
+export async function saveZoneColors(colors: Record<string, string>, who: { uid: string }) {
+  const entries = Object.entries(colors)
+  if (!entries.length) return
+  if (entries.some(([key, color]) => !isZoneKey(key) || !isHexColor(color))) throw new Error('Choose colors like #278794 for zones.')
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'zoneColors'), { colors: Object.fromEntries(entries.map(([key, color]) => [key, color.toLowerCase()])), updatedBy: who.uid, updatedAt: serverTimestamp() }, { merge: true })
+}
+
+// Every zone back to its default color.
+export async function clearZoneColors(who: { uid: string }) {
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'settings', 'zoneColors'), { colors: {}, updatedBy: who.uid, updatedAt: serverTimestamp() })
 }
 
 // Starting a phase or reopening one saves the settings together with its Log entry (`phase_settings_{n}`, n counting every start and reopen),

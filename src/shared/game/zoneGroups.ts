@@ -1,4 +1,4 @@
-// How the zone checklist of the drop list editor is laid out: dungeons first, then raids by size (10-man, 20-man, 40-man, and any other size a zone the
+// How a list of zones is laid out (the drop list editor, and the Zones page of Settings): dungeons first, then raids by size (10-man, 20-man, 40-man, and any other size a zone the
 // guild made has). A kind of zone nobody has is not there, so a guild with no raids sees no raid groups. Pure functions with no imports, so Node runs their
 // tests directly (tests/unit/zone-groups.test.ts).
 export type Groupable = { kind: string; players: number }

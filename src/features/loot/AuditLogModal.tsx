@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { subscribeAuditLog } from '../../guildApi'
+import { makeWho } from '../../shared/game/candidates'
 import { TABLE_PHASE_MAX, firstPhases } from '../../shared/game/guildTables'
 import { legacyAwardEntry, type AuditEntry } from '../../shared/game/lootAudit'
 import { currentPhaseNo, phaseName } from '../../shared/game/phases'
@@ -56,8 +57,9 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const wanted = (type: string) => (show === 'all' ? type === 'priority' || type === 'award' || type === 'phase' || type === 'table' : show === 'priority' ? type === 'priority' || type === 'phase' : show === 'table' ? type === 'table' : type === 'award')
   const earlier = live.data.awards.filter((award) => award.rev === undefined).map(legacyAwardEntry)
   const text = query.trim().toLowerCase()
+  const who = useMemo(() => makeWho(live.data.roster), [live.data.roster])
   const priorities = new Map([...live.data.allPriorities, ...live.data.hiddenPriorities].map((priority) => [priority.id, priority]))
-  const everything = [...(entries ?? []), ...earlier].filter((entry) => wanted(entry.targetType)).map((entry) => ({ entry, facts: logFacts(entry, (id) => priorities.get(id)) }))
+  const everything = [...(entries ?? []), ...earlier].filter((entry) => wanted(entry.targetType)).map((entry) => ({ entry, facts: logFacts(entry, (id) => priorities.get(id), who) }))
   // The dropdowns offer what the entries are about; looking the items up is what lets the slot filter tell which ones match.
   const itemKey = [...new Set(everything.flatMap(({ facts }) => (facts.itemId ? [facts.itemId] : [])))].join(',')
   useEffect(() => { if (itemKey) itemKey.split(',').forEach((id) => requestItem(Number(id))) }, [itemKey])
@@ -83,7 +85,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
     <div className="audit-controls">
       <select className="loot-filter-select" aria-label="Filter by player" value={filter.player} onChange={(event) => setFilter({ ...filter, player: event.target.value })}>
         <option value="">All players</option>
-        {players.map((player) => <option key={player} value={player}>{player}</option>)}
+        {players.map((player) => <option key={player.key} value={player.key}>{player.name}</option>)}
       </select>
       <select className="loot-filter-select" aria-label="Filter by item slot" value={filter.slot} onChange={(event) => setFilter({ ...filter, slot: event.target.value })}>
         <option value="">All slots</option>

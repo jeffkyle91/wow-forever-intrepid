@@ -8,3 +8,6 @@
 .loot-filter-clear:hover { text-decoration: underline; }
 :root[data-theme='dark'] .loot-filter-select { border-color: #3a4b61; color: #d3deea; background: #182536; }
 :root[data-theme='dark'] .loot-filter-clear { color: #8fc2e6; }
+
+/* With no panel heading (Loot priorities) the filters start from the left. */
+.panel-toolbar-bare .loot-filters, .panel-toolbar-bare .toolbar-controls:has(.loot-filters) { justify-content: flex-start; }

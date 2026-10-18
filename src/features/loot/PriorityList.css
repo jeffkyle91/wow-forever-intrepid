@@ -21,3 +21,26 @@
 :root[data-theme='dark'] .priority-boss { color: #bfccd9; }
 .phase-notice { margin: 0 0 10px; padding: 9px 12px; border: 1px solid #d9e4ee; border-radius: 5px; color: #3e5368; background: #f2f6fa; font-size: 11px; line-height: 1.45; }
 :root[data-theme='dark'] .phase-notice { border-color: #3a4b61; color: #c8d5e3; background: #1c2838; }
+
+/* A line of a priority that names nobody: an idea such as "any warlock who didn't get X". It reads as a note, and crossed off once it is finished. */
+.priority-ranking li.listing-note .ranked-name { font-style: italic; color: #6a776e; }
+.priority-ranking li.listing-note { padding-left: 7px; border-left: 2px dashed #cfd8d0; border-radius: 3px; }
+.priority-ranking li.note-done .ranked-name { text-decoration: line-through; color: #98a39a; }
+.priority-ranking .not-on-roster { color: #9a8450; font-size: 8px; font-weight: 700; letter-spacing: .3px; }
+:root[data-theme='dark'] .priority-ranking li.listing-note .ranked-name { color: #b3c1cf; }
+:root[data-theme='dark'] .priority-ranking li.listing-note { border-left-color: #3b4f66; }
+:root[data-theme='dark'] .priority-ranking li.note-done .ranked-name { color: #7b8a9a; }
+:root[data-theme='dark'] .priority-ranking .not-on-roster { color: #d9bf7a; }
+
+/* The lock on a priority's order, next to COUNCIL ORDER: the arrows are there only while it is unlocked. */
+.ranking-heading .order-lock { display: inline-grid; width: 20px; height: 20px; margin-left: 6px; place-items: center; vertical-align: middle; border: 1px solid transparent; border-radius: 4px; color: #849087; background: transparent; cursor: pointer; }
+.ranking-heading .order-lock:hover { color: #315f9f; border-color: #d6e4ef; background: #f1f7fb; }
+.ranking-heading .order-lock[aria-pressed='true'] { color: #8a5a12; border-color: #ecd9ae; background: #fbf0dc; }
+:root[data-theme='dark'] .ranking-heading .order-lock { color: #9fb0c1; }
+:root[data-theme='dark'] .ranking-heading .order-lock:hover { color: #b9dcf5; border-color: #3a4b61; background: #2a4058; }
+:root[data-theme='dark'] .ranking-heading .order-lock[aria-pressed='true'] { color: #f0c987; border-color: #6d5a2a; background: #4a3a1c; }
+
+/* Where a priority came from, when it was carried over. */
+.carried-tag { display: block; margin-top: 3px; color: #7a8a7f; font-size: 9px; font-weight: 700; letter-spacing: .02em; }
+:root[data-theme='dark'] .carried-tag { color: #94a5b6; }
+

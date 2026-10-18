@@ -1,0 +1,12 @@
+/* The Save and Cancel buttons stay in view at the bottom of the dialog, however long the candidate list and the roster picker make it. The dialog's own
+   padding is 21px (17px on a phone), so the bar reaches out to its edge. */
+.modal-form .prio-modal-actions { position: sticky; bottom: -21px; z-index: 2; margin: 0 -21px -21px; padding: 10px 21px 14px; border-top: 1px solid #ebefe9; background: #fff; }
+:root[data-theme='dark'] .modal-form .prio-modal-actions { border-top-color: #314157; background: #1c2838; }
+@media (max-width: 520px) { .modal-form .prio-modal-actions { bottom: -17px; margin: 0 -17px -17px; padding: 10px 17px 12px; } }
+
+/* Asked when the dialog is closed with changes that are not saved: it stays at the top of what is on screen. */
+.modal-form .unsaved-prompt { position: sticky; top: -2px; z-index: 3; display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #e3c78a; border-radius: 6px; color: #5b4a1c; background: #fdf3da; box-shadow: 0 4px 14px #17263b22; }
+.modal-form .unsaved-prompt strong { font-size: 12px; }
+.modal-form .unsaved-prompt span { font-size: 10px; }
+.modal-form .unsaved-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+:root[data-theme='dark'] .modal-form .unsaved-prompt { border-color: #7a6532; color: #f0dfb4; background: #3a3118; }

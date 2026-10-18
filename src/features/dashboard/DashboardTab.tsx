@@ -1,6 +1,8 @@
 import { Award, CalendarDays, CalendarOff, CornerDownRight, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
+import { priorityLookup } from '../../shared/game/completion'
+import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
 import { group40, groups20 } from '../../shared/game/teams'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
@@ -22,7 +24,7 @@ function Panel({ icon, title, action, children }: { icon: ReactNode; title: stri
 }
 
 export function DashboardTab({ ctx }: { ctx: TabContext }) {
-  const { roster, assignments, priorities, awards, raids, afkEntries, settings } = ctx.data
+  const { roster, assignments, allPriorities, hiddenPriorities, awards, raids, afkEntries, settings } = ctx.data
   const [today] = useState(() => localDateKey(new Date()))
   const { linked, characters } = findMyCharacters(roster, ctx.identity.uid)
 
@@ -41,8 +43,11 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   }
 
   const raidList = upcomingRaids(raids, afkEntries, ctx.identity.uid, today)
-  const prios = myPriorities(priorities, characters)
+  // Every phase up to the current one (the next phase is for leaders to prepare), the latest first; an earlier phase's rows say which phase it is.
+  const currentNo = currentPhaseNo(settings)
+  const prios = myPriorities(allPriorities.filter((priority) => phaseNoOf(priority) <= currentNo), characters, awards, priorityLookup([...allPriorities, ...hiddenPriorities]))
   const loot = myAwards(awards, characters)
+  const phaseTag = (no: number) => (no === currentNo ? '' : ` \u00b7 ${phaseName(settings, no)}`)
   const absences = myAbsences(afkEntries, ctx.identity.uid, today)
   const teamName = (team: TenManTeam) => settings.teamNames[team]
   const groupLabel = (team: TenManTeam) => {
@@ -93,21 +98,21 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
 
     <Panel icon={<CalendarOff size={15} />} title="Upcoming absences" action={<button className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <AbsenceModal today={today} close={close} live={live} />)}><Plus size={14} /> Add absence</button>}>
       {absences.length ? <ul className="dash-list">{absences.map((entry) => <li key={entry.id}>
-        <span><strong>{entry.startDate === entry.endDate ? dateLabel(entry.startDate) : `${dateLabel(entry.startDate)} – ${dateLabel(entry.endDate)}`}</strong></span>
+        <span><strong>{entry.startDate === entry.endDate ? dateLabel(entry.startDate) : `${dateLabel(entry.startDate)} \u2013 ${dateLabel(entry.endDate)}`}</strong></span>
         <button className="dash-icon-button" aria-label="Remove absence" title="Remove absence" disabled={ctx.feedback.busy} onClick={() => removeAbsence(entry.id)}><Trash2 size={14} /></button>
       </li>)}</ul> : <p className="dash-muted">No upcoming absences.</p>}
     </Panel>
 
     <Panel icon={<Gem size={15} />} title="My loot priorities">
-      {prios.length ? <ul className="dash-list">{prios.map(({ priority, position, character }) => <li key={`${priority.id}-${character.id}`}>
-        <span><strong>{priority.item}</strong><small>{priority.encounter || 'No encounter'} · {character.name}</small></span>
-        <span className="dash-tag">#{position}</span>
+      {prios.length ? <ul className="dash-list">{prios.map(({ priority, phaseNo, position, character, received }) => <li key={`${priority.id}-${character.id}`}>
+        <span><strong>{priority.item}</strong><small>{priority.encounter || 'No encounter'} · {character.name}{phaseTag(phaseNo)}</small></span>
+        <span className="dash-tag">#{position}{received ? ' \u00b7 received' : ''}</span>
       </li>)}</ul> : <p className="dash-muted">None of your characters are on a loot priority list yet.</p>}
     </Panel>
 
     <Panel icon={<Award size={15} />} title="My awarded loot">
       {loot.length ? <ul className="dash-list">{loot.slice(0, 5).map((award) => <li key={award.id}>
-        <span><strong>{award.item}</strong><small>{award.encounter || 'No encounter'} · {award.awardedAt}</small></span>
+        <span><strong>{award.item}</strong><small>{award.encounter || 'No encounter'} · {award.awardedAt}{phaseTag(phaseNoOf(award))}</small></span>
         <span className="dash-tag">{award.recipient}</span>
       </li>)}</ul> : <p className="dash-muted">No loot has been awarded to your characters yet.</p>}
     </Panel>

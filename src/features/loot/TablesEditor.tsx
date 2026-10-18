@@ -166,7 +166,7 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
 
   return <div className="tables-editor">
     <div className="drops-controls">
-      {phases.length > 1 && <select className="drops-zone-select drops-phase-select" aria-label="Phase to edit" value={selected.no} onChange={(event) => { onPhaseNo(Number(event.target.value)); setEditingZone(null); setNewZone(null); setMessage(null) }} disabled={busy}>
+      {phases.length > 1 && <select className="drops-zone-select drops-phase-select phase-select" aria-label="Phase to edit" value={selected.no} onChange={(event) => { onPhaseNo(Number(event.target.value)); setEditingZone(null); setNewZone(null); setMessage(null) }} disabled={busy}>
         {phases.map((option) => <option key={option.no} value={option.no}>{option.name} ({option.kind})</option>)}
       </select>}
       <select className="drops-zone-select" aria-label="Zone to edit" value={zone?.zoneId ?? ''} onChange={(event) => { setZoneId(Number(event.target.value)); setEditingZone(null) }}>

@@ -20,7 +20,7 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const filters = usePriorityFilters()
   const { view, priorities, canEdit, canAward, lookup } = usePhaseView(ctx)
   const bossOrder = useBossOrder(ctx.data.lootTables, view.no)
-  const zoneColors = useZoneColors(ctx.data.lootTables, ctx.data.zoneColors)
+  const zoneColors = useZoneColors(ctx.data.lootTables, ctx.data.zoneColors, ctx.data.zoneArt)
   const slotOf = useSlotOf()
   const who = useMemo(() => makeWho(roster), [roster])
   // Look up every priority's item, not only the rows on screen, so that the slot filter can tell which ones match.

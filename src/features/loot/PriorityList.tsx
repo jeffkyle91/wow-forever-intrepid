@@ -11,6 +11,7 @@ import { carriedLabel } from './carried'
 import { groupPriorities, type DungeonGroup } from './groupPriorities'
 import { toggleOrderLock, useUnlockedOrders } from './orderLock'
 import { zoneStyle, type ZoneColors } from './useZoneColors'
+import '../../shared/ui/zoneArt.css'
 import './PriorityList.css'
 
 // canEdit: the list can be changed (Add, Edit, reorder). canAward: loot can be awarded from it. Neither holds in a closed phase; `notice` says why.
@@ -43,8 +44,9 @@ export function PriorityList({ priorities, awards, lookup, who, canEdit, canAwar
   let position = 0
   // The color of a dungeon's heading is that of its priorities (by their zone number, so a renamed zone keeps its color), else of the zone with that name.
   const headingColor = (group: DungeonGroup<LootPriority>) => group.bosses.flatMap((boss) => boss.priorities).map((priority) => zoneColors.ofPriority(priority)).find(Boolean) ?? zoneColors.ofName(group.dungeon)
+  const headingArt = (group: DungeonGroup<LootPriority>) => group.bosses.flatMap((boss) => boss.priorities).map((priority) => zoneColors.artOfPriority(priority)).find(Boolean) ?? zoneColors.artOfName(group.dungeon)
   const groupedRows = () => groupPriorities(priorities, bossOrder).flatMap((group) => [
-    <div key={`d-${group.key}`} className={headingColor(group) ? 'priority-dungeon zone-colored' : 'priority-dungeon'} style={zoneStyle(headingColor(group))} role="heading" aria-level={3}>{group.dungeon || 'Other priorities'}<span>{group.count} {group.count === 1 ? 'item' : 'items'}</span></div>,
+    <div key={`d-${group.key}`} className={['priority-dungeon', headingColor(group) ? 'zone-colored' : '', headingArt(group) ? 'zone-arted' : ''].filter(Boolean).join(' ')} style={zoneStyle(headingColor(group), headingArt(group))} role="heading" aria-level={3}>{group.dungeon || 'Other priorities'}<span>{group.count} {group.count === 1 ? 'item' : 'items'}</span></div>,
     ...group.bosses.flatMap((boss) => [
       <div key={`b-${boss.key}`} className={headingColor(group) ? 'priority-boss zone-colored' : 'priority-boss'} style={zoneStyle(headingColor(group))} role="heading" aria-level={4}>{boss.boss || 'No encounter noted'}<span>{boss.priorities.length}</span></div>,
       ...boss.priorities.map((priority) => row(priority, position++)),

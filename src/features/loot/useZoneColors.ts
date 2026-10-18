@@ -1,5 +1,6 @@
 import { useMemo, type CSSProperties } from 'react'
 import { TABLE_PHASE_MAX, type LootTableDoc } from '../../shared/game/guildTables'
+import { imageOfZone, type ZoneArt } from '../../shared/game/zoneArt'
 import { zoneColor } from '../../shared/game/zoneColors'
 import { splitEncounter } from './groupPriorities'
 import { useMergedTables } from './useDropTables'
@@ -15,18 +16,30 @@ export type ZoneColors = {
   ofName: (name: string) => string | undefined
   /** The color of the zone a priority is for: by its zone number, else by the dungeon its encounter names. Nothing for one that names no zone. */
   ofPriority: (priority: { zoneId?: number; encounter: string }) => string | undefined
+  /** The address of the picture a zone uses (see shared/game/zoneArt.ts), by its number; nothing when it has none. */
+  artOfZone: (zoneId: number) => string | undefined
+  /** The picture of the zone with this name, in any phase. */
+  artOfName: (name: string) => string | undefined
+  /** The picture of the zone a priority is for, found the way its color is. */
+  artOfPriority: (priority: { zoneId?: number; encounter: string }) => string | undefined
 }
 
-export function useZoneColors(lootTables: LootTableDoc[], overrides?: Readonly<Record<string, unknown>>): ZoneColors {
+export function useZoneColors(lootTables: LootTableDoc[], overrides?: Readonly<Record<string, unknown>>, zoneArt?: ZoneArt): ZoneColors {
   const zones = useMergedTables(lootTables, TABLE_PHASE_MAX, true)
   return useMemo(() => {
     const byName = new Map<string, number>()
     for (const zone of zones) if (!byName.has(nameKey(zone.name))) byName.set(nameKey(zone.name), zone.zoneId)
     const ofZone = (zoneId: number) => zoneColor(zoneId, overrides)
     const ofName = (name: string) => { const id = byName.get(nameKey(name)); return id === undefined ? undefined : ofZone(id) }
-    return { ofZone, ofName, ofPriority: (priority) => (priority.zoneId !== undefined ? ofZone(priority.zoneId) : ofName(splitEncounter(priority.encounter).dungeon)) }
-  }, [zones, overrides])
+    const artOfZone = (zoneId: number) => (zoneArt ? imageOfZone(zoneArt, zoneId)?.fullUrl : undefined)
+    const artOfName = (name: string) => { const id = byName.get(nameKey(name)); return id === undefined ? undefined : artOfZone(id) }
+    return {
+      ofZone, ofName, ofPriority: (priority) => (priority.zoneId !== undefined ? ofZone(priority.zoneId) : ofName(splitEncounter(priority.encounter).dungeon)),
+      artOfZone, artOfName, artOfPriority: (priority) => (priority.zoneId !== undefined ? artOfZone(priority.zoneId) : artOfName(splitEncounter(priority.encounter).dungeon)),
+    }
+  }, [zones, overrides, zoneArt])
 }
 
-/** The inline style that hands a color to the stylesheet (nothing when there is none). */
-export const zoneStyle = (color: string | undefined): CSSProperties | undefined => (color ? ({ '--zone-color': color } as CSSProperties) : undefined)
+/** The inline style that hands a zone's color and picture to the stylesheet (nothing when there is neither). The picture's address was checked when it was read, so it cannot break out of the url(). */
+export const zoneStyle = (color: string | undefined, art?: string): CSSProperties | undefined =>
+  color || art ? ({ ...(color ? { '--zone-color': color } : {}), ...(art ? { '--zone-art': `url("${art}")` } : {}) } as CSSProperties) : undefined

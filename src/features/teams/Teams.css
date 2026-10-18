@@ -13,8 +13,19 @@
   padding-left: 18px;
 }
 
+.teams-conflict-description {
+  margin: 16px 0;
+  color: #526158;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 :root[data-theme='dark'] .teams-conflict-warning {
   border-color: #b78338;
   color: #f0cf96;
   background: #342b1d;
+}
+
+:root[data-theme='dark'] .teams-conflict-description {
+  color: #b9c5d2;
 }

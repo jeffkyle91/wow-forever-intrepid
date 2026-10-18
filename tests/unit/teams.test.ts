@@ -67,17 +67,19 @@ describe('raid team assignment workflow', () => {
     const assignments = { morrow: 'blue' }
     const writes: [string, string][] = []
     const errors: string[] = []
-    await assignTeamMember({ playerId: 'vex', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, setMutationError: (message) => errors.push(message) })
+    const conflicts: { characterName: string; conflictingCharacterName: string; teamName: string }[] = []
+    await assignTeamMember({ playerId: 'vex', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, onConflict: (conflict) => conflicts.push(conflict), setMutationError: (message) => errors.push(message) })
     assert.deepEqual(writes, [])
     assert.deepEqual(assignments, { morrow: 'blue' })
-    assert.match(errors.at(-1) ?? '', /Vex.*Morrow.*Blue.*same player/)
+    assert.deepEqual(conflicts, [{ characterName: 'Vex', conflictingCharacterName: 'Morrow', teamName: 'Blue' }])
+    assert.deepEqual(errors, [])
   })
 
   it('rejects a move without changing its original assignment', async () => {
     const roster = [player('morrow', 'Morrow'), player('vex', 'Vex', 'morrow')]
     const assignments = { morrow: 'blue', vex: 'red' }
     const writes: [string, string][] = []
-    await assignTeamMember({ playerId: 'vex', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, setMutationError: () => {} })
+    await assignTeamMember({ playerId: 'vex', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, onConflict: () => {}, setMutationError: () => {} })
     assert.deepEqual(writes, [])
     assert.equal(assignments.vex, 'red')
   })
@@ -87,7 +89,7 @@ describe('raid team assignment workflow', () => {
     const assignments = { morrow: 'blue', vex: 'blue' }
     const writes: [string, string][] = []
     const errors: string[] = []
-    await assignTeamMember({ playerId: 'tallow', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, setMutationError: (message) => errors.push(message) })
+    await assignTeamMember({ playerId: 'tallow', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, onConflict: () => {}, setMutationError: (message) => errors.push(message) })
     assert.deepEqual(writes, [['tallow', 'blue']])
     assert.deepEqual(errors, [''])
   })
@@ -96,7 +98,7 @@ describe('raid team assignment workflow', () => {
     const roster = [player('morrow', 'Morrow')]
     const assignments = { morrow: 'blue' }
     let writeCount = 0
-    await assignTeamMember({ playerId: 'morrow', team: 'blue', roster, assignments, teams: teamOptions, persist: async () => { writeCount += 1 }, setMutationError: () => {} })
+    await assignTeamMember({ playerId: 'morrow', team: 'blue', roster, assignments, teams: teamOptions, persist: async () => { writeCount += 1 }, onConflict: () => {}, setMutationError: () => {} })
     assert.equal(writeCount, 0)
     assert.deepEqual(assignments, { morrow: 'blue' })
   })
@@ -105,7 +107,7 @@ describe('raid team assignment workflow', () => {
     const roster = [player('morrow', 'Morrow'), player('vex', 'Vex', 'morrow'), player('tallow', 'Tallow')]
     const assignments = { morrow: 'blue', vex: 'blue', tallow: 'red' }
     const writes: [string, string][] = []
-    await assignTeamMember({ playerId: 'tallow', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, setMutationError: () => {} })
+    await assignTeamMember({ playerId: 'tallow', team: 'blue', roster, assignments, teams: teamOptions, persist: async (id, team) => { writes.push([id, team]) }, onConflict: () => {}, setMutationError: () => {} })
     assert.deepEqual(writes, [['tallow', 'blue']])
     assert.deepEqual(assignments, { morrow: 'blue', vex: 'blue', tallow: 'red' })
     const afterMove = { ...assignments, tallow: 'blue' as const }
@@ -117,7 +119,7 @@ describe('raid team assignment workflow', () => {
     const assignments = Object.fromEntries(roster.slice(0, 10).map((entry) => [entry.id, 'blue']))
     let writeCount = 0
     const errors: string[] = []
-    await assignTeamMember({ playerId: 'player-10', team: 'blue', roster, assignments, teams: teamOptions, persist: async () => { writeCount += 1 }, setMutationError: (message) => errors.push(message) })
+    await assignTeamMember({ playerId: 'player-10', team: 'blue', roster, assignments, teams: teamOptions, persist: async () => { writeCount += 1 }, onConflict: () => {}, setMutationError: (message) => errors.push(message) })
     assert.equal(writeCount, 0)
     assert.match(errors.at(-1) ?? '', /Blue is full/)
   })
@@ -125,7 +127,7 @@ describe('raid team assignment workflow', () => {
   it('does not persist a character that is missing from the roster', async () => {
     let writeCount = 0
     const errors: string[] = []
-    await assignTeamMember({ playerId: 'removed-character', team: 'blue', roster: [], assignments: {}, teams: teamOptions, persist: async () => { writeCount += 1 }, setMutationError: (message) => errors.push(message) })
+    await assignTeamMember({ playerId: 'removed-character', team: 'blue', roster: [], assignments: {}, teams: teamOptions, persist: async () => { writeCount += 1 }, onConflict: () => {}, setMutationError: (message) => errors.push(message) })
     assert.equal(writeCount, 0)
     assert.match(errors.at(-1) ?? '', /no longer in the guild roster/)
   })

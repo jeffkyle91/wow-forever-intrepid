@@ -2,6 +2,7 @@ import { setTeamAssignment, type TenManTeam } from '../../guildApi'
 import { namedTeams } from '../../shared/game/teams'
 import type { TabContext } from '../../shared/tabs/types'
 import { assignTeamMember, removeTeamMember } from './assignment'
+import { TeamConflictModal } from './TeamConflictModal'
 import { RaidTeamsView } from './RaidTeamsView'
 import './Teams.css'
 
@@ -11,7 +12,16 @@ export function TeamsTab({ ctx }: { ctx: TabContext }) {
   const teams = namedTeams(ctx.data.settings.teamNames)
 
   async function assignMember(playerId: string, team: TenManTeam) {
-    await assignTeamMember({ playerId, team, roster, assignments, teams, persist: setTeamAssignment, setMutationError })
+    await assignTeamMember({
+      playerId,
+      team,
+      roster,
+      assignments,
+      teams,
+      persist: setTeamAssignment,
+      onConflict: (conflict) => ctx.openModal(({ close }) => <TeamConflictModal conflict={conflict} close={close} />),
+      setMutationError,
+    })
   }
 
   async function removeMemberFromTeams(playerId: string) {

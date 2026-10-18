@@ -87,7 +87,11 @@ service cloud.firestore {
         && request.resource.data.councilNoteSnapshot == get(priorityPath).data.councilNote
         && request.resource.data.item == get(priorityPath).data.item
         && request.resource.data.encounter == get(priorityPath).data.encounter
-        && request.resource.data.recipient in get(priorityPath).data.rankedPlayers
+        && (request.resource.data.recipient in get(priorityPath).data.rankedPlayers
+          || ('recipientId' in request.resource.data
+            && (request.resource.data.recipientId in get(priorityPath).data.get('rankedIds', []) || '' in get(priorityPath).data.get('rankedIds', []))))
+        && ((!('prioritySnapshotIds' in request.resource.data) && !('recipientId' in request.resource.data))
+          || request.resource.data.get('prioritySnapshotIds', []) == get(priorityPath).data.get('rankedIds', []))
         && !('hidden' in get(priorityPath).data)
         && validPhaseNo(request.resource.data.phaseNo)
         && request.resource.data.phaseNo == get(priorityPath).data.get('phaseNo', 0);
@@ -120,11 +124,23 @@ service cloud.firestore {
       return value is int && value > 0 && value <= 100000000;
     }
 
+    // The roster ids behind a priority's candidates (LOOT-003), one per line of `rankedPlayers` and in the same order. A line is a roster character
+    // (its id), an open note ('': an idea such as "any warlock who didn't get X", not a person) or a finished note ('!'). The names stay as the
+    // snapshot of what each line said when it was written. The rules check the shape only: a list as long as the names. They do not check the
+    // elements (an id is only compared, never used as a path) or that each id is on the roster, which would need a lookup per candidate when a
+    // request may make 20. An award is checked against the roster instead (validPriorityAward).
+    function validRankedIds(after) {
+      return after.rankedIds is list
+        && after.rankedIds.size() <= 60
+        && after.rankedIds.size() == after.rankedPlayers.size();
+    }
+
     function validPriorityFields(before, after) {
       return (unchanged(before, after, 'item') || (after.item is string && after.item.size() >= 1 && after.item.size() <= 120))
         && (unchanged(before, after, 'encounter') || (after.encounter is string && after.encounter.size() <= 120))
         && (unchanged(before, after, 'rankedPlayers') || (after.rankedPlayers is list && after.rankedPlayers.size() <= 60))
         && (unchanged(before, after, 'councilNote') || (after.councilNote is string && after.councilNote.size() <= 500))
+        && (!('rankedIds' in after) || (unchanged(before, after, 'rankedIds') && unchanged(before, after, 'rankedPlayers')) || validRankedIds(after))
         && (!('itemId' in after) || validGameId(after.itemId))
         && (!('zoneId' in after) || validGameId(after.zoneId))
         && (!('npcId' in after) || validGameId(after.npcId))
@@ -137,7 +153,7 @@ service cloud.firestore {
     function validPriorityCreate(guildId, priorityId) {
       let data = request.resource.data;
       let current = currentPhaseNo(guildId);
-      return data.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'rev', 'updatedBy', 'updatedAt'])
+      return data.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'rankedIds', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'rev', 'updatedBy', 'updatedAt'])
         && data.keys().hasAll(['item', 'encounter', 'rankedPlayers', 'councilNote', 'phaseNo', 'rev', 'updatedBy', 'updatedAt'])
         && data.rev is int && data.rev == 1
         && data.updatedBy == request.auth.uid
@@ -153,7 +169,7 @@ service cloud.firestore {
       let current = currentPhaseNo(guildId);
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'priority', priorityId, rev);
-      return after.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden', 'rev', 'updatedBy', 'updatedAt'])
+      return after.keys().hasOnly(['item', 'encounter', 'rankedPlayers', 'rankedIds', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden', 'rev', 'updatedBy', 'updatedAt'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -265,14 +281,20 @@ service cloud.firestore {
 
     // An award made from a priority. It copies the priority as it stands (hasPrioritySnapshot), is recorded in the current phase, carries
     // the stamps the rules set (rev 1, createdBy, createdAt), and needs its audit entry (type 'award', revision 1) in the same batch.
+    // With roster ids (LOOT-003) it also carries `recipientId`, a roster character that has the recipient's name now (a rename since the priority was
+    // written is fine), and `prioritySnapshotIds`, the priority's ids as they stand (like the names, as the council saw them: get() reads the priority
+    // as it was before the batch, so an award and the priority edit that adds the winner as a line can travel together). The recipient has to be on
+    // the list, by name or by id, or the priority has an open note ('' in its ids), which is how someone the list does not name receives an item.
     function validPriorityAward(guildId, awardId) {
       let data = request.resource.data;
-      return data.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
+      return data.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'prioritySnapshotIds', 'councilNoteSnapshot', 'awardNote', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
         && data.keys().hasAll(['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo', 'rev', 'createdBy', 'createdAt'])
         && data.rev is int && data.rev == 1
         && data.createdBy == request.auth.uid
         && data.createdAt == request.time
         && data.recipient is string && data.recipient.size() >= 1 && data.recipient.size() <= 60
+        && (!('recipientId' in data) || (data.recipientId is string && data.recipientId.matches('^[A-Za-z0-9_-]{1,100}$')
+          && get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(data.recipientId)).data.name == data.recipient))
         && validIsoDate(data.awardedAt)
         && data.awardNote is string && data.awardNote.size() <= 500
         && data.phaseNo == currentPhaseNo(guildId)
@@ -323,7 +345,7 @@ service cloud.firestore {
       let after = request.resource.data;
       let rev = before.get('rev', 0) + 1;
       let entryPath = auditEntryPath(guildId, 'award', awardId, rev);
-      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'decision', 'phaseNo', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
+      return after.keys().hasOnly(['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'prioritySnapshotIds', 'councilNoteSnapshot', 'awardNote', 'decision', 'phaseNo', 'rev', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'status', 'removedReason'])
         && before.get('rev', 0) is int
         && after.rev is int
         && after.rev == rev
@@ -332,6 +354,7 @@ service cloud.firestore {
         && getAfter(entryPath).data.targetId == awardId
         && unchanged(before, after, 'priorityId')
         && unchanged(before, after, 'prioritySnapshot')
+        && unchanged(before, after, 'prioritySnapshotIds')
         && unchanged(before, after, 'councilNoteSnapshot')
         && unchanged(before, after, 'createdBy')
         && unchanged(before, after, 'createdAt')
@@ -341,6 +364,8 @@ service cloud.firestore {
         && after.encounter is string && after.encounter.size() <= 120
         && after.recipient is string && after.recipient.size() >= 1 && after.recipient.size() <= 60
         && (after.get('recipientId', null) == null || (after.recipientId is string && after.recipientId.size() <= 100))
+        && (!('recipientId' in after) || (unchanged(before, after, 'recipientId') && unchanged(before, after, 'recipient'))
+          || (after.recipientId.matches('^[A-Za-z0-9_-]{1,100}$') && get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(after.recipientId)).data.name == after.recipient))
         && validIsoDate(after.awardedAt)
         && after.awardNote is string && after.awardNote.size() <= 500
         && (!('decision' in after) || after.decision in ['roll', 'council', 'other'])
@@ -452,6 +477,49 @@ service cloud.firestore {
         && (!('removed' in changed) || (before.get('removed', null) == oldDoc.get('removed', null) && after.get('removed', null) == newDoc.get('removed', null)));
     }
 
+    // The award fields of an entry, written out like the table fields (the entry's lists looked up once) so that the widest entry, a new award from a priority
+    // with its recipient id and snapshot ids, stays inside the 1000 expressions a request may use. A function call per field (auditFieldLogged) went over
+    // it. Headroom, measured by padding auditDescribesChange with `&& (true == true)`: the widest creature, award and priority entries still pass with 16
+    // of those (about 60 expressions) and fail with 20, so a new field or check here must re-run the widest tests in roster-ids.test.ts, loot-tables.test.ts
+    // and batch-budget.test.ts.
+    function awardFieldsLogged(data, oldDoc, newDoc) {
+      let changed = data.changed;
+      let before = data.get('before', {});
+      let after = data.get('after', {});
+      return (!('item' in changed) || (before.get('item', null) == oldDoc.get('item', null) && after.get('item', null) == newDoc.get('item', null)))
+        && (!('encounter' in changed) || (before.get('encounter', null) == oldDoc.get('encounter', null) && after.get('encounter', null) == newDoc.get('encounter', null)))
+        && (!('recipient' in changed) || (before.get('recipient', null) == oldDoc.get('recipient', null) && after.get('recipient', null) == newDoc.get('recipient', null)))
+        && (!('recipientId' in changed) || (before.get('recipientId', null) == oldDoc.get('recipientId', null) && after.get('recipientId', null) == newDoc.get('recipientId', null)))
+        && (!('awardedAt' in changed) || (before.get('awardedAt', null) == oldDoc.get('awardedAt', null) && after.get('awardedAt', null) == newDoc.get('awardedAt', null)))
+        && (!('awardNote' in changed) || (before.get('awardNote', null) == oldDoc.get('awardNote', null) && after.get('awardNote', null) == newDoc.get('awardNote', null)))
+        && (!('decision' in changed) || (before.get('decision', null) == oldDoc.get('decision', null) && after.get('decision', null) == newDoc.get('decision', null)))
+        && (!('phaseNo' in changed) || (before.get('phaseNo', null) == oldDoc.get('phaseNo', null) && after.get('phaseNo', null) == newDoc.get('phaseNo', null)))
+        && (!('status' in changed) || (before.get('status', null) == oldDoc.get('status', null) && after.get('status', null) == newDoc.get('status', null)))
+        && (!('removedReason' in changed) || (before.get('removedReason', null) == oldDoc.get('removedReason', null) && after.get('removedReason', null) == newDoc.get('removedReason', null)))
+        && (!('priorityId' in changed) || (before.get('priorityId', null) == oldDoc.get('priorityId', null) && after.get('priorityId', null) == newDoc.get('priorityId', null)))
+        && (!('prioritySnapshot' in changed) || (before.get('prioritySnapshot', null) == oldDoc.get('prioritySnapshot', null) && after.get('prioritySnapshot', null) == newDoc.get('prioritySnapshot', null)))
+        && (!('prioritySnapshotIds' in changed) || (before.get('prioritySnapshotIds', null) == oldDoc.get('prioritySnapshotIds', null) && after.get('prioritySnapshotIds', null) == newDoc.get('prioritySnapshotIds', null)))
+        && (!('councilNoteSnapshot' in changed) || (before.get('councilNoteSnapshot', null) == oldDoc.get('councilNoteSnapshot', null) && after.get('councilNoteSnapshot', null) == newDoc.get('councilNoteSnapshot', null)));
+    }
+
+    // The priority fields of an entry, the same way.
+    function priorityFieldsLogged(data, oldDoc, newDoc) {
+      let changed = data.changed;
+      let before = data.get('before', {});
+      let after = data.get('after', {});
+      return (!('item' in changed) || (before.get('item', null) == oldDoc.get('item', null) && after.get('item', null) == newDoc.get('item', null)))
+        && (!('encounter' in changed) || (before.get('encounter', null) == oldDoc.get('encounter', null) && after.get('encounter', null) == newDoc.get('encounter', null)))
+        && (!('rankedPlayers' in changed) || (before.get('rankedPlayers', null) == oldDoc.get('rankedPlayers', null) && after.get('rankedPlayers', null) == newDoc.get('rankedPlayers', null)))
+        && (!('rankedIds' in changed) || (before.get('rankedIds', null) == oldDoc.get('rankedIds', null) && after.get('rankedIds', null) == newDoc.get('rankedIds', null)))
+        && (!('councilNote' in changed) || (before.get('councilNote', null) == oldDoc.get('councilNote', null) && after.get('councilNote', null) == newDoc.get('councilNote', null)))
+        && (!('itemId' in changed) || (before.get('itemId', null) == oldDoc.get('itemId', null) && after.get('itemId', null) == newDoc.get('itemId', null)))
+        && (!('zoneId' in changed) || (before.get('zoneId', null) == oldDoc.get('zoneId', null) && after.get('zoneId', null) == newDoc.get('zoneId', null)))
+        && (!('npcId' in changed) || (before.get('npcId', null) == oldDoc.get('npcId', null) && after.get('npcId', null) == newDoc.get('npcId', null)))
+        && (!('phaseNo' in changed) || (before.get('phaseNo', null) == oldDoc.get('phaseNo', null) && after.get('phaseNo', null) == newDoc.get('phaseNo', null)))
+        && (!('carriedFrom' in changed) || (before.get('carriedFrom', null) == oldDoc.get('carriedFrom', null) && after.get('carriedFrom', null) == newDoc.get('carriedFrom', null)))
+        && (!('hidden' in changed) || (before.get('hidden', null) == oldDoc.get('hidden', null) && after.get('hidden', null) == newDoc.get('hidden', null)));
+    }
+
     // The item label is the item as it was before the change (as created, for a create).
     // The entry has to say exactly what happened to the target: the fields that differ between the document before
     // and after the batch (a created document has no "before", a deleted one no "after"), with their old and new values.
@@ -468,10 +536,10 @@ service cloud.firestore {
       let fields = raid
         ? ['name', 'date', 'time', 'size', 'description', 'zones', 'status', 'cancelReason', 'startsAt']
         : award
-          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'councilNoteSnapshot']
+          ? ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason', 'priorityId', 'prioritySnapshot', 'prioritySnapshotIds', 'councilNoteSnapshot']
           : table
             ? ['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'players', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed']
-            : ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
+            : ['item', 'encounter', 'rankedPlayers', 'rankedIds', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'];
       let touched = newDoc.diff(oldDoc).affectedKeys().difference(['rev', 'updatedBy', 'updatedAt', 'createdBy', 'createdAt'].toSet());
       return touched.hasOnly(fields)
         && data.changed.toSet() == touched
@@ -489,35 +557,16 @@ service cloud.firestore {
             && auditFieldLogged(data, oldDoc, newDoc, 'time')
             && auditFieldLogged(data, oldDoc, newDoc, 'startsAt')
           : award
-            ? auditFieldLogged(data, oldDoc, newDoc, 'item')
-              && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
-              && auditFieldLogged(data, oldDoc, newDoc, 'recipient')
-              && auditFieldLogged(data, oldDoc, newDoc, 'recipientId')
-              && auditFieldLogged(data, oldDoc, newDoc, 'awardedAt')
-              && auditFieldLogged(data, oldDoc, newDoc, 'awardNote')
-              && auditFieldLogged(data, oldDoc, newDoc, 'decision')
-              && auditFieldLogged(data, oldDoc, newDoc, 'phaseNo')
-              && auditFieldLogged(data, oldDoc, newDoc, 'status')
-              && auditFieldLogged(data, oldDoc, newDoc, 'removedReason')
-              && auditFieldLogged(data, oldDoc, newDoc, 'priorityId')
-              && auditFieldLogged(data, oldDoc, newDoc, 'prioritySnapshot')
-              && auditFieldLogged(data, oldDoc, newDoc, 'councilNoteSnapshot')
+            ? awardFieldsLogged(data, oldDoc, newDoc)
             : table
               ? tableFieldsLogged(data, oldDoc, newDoc)
-              : auditFieldLogged(data, oldDoc, newDoc, 'item')
-              && auditFieldLogged(data, oldDoc, newDoc, 'encounter')
-              && auditFieldLogged(data, oldDoc, newDoc, 'rankedPlayers')
-              && auditFieldLogged(data, oldDoc, newDoc, 'councilNote')
-              && auditFieldLogged(data, oldDoc, newDoc, 'itemId')
-              && auditFieldLogged(data, oldDoc, newDoc, 'zoneId')
-              && auditFieldLogged(data, oldDoc, newDoc, 'npcId')
-              && auditFieldLogged(data, oldDoc, newDoc, 'phaseNo')
-              && auditFieldLogged(data, oldDoc, newDoc, 'carriedFrom')
-              && auditFieldLogged(data, oldDoc, newDoc, 'hidden'))
+              : priorityFieldsLogged(data, oldDoc, newDoc))
         && data.item == (data.action == 'create' ? newDoc.get(labelField, '') : oldDoc.get(labelField, ''))
         && (data.action == ending) == (newDoc.get('status', startStatus) == endStatus && oldDoc.get('status', startStatus) != endStatus)
         && (data.action != ending || data.get('reason', '') == newDoc.get(reasonField, ''))
-        && (data.action != 'reorder' || data.changed == ['rankedPlayers']);
+        && (data.action != 'reorder' || ('rankedPlayers' in data.changed && data.changed.hasOnly(['rankedPlayers', 'rankedIds'])
+          && data.get('before', {}).get('rankedPlayers', []).toSet() == data.get('after', {}).get('rankedPlayers', []).toSet()
+          && data.get('before', {}).get('rankedIds', []).toSet() == data.get('after', {}).get('rankedIds', []).toSet()));
     }
 
     function validAuditEntry(guildId, entryId) {

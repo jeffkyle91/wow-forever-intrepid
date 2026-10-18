@@ -69,7 +69,7 @@ for (const who of RAID_STAFF as readonly Staff[]) {
 
     const bad: [string, Record<string, unknown>][] = [
       ['an unknown field', { extra: 'anything' }],
-      ['a recipient id the app does not write yet', { recipientId: PLAYER_2 }],
+      ['a recipient id that is not the roster\'s for that name (the seeded priority lists ids as names)', { recipientId: PLAYER_2 }],
       ['a decision, which only a manual award has', { decision: 'roll' }],
       ['a status', { status: 'removed' }],
       ['a date that is not a date', { awardedAt: 'not a date' }],

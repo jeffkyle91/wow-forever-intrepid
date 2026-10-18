@@ -99,7 +99,7 @@ describe('an award edit entry must give the stored old value and the stored new 
   const plain: [string, DocumentData][] = [
     ['item', { item: 'Corrected Sword' }],
     ['encounter', { encounter: 'Corrected Boss' }],
-    ['recipientId', { recipientId: 'roster-1' }],
+    ['recipientId', { recipient: 'Test Character 1', recipientId: 'player-1' }], // an id has to go with the roster's name for it (roster-ids.test.ts)
     ['awardedAt', { awardedAt: '2026-12-10' }],
     ['awardNote', { awardNote: 'Swapped gear' }],
   ]

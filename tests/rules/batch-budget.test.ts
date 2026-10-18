@@ -12,7 +12,7 @@
 // rules read it (two lookups for the whole batch). Without it, one more write fits.
 import { describe, test } from 'node:test'
 import { serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore'
-import { PLAYER_1, PLAYER_2, PLAYER_3, UID, priorityDoc } from './support/fixtures.ts'
+import { PLAYER_1, PLAYER_2, PLAYER_3, UID, priorityDoc, rosterDoc } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, resetData, setUpGuildEmulator } from './support/harness.ts'
 import { clean, createTable, describeChange, editTable, entry, entryId, inPhase, newAwardDoc, newPriorityDoc, overlayTableDoc, presenceTableDoc, sourceTableDoc, stamp, storeTable, tableIdOf, zoneTableDoc } from './support/audit.ts'
 
@@ -216,5 +216,50 @@ describe('audited awards from a priority in one batch', () => {
     await settings()
     await seedPriorities('spread', 6)
     await expectDenied(awards(dbFor(WHO), 6, true))
+  })
+})
+
+// Awards that carry a recipient id (LOOT-003) look the recipient up in the roster, one lookup for each distinct recipient, so fewer fit than awards by name.
+// The app records one award at a time (and a receipt through a note is one award and one priority edit).
+const ROSTER_IDS = 'ids-budget'
+const idLines = Array.from({ length: 12 }, (_, index) => ({ id: `player-${index + 1}`, name: `Test Character ${index + 1}` }))
+const seedIdPriority = () => asAdmin(async (db) => {
+  for (const line of idLines.slice(3)) await setDoc(guildDoc(db, `roster/${line.id}`), rosterDoc(Number(line.id.slice(7))))
+  await setDoc(guildDoc(db, `lootPriorities/${ROSTER_IDS}`), priorityDoc({ phaseNo: 0, rankedPlayers: idLines.map((line) => line.name), rankedIds: idLines.map((line) => line.id) }))
+})
+
+/** Awards by id from one priority, all to the first character or each to a different one. */
+function idAwards(db: Firestore, count: number, distinct: boolean) {
+  const batch = writeBatch(db)
+  for (let i = 0; i < count; i++) {
+    const id = `id-award-${i}`
+    const who = idLines[distinct ? i : 0]!
+    const fields = newAwardDoc({ priorityId: ROSTER_IDS, recipient: who.name, recipientId: who.id, prioritySnapshot: idLines.map((line) => line.name), prioritySnapshotIds: idLines.map((line) => line.id) })
+    batch.set(guildDoc(db, `awards/${id}`), { ...fields, rev: 1, createdBy: UID[WHO], createdAt: serverTimestamp() })
+    batch.set(guildDoc(db, `auditLog/${entryId('award', id, 1)}`), clean(entry(WHO, 'award', id, 1, { action: 'create', item: fields.item, ...describeChange(undefined, fields) })))
+  }
+  return batch.commit()
+}
+
+describe('audited awards by roster id in one batch', () => {
+  test('13 awards to the same character fit', async () => {
+    await settings()
+    await seedIdPriority()
+    await expectAllowed(idAwards(dbFor(WHO), 13, false))
+  })
+  test('KNOWN GAP: 14 awards to the same character are refused for lack of lookups', async () => {
+    await settings()
+    await seedIdPriority()
+    await expectDenied(idAwards(dbFor(WHO), 14, false))
+  })
+  test('7 awards, each to a different character, fit', async () => {
+    await settings()
+    await seedIdPriority()
+    await expectAllowed(idAwards(dbFor(WHO), 7, true))
+  })
+  test('KNOWN GAP: 8 awards, each to a different character, are refused for lack of lookups', async () => {
+    await settings()
+    await seedIdPriority()
+    await expectDenied(idAwards(dbFor(WHO), 8, true))
   })
 })

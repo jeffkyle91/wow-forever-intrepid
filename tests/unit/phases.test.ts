@@ -36,7 +36,7 @@ describe('phaseOptions', () => {
     assert.deepEqual(view(phaseOptions(fresh, true)), [[1, 'Second', 'next'], [0, 'Launch', 'current']])
   })
   it('labels the current and next phase and leaves a finished one as it is named', () => {
-    assert.deepEqual(phaseOptions(later, true).map(phaseLabel), ['Fourth (next)', 'Third (current)', 'Second', 'Launch'])
+    assert.deepEqual(phaseOptions(later, true).map(phaseLabel), ['Fourth (next)', 'Third (current)', 'Second (finished)', 'Launch (finished)'])
   })
 })
 

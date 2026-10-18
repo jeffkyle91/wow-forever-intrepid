@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { changePhase } from '../../guildApi'
-import { currentPhaseNo, matchesPhrase, phaseNoOf, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, startPhrase } from '../../shared/game/phases'
+import { currentPhaseNo, matchesPhrase, phaseName, phaseNoOf, reopenPhase, reopenProblem, startNextPhase, startPhaseProblem, startPhrase } from '../../shared/game/phases'
 import { describePreparedTables } from '../../shared/game/guildTables'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
@@ -8,8 +8,8 @@ import './Phases.css'
 
 // Starting a loot phase, and taking it back. Guild Leaders only (this tab is, and the rules let nobody else write the settings). Starting
 // closes the current phase: its loot priorities become a read-only record, and the lists already prepared for the next phase become the
-// current ones, and the drop lists of Browse drops carry on from the phase before with the changes prepared for the next phase (they belong to a
-// phase too, see shared/game/guildTables.ts). The names are the Current phase and Next phase above, as saved. Starting and reopening are each one save of the settings
+// current ones, and the drop lists of Browse drops are the ones prepared for the next phase (they belong to a phase too: a phase starts with no zones
+// unless it follows an earlier one, see shared/game/guildTables.ts). The names are the Current phase and Next phase above, as saved. Starting and reopening are each one save of the settings
 // document with its entry in the Log; no priority or award is rewritten.
 export function PhasesPanel({ ctx }: { ctx: TabContext }) {
   const { busy, setBusy, setMutationError, setNotice } = ctx.feedback
@@ -19,7 +19,7 @@ export function PhasesPanel({ ctx }: { ctx: TabContext }) {
   const finished = settings.phaseHistory ?? []
   const last = finished[finished.length - 1]
   const prepared = allPriorities.filter((priority) => phaseNoOf(priority) === currentPhaseNo(settings) + 1).length
-  const preparedLists = describePreparedTables(lootTables, currentPhaseNo(settings) + 1)
+  const preparedLists = describePreparedTables(lootTables, currentPhaseNo(settings) + 1, (no) => phaseName(settings, no))
   const problem = startPhaseProblem(settings, settings.nextPhase)
   const reopenBlocked = reopenProblem(settings, awards, allPriorities)
 
@@ -40,12 +40,12 @@ export function PhasesPanel({ ctx }: { ctx: TabContext }) {
   return <section className="settings-section phases-panel">
     <header>
       <h3>Loot phases</h3>
-      <p>Starting a phase closes the current one: its loot priorities become a read-only record, and the lists already prepared for the next phase become the current ones. The drop lists of Browse drops carry on from the current phase, with any changes prepared for the next one. The names are the Current phase and Next phase above (save them first). Every start is in the Log on Loot priorities.</p>
+      <p>Starting a phase closes the current one: its loot priorities become a read-only record, and the lists already prepared for the next phase become the current ones. The drop lists of Browse drops become the ones prepared for the next phase: it starts with no zones unless a leader ticked some or made it follow an earlier phase (Edit the drop lists). The names are the Current phase and Next phase above (save them first). Every start is in the Log on Loot priorities.</p>
     </header>
     <dl className="phases-summary">
       <div><dt>Current phase</dt><dd>{settings.currentPhase}</dd></div>
       <div><dt>Next phase</dt><dd>{settings.nextPhase}{prepared > 0 ? ` (${prepared} ${prepared === 1 ? 'priority' : 'priorities'} prepared)` : ''}</dd></div>
-      {preparedLists && <div><dt>Drop lists</dt><dd>Prepared for {settings.nextPhase}: {preparedLists}.</dd></div>}
+      <div><dt>Drop lists</dt><dd>{preparedLists ? `Prepared for ${settings.nextPhase}: ${preparedLists}.` : `Nothing prepared for ${settings.nextPhase} yet. It starts with no zones until a leader chooses them.`}</dd></div>
       <div><dt>Finished</dt><dd>{finished.length ? [...finished].reverse().join(', ') : 'none yet'}</dd></div>
     </dl>
     {problem && <p className="phases-hint" role="note">{problem} Change the Next phase above and save it to start it.</p>}
@@ -71,7 +71,7 @@ function StartPhaseModal({ close, live }: { close: () => void; live: TabContext 
   const name = settings.nextPhase
   const phrase = startPhrase(name)
   const prepared = allPriorities.filter((priority) => phaseNoOf(priority) === currentPhaseNo(settings) + 1).length
-  const preparedLists = describePreparedTables(lootTables, currentPhaseNo(settings) + 1)
+  const preparedLists = describePreparedTables(lootTables, currentPhaseNo(settings) + 1, (no) => phaseName(settings, no))
   const ready = matchesPhrase(typed, phrase) && !startPhaseProblem(settings, name)
 
   async function start() {
@@ -90,7 +90,7 @@ function StartPhaseModal({ close, live }: { close: () => void; live: TabContext 
   }
 
   return <Modal title={`${phrase}?`} onClose={close}><form className="modal-form" onSubmit={(event) => { event.preventDefault(); void start() }}>
-    <p className="phases-warning"><strong>{settings.currentPhase}</strong> closes now: its loot priorities become a read-only record. {prepared > 0 ? (prepared === 1 ? `The 1 priority prepared for ${name} becomes the current list.` : `The ${prepared} priorities prepared for ${name} become the current lists.`) : `${name} starts with no priorities.`} The drop lists carry on from {settings.currentPhase}{preparedLists ? `, with the changes prepared for ${name} (it ${preparedLists})` : ''}. Starting is logged and can be undone only until something is awarded in {name}.</p>
+    <p className="phases-warning"><strong>{settings.currentPhase}</strong> closes now: its loot priorities become a read-only record. {prepared > 0 ? (prepared === 1 ? `The 1 priority prepared for ${name} becomes the current list.` : `The ${prepared} priorities prepared for ${name} become the current lists.`) : `${name} starts with no priorities.`} {preparedLists ? `The drop lists of ${name} are the ones prepared for it (it ${preparedLists}).` : `Nothing is prepared for the drop lists of ${name}: Browse drops will show no zones until a leader chooses them in Edit the drop lists.`} Starting is logged and can be undone only until something is awarded in {name}.</p>
     <label>Type <strong>{phrase}</strong> to confirm<input value={typed} onChange={(event) => setTyped(event.target.value)} autoFocus autoComplete="off" spellCheck={false} aria-label={`Type ${phrase} to confirm`} /></label>
     <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close} disabled={busy}>Cancel</button><button className="button button-primary" disabled={busy || !ready}>{phrase}</button></div>
   </form></Modal>

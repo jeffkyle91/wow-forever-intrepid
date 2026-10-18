@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { createPriorities, newPriorityId, type PriorityRecord } from '../../guildApi'
+import { makeWho } from '../../shared/game/candidates'
 import { lootCaptureItemIds } from '../../shared/game/lootTables'
 import { phaseNoOf, phaseOptions, type PhaseOption } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
@@ -19,6 +20,7 @@ import './CarryOver.css'
 export function CarryOverModal({ close, live, target }: { close: () => void; live: TabContext; target: PhaseOption }) {
   const { busy, setBusy, setMutationError, setNotice } = live.feedback
   const { settings, allPriorities, awards } = live.data
+  const who = makeWho(live.data.roster)
   // Earlier phases that have something to carry, newest first.
   const sources = phaseOptions(settings, false).filter((option) => option.no < target.no && allPriorities.some((priority) => phaseNoOf(priority) === option.no))
   const [sourceNo, setSourceNo] = useState(sources[0]?.no ?? -1)
@@ -86,7 +88,7 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
               {open.length > 0 && <button type="button" className="drops-select-all" onClick={() => toggleAll(boss.priorities)} disabled={busy}>{open.every((priority) => picked.has(priority.id)) ? 'Clear these' : `Tick all (${open.length})`}</button>}
             </header>
             <ul className="carry-list">{boss.priorities.map((priority) => {
-              const progress = listingProgress(priority, awards, lookup)
+              const progress = listingProgress(priority, awards, lookup, who)
               const received = progress.received.filter(Boolean).length
               const already = !canPick(priority)
               return <li key={priority.id} className="drops-item carry-item">

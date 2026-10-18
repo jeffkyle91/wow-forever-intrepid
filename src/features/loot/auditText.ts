@@ -1,3 +1,4 @@
+import { readLines } from '../../shared/game/candidates.ts'
 import type { AuditEntry } from '../../shared/game/lootAudit.ts'
 
 // The Log in words: one line for what happened, then what changed. Pure, so Node tests it; the dialog only lays it out.
@@ -6,6 +7,7 @@ const fieldLabels: Record<string, string> = {
   currentPhase: 'Current phase', nextPhase: 'Next phase', phaseHistory: 'Finished phases',
   item: 'Item', encounter: 'Dungeon and boss', rankedPlayers: 'Candidates', councilNote: 'Council note', itemId: 'Item id', zoneId: 'Dungeon id',
   npcId: 'Creature id', phaseNo: 'Phase', carriedFrom: 'Carried over from', priorityId: 'Priority', recipient: 'Recipient', recipientId: 'Recipient id',
+  rankedIds: 'Candidate lines', prioritySnapshotIds: 'Candidate lines at the time',
   awardedAt: 'Award date', awardNote: 'Award note', prioritySnapshot: 'Candidates at the time', councilNoteSnapshot: 'Council note at the time',
   decision: 'Decision', status: 'Status', removedReason: 'Reason for removal',
   key: 'Creature key', name: 'Name', kind: 'Kind', players: 'Players', order: 'Place in the order', itemIds: 'Items', hiddenItemIds: 'Hidden items', removed: 'Removed',
@@ -24,6 +26,30 @@ export function showValue(field: string, value: unknown, phaseName: (no: number)
 }
 
 const label = (field: string) => fieldLabels[field] ?? field
+
+// The ids behind candidate names and recipients (see shared/game/candidates.ts) are not words: the Log shows the names, with a note marked as one, and says
+// in a line of its own when only the ids changed. Pure.
+const idFields = new Set(['rankedIds', 'prioritySnapshotIds', 'recipientId'])
+const visible = (changed: string[]) => changed.filter((field) => !idFields.has(field))
+
+/** A list of candidates as a person would read it: names in order, a note marked as one (and as finished when it is). */
+export function showLines(names: unknown, ids: unknown): string {
+  const lines = readLines({ rankedPlayers: Array.isArray(names) ? names.map(String) : [], rankedIds: ids })
+  if (!lines.length) return '(nobody)'
+  return clip(lines.map((line) => (line.kind === 'note' ? `note: ${line.text}${line.done ? ' (finished)' : ''}` : line.name)).join(', '))
+}
+
+/** What a change of the ids alone means, when the names did not change with them. */
+function idsOnly(entry: AuditEntry): string | undefined {
+  if (!entry.changed.includes('rankedIds') || entry.changed.includes('rankedPlayers')) return undefined
+  const before = entry.before.rankedIds
+  const after = entry.after.rankedIds
+  if (!Array.isArray(before)) return 'Linked the candidates to the roster'
+  const done = (value: unknown) => (Array.isArray(value) ? value.filter((id) => id === '!').length : 0)
+  if (done(after) > done(before)) return 'Finished a note'
+  if (done(after) < done(before)) return 'Reopened a note'
+  return 'Changed the candidate lines'
+}
 const quote = (item: string) => `\u201c${item || 'Untitled'}\u201d`
 
 export type EntryText = { title: string; details: string[] }
@@ -106,8 +132,10 @@ function describeTableEntry(entry: AuditEntry, lookups: TableLookups, phaseName:
 
 export function describeEntry(entry: AuditEntry, phaseName: (no: number) => string, lookups: TableLookups = {}): EntryText {
   const item = quote(entry.item)
-  const change = (field: string) => `${label(field)}: ${showValue(field, entry.before[field], phaseName)} \u2192 ${showValue(field, entry.after[field], phaseName)}`
-  const listed = (values: Record<string, unknown>) => entry.changed.map((field) => `${label(field)}: ${showValue(field, values[field], phaseName)}`)
+  const shown = (field: string, values: Record<string, unknown>) => (field === 'rankedPlayers' ? showLines(values.rankedPlayers, values.rankedIds) : field === 'prioritySnapshot' ? showLines(values.prioritySnapshot, values.prioritySnapshotIds) : showValue(field, values[field], phaseName))
+  const change = (field: string) => `${label(field)}: ${shown(field, entry.before)} \u2192 ${shown(field, entry.after)}`
+  const listed = (values: Record<string, unknown>) => visible(entry.changed).map((field) => `${label(field)}: ${shown(field, values)}`)
+  const idsLine = idsOnly(entry)
   const reason = entry.reason ? [`Reason: ${clip(entry.reason)}`] : []
 
   if (entry.targetType === 'table') return describeTableEntry(entry, lookups, phaseName, change)
@@ -124,14 +152,14 @@ export function describeEntry(entry: AuditEntry, phaseName: (no: number) => stri
     switch (entry.action) {
       case 'create': return { title: `Added ${item} to the list`, details: listed(entry.after) }
       case 'delete': return { title: `Removed ${item} from the list`, details: listed(entry.before) }
-      case 'reorder': return { title: `Reordered the candidates for ${item}`, details: [`Before: ${showValue('rankedPlayers', entry.before.rankedPlayers, phaseName)}`, `After: ${showValue('rankedPlayers', entry.after.rankedPlayers, phaseName)}`, ...reason] }
+      case 'reorder': return { title: `Reordered the candidates for ${item}`, details: [`Before: ${shown('rankedPlayers', entry.before)}`, `After: ${shown('rankedPlayers', entry.after)}`, ...reason] }
       default: {
         // A priority taken off the list is kept (hidden), and put back by taking the field away: say so, not "hidden: (none) to true".
         if (entry.changed.includes('hidden')) {
           const off = entry.after.hidden === true
-          return { title: off ? `Took ${item} off the list (its priorities are kept)` : `Put ${item} back on the list`, details: [...entry.changed.filter((field) => field !== 'hidden').map(change), ...reason] }
+          return { title: off ? `Took ${item} off the list (its priorities are kept)` : `Put ${item} back on the list`, details: [...visible(entry.changed).filter((field) => field !== 'hidden').map(change), ...reason] }
         }
-        return { title: `Changed ${item}`, details: [...entry.changed.map(change), ...reason] }
+        return { title: `Changed ${item}`, details: [...(idsLine ? [idsLine] : []), ...visible(entry.changed).map(change), ...reason] }
       }
     }
   }
@@ -141,8 +169,8 @@ export function describeEntry(entry: AuditEntry, phaseName: (no: number) => stri
         const who = typeof entry.after.recipient === 'string' ? entry.after.recipient : 'someone'
         return { title: `Awarded ${item} to ${who}`, details: listed(entry.after).filter((line) => !/^(Item|Recipient|Priority):/.test(line)) }
       }
-      case 'remove': return { title: `Removed the award of ${item}`, details: [...entry.changed.filter((field) => field !== 'status' && field !== 'removedReason').map(change), ...reason] }
-      default: return { title: `Corrected the award of ${item}`, details: [...entry.changed.map(change), ...reason] }
+      case 'remove': return { title: `Removed the award of ${item}`, details: [...visible(entry.changed).filter((field) => field !== 'status' && field !== 'removedReason').map(change), ...reason] }
+      default: return { title: `Corrected the award of ${item}`, details: [...visible(entry.changed).map(change), ...reason] }
     }
   }
   return { title: `${entry.action} ${entry.targetType} ${item}`, details: [...entry.changed.map(change), ...reason] }

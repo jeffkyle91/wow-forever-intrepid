@@ -22,10 +22,15 @@ import { currentPhaseNo, phaseNoOf } from './shared/game/phases'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
 import { normalizeAward, normalizeJoinRequest, normalizeLootTable, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 import type { CharacterRequest } from './shared/characters/requests'
+import { normalizeReadiness, type CharacterReadiness } from './shared/members/readiness'
 
 export function useGuildData(enabled: boolean, actualRole: GuildRole | null, actualUid: string) {
   const comments = useRosterComments(enabled, actualRole)
   const [roster, setRoster] = useState<PlayerRecord[]>([])
+  const [readiness, setReadiness] = useState<CharacterReadiness[]>([])
+  const [readinessLoaded, setReadinessLoaded] = useState(false)
+  const [readinessError, setReadinessError] = useState('')
+  const [leadershipLoaded, setLeadershipLoaded] = useState<string[]>([])
   const [assignments, setAssignments] = useState<Record<string, TeamAssignmentRecord['team']>>({})
   const [priorities, setPriorities] = useState<PriorityRecord[]>([])
   const [awards, setAwards] = useState<AwardRecord[]>([])
@@ -48,16 +53,21 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
     const onError = (error: Error) => setDataError(error.message)
     const countUnreadable = (name: string, dropped: number) => setUnreadableByCollection((current) => current[name] === dropped ? current : { ...current, [name]: dropped })
     const unsubscribers = [
-      subscribeGuildCollection<PlayerRecord>('roster', (records, dropped) => { setRoster(records); countUnreadable('roster', dropped) }, onError, normalizePlayer),
+      subscribeGuildCollection<PlayerRecord>('roster', (records, dropped) => { setRoster(records); countUnreadable('roster', dropped); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'roster'])]) }, onError, normalizePlayer),
+      subscribeGuildCollection<CharacterReadiness>('characterReadiness', (records, dropped) => {
+        setReadiness(records)
+        setReadinessLoaded(true)
+        setReadinessError(dropped ? 'Some raid-readiness records could not be read. Ask a Guild Leader to check them.' : '')
+      }, (error) => setReadinessError(error.message), normalizeReadiness, true),
       // Settings are cosmetic: if they cannot be read (rules not deployed yet), keep the defaults instead of showing an error.
       subscribeGuildCollection<GuildSettingsRecord>('settings', (records) => setSettings(resolveGuildSettings(records.find((record) => record.id === 'general'))), (error) => console.warn(`settings: ${error.message}`), normalizeSettings),
-      subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))), onError),
+      subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => { setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'assignments'])]) }, onError),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
       // The guild's own drop lists are an addition to the built-in ones: if they cannot be read (rules not deployed yet), the built-in lists still work.
       subscribeGuildCollection<LootTableDoc>('lootTables', (records) => setLootTables(records), (error) => console.warn(`lootTables: ${error.message}`), normalizeLootTable),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),
       subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
-      subscribeGuildCollection<RaidRecord>('raids', (records) => setRaids(records.sort((a, b) => a.date.localeCompare(b.date))), onError),
+      subscribeGuildCollection<RaidRecord>('raids', (records) => { setRaids(records.sort((a, b) => a.date.localeCompare(b.date))); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'raids'])]) }, onError),
       subscribeRaidZones((records) => setRaidZones(records.sort((a, b) => a.name.localeCompare(b.name))), onError),
       subscribeCharacterRequests(actualUid, actualRole === 'Guild Leader', (records) => {
         setCharacterRequests(records)
@@ -65,12 +75,16 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       }, (error) => setCharacterRequestsError(error.message)),
     ]
     if (actualRole === 'Guild Leader') {
-      unsubscribers.push(subscribeGuildCollection<MembershipRecord>('members', (records, dropped) => { setMembers(records); countUnreadable('members', dropped) }, onError, normalizeMember))
+      unsubscribers.push(subscribeGuildCollection<MembershipRecord>('members', (records, dropped) => { setMembers(records); countUnreadable('members', dropped); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'members'])]) }, onError, normalizeMember))
       unsubscribers.push(subscribeGuildCollection<JoinRequestRecord>('joinRequests', (requests, dropped) => { setJoinRequests(requests.filter((request) => request.status === 'pending')); countUnreadable('joinRequests', dropped) }, onError, normalizeJoinRequest))
     }
     return () => {
       unsubscribers.forEach((unsubscribe) => unsubscribe())
       setRoster([])
+      setReadiness([])
+      setReadinessLoaded(false)
+      setReadinessError('')
+      setLeadershipLoaded([])
       setAssignments({})
       setPriorities([])
       setAwards([])
@@ -99,6 +113,10 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
 
   return {
     comments,
+    readiness,
+    readinessLoaded,
+    readinessError,
+    leadershipLoaded: ['roster', 'raids', 'members', 'assignments'].every((name) => leadershipLoaded.includes(name)),
     roster,
     assignments,
     priorities: currentPriorities,

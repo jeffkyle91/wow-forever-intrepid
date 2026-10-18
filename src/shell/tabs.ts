@@ -1,6 +1,7 @@
 import { accessTab } from '../features/access/tab'
 import { calendarTab } from '../features/calendar/tab'
 import { dashboardTab } from '../features/dashboard/tab'
+import { leadershipTab } from '../features/leadership/tab'
 import { prioritiesTab } from '../features/loot/tab'
 import { rosterTab } from '../features/roster/tab'
 import { settingsTab } from '../features/settings/tab'
@@ -17,6 +18,7 @@ const tabs = [
   teamsTab,
   calendarTab,
   prioritiesTab,
+  leadershipTab,
   accessTab,
   settingsTab,
 ] as const satisfies readonly TabDefinition[]

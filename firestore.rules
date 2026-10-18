@@ -769,6 +769,29 @@ service cloud.firestore {
             || getAfter(memberPath(guildId, resource.data.linkedUid)).data.get('playerId', null) == null);
       }
 
+      match /characterReadiness/{playerId} {
+        function ownsCharacter() {
+          let member = get(memberPath(guildId, request.auth.uid)).data;
+          let mainId = member.get('playerId', '');
+          let main = get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(mainId)).data;
+          let character = get(/databases/$(database)/documents/guilds/$(guildId)/roster/$(playerId)).data;
+          return main.linkedUid == request.auth.uid
+            && main.get('mainId', null) == null
+            && (playerId == mainId
+              || (character.get('mainId', null) == mainId && character.get('linkedUid', null) == null));
+        }
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow create, update: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+          && exists(/databases/$(database)/documents/guilds/$(guildId)/roster/$(playerId))
+          && (isGuildLeader(guildId) || ownsCharacter())
+          && request.resource.data.keys().hasOnly(['ready', 'updatedBy', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['ready', 'updatedBy', 'updatedAt'])
+          && request.resource.data.ready is bool
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+
       match /teamAssignments/{playerId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
         allow create, update: if canManageRaid(guildId) && validTeamAssignment();

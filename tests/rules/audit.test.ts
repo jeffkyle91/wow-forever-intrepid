@@ -195,11 +195,12 @@ for (const who of RAID_STAFF as readonly Staff[]) {
     }
 
     test('the limits themselves are accepted', async () => {
-      await expectAllowed(editAward(dbFor(who), who, { changes: { item: 'x'.repeat(120), encounter: 'x'.repeat(120), recipient: 'x'.repeat(60), recipientId: 'x'.repeat(100), awardNote: 'x'.repeat(500) } }))
+      await expectAllowed(editAward(dbFor(who), who, { changes: { item: 'x'.repeat(120), encounter: 'x'.repeat(120), recipient: 'x'.repeat(60), awardNote: 'x'.repeat(500) } }))
     })
 
+    // The recipient id has to be a roster character with the recipient's name (see roster-ids.test.ts), so the two are changed together.
     test('an edit can change item, encounter, recipient, date, note and roster id together', async () => {
-      await expectAllowed(editAward(dbFor(who), who, { changes: { item: 'Corrected Sword', encounter: 'Corrected Boss', recipient: PLAYER_1, recipientId: 'roster-1', awardedAt: '2026-12-10', awardNote: 'Swapped gear' } }))
+      await expectAllowed(editAward(dbFor(who), who, { changes: { item: 'Corrected Sword', encounter: 'Corrected Boss', recipient: 'Test Character 1', recipientId: PLAYER_1, awardedAt: '2026-12-10', awardNote: 'Swapped gear' } }))
     })
 
     test('the edit must be stamped with the editor and the server time', async () => {

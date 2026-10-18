@@ -1,0 +1,31 @@
+.teams-conflict-warning {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #c68a32;
+  border-radius: 4px;
+  color: #754b12;
+  background: #fff6e5;
+  font-size: 11px;
+}
+
+.teams-conflict-warning ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.teams-conflict-description {
+  margin: 16px 0;
+  color: #526158;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+:root[data-theme='dark'] .teams-conflict-warning {
+  border-color: #b78338;
+  color: #f0cf96;
+  background: #342b1d;
+}
+
+:root[data-theme='dark'] .teams-conflict-description {
+  color: #b9c5d2;
+}

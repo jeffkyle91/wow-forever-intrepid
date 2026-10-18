@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Changing Raid ready now asks for confirmation on My Dashboard and the roster. Confirm saves the change; Cancel leaves the flag unchanged (pending deployment).
+
 - My Characters adds tap-accessible character-management and raid-readiness help, with a fixed role column immediately before Raid ready. Headings use title capitalization while existing all-caps headings stay uppercase.
 
 - Members can mark their main and each direct alt independently **Raid ready** on My dashboard; Guild Leaders can manage flags in the roster. Characters start not ready, and flags follow character IDs through renames and main changes. This is a planning flag, not a reserved raid spot or sign-up restriction (MEMBER-003; pending rules/Hosting deployment).

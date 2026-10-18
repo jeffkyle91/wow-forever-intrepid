@@ -66,7 +66,7 @@ export function phaseName(settings: PhaseSettings, no: number): string {
   return options.find((option) => option.no === no)?.name ?? `Phase ${no}`
 }
 
-export const phaseLabel = (option: PhaseOption) => (option.kind === 'past' ? option.name : `${option.name} (${option.kind})`)
+export const phaseLabel = (option: PhaseOption) => (option.kind === 'past' ? `${option.name} (finished)` : `${option.name} (${option.kind})`)
 
 // Starting and reopening a phase. Both are one save of the settings document, so nothing about a priority or an award changes: the lists of
 // the next phase are already filed under the number that becomes the current one. The rules (validPhaseHistory) accept exactly these two moves.

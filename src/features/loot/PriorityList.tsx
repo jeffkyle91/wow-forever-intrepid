@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { ArrowDown, ArrowUp, Check, ClipboardList, Pencil } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, ClipboardList, Lock, LockOpen, Pencil } from 'lucide-react'
 import type { AwardRecord as Award, PriorityRecord as LootPriority } from '../../guildApi'
 import { encounterArt, lootArt } from '../../shared/art'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
@@ -7,22 +7,27 @@ import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import { readLines, type Who } from '../../shared/game/candidates'
 import { classAccent } from '../../shared/game/classes'
 import { awardsForPriority, isRemovedAward, listingProgress, type PriorityLookup } from './completion'
+import { carriedLabel } from './carried'
 import { groupPriorities } from './groupPriorities'
+import { toggleOrderLock, useUnlockedOrders } from './orderLock'
 import './PriorityList.css'
 
 // canEdit: the list can be changed (Add, Edit, reorder). canAward: loot can be awarded from it. Neither holds in a closed phase; `notice` says why.
-export function PriorityList({ priorities, awards, lookup, who, canEdit, canAward, notice, busy, grouped, bossOrder, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; grouped: boolean; bossOrder: (dungeon: string) => string[]; awards: Award[]; lookup: PriorityLookup; who: Who; canEdit: boolean; canAward: boolean; notice?: string; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void }) {
+export function PriorityList({ priorities, awards, lookup, who, canEdit, canAward, notice, busy, grouped, bossOrder, phaseName, onEdit, onAward, onMoveCandidate }: { priorities: LootPriority[]; grouped: boolean; bossOrder: (dungeon: string) => string[]; awards: Award[]; lookup: PriorityLookup; who: Who; canEdit: boolean; canAward: boolean; notice?: string; busy: boolean; onEdit: (priority: LootPriority) => void; onAward: (priority: LootPriority) => void; onMoveCandidate: (priority: LootPriority, index: number, direction: -1 | 1) => void; phaseName: (no: number) => string }) {
+  const unlocked = useUnlockedOrders()
   const row = (priority: LootPriority, index: number) => {
     const progress = listingProgress(priority, awards, lookup, who)
     const lines = readLines(priority)
+    const open = canEdit && unlocked.has(priority.id)
+    const carried = carriedLabel(priority, lookup, phaseName)
     const recentAward = awardsForPriority(priority, awards, lookup).filter((award) => !isRemovedAward(award)).sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))[0]
     return <article className={progress.complete ? 'priority-row stagger-row complete' : 'priority-row stagger-row'} key={priority.id} style={{ '--row-index': index } as CSSProperties}>
-      <div className="priority-main"><div className="priority-item-line">{!priority.itemId && <span className="item-gem"><ArtIcon src={lootArt} className="priority-loot-icon" /></span>}<div><h3>{priority.itemId ? <ItemTooltip itemId={priority.itemId} fallbackName={priority.item} /> : priority.item}</h3><span className="encounter-label"><ArtIcon src={encounterArt} className="encounter-art-icon" /> {priority.encounter}</span></div></div><p className="council-note">{priority.councilNote || <span className="muted">{canEdit ? 'No council note yet. Use Edit Prio to add one.' : 'No council note yet'}</span>}</p></div>
-      <div className="priority-ranking"><div className="ranking-heading"><span>COUNCIL ORDER</span><span className="rank-count">{priority.rankedPlayers.length ? `${priority.rankedPlayers.length} ranked` : <span className="needs-players">Needs players</span>}{progress.complete && <span className="complete-tag">COMPLETE</span>}</span></div>
+      <div className="priority-main"><div className="priority-item-line">{!priority.itemId && <span className="item-gem"><ArtIcon src={lootArt} className="priority-loot-icon" /></span>}<div><h3>{priority.itemId ? <ItemTooltip itemId={priority.itemId} fallbackName={priority.item} /> : priority.item}</h3><span className="encounter-label"><ArtIcon src={encounterArt} className="encounter-art-icon" /> {priority.encounter}</span>{carried && <span className="carried-tag">{carried}</span>}</div></div><p className="council-note">{priority.councilNote || <span className="muted">{canEdit ? 'No council note yet. Use Edit Prio to add one.' : 'No council note yet'}</span>}</p></div>
+      <div className="priority-ranking"><div className="ranking-heading"><span>COUNCIL ORDER{canEdit && <button className="order-lock" onClick={() => toggleOrderLock(priority.id)} aria-pressed={open} title={open ? 'Lock the order again' : 'Unlock to move the candidates up and down'} aria-label={open ? `Lock the order of ${priority.item}` : `Unlock the order of ${priority.item}`}>{open ? <LockOpen size={12} /> : <Lock size={12} />}</button>}</span><span className="rank-count">{priority.rankedPlayers.length ? `${priority.rankedPlayers.length} ranked` : <span className="needs-players">Needs players</span>}{progress.complete && <span className="complete-tag">COMPLETE</span>}</span></div>
         {lines.length ? <ol>{lines.map((line, rank) => {
           const name = who.nameOf(line)
           const label = line.kind === 'note' ? 'note' : name
-          const reorder = canEdit && <span className="rank-reorder"><button onClick={() => onMoveCandidate(priority, rank, -1)} disabled={busy || rank === 0} title="Move up" aria-label={`Move ${label} up`}><ArrowUp size={13} /></button><button onClick={() => onMoveCandidate(priority, rank, 1)} disabled={busy || rank === lines.length - 1} title="Move down" aria-label={`Move ${label} down`}><ArrowDown size={13} /></button></span>
+          const reorder = open && <span className="rank-reorder"><button onClick={() => onMoveCandidate(priority, rank, -1)} disabled={busy || rank === 0} title="Move up" aria-label={`Move ${label} up`}><ArrowUp size={13} /></button><button onClick={() => onMoveCandidate(priority, rank, 1)} disabled={busy || rank === lines.length - 1} title="Move down" aria-label={`Move ${label} down`}><ArrowDown size={13} /></button></span>
           const number = <span className={rank === progress.next ? 'rank-number first' : 'rank-number'}>{String(rank + 1).padStart(2, '0')}</span>
           if (line.kind === 'note') return <li key={`${name}-${rank}`} className={line.done ? 'listing-note note-done' : 'listing-note'}>{number}<span className="ranked-name">{name}</span>{line.done ? <span className="received-tag"><Check size={10} /> DONE</span> : rank === progress.next && <span className="top-pick">NEXT UP</span>}{reorder}</li>
           const cls = who.classOf(line)

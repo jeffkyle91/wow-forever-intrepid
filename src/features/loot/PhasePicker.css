@@ -1,0 +1,16 @@
+/* One accent for "which phase": violet, which nothing else in the app uses (blue is the app, green is "live" and "received", amber is a warning or a lock).
+   It is used for the phase picker at the top of Loot priorities and for every other phase dropdown in the loot dialogs. What kind of phase it is (current, next,
+   finished) is in the words of the option, and the notice under the filters says what a next or a finished phase allows. */
+:root { --phase-accent: #6a4fc2; --phase-accent-soft: #efeafb; --phase-accent-ink: #4a3590; }
+:root[data-theme='dark'] { --phase-accent: #a99aff; --phase-accent-soft: #2a2445; --phase-accent-ink: #d9d2ff; }
+
+.phase-picker { display: inline-flex; align-items: center; gap: 9px; min-height: 40px; padding: 0 8px 0 13px; border: 2px solid var(--phase-accent); border-radius: 9px; color: var(--phase-accent-ink); background: var(--phase-accent-soft); box-shadow: 0 1px 6px color-mix(in srgb, var(--phase-accent) 22%, transparent); }
+.phase-picker-label { color: var(--phase-accent); font-size: 8px; font-weight: 800; letter-spacing: .14em; }
+.phase-picker select { min-width: 0; height: 32px; padding: 0 4px; border: 0; border-radius: 6px; color: inherit; background: transparent; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.phase-picker select:focus-visible { outline: 2px solid var(--phase-accent); outline-offset: 1px; }
+.phase-picker select option { color: #26352c; background: #fff; font-weight: 600; }
+:root[data-theme='dark'] .phase-picker select option { color: #e0e8f1; background: #1c2838; }
+.phase-picker-name { padding: 0 6px; font-size: 14px; }
+
+/* The other phase dropdowns of the loot dialogs (Browse drops, the drop list editor, Carry over) wear the accent too. */
+.modal select.phase-select, :root[data-theme='dark'] .modal select.phase-select { border-color: var(--phase-accent); color: var(--phase-accent-ink); background: var(--phase-accent-soft); font-weight: 700; }

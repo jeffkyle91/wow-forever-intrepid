@@ -1,5 +1,4 @@
 import { makeWho } from '../../shared/game/candidates'
-import { currentPhaseNo, phaseLabel, phaseOptions } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
 import { filterOptions } from './filters'
 import { encounterOptions } from './groupPriorities'
@@ -16,15 +15,11 @@ export function PrioritiesToolbar({ ctx }: { ctx: TabContext }) {
   const filters = usePriorityFilters()
   const { view, priorities } = usePhaseView(ctx)
   const bossOrder = useBossOrder(ctx.data.lootTables, view.no)
-  const phases = phaseOptions(ctx.data.settings, ctx.identity.canEditRaidData)
   const options = filterOptions(priorities, filters, makeWho(ctx.data.roster))
   // Each dungeon, then its bosses below it. The current choice is always offered, so it can be cleared if its priorities are gone.
   const encounters = encounterOptions(priorities, bossOrder)
   if (filters.encounter && !encounters.some((option) => option.value === filters.encounter)) encounters.push({ value: filters.encounter, label: filters.encounter.slice(2).replace('|', ' \u00b7 '), level: 0 })
   return <div className="loot-filters">
-    {phases.length > 1 && <select className="loot-filter-select" aria-label="Phase" value={view.no} onChange={(event) => { const no = Number(event.target.value); setPriorityFilters({ phase: no === currentPhaseNo(ctx.data.settings) ? null : no }) }}>
-      {phases.map((option) => <option key={option.no} value={option.no}>{phaseLabel(option)}</option>)}
-    </select>}
     <div className="segmented-control" role="group" aria-label="Loot list view">
       <button className={filters.hideCompleted ? 'segment' : 'segment selected'} onClick={() => setPriorityFilters({ hideCompleted: false })} aria-pressed={!filters.hideCompleted}>All items</button>
       <button className={filters.hideCompleted ? 'segment selected' : 'segment'} onClick={() => setPriorityFilters({ hideCompleted: true })} aria-pressed={filters.hideCompleted}>Hide completed</button>

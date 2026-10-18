@@ -81,6 +81,9 @@
 .panel-heading h2 { margin: 0; color: #29372f; font: 600 16px/1.25 var(--display); letter-spacing: 0; }
 .record-count { color: #8c978e; font-size: 10px; }
 .toolbar-controls { display: flex; align-items: center; gap: 9px; }
+/* A panel without a heading (panelTitle is empty): only the filters, from the left. */
+.panel-toolbar-bare { min-height: 0; justify-content: flex-start; }
+.panel-toolbar-bare .toolbar-controls { flex: 1; min-width: 0; }
 .segmented-control { display: flex; padding: 3px; border: 1px solid #e3e8e0; border-radius: 5px; background: #f7f9f5; }
 .segment { display: flex; align-items: baseline; gap: 3px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 3px; color: #7c887f; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
 .segment span { font-size: 8px; }

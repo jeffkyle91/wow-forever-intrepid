@@ -60,6 +60,7 @@ export type TabDefinition = {
   // Sidebar icon.
   art: string
   hint: string
+  // The heading of the panel under the page title, with its recordCount. An empty title leaves both out and the panel starts with its filters.
   panelTitle: string
   // Hidden from the sidebar, and replaced by the fallback tab if selected, unless the role is Guild Leader.
   guildLeaderOnly?: boolean

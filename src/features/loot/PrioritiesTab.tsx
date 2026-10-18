@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { editPriority, type PriorityRecord as LootPriority } from '../../guildApi'
 import { lineChanges, makeWho, moveLine, readLines } from '../../shared/game/candidates'
+import { phaseName } from '../../shared/game/phases'
 import { requestItem } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { AwardModal } from './AwardModal'
@@ -45,5 +46,5 @@ export function PrioritiesTab({ ctx }: { ctx: TabContext }) {
   const notice = view.kind === 'past' ? `${view.name} is closed. This is a record of its lists: nothing here can be changed.`
     : view.kind === 'next' ? `${view.name} has not started. Only leaders see it. Prepare its lists here; nothing can be awarded until it starts.` : undefined
 
-  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup, who)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} who={who} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
+  return <PriorityList priorities={visiblePriorities(priorities, awards, ctx.query, filters, slotOf, lookup, who)} lookup={lookup} grouped={filters.grouped} bossOrder={bossOrder} awards={awards} who={who} canEdit={canEdit} canAward={canAward} notice={notice} busy={busy} phaseName={(no) => phaseName(ctx.data.settings, no)} onEdit={(priority) => ctx.openModal(({ close, live }) => <PriorityModal existing={priority} close={close} live={live} />)} onAward={openAward} onMoveCandidate={moveCandidate} />
 }

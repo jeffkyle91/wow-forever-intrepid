@@ -35,16 +35,21 @@ export type RaidGroup = 'green' | 'pink' | 'brown'
 // itemId, zoneId and npcId are set when a priority was added from the drop lists (Browse drops): the Wowhead item id, the dungeon
 // in data/loot and the creature that drops it. A priority typed by hand has none of them.
 // phaseNo is the phase the priority belongs to (see shared/game/phases.ts); none means the first phase. carriedFrom is the id of the
-// priority an item was carried over from, in an earlier phase.
-export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string; rev?: number; hidden?: true }
+// priority an item was carried over from, in an earlier phase. rankedIds says what each of the rankedPlayers lines is (a roster id, '' for an
+// open note, '!' for a finished one); a priority written before roster ids has none (see shared/game/candidates.ts).
+export type PriorityRecord = { id: string; item: string; encounter: string; rankedPlayers: string[]; rankedIds?: string[]; councilNote: string; itemId?: number; zoneId?: number; npcId?: number; phaseNo?: number; carriedFrom?: string; rev?: number; hidden?: true }
 export type AwardRecord = {
   id: string
   priorityId: string
   item: string
   encounter: string
   recipient: string
+  // The roster character who received it; an award made before roster ids has only the name.
+  recipientId?: string
   awardedAt: string
   prioritySnapshot: string[]
+  // What each line of prioritySnapshot was (see PriorityRecord.rankedIds); none on an award made before roster ids.
+  prioritySnapshotIds?: string[]
   councilNoteSnapshot: string
   awardNote: string
   // The phase the award was recorded in; none means the first phase.
@@ -339,10 +344,10 @@ export async function restoreRaidEvent(raid: RaidRecord, who: RaidWho) {
 // each batch is all or nothing, and `onWritten` is told which ids a batch wrote, so a caller can show progress and report where it stopped.
 export const AUDITED_BATCH_SIZE = 10
 
-export type NewPriority = { item: string; encounter: string; rankedPlayers: string[]; councilNote: string; phaseNo: number; itemId?: number; zoneId?: number; npcId?: number; carriedFrom?: string }
+export type NewPriority = { item: string; encounter: string; rankedPlayers: string[]; rankedIds?: string[]; councilNote: string; phaseNo: number; itemId?: number; zoneId?: number; npcId?: number; carriedFrom?: string }
 // A field set to undefined is taken away.
-export type PriorityChanges = Partial<Pick<PriorityRecord, 'item' | 'encounter' | 'rankedPlayers' | 'councilNote' | 'itemId' | 'zoneId' | 'npcId' | 'hidden'>>
-export type NewAward = { priorityId: string; item: string; encounter: string; recipient: string; awardedAt: string; prioritySnapshot: string[]; councilNoteSnapshot: string; awardNote: string; phaseNo: number }
+export type PriorityChanges = Partial<Pick<PriorityRecord, 'item' | 'encounter' | 'rankedPlayers' | 'rankedIds' | 'councilNote' | 'itemId' | 'zoneId' | 'npcId' | 'hidden'>>
+export type NewAward = { priorityId: string; item: string; encounter: string; recipient: string; recipientId?: string; awardedAt: string; prioritySnapshot: string[]; prioritySnapshotIds?: string[]; councilNoteSnapshot: string; awardNote: string; phaseNo: number }
 
 // A fresh id for every new priority: an entry id (`priority_{id}_{rev}`) can be used only once, so the id of a deleted priority cannot be created again.
 export const newPriorityId = () => crypto.randomUUID()
@@ -371,7 +376,7 @@ export async function createPriorities(items: { id: string; fields: NewPriority 
   }
 }
 
-/** Changes a priority and logs it. Returns false, writing nothing, when no field would differ. `reorder` is for a change of `rankedPlayers` alone. */
+/** Changes a priority and logs it. Returns false, writing nothing, when no field would differ. `reorder` is for a change of the order of the lines alone (`rankedPlayers` with `rankedIds`). */
 export async function editPriority(existing: PriorityRecord, changes: PriorityChanges, who: AuditWho, action: 'edit' | 'reorder' = 'edit') {
   const description = describeEdit(existing as unknown as Record<string, unknown>, changes, priorityAuditFields)
   if (!description) return false
@@ -448,13 +453,37 @@ export async function writeLootTables(writes: TableWrite[], who: AuditWho, onWri
   }
 }
 
+const withoutUndefined = <T extends object>(values: T) => Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as T
+
 /** Records an award made from a priority, with its entry. Returns the new award's id. */
 export async function recordAward(award: NewAward, who: AuditWho) {
   const database = requireDb()
   const ref = doc(guildCollection('awards'))
   const batch = writeBatch(database)
-  batch.set(ref, { ...award, rev: 1, createdBy: who.uid, createdAt: serverTimestamp() })
+  batch.set(ref, { ...withoutUndefined(award), rev: 1, createdBy: who.uid, createdAt: serverTimestamp() })
   batch.set(doc(database, 'guilds', guildId, 'auditLog', `award_${ref.id}_1`), auditEntry(who, 'award', ref.id, 1, 'create', award.item, describeCreate(award, awardCreateFields)))
+  await batch.commit()
+  return ref.id
+}
+
+/**
+ * Records an award to someone the list names only through an open note, and puts the winner on a character line at the note's place (`next` is the
+ * priority's lines after that, see receiveThroughNote), in one batch with an entry for each. The award's snapshot is the priority as the council saw
+ * it, note included: the rules read the priority as it was before the batch. Returns the new award's id.
+ */
+export async function recordAwardThroughNote(award: NewAward, priority: PriorityRecord, next: { rankedPlayers: string[]; rankedIds?: string[] }, who: AuditWho) {
+  const database = requireDb()
+  const changes: PriorityChanges = { rankedPlayers: next.rankedPlayers, rankedIds: next.rankedIds }
+  const description = describeEdit(priority as unknown as Record<string, unknown>, changes, priorityAuditFields)
+  if (!description) throw new Error('Nothing was changed.')
+  const rev = (priority.rev ?? 0) + 1
+  const update = Object.fromEntries(description.changed.map((key) => [key, changes[key as keyof PriorityChanges] === undefined ? deleteField() : changes[key as keyof PriorityChanges]]))
+  const ref = doc(guildCollection('awards'))
+  const batch = writeBatch(database)
+  batch.set(ref, { ...withoutUndefined(award), rev: 1, createdBy: who.uid, createdAt: serverTimestamp() })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `award_${ref.id}_1`), auditEntry(who, 'award', ref.id, 1, 'create', award.item, describeCreate(award, awardCreateFields)))
+  batch.update(doc(database, 'guilds', guildId, 'lootPriorities', priority.id), { ...update, rev, updatedBy: who.uid, updatedAt: serverTimestamp() })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `priority_${priority.id}_${rev}`), auditEntry(who, 'priority', priority.id, rev, 'edit', priority.item, description))
   await batch.commit()
   return ref.id
 }

@@ -118,7 +118,7 @@ describe('recipientChoices', () => {
   it('lists a player listed twice once, with how many listings are received', () => {
     const list = priority(['Morrow', 'Vex', 'morrow'])
     const choices = recipientChoices(list, listingProgress(list, [award('Morrow')]))
-    assert.deepEqual(choices, [{ name: 'Morrow', listed: 2, received: 1 }, { name: 'Vex', listed: 1, received: 0 }])
+    assert.deepEqual(choices, [{ key: 'name:morrow', name: 'Morrow', listed: 2, received: 1 }, { key: 'name:vex', name: 'Vex', listed: 1, received: 0 }])
   })
 })
 

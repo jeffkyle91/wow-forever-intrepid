@@ -50,6 +50,9 @@ export function normalizePriority(id: string, data: RawDoc): PriorityRecord | nu
     const value = data[key]
     if (value !== undefined && !(typeof value === 'number' && Number.isInteger(value) && value > 0)) delete priority[key]
   }
+  // rankedIds (what each candidate line is, see shared/game/candidates.ts) is kept only as a list of text as long as the names; anything else is removed
+  // and the priority reads as names only.
+  if (!Array.isArray(data.rankedIds) || data.rankedIds.length !== priority.rankedPlayers.length || !data.rankedIds.every(isText)) delete priority.rankedIds
   // phaseNo is a whole number of 0 or more and carriedFrom the id of another priority; one that is not is removed (no phaseNo means the first phase).
   // hidden (a priority taken off the list but kept) is only ever true; anything else is removed.
   if (data.hidden !== undefined && data.hidden !== true) delete priority.hidden
@@ -61,7 +64,7 @@ export function normalizePriority(id: string, data: RawDoc): PriorityRecord | nu
 // becomes '' and the history row shows an invalid date instead of the whole list failing.
 export function normalizeAward(id: string, data: RawDoc): AwardRecord | null {
   if (!id || !isText(data.item)) return null
-  return withoutBadPhaseFields({
+  const award = withoutBadPhaseFields({
     ...data,
     id,
     priorityId: text(data.priorityId),
@@ -72,6 +75,10 @@ export function normalizeAward(id: string, data: RawDoc): AwardRecord | null {
     councilNoteSnapshot: text(data.councilNoteSnapshot),
     awardNote: text(data.awardNote),
   } as AwardRecord)
+  // recipientId is kept only as text that says something, prioritySnapshotIds only as a list of text (see PriorityRecord.rankedIds).
+  if (!isText(data.recipientId) || data.recipientId === '') delete award.recipientId
+  if (!Array.isArray(data.prioritySnapshotIds) || !data.prioritySnapshotIds.every(isText)) delete award.prioritySnapshotIds
+  return award
 }
 
 // A member whose role is not a guild role or Removed is dropped: the access table would otherwise

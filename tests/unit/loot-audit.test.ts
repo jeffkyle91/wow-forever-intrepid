@@ -32,7 +32,7 @@ describe('describeCreate', () => {
     assert.equal(changed.includes('rev'), false)
   })
   it('lists the fields of a new award', () => {
-    const award = { priorityId: 'p1', item: 'Test Sword', encounter: 'x', recipient: 'Aria', awardedAt: '2026-12-09', prioritySnapshot: ['Aria'], councilNoteSnapshot: '', awardNote: '', phaseNo: 0 }
+    const award = { priorityId: 'p1', item: 'Test Sword', encounter: 'x', recipient: 'Aria', recipientId: 'player-1', awardedAt: '2026-12-09', prioritySnapshot: ['Aria'], prioritySnapshotIds: ['player-1'], councilNoteSnapshot: '', awardNote: '', phaseNo: 0 }
     assert.deepEqual(describeCreate(award, awardCreateFields).changed, [...awardCreateFields])
   })
 })

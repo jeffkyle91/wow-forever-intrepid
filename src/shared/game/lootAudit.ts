@@ -4,12 +4,12 @@
 // differ, with their old and new values, so these functions must agree with them.
 
 // The fields an entry may list for a priority or an award. The stamps (rev, updatedBy, updatedAt, createdBy, createdAt) are never listed.
-export const priorityAuditFields = ['item', 'encounter', 'rankedPlayers', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'] as const
+export const priorityAuditFields = ['item', 'encounter', 'rankedPlayers', 'rankedIds', 'councilNote', 'itemId', 'zoneId', 'npcId', 'phaseNo', 'carriedFrom', 'hidden'] as const
 // The fields an entry may list for a loot table document (a custom zone or a creature; see shared/game/guildTables.ts).
 export const tableAuditFields = ['type', 'zoneId', 'key', 'phaseNo', 'name', 'kind', 'players', 'npcId', 'order', 'itemIds', 'hiddenItemIds', 'removed'] as const
 // The settings fields a phase entry lists (when a phase is started or reopened): the ones that differ, each with its old and new value.
 export const phaseAuditFields = ['currentPhase', 'nextPhase', 'phaseHistory'] as const
-export const awardCreateFields = ['priorityId', 'item', 'encounter', 'recipient', 'awardedAt', 'prioritySnapshot', 'councilNoteSnapshot', 'awardNote', 'phaseNo'] as const
+export const awardCreateFields = ['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'prioritySnapshotIds', 'councilNoteSnapshot', 'awardNote', 'phaseNo'] as const
 
 type Values = Record<string, unknown>
 

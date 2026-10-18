@@ -6,8 +6,8 @@ import { useHideAlts } from './altVisibility'
 import { DerivedTeamCard } from './DerivedTeamCard'
 import { GuildRosterPool } from './GuildRosterPool'
 import { TenManTeamCard } from './TenManTeamCard'
-import { RaidCoveragePanel } from '../raid-coverage/RaidCoveragePanel'
-import { RaidCoverageStrip } from '../raid-coverage/RaidCoverageStrip'
+import { RaidCoveragePanel } from '../../shared/raid-coverage/RaidCoveragePanel'
+import { RaidCoverageStrip } from '../../shared/raid-coverage/RaidCoverageStrip'
 
 export function RaidTeamsView({ teams, groupNames, players, assignments, view, canEdit, onAssign, onRemove }: {
   teams: TeamOption[]

@@ -1,4 +1,4 @@
-import { Award, CalendarDays, CalendarOff, CornerDownRight, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
+import { Award, CalendarDays, CalendarOff, CircleHelp, CornerDownRight, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
 import { priorityLookup } from '../../shared/game/completion'
@@ -9,17 +9,19 @@ import type { TabContext } from '../../shared/tabs/types'
 import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
+import { HelpPopover } from '../../shared/ui/HelpPopover'
 import { RaidSignupButton } from './RaidSignupButton'
 import { AbsenceModal } from './AbsenceModal'
 import { CommentsPanel } from './CommentsPanel'
 import { findMyCharacters, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
 import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
 import './Dashboard.css'
+import { RaidReadyToggle } from '../../shared/members/RaidReadyToggle'
 
 const dateLabel = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
-function Panel({ icon, title, action, children }: { icon: ReactNode; title: string; action?: ReactNode; children: ReactNode }) {
-  const heading = <h3>{icon}{title}</h3>
+function Panel({ icon, title, help, action, children }: { icon: ReactNode; title: string; help?: ReactNode; action?: ReactNode; children: ReactNode }) {
+  const heading = <h3>{icon}{title}{help}</h3>
   return <section className="dash-card">{action ? <div className="dash-card-head">{heading}{action}</div> : heading}{children}</section>
 }
 
@@ -70,11 +72,17 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   }
 
   return <div className="dash-grid">
-    <Panel icon={<Swords size={15} />} title="My characters">
-      <ul className="dash-list">{characters.map((character, index) => <li key={character.id} className={classAccent(character.className)}>
+    <Panel icon={<Swords size={15} />} title="My Characters" help={<HelpPopover label="About My Characters" trigger={<CircleHelp size={16} aria-hidden="true" />}>
+      <p>Used to manage your main and alt characters.</p>
+      <p>Raid ready means properly talented, geared, and keys/attunements are completed.</p>
+    </HelpPopover>}>
+      <ul className="dash-list">{characters.map((character, index) => <li key={character.id} className={`${classAccent(character.className)} dash-ready-character`}>
         <span className="dash-character">{index > 0 && <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" />}<ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
         <RolePill role={character.role} />
+        <RaidReadyToggle characterId={character.id} name={character.name} ctx={ctx} />
       </li>)}</ul>
+      <p className="dash-note">Mark each character ready independently. This helps leaders check raid responses; it does not reserve a spot or restrict sign-ups.</p>
+      {ctx.data.readinessError && <p role="alert">{ctx.data.readinessError}</p>}
     </Panel>
 
     <Panel icon={<Users size={15} />} title="My raid team">

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage, validateEffects } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { coverageEffects } from '../../src/features/raid-coverage/coverageData.ts'
-import { coverageTiles } from '../../src/features/raid-coverage/coverageDisplay.ts'
-import type { CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import { calculateCoverage, validateEffects } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
+import { coverageTiles } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 const classes = ['Warrior', 'Paladin', 'Hunter', 'Rogue', 'Priest', 'Shaman', 'Mage', 'Warlock', 'Druid']
 const member = (id: string, className: string): CoverageMember => ({ id, name: `Player ${id}`, className, specialization: '' })

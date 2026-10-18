@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
-import { calculateCoverage, validateEffects } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { consumableAlternatives } from '../../src/features/raid-coverage/consumableData.ts'
-import { bestPlanned, parsePlans, plannableFor, plannedIds, togglePlan, validateConsumables } from '../../src/features/raid-coverage/consumables.ts'
-import { coverageEffects } from '../../src/features/raid-coverage/coverageData.ts'
-import { coverageTiles, representativeEffect, statusGlyphs, visualOf, visualTreatments } from '../../src/features/raid-coverage/coverageDisplay.ts'
-import { activeProviders } from '../../src/features/raid-coverage/coverageTooltip.ts'
-import { spellInfo } from '../../src/features/raid-coverage/spellDescriptions.ts'
-import type { ConsumableAlternative, CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import { calculateCoverage, validateEffects } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { consumableAlternatives } from '../../src/shared/raid-coverage/consumableData.ts'
+import { bestPlanned, parsePlans, plannableFor, plannedIds, togglePlan, validateConsumables } from '../../src/shared/raid-coverage/consumables.ts'
+import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
+import { coverageTiles, representativeEffect, statusGlyphs, visualOf, visualTreatments } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import { activeProviders } from '../../src/shared/raid-coverage/coverageTooltip.ts'
+import { spellInfo } from '../../src/shared/raid-coverage/spellDescriptions.ts'
+import type { ConsumableAlternative, CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 // Invented effects and players: these test the mapping, not the game.
 const effect = (over: Partial<CoverageEffect> & Pick<CoverageEffect, 'id' | 'kind'>): CoverageEffect => ({
@@ -78,7 +78,7 @@ describe('icon visual state', () => {
   })
 
   it('has CSS for the missing red tint and the consumable gold, in both themes', () => {
-    const css = readFileSync(new URL('../../src/features/raid-coverage/RaidCoveragePanel.css', import.meta.url), 'utf8')
+    const css = readFileSync(new URL('../../src/shared/raid-coverage/RaidCoveragePanel.css', import.meta.url), 'utf8')
     assert.match(css, /\.cov-icon-visual-missing::after[^}]*rgba\(179, 38, 30/)
     assert.match(css, /\.cov-icon-visual-consumable \{[^}]*border-color/)
     assert.match(css, /data-theme='dark'\] \.cov-icon-visual-consumable/)
@@ -376,7 +376,7 @@ describe('per-provider scope inside one requirement', () => {
 })
 describe('coverage help popover rendering', () => {
   it('renders only the selected spell name and its stored description', () => {
-    const source = readFileSync(new URL('../../src/features/raid-coverage/RaidCoverageStrip.tsx', import.meta.url), 'utf8')
+    const source = readFileSync(new URL('../../src/shared/raid-coverage/RaidCoverageStrip.tsx', import.meta.url), 'utf8')
     const tip = source.slice(source.indexOf('</>}>'), source.indexOf('</HelpPopover>'))
     assert.match(source, /<HelpPopover label=\{tile\.label\}/)
     assert.match(tip, /tile\.spellName/)

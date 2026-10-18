@@ -1,0 +1,43 @@
+.leadership-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; padding: 17px; color: #526578; font: 400 12px/1.65 var(--sans); }
+.leadership-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255, 255, 255, 0.6); }
+.leadership-card > h3, .leadership-grid > .character-requests-panel h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0 0 10px; color: #3b5065; font: 600 13px/1.25 var(--display); }
+.leadership-card > h3 svg { flex-shrink: 0; }
+.leadership-card > p { color: #7a8a9a; font-size: 11px; line-height: 1.5; }
+.leadership-card > label { display: grid; gap: 5px; margin-bottom: 10px; color: #5d7388; font-size: 11px; font-weight: 600; }
+.leadership-card select { min-width: 0; max-width: 100%; }
+.leadership-card > label select { width: 100%; min-height: 44px; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; color: #40566b; background: rgba(255, 255, 255, 0.8); font: 400 12px var(--sans); }
+.leadership-card > label select:focus-visible { outline: 2px solid #8eb7d7; outline-offset: 2px; }
+.leadership-card > .button, .leadership-card > details .button { min-height: 44px; max-width: 100%; margin-bottom: 8px; font-size: 11px; white-space: normal; }
+.leadership-card > details { padding-top: 10px; border-top: 1px solid var(--line); overflow-wrap: anywhere; font-size: 11px; }
+.leadership-card > details summary { cursor: pointer; }
+.leadership-counts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.leadership-counts > span { flex: 1 1 100px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; color: #7a8a9a; font-size: 10px; line-height: 1.5; }
+.leadership-counts strong { display: block; margin-bottom: 4px; color: #40566b; font: 600 26px/1.1 var(--display); overflow-wrap: anywhere; }
+.leadership-summary { grid-column: 1 / -1; margin: 0; }
+.leadership-summary > span { background: rgba(255, 255, 255, 0.6); }
+.leadership-accounts { padding: 0; list-style: none; }
+.leadership-accounts li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+.leadership-accounts li > span { display: flex; align-items: center; gap: 8px; }
+.leadership-accounts strong { font-size: 12px; }
+.leadership-accounts small { display: block; margin-top: 4px; color: #7a8a9a; font-size: 10px; overflow-wrap: anywhere; }
+.leadership-warning { margin-top: 14px; padding-left: 12px; border-left: 3px solid #c39743; font-size: 11px; }
+.leadership-warning h4, .leadership-coverage > section > h4, .leadership-coverage > section > div > h4 { margin: 14px 0 6px; color: #5d7388; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.leadership-coverage { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; }
+.leadership-coverage > * { grid-column: 1 / -1; min-width: 0; }
+.leadership-coverage > h3 { grid-column: 1; grid-row: 1; margin: 0; }
+.leadership-coverage > .leadership-size-selector { grid-column: 2; grid-row: 1; justify-self: end; max-width: 100%; }
+.leadership-size-selector .segment:disabled { opacity: 0.4; cursor: not-allowed; }
+.leadership-coverage > section + section { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); }
+.leadership-grid > .character-requests-panel h3 small { font: 400 11px var(--sans); }
+
+:root[data-theme='dark'] .leadership-grid { color: #b5c6d6; }
+:root[data-theme='dark'] .leadership-card, :root[data-theme='dark'] .leadership-summary > span { background: rgba(30, 44, 62, 0.55); }
+:root[data-theme='dark'] .leadership-card > h3, :root[data-theme='dark'] .leadership-grid > .character-requests-panel h3 { color: #c9d8e6; }
+:root[data-theme='dark'] .leadership-counts strong { color: #dbe6f0; }
+:root[data-theme='dark'] .leadership-card > p, :root[data-theme='dark'] .leadership-counts > span, :root[data-theme='dark'] .leadership-accounts small, :root[data-theme='dark'] .leadership-card > label, :root[data-theme='dark'] .leadership-warning h4, :root[data-theme='dark'] .leadership-coverage > section > h4, :root[data-theme='dark'] .leadership-coverage > section > div > h4 { color: #93a6b8; }
+:root[data-theme='dark'] .leadership-card > label select { color: #dbe6f0; background: #14202e; }
+
+@media (max-width: 900px) { .leadership-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) {
+  .leadership-coverage > .leadership-size-selector { grid-column: 1 / -1; grid-row: 2; justify-self: start; margin-top: 10px; }
+}

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { coverageTiles, statusGlyphs, statusLabels } from '../../src/features/raid-coverage/coverageDisplay.ts'
-import { assignedMembers } from '../../src/features/raid-coverage/teamSelection.ts'
+import { calculateCoverage } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { coverageTiles, statusGlyphs, statusLabels } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import { assignedMembers } from '../../src/shared/raid-coverage/teamSelection.ts'
 import type { TenManTeam } from '../../src/guildApi.ts'
 import { group40, groups20 } from '../../src/shared/game/teams.ts'
-import type { CoverageEffect, CoverageMember, CoverageStatus } from '../../src/features/raid-coverage/types.ts'
+import type { CoverageEffect, CoverageMember, CoverageStatus } from '../../src/shared/raid-coverage/types.ts'
 
 // Invented effects and players: these test the tile mapping, not the game.
 const effect = (over: Partial<CoverageEffect> & Pick<CoverageEffect, 'id' | 'kind'>): CoverageEffect => ({

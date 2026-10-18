@@ -120,8 +120,10 @@ export function subscribeGuildCollection<T extends { id: string }>(
   onData: (records: T[], dropped: number) => void,
   onError: (error: Error) => void,
   normalize: Normalizer<T> = (id, data) => ({ ...data, id }) as T,
+  confirmedOnly = false,
 ) {
-  return onSnapshot(guildCollection(name), (snapshot) => {
+  return onSnapshot(guildCollection(name), { includeMetadataChanges: confirmedOnly }, (snapshot) => {
+    if (confirmedOnly && snapshot.metadata.hasPendingWrites) return
     const { records, droppedIds } = normalizeDocs(snapshot.docs, normalize)
     if (droppedIds.length) console.warn(`${name}: skipped ${droppedIds.length} unreadable document(s), ids: ${droppedIds.join(', ')}`)
     onData(records, droppedIds.length)
@@ -143,6 +145,13 @@ export function subscribeCharacterRequests(uid: string, leader: boolean, onData:
 export async function submitCharacterRequest(requestId: string, proposal: CharacterProposal, note: string) {
   if (!functions || !auth?.currentUser) throw new Error('Sign in to request a character change.')
   await httpsCallable(functions, 'submitCharacterRequest')({ guildId, requestId, ...proposal, note })
+}
+
+export async function setCharacterReadiness(characterId: string, ready: boolean) {
+  if (!auth?.currentUser) throw new Error('Sign in to update raid readiness.')
+  await setDoc(doc(requireDb(), 'guilds', guildId, 'characterReadiness', characterId), {
+    ready, updatedBy: auth.currentUser.uid, updatedAt: serverTimestamp(),
+  })
 }
 
 export async function resolveCharacterRequest(requestId: string, action: 'approve' | 'reject' | 'withdraw', note: string) {

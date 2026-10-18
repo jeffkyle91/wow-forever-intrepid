@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { calculateCoverage, providerEligibility, validateEffects } from '../../src/features/raid-coverage/calculateCoverage.ts'
-import { coverageEffects } from '../../src/features/raid-coverage/coverageData.ts'
-import { coverageTiles } from '../../src/features/raid-coverage/coverageDisplay.ts'
+import { calculateCoverage, providerEligibility, validateEffects } from '../../src/shared/raid-coverage/calculateCoverage.ts'
+import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
+import { coverageTiles } from '../../src/shared/raid-coverage/coverageDisplay.ts'
 import { classSpecializations } from '../../src/shared/game/classes.ts'
-import type { CoverageEffect, CoverageMember } from '../../src/features/raid-coverage/types.ts'
+import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 const member = (id: string, className: string, specialization = ''): CoverageMember => ({ id, name: `P${id}`, className, specialization })
 const catalog = (id: string) => coverageEffects.find((entry) => entry.id === id)!

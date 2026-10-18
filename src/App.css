@@ -15,6 +15,7 @@
 .guild-switcher > svg { color: #9aacc0; }
 .side-label { margin: 30px 9px 9px; color: #8b9db1; font-size: 9px; font-weight: 700; letter-spacing: 1.3px; }
 .main-nav { display: grid; gap: 4px; }
+.main-nav .nav-item { text-transform: capitalize; }
 .nav-item { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 0 10px; border: 0; border-radius: 5px; color: #b1bfd0; background: transparent; font: inherit; font-size: 12px; text-align: left; cursor: pointer; transition: color .16s ease, background .16s ease; }
 .nav-item:hover { color: #fff; background: #2a405c; }
 .nav-item.active { color: #f7fbff; background: #304d6b; box-shadow: inset 3px 0 var(--sky); }
@@ -85,7 +86,7 @@
 .panel-toolbar-bare { min-height: 0; justify-content: flex-start; }
 .panel-toolbar-bare .toolbar-controls { flex: 1; min-width: 0; }
 .segmented-control { display: flex; padding: 3px; border: 1px solid #e3e8e0; border-radius: 5px; background: #f7f9f5; }
-.segment { display: flex; align-items: baseline; gap: 3px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 3px; color: #7c887f; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
+.segment { display: flex; align-items: center; justify-content: center; gap: 3px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 3px; color: #7c887f; background: transparent; font: inherit; font-size: 10px; cursor: pointer; }
 .segment span { font-size: 8px; }
 .segment.selected { color: #315f9f; background: #fff; box-shadow: 0 1px 4px #17263b16; font-weight: 700; }
 .search-field { display: flex; align-items: center; gap: 7px; height: 31px; padding: 0 8px; border: 1px solid #e1e8f0; border-radius: 4px; color: #8896a7; background: #fff; }

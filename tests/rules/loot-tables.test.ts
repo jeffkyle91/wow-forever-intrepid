@@ -15,7 +15,7 @@ import { LABEL, RAID_STAFF, UID, without } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, outcomeOf, resetData, setUpGuildEmulator, stored } from './support/harness.ts'
 import {
   BUILT_IN_SOURCE_TABLE, BUILT_IN_ZONE_NO, GONE, NPC_KEY, PRESENCE_TABLE, SOURCE_TABLE, ZONE_NO, ZONE_TABLE, changePhase, createTable, editTable, entry, entryId, inPhase,
-  overlayTableDoc, presenceTableDoc, sourceTableDoc, sourceTableId, storeTable, tableIdOf, zoneTableDoc, zoneTableId, type CreateTableOptions, type EditTableOptions, type Staff,
+  overlayTableDoc, phaseTableId, presenceTableDoc, sourceTableDoc, sourceTableId, storeTable, tableIdOf, zoneTableDoc, zoneTableId, type CreateTableOptions, type EditTableOptions, type Staff,
 } from './support/audit.ts'
 import { asDouble, rawCommit, requestTime } from './support/raw.ts'
 
@@ -1157,8 +1157,9 @@ for (const who of RAID_STAFF as readonly Staff[]) {
   })
 }
 
-// The three kinds of document, each with something the persona writes: a new one, and a change to an existing one.
+// The four kinds of document, each with something the persona writes: a new one, and a change to an existing one.
 const WRITES: [string, string, DocumentData, DocumentData][] = [
+  ['the document of a phase', phaseTableId(1), { type: 'phase', phaseNo: 1 }, { follows: 0 }],
   ['a zone of the guild\'s own', ZONE_TABLE, zoneTableDoc(), { players: 6 }],
   ['a built-in zone', PRESENCE_TABLE, presenceTableDoc(), { removed: false }],
   ['a creature', SOURCE_TABLE, sourceTableDoc(), { itemIds: [1111, 2222, 3333] }],

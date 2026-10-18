@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Zone artwork: Settings has a new **Zone images** panel where a Guild Leader keeps a library of pictures (loading screens or any artwork; add many at once, rename, replace, remove), and each zone on the Zones page has an **Artwork** dropdown (and Pick pictures by name). A zone's picture shows as a banner on the zone's title in Loot priorities and in Browse drops (in Browse drops the banner is the picture and the zone's name, with the zone's description under a small About this zone; the loot under it has no picture), so a new raid needs a picture and a pick, not a release. Pictures are stored in the guild's own Cloud Storage and shown only inside the app; only a Guild Leader can add or remove them (LOOT-010).
+
 ## 2026-10-18 - d0ef75d
 
 Production deployments through d0ef75d verified, including matching live HTML, JavaScript and CSS on intrepidwow.com and the Firebase Hosting domain. This summarizes changes since 92dbc71. Source PRs: #98, #99, #102, #103, #104 (including #100/#101), #105, #107, #108, #110 and #111; MEMBER-003 scope approved in #106. Refresh open tabs to load the update.

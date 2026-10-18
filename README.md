@@ -121,15 +121,18 @@ VITE_FIREBASE_API_KEY=
 VITE_FIREBASE_AUTH_DOMAIN=
 VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
 VITE_GUILD_ID=
 ```
+
+`VITE_FIREBASE_STORAGE_BUCKET` is only needed when the project's bucket is not `<project-id>.firebasestorage.app` (a project made before late 2024 has `<project-id>.appspot.com`). Cloud Storage holds the zone artwork.
 
 ## Firebase project setup
 
 1. Create a Firebase project and register a web app.
 2. Enable Email/Password under Authentication sign-in providers.
-3. Create a Cloud Firestore database.
-4. Deploy the rules in `firestore.rules` using `npx firebase-tools@latest deploy --only firestore:rules --project <project-id>`.
+3. Create a Cloud Firestore database, and turn on Cloud Storage (Build > Storage > Get started, same location; it needs the Blaze plan) for the zone artwork; for the live project also see "Cloud Storage" in [CONTRIBUTING.md](CONTRIBUTING.md).
+4. Deploy the rules in `firestore.rules` and `storage.rules` using `npx firebase-tools@latest deploy --only firestore:rules,storage --project <project-id>`.
 5. Create the first user in Firebase Authentication. Copy that user's UID and create `guilds/<VITE_GUILD_ID>/members/<UID>` in Firestore with `email`, `displayName`, and `role: "Guild Leader"` fields.
 6. Sign in with that account. Guild Leaders can review access requests and assign roles in Member Access.
 

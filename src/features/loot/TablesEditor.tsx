@@ -215,7 +215,7 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
           <h4>Add a creature to {zone.name} from {phase} on</h4>
           <label>Name<input value={newCreature.name} maxLength={TABLE_NAME_MAX} onChange={(event) => setNewCreature({ ...newCreature, name: event.target.value })} /></label>
           <label>Kind<select value={newCreature.kind} onChange={(event) => setNewCreature({ ...newCreature, kind: event.target.value as LootSourceKind })}>{lootSourceKinds.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
-          <label>Creature number (optional)<input value={newCreature.npc} inputMode="numeric" onChange={(event) => setNewCreature({ ...newCreature, npc: event.target.value })} aria-invalid={!npcValid} /></label>
+          <label>Creature ID (optional)<small className="field-hint">The number after npc= in its Wowhead address (shown as NPC in the lists). Leave empty if you do not know it.</small><input value={newCreature.npc} inputMode="numeric" onChange={(event) => setNewCreature({ ...newCreature, npc: event.target.value })} aria-invalid={!npcValid} /></label>
           <div className="tables-row-actions">
             <button type="button" className="button button-primary tables-small" disabled={busy || !creatureReady} onClick={async () => {
               if (await run([addCreature(zone, { name: newCreature.name, kind: newCreature.kind, ...(npc ? { npcId: Number(npc) } : {}) })], `${newCreature.name.trim()} added to ${zone.name}.`)) setNewCreature({ name: '', kind: 'boss', npc: '' })

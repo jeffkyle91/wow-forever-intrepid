@@ -16,3 +16,9 @@
 .carry-item .drops-select-all { margin-left: auto; }
 .carry-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; color: #8a5a12; font-size: 10px; }
 :root[data-theme='dark'] .carry-ask { color: #f0c987; }
+
+/* The filters of the dialog sit on a row of their own under the phase and the search. */
+.carry-filters { align-items: center; }
+.carry-filters .loot-filter-select { max-width: 190px; }
+.carry-count { color: #626e7b; font-size: 10px; }
+:root[data-theme='dark'] .carry-count { color: #9fb0c3; }

@@ -2,10 +2,17 @@
 
 A React + TypeScript + Vite guild-operations app on Firebase Authentication and Cloud Firestore. Read `ARCHITECTURE.md` before adding a feature and `CONTRIBUTING.md` for the contribution rules. `docs/ROADMAP.md` records the decisions, the order of work and who can work on what in parallel.
 
+## Before starting work
+
+- Read the current [canonical backlog](docs/backlog.json) and follow the [shared work process](CONTRIBUTING.md#shared-work-process). Identify the backlog ID, check linked GitHub issues and open PRs, and coordinate a claim before implementation.
+- GitHub issue numbers, old lane labels (such as B10), Discord messages and roadmap lists are references, not alternative backlogs. If work is missing or conflicts with the backlog, reconcile it with the maintainer before implementing; do not invent a mapping or silently change scope.
+- Include the backlog ID and relevant issue links in the PR, update the backlog and member-facing Unreleased notes where applicable, and distinguish implemented, merged and deployed work. Never mark work released from a merge alone.
+
 ## Commands
 
 - `npm run build`, `npm run lint` and `npm run test:unit` must all pass. If you change `firestore.rules`, `npm run test:rules` must pass too (it needs JDK 21; see `CONTRIBUTING.md`). There are no other automated tests (`test:unit` covers pure functions only), so check the app by hand in your own Firebase project.
 - Deploy to Firebase only when you are asked to.
+- Follow [post-merge branch cleanup](CONTRIBUTING.md#branch-cleanup-after-merge). The maintainer normally deletes remote feature branches after merge; prominently set **KEEP BRANCH: YES** in the PR with reason, owner and dependencies if retention is needed. Contributors handle local cleanup. Assistants must obtain explicit approval for the exact branch before deleting it themselves, verify its merged PR and unchanged head, and preserve ongoing/unmerged work. No bulk cleanup or automatic force-deletion fallback.
 
 ## Rules that must not be broken
 

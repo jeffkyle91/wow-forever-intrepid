@@ -113,6 +113,19 @@ export const addCharacters = (lines: readonly Line[], players: readonly { id: st
 export const addNote = (lines: readonly Line[], text: string): Line[] => (text.trim() === '' ? [...lines] : [...lines, { kind: 'note', text: text.trim(), done: false }])
 export const removeLine = (lines: readonly Line[], index: number): Line[] => lines.filter((_, at) => at !== index)
 
+/** A character put in at a place (the end when the place is past the end), for putting back one that was unticked by mistake. */
+export const addCharacterAt = (lines: readonly Line[], player: { id: string; name: string }, index: number): Line[] => {
+  const at = Math.max(0, Math.min(index, lines.length))
+  return [...lines.slice(0, at), characterLine(player), ...lines.slice(at)]
+}
+
+/** The last listing of a character taken off (one listed twice keeps the earlier listing). Nothing changes when the character is not on the list. */
+export function removeLastCharacter(lines: readonly Line[], id: string): Line[] {
+  let at = -1
+  lines.forEach((line, index) => { if (line.kind === 'character' && line.id === id) at = index })
+  return at === -1 ? [...lines] : removeLine(lines, at)
+}
+
 /** A line moved one place up (-1) or down (1). Out of range changes nothing. */
 export function moveLine(lines: readonly Line[], index: number, direction: -1 | 1): Line[] {
   const target = index + direction

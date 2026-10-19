@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { addCharacters, addNote, cleanLines, convertLegacy, lineChanges, lineFields, makeWho, moveLine, nameKey, readLines, receiveThroughNote, removeLine, setNote, sortPlayers, type Line } from '../../src/shared/game/candidates.ts'
+import { addCharacters, addNote, cleanLines, convertLegacy, lineChanges, lineFields, makeWho, moveLine, nameKey, readLines, receiveThroughNote, removeLastCharacter, addCharacterAt, removeLine, setNote, sortPlayers, type Line } from '../../src/shared/game/candidates.ts'
 
 // Every name here is invented: this repository is public.
 const roster = [
@@ -123,6 +123,35 @@ describe('editing lines', () => {
     assert.deepEqual(removeLine(lines, 1), [lines[0], lines[2]])
     assert.deepEqual(setNote(lines, 1, { text: 'Any mage ', done: true })[1], note('Any mage ', true))
     assert.deepEqual(setNote(lines, 0, { text: 'x' }), lines)
+  })
+  it('ticking and unticking in the picker: a character is added at the end, and unticking takes the last listing of that character off', () => {
+    const ticked = addCharacters(lines, [{ id: 'p-2', name: 'Aurelia' }])
+    assert.deepEqual(ticked.map((line) => (line.kind === 'character' ? line.id : 'note')), ['p-1', 'note', 'p-3', 'p-2'])
+    assert.deepEqual(removeLastCharacter(ticked, 'p-2'), lines)
+  })
+  it('a character listed twice keeps the earlier listing when the last is taken off, and notes and other characters are never touched', () => {
+    const twice = [character('Morrow', 'p-1'), character('Vex', 'p-3'), note('Any warlock'), character('Morrow', 'p-1')]
+    assert.deepEqual(removeLastCharacter(twice, 'p-1'), [character('Morrow', 'p-1'), character('Vex', 'p-3'), note('Any warlock')])
+    assert.deepEqual(removeLastCharacter(removeLastCharacter(twice, 'p-1'), 'p-1'), [character('Vex', 'p-3'), note('Any warlock')])
+  })
+  it('taking off a character who is not on the list changes nothing, and a line typed by name (no id) is not matched by an id', () => {
+    assert.deepEqual(removeLastCharacter(lines, 'p-9'), lines)
+    assert.deepEqual(removeLastCharacter([character('Morrow')], 'p-1'), [character('Morrow')])
+    assert.deepEqual(removeLastCharacter([], 'p-1'), [])
+  })
+  it('puts a character back where an untick took them from, and at the end when that place is past the end', () => {
+    const [first, ...rest] = lines
+    assert.deepEqual(addCharacterAt(rest, { id: 'p-1', name: 'Morrow' }, 0), [first, ...rest])
+    assert.deepEqual(addCharacterAt(lines, { id: 'p-2', name: 'Aurelia' }, 1).map((line) => (line.kind === 'character' ? line.id : 'note')), ['p-1', 'p-2', 'note', 'p-3'])
+    assert.deepEqual(addCharacterAt(lines, { id: 'p-2', name: 'Aurelia' }, 99).at(-1), character('Aurelia', 'p-2'))
+    assert.deepEqual(addCharacterAt(lines, { id: 'p-2', name: 'Aurelia' }, -4)[0], character('Aurelia', 'p-2'))
+    assert.deepEqual(addCharacterAt([], { id: 'p-2', name: 'Aurelia' }, 3), [character('Aurelia', 'p-2')])
+  })
+  it('does not change the list it is given', () => {
+    const before = JSON.stringify(lines)
+    removeLastCharacter(lines, 'p-1')
+    addCharacterAt(lines, { id: 'p-2', name: 'Aurelia' }, 1)
+    assert.equal(JSON.stringify(lines), before)
   })
   it('trims note text and drops an empty note when the lines are cleaned for saving', () => {
     assert.deepEqual(cleanLines([character('Morrow', 'p-1'), note('  Any mage  '), note('   ')]), [character('Morrow', 'p-1'), note('Any mage')])

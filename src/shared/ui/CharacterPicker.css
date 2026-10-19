@@ -3,7 +3,8 @@
 .character-picker .picker-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .character-picker .picker-bar input[type='search'] { flex: 1 1 140px; width: auto; min-width: 0; }
 .character-picker .picker-list { display: grid; max-height: 232px; margin: 0; padding: 0; overflow-y: auto; list-style: none; border: 1px solid #dfe6dc; border-radius: 6px; }
-.character-picker .picker-list li { border-bottom: 1px solid #e8eee5; }
+.character-picker .picker-list li { display: flex; align-items: center; border-bottom: 1px solid #e8eee5; }
+.character-picker .picker-list li > label { flex: 1 1 auto; min-width: 0; }
 .character-picker .picker-list li:last-child { border-bottom: 0; }
 .character-picker .picker-list label { display: flex; align-items: center; gap: 8px; padding: 5px 8px; color: inherit; font-size: 11px; font-weight: 400; cursor: pointer; }
 .character-picker .picker-list label:hover { background: #f3f7f1; }
@@ -14,3 +15,13 @@
 :root[data-theme='dark'] .character-picker .picker-list, :root[data-theme='dark'] .character-picker .picker-list li { border-color: #2f4157; }
 :root[data-theme='dark'] .character-picker .picker-list label:hover { background: #1f3045; }
 :root[data-theme='dark'] .character-picker .picker-list small, :root[data-theme='dark'] .character-picker .picker-empty { color: #94a5b6; }
+
+/* A character who is on the list can be listed once more: a small plus at the end of the row. */
+.character-picker .picker-again { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: 0 6px; padding: 0; border: 1px solid #d3dccf; border-radius: 4px; color: #526158; background: transparent; cursor: pointer; }
+.character-picker .picker-again:hover { background: #f3f7f1; }
+:root[data-theme='dark'] .character-picker .picker-again { border-color: #3a4b61; color: #bfccd9; }
+:root[data-theme='dark'] .character-picker .picker-again:hover { background: #1f3045; }
+
+/* The dialog's own rule takes the outline off its inputs, so the tick box gets one back: a tick changes the list at once, and a keyboard user has to see which row it is on. */
+.character-picker .picker-list input[type='checkbox']:focus-visible { outline: 2px solid #568bc0; outline-offset: 2px; }
+:root[data-theme='dark'] .character-picker .picker-list input[type='checkbox']:focus-visible { outline-color: #8fc2e6; }

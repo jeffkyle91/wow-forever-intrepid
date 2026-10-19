@@ -69,7 +69,7 @@ export function PriorityModal({ existing, close, live }: { existing: LootPriorit
     </div>}
     <label>Item name<input name="item" defaultValue={existing.item} placeholder="e.g. Signet of the Deep Earth" required autoFocus /></label>
     <label>Raid · encounter<input name="encounter" defaultValue={existing.encounter} placeholder="Raid name · Boss name" required /></label>
-    <div className="field-group"><span className="field-label">Candidates <span className="field-hint">Highest priority first. Pick characters from the roster, and use a note for what is not a person.</span></span>
+    <div className="field-group"><span className="field-label">Candidates <span className="field-hint">Highest priority first. Tick characters in the roster below to add them, and use a note for what is not a person.</span></span>
       <CandidateEditor lines={lines} onChange={setLines} roster={live.data.roster} who={who} />
       {converted > 0 && <p className="field-hint">{converted === 1 ? '1 name' : `${converted} names`} not found on the roster {converted === 1 ? 'is' : 'are'} kept as {converted === 1 ? 'a note' : 'notes'}.</p>}
     </div>

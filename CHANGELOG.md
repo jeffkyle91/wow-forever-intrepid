@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Edit loot priority: ticking a character in the roster now adds them to the candidates at once, at the bottom of the list, and unticking takes their last listing off again (ticking them straight back puts them where they were), so there is no separate Add to the list button to miss before saving. A small plus beside a listed character lists them a second time, and one listed twice needs two unticks (LOOT-012).
+
 - Loot Drops (Browse drops) can be filtered by creature and by item slot, beside the zone, the phase and the search, with a Clear filters button; the count of items shown follows them. Add all and Remove all still act on the whole zone (LOOT-011).
 
 - Carry over can be filtered by dungeon or boss and by item slot, like the priority list, as well as searched, with a Clear filters button and a count of what is shown. Items already ticked stay ticked when a filter hides them, and the bar at the bottom says how many are hidden (LOOT-011).

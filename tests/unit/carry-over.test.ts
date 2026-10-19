@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { carryOverFields, onTargetList } from '../../src/features/loot/carryOver.ts'
+import { carryFiltersActive, carryOverFields, noCarryFilters, onTargetList, targetIndex, visibleForCarryOver } from '../../src/features/loot/carryOver.ts'
 import { awardsForPriority, listingProgress, priorityLookup } from '../../src/features/loot/completion.ts'
 
 // Invented names and items.
@@ -77,5 +77,78 @@ describe('received marks on a carried-over priority', () => {
     const found = awardsForPriority(long[29], long.map((entry) => award('Aria', entry.id)), priorityLookup(long)).map((entry) => entry.priorityId)
     assert.equal(found.length, 21)
     assert.ok(found.includes('c29') && found.includes('c9') && !found.includes('c8'))
+  })
+})
+
+describe('the filters of the Carry over dialog', () => {
+  // Invented items. A dungeon, a middle dot and the boss, as Browse drops writes an encounter; one has none.
+  const items = [
+    { id: 'a', item: 'Iron Ring', encounter: 'Test Hall \u00b7 Warden', rankedPlayers: ['Aria', 'Brock'], itemId: 1 },
+    { id: 'b', item: 'Oak Staff', encounter: 'Test Hall \u00b7 Warden', rankedPlayers: ['Cleo'], itemId: 2 },
+    { id: 'c', item: 'Silk Cowl', encounter: 'Test Hall \u00b7 Seer', rankedPlayers: ['Aria'], itemId: 3 },
+    { id: 'd', item: 'Brass Key', encounter: 'Sample Cave \u00b7 Warden', rankedPlayers: [], itemId: 4 },
+    { id: 'e', item: 'Typed By Hand', encounter: '', rankedPlayers: ['Dara'] },
+  ]
+  const slots: Record<string, string | undefined> = { a: 'Finger', b: '2H Weapon', c: 'Head', d: undefined, e: 'Other' }
+  const slotOf = (priority: { id?: string }) => slots[priority.id ?? '']
+  const ids = (filters: Partial<typeof noCarryFilters>) => visibleForCarryOver(items, { ...noCarryFilters, ...filters }, slotOf).map((priority) => priority.id)
+
+  it('lets everything through when no filter is set', () => {
+    assert.deepEqual(ids({}), ['a', 'b', 'c', 'd', 'e'])
+    assert.equal(carryFiltersActive(noCarryFilters), false)
+  })
+  it('a whole dungeon, or one boss of it, by its encounter scope (the same scopes as the priority list)', () => {
+    assert.deepEqual(ids({ encounter: 'd:test hall' }), ['a', 'b', 'c'])
+    assert.deepEqual(ids({ encounter: 'b:test hall|warden' }), ['a', 'b'])
+    assert.deepEqual(ids({ encounter: 'b:sample cave|warden' }), ['d'], 'a boss with the same name in another dungeon is a different boss')
+    assert.deepEqual(ids({ encounter: 'd:' }), ['e'], 'the priorities with no dungeon')
+    assert.deepEqual(ids({ encounter: 'x:nonsense' }), [], 'a scope that is not understood shows nothing')
+  })
+  it('an item slot, and an item whose slot is not known yet matches no slot until it is', () => {
+    assert.deepEqual(ids({ slot: 'Head' }), ['c'])
+    assert.deepEqual(ids({ slot: 'Other' }), ['e'])
+    assert.deepEqual(ids({ slot: 'Finger' }), ['a'])
+    assert.deepEqual(ids({ slot: 'Trinket' }), [])
+  })
+  it('the search looks at the item, the dungeon and boss, and the players, ignoring case and spaces around it', () => {
+    assert.deepEqual(ids({ text: '  OAK ' }), ['b'])
+    assert.deepEqual(ids({ text: 'sample' }), ['d'])
+    assert.deepEqual(ids({ text: 'aria' }), ['a', 'c'])
+    assert.deepEqual(ids({ text: 'warden' }), ['a', 'b', 'd'])
+  })
+  it('the filters work together: each one narrows what the others let through', () => {
+    assert.deepEqual(ids({ encounter: 'd:test hall', text: 'aria' }), ['a', 'c'])
+    assert.deepEqual(ids({ encounter: 'd:test hall', text: 'aria', slot: 'Head' }), ['c'])
+    assert.deepEqual(ids({ encounter: 'b:test hall|seer', slot: 'Finger' }), [])
+  })
+  it('never changes the list it is given, and keeps its order', () => {
+    const before = JSON.stringify(items)
+    visibleForCarryOver(items, { text: 'a', encounter: '', slot: '' }, slotOf)
+    assert.equal(JSON.stringify(items), before)
+    assert.deepEqual(ids({ text: 'a' }), ['a', 'b', 'c', 'd', 'e'])
+  })
+  it('knows when a filter is active, a search of only spaces not counting', () => {
+    assert.equal(carryFiltersActive({ text: '   ', encounter: '', slot: '' }), false)
+    assert.equal(carryFiltersActive({ text: 'x', encounter: '', slot: '' }), true)
+    assert.equal(carryFiltersActive({ text: '', encounter: 'd:test hall', slot: '' }), true)
+    assert.equal(carryFiltersActive({ text: '', encounter: '', slot: 'Head' }), true)
+  })
+})
+
+describe('targetIndex', () => {
+  const target = [{ item: 'Iron Ring', itemId: 101 }, { item: 'Typed By Hand' }, { item: '  Spaced   Name ' }, { item: '' }]
+  const sources = [
+    { item: 'Anything', itemId: 101 }, { item: 'Iron Ring' }, { item: 'iron ring', itemId: 999 }, { item: 'typed by hand' }, { item: 'spaced name' }, { item: 'Other', itemId: 7 },
+    { item: '' }, { item: '   ' }, { item: 'Nothing', itemId: undefined },
+  ]
+  it('answers exactly what onTargetList answers, for every kind of item (same id, same name for one typed by hand, blank names never match)', () => {
+    const on = targetIndex(target)
+    for (const source of sources) assert.equal(on(source), onTargetList(target, source), JSON.stringify(source))
+    assert.equal(on({ item: 'Anything', itemId: 101 }), true)
+    assert.equal(on({ item: 'Other', itemId: 7 }), false)
+    assert.equal(on({ item: '' }), false)
+  })
+  it('an empty target list has nothing on it', () => {
+    assert.equal(targetIndex([])({ item: 'Iron Ring', itemId: 101 }), false)
   })
 })

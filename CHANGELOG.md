@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Edit loot priority: ticking a character in the roster now adds them to the candidates at once, at the bottom of the list, and unticking takes their last listing off again (ticking them straight back puts them where they were), so there is no separate Add to the list button to miss before saving. A small plus beside a listed character lists them a second time, and one listed twice needs two unticks (LOOT-012).
+
 - Zone artwork: Settings has a new **Zone images** panel where a Guild Leader keeps a library of pictures (loading screens or any artwork; add many at once, rename, replace, remove), and each zone on the Zones page has an **Artwork** dropdown (and Pick pictures by name). A zone's picture shows as a banner on the zone's title in Loot priorities and in Browse drops (in Browse drops the banner is the picture and the zone's name, with the zone's description under a small About this zone; the loot under it has no picture), so a new raid needs a picture and a pick, not a release. Pictures are stored in the guild's own Cloud Storage and shown only inside the app; only a Guild Leader can add or remove them (LOOT-010).
 
 ## 2026-10-18 - d0ef75d

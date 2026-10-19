@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { countItems, dropEncounter, dropPriorityRecord, filterGroups, prioritiesForItem, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
+import { countItems, dropEncounter, dropFiltersActive, dropPriorityRecord, filterGroups, noDropFilters, prioritiesForItem, zoneWideName } from '../../src/features/loot/dropsFilter.ts'
 
 // Invented creatures and items.
 const table = {
@@ -109,5 +109,44 @@ describe('filterGroups for creatures the guild added', () => {
     assert.deepEqual(groups.map((group) => group.key), ['creature-0', 'creature-1', 'npc-77'])
     assert.deepEqual(groups.map((group) => group.npcId), [undefined, undefined, 77])
     assert.ok(!('npcId' in groups[0]))
+  })
+})
+
+describe('the filters of Browse drops (one creature, an item slot)', () => {
+  const slots: Record<number, string | undefined> = { 100: '1H Weapon', 101: 'Finger', 200: 'Other', 300: 'Back', 301: 'Finger', 900: 'Feet', 901: undefined }
+  const slotOf = (id: number) => slots[id]
+  const shown = (query: string, filters: Partial<typeof noDropFilters>) => filterGroups(table, query, nameOf, { ...noDropFilters, ...filters }, slotOf).map((group) => [group.key, group.itemIds])
+
+  it('shows everything when no filter is set, like before', () => {
+    assert.deepEqual(shown('', {}).map(([key]) => key), ['npc-10', 'npc-11', 'npc-12', 'zone-wide'])
+    assert.equal(dropFiltersActive(noDropFilters, ''), false)
+  })
+  it('one creature, by its group key, including the zone-wide group', () => {
+    assert.deepEqual(shown('', { creature: 'npc-12' }), [['npc-12', [300, 301]]])
+    assert.deepEqual(shown('', { creature: 'zone-wide' }), [['zone-wide', [900, 901]]])
+    assert.deepEqual(shown('', { creature: 'npc-404' }), [], 'a creature that is not in the zone shows nothing')
+  })
+  it('an item slot keeps only the items in it and drops the creatures left with none; an item whose slot is not known yet matches no slot', () => {
+    assert.deepEqual(shown('', { slot: 'Finger' }), [['npc-10', [101]], ['npc-12', [301]]])
+    assert.deepEqual(shown('', { slot: 'Feet' }), [['zone-wide', [900]]])
+    assert.deepEqual(shown('', { slot: 'Other' }), [['npc-11', [200]]])
+    assert.deepEqual(shown('', { slot: 'Trinket' }), [])
+  })
+  it('the creature, the slot and the search narrow each other', () => {
+    assert.deepEqual(shown('', { creature: 'npc-12', slot: 'Finger' }), [['npc-12', [301]]])
+    assert.deepEqual(shown('ring', { slot: 'Finger' }), [['npc-10', [101]], ['npc-12', [301]]])
+    assert.deepEqual(shown('moss', { slot: 'Back' }), [['npc-12', [300]]], 'a creature whose name matches still shows only the items of the slot')
+    assert.deepEqual(shown('ring', { creature: 'npc-10', slot: 'Back' }), [])
+  })
+  it('knows when anything narrows the list, a search of only spaces not counting', () => {
+    assert.equal(dropFiltersActive(noDropFilters, '   '), false)
+    assert.equal(dropFiltersActive(noDropFilters, 'x'), true)
+    assert.equal(dropFiltersActive({ creature: 'npc-10', slot: '' }, ''), true)
+    assert.equal(dropFiltersActive({ creature: '', slot: 'Head' }, ''), true)
+  })
+  it('does not change the table it is given', () => {
+    const before = JSON.stringify(table)
+    shown('ring', { slot: 'Finger', creature: 'npc-10' })
+    assert.equal(JSON.stringify(table), before)
   })
 })

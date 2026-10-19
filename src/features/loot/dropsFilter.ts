@@ -5,13 +5,20 @@ type TableLike = { sources: { npcId: number; name: string; kind: string; itemIds
 
 export type LootGroup = { key: string; name: string; kind: 'boss' | 'rare' | 'trash' | 'zone'; npcId?: number; itemIds: number[] }
 
+// The filters of Browse drops beside the search: one creature of the zone (a group's key, see LootGroup) and an item slot (one of slotChoices in slots.ts). They only
+// decide what is shown; Add all and Remove all still act on the whole zone, as they do for the search.
+export type DropFilters = { creature: string; slot: string }
+export const noDropFilters: DropFilters = { creature: '', slot: '' }
+export const dropFiltersActive = (filters: DropFilters, query: string) => query.trim() !== '' || filters.creature !== '' || filters.slot !== ''
+
 export const zoneWideName = 'Any creature in the zone'
 export const kindLabels: Record<LootGroup['kind'], string> = { boss: 'Boss', rare: 'Rare', trash: 'Trash', zone: 'Zone-wide' }
 
 // The creatures of a table, then the zone-wide items as one last group. A creature matches on its name or kind and then shows all
 // its items; otherwise it shows only the items that match, by id or by name (nameOf gives a name once it has been looked up).
-// Groups with nothing to show are left out.
-export function filterGroups(table: TableLike, query: string, nameOf: (itemId: number) => string | undefined): LootGroup[] {
+// Groups with nothing to show are left out. Then the filters: one creature (a group's key), and an item slot, where slotOf gives an item's slot choice or
+// undefined while it has not been looked up yet (it then matches no slot until it has been).
+export function filterGroups(table: TableLike, query: string, nameOf: (itemId: number) => string | undefined, filters: DropFilters = noDropFilters, slotOf: (itemId: number) => string | undefined = () => undefined): LootGroup[] {
   const text = query.trim().toLowerCase()
   const itemMatches = (id: number) => String(id).includes(text) || (nameOf(id) ?? '').toLowerCase().includes(text)
   // A creature the guild added has no game number when it is not known: the merged table says 0, which is no number (it gets its own key and no id).
@@ -20,7 +27,10 @@ export function filterGroups(table: TableLike, query: string, nameOf: (itemId: n
     itemIds: !text || source.name.toLowerCase().includes(text) || source.kind.includes(text) ? source.itemIds : source.itemIds.filter(itemMatches),
   }))
   groups.push({ key: 'zone-wide', name: zoneWideName, kind: 'zone', itemIds: !text || zoneWideName.toLowerCase().includes(text) ? table.zoneWideItemIds : table.zoneWideItemIds.filter(itemMatches) })
-  return groups.filter((group) => group.itemIds.length > 0)
+  return groups
+    .filter((group) => !filters.creature || group.key === filters.creature)
+    .map((group) => (filters.slot ? { ...group, itemIds: group.itemIds.filter((id) => slotOf(id) === filters.slot) } : group))
+    .filter((group) => group.itemIds.length > 0)
 }
 
 export const countItems = (groups: LootGroup[]) => groups.reduce((total, group) => total + group.itemIds.length, 0)

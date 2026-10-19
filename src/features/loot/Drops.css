@@ -93,3 +93,7 @@
 :root[data-theme='dark'] .drops-banner span { color: #e8edf3; background: rgba(15, 24, 36, .78); }
 :root[data-theme='dark'] .drops-about > summary { color: #bfccd9; }
 @media (max-width: 640px) { .drops-intro.drops-banner { min-height: 84px; font-size: 15px; } }
+
+/* The filters of Browse drops sit on a row of their own under the phase, the zone and the search. */
+.drops-filters { align-items: center; }
+.drops-filters .loot-filter-select { max-width: 190px; }

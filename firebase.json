@@ -2,6 +2,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "functions": {
     "source": "functions",
     "runtime": "nodejs24",
@@ -19,6 +22,10 @@
     "functions": {
       "host": "127.0.0.1",
       "port": 15001
+    },
+    "storage": {
+      "host": "127.0.0.1",
+      "port": 19199
     },
     "ui": {
       "enabled": false

@@ -1,4 +1,4 @@
-// Deploys main: checks, build, lint and server/rules tests, then Functions, Firestore rules and hosting.
+// Deploys main: checks, build, lint and server/rules tests, then Functions, Firestore rules, Storage rules and hosting.
 //
 //   npm run release              prints the plan and runs the read-only checks; deploys nothing
 //   npm run release -- --deploy  does all of it
@@ -50,7 +50,7 @@ if (env.VITE_FIREBASE_PROJECT_ID !== PROJECT) fail(`the build would use project 
 if (!env.VITE_GUILD_ID) fail('VITE_GUILD_ID is not set for the build. Check .env.local (and .env.production).')
 
 const head = run('git rev-parse --short HEAD', { quiet: true }).out
-console.log(`Release of ${head} to ${PROJECT} (guild ${env.VITE_GUILD_ID}). Steps: build, lint, server/rules tests, deploy Functions, deploy Firestore rules, deploy hosting. Firebase Functions requires the Blaze plan. After the first release, a Guild Leader must run Settings > Synchronize raid absences.`)
+console.log(`Release of ${head} to ${PROJECT} (guild ${env.VITE_GUILD_ID}). Steps: build, lint, server/rules tests, deploy Functions, deploy Firestore rules, deploy Storage rules (Cloud Storage has to be turned on once in the Firebase console, Build > Storage > Get started, and its service agent given access to Firestore once, see CONTRIBUTING.md "Cloud Storage"), deploy hosting. Firebase Functions requires the Blaze plan. After the first release, a Guild Leader must run Settings > Synchronize raid absences.`)
 if (!deploy) {
   console.log('Checks passed. Nothing was built or deployed. Run again with --deploy to release.')
   process.exit(0)
@@ -61,7 +61,8 @@ function step(command) {
   console.log(`\n> ${command}`)
   if (run(command).ok) return
   console.error(`\nStopped: "${command}" failed. Nothing after it was run.`)
-  if (rulesDeployed) console.error('The Firestore rules ARE LIVE and hosting is NOT. Run it again with --deploy (it is safe to repeat). Until then, an old tab may be refused by the new rules.')
+  if (rulesDeployed) console.error('The Firestore rules ARE LIVE and hosting is NOT (the Storage rules may not be either). Run it again with --deploy (it is safe to repeat). Until then, an old tab may be refused by the new rules.')
+  if (command.includes('deploy --only storage')) console.error('Storage needs two one-time steps: turn Cloud Storage on (Firebase console > Build > Storage > Get started), then let its service agent read Firestore (CONTRIBUTING.md, "Cloud Storage"). Do them, then run this again.')
   process.exit(1)
 }
 
@@ -71,6 +72,7 @@ step('npm run test:rules')
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only functions --project ${PROJECT} --non-interactive`)
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only firestore:rules --project ${PROJECT} --non-interactive`)
 rulesDeployed = true
+step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only storage --project ${PROJECT} --non-interactive`)
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only hosting --project ${PROJECT} --non-interactive`)
 
 // A marker for the last release. It is only a note: nothing reads it, so a failure here is not a failed deploy.

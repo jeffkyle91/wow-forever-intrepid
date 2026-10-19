@@ -13,7 +13,7 @@ cp .env.example .env.local   # then fill in your own Firebase values
 npm run dev
 ```
 
-Prefer `npm run dev:emulator` for local work: Auth, Firestore and Functions run against `demo-intrepid` without billing. For cloud development use your **own** Firebase project with Email/Password sign-in, Firestore, rules, Functions and your own `VITE_GUILD_ID`. Cloud Functions requires the Blaze plan; Spark no longer supports the complete sign-up/availability write flow. Follow "Firebase project setup" in the README. Never point `.env.local` at the production project, and never commit `.env.local`.
+Prefer `npm run dev:emulator` for local work: Auth, Firestore, Functions and Cloud Storage run against `demo-intrepid` without billing. For cloud development use your **own** Firebase project with Email/Password sign-in, Firestore, rules, Functions and your own `VITE_GUILD_ID`. Cloud Functions requires the Blaze plan; Spark no longer supports the complete sign-up/availability write flow. Follow "Firebase project setup" in the README. Never point `.env.local` at the production project, and never commit `.env.local`.
 
 Awards and raids cannot be deleted from the app (unavailable dates can only be removed by their owner), so test on your own project and not on the live guild.
 
@@ -25,7 +25,7 @@ npm run lint
 npm run test:unit
 ```
 
-If you changed `firestore.rules`, also run `npm run test:rules` (see "Testing the Firestore rules" below).
+If you changed `firestore.rules` or `storage.rules`, also run `npm run test:rules` (see "Testing the Firestore rules" below).
 
 Then click through every tab as each role (use VIEW AS as a Guild Leader to preview Raid Leader and Member), open each dialog you touched, and make sure the browser console is clean. Automated checks cover the Firestore rules, the pure raid-preview helpers and the pure functions in `tests/unit/` (`npm run test:unit`, run directly by Node, no emulator), not the rendered UI, so say in the PR what you checked in the app.
 
@@ -33,13 +33,13 @@ For explanatory help or expandable read-only text, use the shared `HelpPopover` 
 
 ## Testing the Firestore rules
 
-The rules are the authorization boundary, so they have tests that run against the local Firestore emulator. You need a JDK, version 21 or newer, because the emulator is a Java program (check with `java -version`; Temurin from adoptium.net is fine, or `brew install openjdk@21` on macOS, which also needs adding to your `PATH`). Then:
+The rules are the authorization boundary, so they have tests that run against the local Firestore and Cloud Storage emulators (`storage.rules` holds the zone artwork files; it reads the members documents of Firestore to learn a person's role, so its tests, `zone-art-storage.test.ts` and `support/storage.ts`, start both). You need a JDK, version 21 or newer, because the emulator is a Java program (check with `java -version`; Temurin from adoptium.net is fine, or `brew install openjdk@21` on macOS, which also needs adding to your `PATH`). Then:
 
 ```bash
 npm run test:rules
 ```
 
-It takes under a minute and needs no Firebase login, no Firebase project and no `.env.local`: it uses the demo project `demo-intrepid`, and the tests talk only to the emulator on `127.0.0.1`. The script runs `firebase-tools` through a version-pinned `npx` call (it is deliberately not a dependency of this repo, with install scripts turned off), and the first run downloads the emulator jar (about 137 MB) into your user cache. The emulator port is in `firebase.json` (`emulators.firestore.port`); change it there if it clashes with something on your machine.
+It takes under a minute and needs no Firebase login, no Firebase project and no `.env.local`: it uses the demo project `demo-intrepid`, and the tests talk only to the emulator on `127.0.0.1`. The script runs `firebase-tools` through a version-pinned `npx` call (it is deliberately not a dependency of this repo, with install scripts turned off), and the first run downloads the emulator jars (about 137 MB for Firestore and about 53 MB for Cloud Storage) into your user cache. The emulator ports are in `firebase.json` (`emulators.firestore.port` and `emulators.storage.port`); change them there if they clash with something on your machine.
 
 The tests are in `tests/rules/`, written in TypeScript and run by Node's built-in test runner. `access-matrix.test.ts` lists, per collection, which role may get, list, create, update and delete; the other files cover the rules that depend on the data (join requests, the account-to-character link, award snapshots, availability, raid zones and raids, and how large a batch can be). A comment above each group says who may do what.
 
@@ -57,11 +57,11 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 Character-readiness changes must keep `tests/rules/character-readiness.test.ts` passing: per-character owner/leader writes, reciprocal main/direct-alt ownership, removal, server stamps and field isolation. Leadership aggregation is covered in `tests/unit/leadership.test.ts`. Shared coverage changes also require `node --test tests/raid-coverage/*.test.ts`; the module is in `src/shared/raid-coverage/` and is reused by Teams and Leadership.
 
 - Keep them small and about one thing. A refactor and a feature are separate PRs.
-- Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
+- Work in your feature's folder under `src/features/`. If you must change a shared file, do it in its own commit and call it out in the PR description. Shared files are: `src/shared/**`, `src/shell/**`, `src/App.tsx`, `src/App.css`, `src/guildApi.ts`, `src/useGuildData.ts`, `src/useGuildSession.ts`, `src/security.ts`, `firestore.rules`, `storage.rules`, `firebase.json`, `package.json`, `package-lock.json`, `.nvmrc` and everything under `.github/`.
 - A change that adds or changes a Firestore collection or a rule needs the rules change in the same PR, reviewed on its own, tests for it in `tests/rules/`, and a note about deploy order: rules first, then hosting.
 - Deploy only when you are asked to. For this server-side write transition deploy Functions first, then rules, then hosting. Functions requires Blaze billing and Node 24. After the first release a Guild Leader runs Settings > Synchronize raid absences to backfill existing unavailable dates. Old tabs must refresh: direct response/availability writes are now denied.
 - Opening a PR: `gh pr create --fill` (GitHub CLI). The merge is done in GitHub.
-- After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs server/rules tests, deploys Functions, Firestore rules, then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy.
+- After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs server/rules tests, deploys Functions, Firestore rules, Storage rules, then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy. Cloud Storage has to be turned on once in the Firebase console (Build > Storage > Get started, same location as Firestore, which needs the Blaze plan) before the Storage rules can be deployed; until then `npm run release -- --deploy` stops at that step.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
 
 ### Branch cleanup after merge
@@ -154,6 +154,15 @@ After deployment and verification, the primary maintainer moves only the shipped
 The publisher renders shared sources with `.\scripts\discord-backlog.ps1 -Backlog` or `-Release '<exact dated changelog heading>'`; both default to preview. After explicit approval, add `-Publish`. Release mode publishes patch notes first, then updates the active backlog, saving receipts so known successful messages are skipped on retry. It does not verify Firebase deployment itself: the maintainer must first verify deployment and record it in the changelog. Configure patch notes using `-ConfigureFromClipboard -Destination patch-notes`; the existing backlog credential stays intact. See [publisher instructions](docs/discord-backlog.md) for setup, recovery and manual payload support. Neither merge nor deployment triggers Discord automatically.
 
 Keep encrypted webhook credentials, Discord receipts/message IDs, locks and private guild content outside the repository. The primary machine owns publishing state; other machines must not publish independently using fresh state. Verify JSON syntax, unique IDs, field values, references, acyclic dependencies and release links when editing the backlog. Documentation-only changes need no app build unless behavior or tooling changes too.
+
+## Cloud Storage
+
+Cloud Storage holds the zone artwork (`storage.rules`; see "Zone artwork" in `ARCHITECTURE.md`). Before `npm run release -- --deploy` can deploy the Storage rules to the live project, two things have to be done once, in this order:
+
+1. **Turn Storage on:** Firebase console, Build > Storage > Get started, in the same location as Firestore. It needs the Blaze plan.
+2. **Let Storage read Firestore.** `storage.rules` learns a person's role from the members documents in Firestore (the same documents the Firestore rules use; Google calls this a cross-service rule), and for that the Cloud Storage service agent needs a role. The release script runs `firebase-tools` with `--non-interactive`, which skips the question that would grant it, so grant it once by hand: either run `npx firebase-tools@15.31.0 deploy --only storage --project <project-id>` in a terminal, without `--non-interactive`, and answer yes when it offers to grant the IAM role, or open IAM in the Google Cloud console and give `service-<project number>@gcp-sa-firebasestorage.iam.gserviceaccount.com` the role "Firebase Rules Firestore Service Agent". Without it every Storage request is refused, leaders included, and the release still prints Done.
+
+A picture is shown through its download address, a link with an unguessable token that the app keeps in the members-only `settings/zoneArt` document. Storage does not check that kind of request against the rules, so the rules decide who may add, delete and list files and who can ask Storage for an address, not who can look at a link that was copied. Do not put anything private in this bucket.
 
 ## Rules that protect the guild
 

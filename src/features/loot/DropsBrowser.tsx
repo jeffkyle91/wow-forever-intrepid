@@ -8,9 +8,12 @@ import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import '../../shared/ui/zoneColor.css'
 import { useDropTables } from './useDropTables'
 import { useZoneColors, zoneStyle } from './useZoneColors'
-import { countItems, dropEncounter, dropPriorityRecord, filterGroups, kindLabels, prioritiesForItem, type DropPick } from './dropsFilter'
+import { countItems, dropEncounter, dropFiltersActive, dropPriorityRecord, filterGroups, kindLabels, noDropFilters, prioritiesForItem, type DropFilters, type DropPick } from './dropsFilter'
+import { slotChoices } from './slots'
+import { useSlotOf } from './useSlotOf'
 import '../../shared/ui/zoneArt.css'
 import './Drops.css'
+import './LootFilters.css'
 
 // Which creature drops which item, for the dungeons captured in data/loot. A phase picker, a zone picker, a search box, one card per creature and
 // the items that drop from any creature in the zone. Names, icons and tooltips are read live by item id.
@@ -26,6 +29,8 @@ import './Drops.css'
 export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; phaseNo: number; onPhaseNo: (no: number) => void }) {
   const [zoneId, setZoneId] = useState<number | null>(null)
   const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<DropFilters>(noDropFilters)
+  const slotOfPriority = useSlotOf()
   const [adding, setAdding] = useState<Map<number, DropPick>>(new Map())
   const [removing, setRemoving] = useState<Set<number>>(new Set())
   const [confirming, setConfirming] = useState(false)
@@ -52,8 +57,11 @@ export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; p
   useEffect(() => { if (table) lootCaptureItemIds(table).forEach((id) => { retryItem(id); requestItem(id) }) }, [table])
 
   const nameOf = (id: number) => { const state = peekItem(id); return state?.status === 'ready' ? state.info.name : undefined }
-  const groups = table ? filterGroups(table, query, nameOf) : []
   const allGroups = table ? filterGroups(table, '', nameOf) : []
+  // The creature choice only counts while the zone still has that creature (the zone or the phase can change under it).
+  const filtering: DropFilters = { ...filters, creature: allGroups.some((group) => group.key === filters.creature) ? filters.creature : '' }
+  const slotOfItem = (id: number) => slotOfPriority({ item: nameOf(id) ?? '', itemId: id })
+  const groups = table ? filterGroups(table, query, nameOf, filtering, slotOfItem) : []
   // Priorities of this phase whose item is in none of the phase's drop lists (the zone or the item was taken out of the phase after they were made).
   // Browse drops is the way to take a priority off the list, so they are offered here too.
   const inLists = new Set(dropTables.flatMap(lootCaptureItemIds))
@@ -67,7 +75,7 @@ export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; p
   // An item that was taken off and kept can be put back without its name (it is on the priority already).
   const canTick = (id: number) => editable && !isListed(id) && (parkedFor(id).length > 0 || nameOf(id) !== undefined)
   const playersOf = (priorities: { rankedPlayers: string[] }[]) => Math.max(0, ...priorities.map((priority) => priority.rankedPlayers.length))
-  const changePhase = (no: number) => { onPhaseNo(no); setAdding(new Map()); setRemoving(new Set()); setConfirming(false) }
+  const changePhase = (no: number) => { onPhaseNo(no); setAdding(new Map()); setRemoving(new Set()); setConfirming(false); setFilters((current) => ({ ...current, creature: '' })) }
 
   const pickFor = (group: { kind: string; name: string; npcId?: number }, itemId: number): DropPick => ({
     itemId, zoneId: table?.zoneId ?? 0, encounter: dropEncounter(table?.name ?? '', group), ...(group.npcId !== undefined ? { npcId: group.npcId } : {}),
@@ -178,11 +186,22 @@ export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; p
       {phases.length > 1 && <select className="drops-zone-select drops-phase-select phase-select" aria-label="Phase" value={selected.no} onChange={(event) => changePhase(Number(event.target.value))} disabled={busy}>
         {phases.map((option) => <option key={option.no} value={option.no}>{phaseLabel(option)}</option>)}
       </select>}
-      {table && <select className="drops-zone-select" aria-label="Zone" value={table.zoneId} onChange={(event) => setZoneId(Number(event.target.value))}>
+      {table && <select className="drops-zone-select" aria-label="Zone" value={table.zoneId} onChange={(event) => { setZoneId(Number(event.target.value)); setFilters((current) => ({ ...current, creature: '' })) }}>
         {dropTables.map((candidate) => <option key={candidate.zoneId} value={candidate.zoneId}>{candidate.name}</option>)}
       </select>}
       <input className="drops-search" type="search" aria-label="Find a creature or an item" placeholder="Find a creature or an item..." value={query} onChange={(event) => setQuery(event.target.value)} />
     </div>
+    {table && allGroups.length > 0 && <div className="drops-controls drops-filters">
+      <select className="loot-filter-select" aria-label="Filter by creature" value={filtering.creature} onChange={(event) => setFilters((current) => ({ ...current, creature: event.target.value }))}>
+        <option value="">All creatures</option>
+        {allGroups.map((group) => <option key={group.key} value={group.key}>{group.name}{group.kind === 'rare' || group.kind === 'trash' ? ` (${kindLabels[group.kind]})` : ''}</option>)}
+      </select>
+      <select className="loot-filter-select" aria-label="Filter by item slot" value={filtering.slot} onChange={(event) => setFilters((current) => ({ ...current, slot: event.target.value }))}>
+        <option value="">All slots</option>
+        {slotChoices.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+      </select>
+      {dropFiltersActive(filtering, query) && <button type="button" className="loot-filter-clear" onClick={() => { setFilters(noDropFilters); setQuery('') }}>Clear filters</button>}
+    </div>}
     {table && editable && <div className="drops-bulk">
       <button type="button" className="button button-secondary" onClick={addAll} disabled={busy || addableInZone.length === 0} title={addableInZone.length ? `Mark every item of ${table.name} that is not on the list yet` : `Everything in ${table.name} is on the list`}>Add all ({addableInZone.length})</button>
       <button type="button" className="button button-secondary" onClick={removeAll} disabled={busy || listedInZone.length === 0} title={listedInZone.length ? `Mark every item of ${table.name} that is on the list to be taken off` : `Nothing in ${table.name} is on the list`}>Remove all ({listedInZone.length})</button>
@@ -203,7 +222,7 @@ export function DropsBrowser({ live, phaseNo, onPhaseNo }: { live: TabContext; p
       {table.dataStatus && <p className="drops-status">{table.dataStatus}</p>}
       {table.notes && table.notes.length > 0 && <details className="drops-notes"><summary>About this data</summary><ul>{table.notes.map((note) => <li key={note}>{note}</li>)}</ul></details>}
       </div>)}
-    {table && groups.length === 0 && <p className="drops-empty">Nothing here matches "{query.trim()}".</p>}
+    {table && groups.length === 0 && <p className="drops-empty">{query.trim() !== '' && !filtering.creature && !filtering.slot ? `Nothing here matches "${query.trim()}".` : 'Nothing here matches the filters.'}</p>}
     {groups.map((group) => {
       const addable = group.itemIds.filter(canTick)
       const allTicked = addable.length > 0 && addable.every((id) => adding.has(id))

@@ -52,3 +52,12 @@
 .carried-tag { display: block; margin-top: 3px; color: #7a8a7f; font-size: 9px; font-weight: 700; letter-spacing: .02em; }
 :root[data-theme='dark'] .carried-tag { color: #94a5b6; }
 
+
+/* A zone's picture (--zone-art) is a banner on its heading and nowhere else: the rows have none. The heading is taller so the picture can be seen. It fills the right
+   of the heading and fades out toward the name, so the name keeps the page's ink on a plain background; the count sits on a pill so it stays readable over the picture. */
+.priority-dungeon.zone-arted { --zone-art-wash: .95; min-height: 108px; align-items: flex-end; padding: 12px 14px; overflow: hidden; border-radius: 6px 6px 0 0; font-size: 17px; }
+.priority-dungeon.zone-arted::before { background-position: center 30%; -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 26%, #000 70%); mask-image: linear-gradient(90deg, transparent 0%, transparent 26%, #000 70%); }
+.priority-dungeon.zone-arted span { padding: 2px 9px; border-radius: 99px; color: #29372f; background: rgba(255, 255, 255, .86); }
+:root[data-theme='dark'] .priority-dungeon.zone-arted::before { opacity: .8; }
+:root[data-theme='dark'] .priority-dungeon.zone-arted span { color: #e8edf3; background: rgba(15, 24, 36, .78); }
+@media (max-width: 640px) { .priority-dungeon.zone-arted { min-height: 84px; font-size: 15px; } }

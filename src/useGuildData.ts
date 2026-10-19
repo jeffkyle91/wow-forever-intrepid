@@ -23,6 +23,8 @@ import { listZones, schedulableZones } from './shared/game/zoneList'
 import { dropTables } from './shared/lib/dropTables'
 import { defaultGuildSettings, resolveGuildSettings } from './shared/game/settings'
 import { readZoneColors } from './shared/game/zoneColors'
+import { guildId, storageBucket } from './firebase'
+import { EMPTY_ZONE_ART, readZoneArt, type ZoneArt } from './shared/game/zoneArt'
 import { normalizeAward, normalizeJoinRequest, normalizeLootTable, normalizeMember, normalizePlayer, normalizePriority, normalizeSettings } from './shared/lib/normalize'
 import type { CharacterRequest } from './shared/characters/requests'
 import { normalizeReadiness, type CharacterReadiness } from './shared/members/readiness'
@@ -39,6 +41,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   const [awards, setAwards] = useState<AwardRecord[]>([])
   const [lootTables, setLootTables] = useState<LootTableDoc[]>([])
   const [zoneColors, setZoneColors] = useState<Record<string, string>>({})
+  const [zoneArt, setZoneArt] = useState<ZoneArt>(EMPTY_ZONE_ART)
   const [afkEntries, setAfkEntries] = useState<AfkEntryRecord[]>([])
   const [raids, setRaids] = useState<RaidRecord[]>([])
   const [raidZoneCatalog, setRaidZoneCatalog] = useState<RaidZoneRecord[]>([])
@@ -69,7 +72,12 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
       // The guild's own drop lists are an addition to the built-in ones: if they cannot be read (rules not deployed yet), the built-in lists still work.
       // The colors the guild chose for zones are one document of the settings collection; without it (or before the rules allow it) every zone has its default color.
-      subscribeGuildCollection<{ id: string; colors: unknown }>('settings', (records) => setZoneColors(readZoneColors(records.find((record) => record.id === 'zoneColors')?.colors)), (error) => console.warn(`zone colors: ${error.message}`), (id, data) => ({ id, colors: id === 'zoneColors' ? data.colors : undefined })),
+      // The artwork (pictures and the picture of each zone) is one more document of the same collection, read in the same listener so it costs no extra reads.
+      subscribeGuildCollection<{ id: string; colors: unknown; images: unknown; art: unknown }>('settings', (records) => {
+        setZoneColors(readZoneColors(records.find((record) => record.id === 'zoneColors')?.colors))
+        const artwork = records.find((record) => record.id === 'zoneArt')
+        setZoneArt(readZoneArt(artwork?.images, artwork?.art, { guildId, bucket: storageBucket }))
+      }, (error) => console.warn(`zone colors and artwork: ${error.message}`), (id, data) => ({ id, colors: id === 'zoneColors' ? data.colors : undefined, images: id === 'zoneArt' ? data.images : undefined, art: id === 'zoneArt' ? data.art : undefined })),
       subscribeGuildCollection<LootTableDoc>('lootTables', (records) => setLootTables(records), (error) => console.warn(`lootTables: ${error.message}`), normalizeLootTable),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),
       subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
@@ -96,6 +104,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       setAwards([])
       setLootTables([])
       setZoneColors({})
+      setZoneArt(EMPTY_ZONE_ART)
       setAfkEntries([])
       setRaids([])
       setRaidZoneCatalog([])
@@ -135,6 +144,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
     awards,
     lootTables,
     zoneColors,
+    zoneArt,
     afkEntries,
     raids,
     zoneList,

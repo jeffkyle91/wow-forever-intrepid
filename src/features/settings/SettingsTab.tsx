@@ -4,6 +4,7 @@ import { SETTINGS_LABEL_MAX, councilStatuses, defaultGuildSettings, statusTones 
 import { group40, groups20, tenManTeams } from '../../shared/game/teams'
 import type { TabContext } from '../../shared/tabs/types'
 import { PhasesPanel } from './PhasesPanel'
+import { ZoneImagesPanel } from './ZoneImagesPanel'
 import { ZonesPanel } from './ZonesPanel'
 import { RaidAbsenceSync } from './RaidAbsenceSync'
 import './SettingsTab.css'
@@ -31,7 +32,7 @@ function hasBlank(settings: GuildSettings) {
 export function SettingsTab({ ctx }: { ctx: TabContext }) {
   const saved = ctx.data.settings
   // Restart the draft from what is stored whenever the stored settings change (after a save, or an edit by another leader).
-  return <><SettingsForm key={JSON.stringify(saved)} saved={saved} ctx={ctx} /><PhasesPanel ctx={ctx} /><ZonesPanel ctx={ctx} /><RaidAbsenceSync ctx={ctx} /></>
+  return <><SettingsForm key={JSON.stringify(saved)} saved={saved} ctx={ctx} /><PhasesPanel ctx={ctx} /><ZonesPanel ctx={ctx} /><ZoneImagesPanel ctx={ctx} /><RaidAbsenceSync ctx={ctx} /></>
 }
 
 function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext }) {

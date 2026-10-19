@@ -13,6 +13,7 @@ import '../../shared/ui/zoneColor.css'
 import { useMergedTables } from './useDropTables'
 import { useZoneColors, zoneStyle } from './useZoneColors'
 import { groupZones, openGroupKeys, zonesStartOpen, type ZoneGroup } from '../../shared/game/zoneGroups'
+import '../../shared/ui/zoneArt.css'
 import './Tables.css'
 
 // The editor for the drop lists of Browse drops (Guild and Raid Leaders). The lists belong to a PHASE, and a phase starts with nothing: at the top, one
@@ -204,13 +205,14 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
   const phases = everyPhase.filter((option) => option.kind !== 'past')
   const selected = phases.find((option) => option.no === phaseNo) ?? phases.find((option) => option.kind === 'current') ?? phases[0]
   const zones = useMergedTables(live.data.lootTables, selected.no)
-  const zoneColors = useZoneColors(live.data.lootTables, live.data.zoneColors)
+  const zoneColors = useZoneColors(live.data.lootTables, live.data.zoneColors, live.data.zoneArt)
   const inLists = zones.filter((candidate) => candidate.inPhase)
   const [zoneId, setZoneId] = useState<number | null>(null)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
   const [newCreature, setNewCreature] = useState({ name: '', kind: 'boss' as LootSourceKind, npc: '' })
   const { busy, setBusy, setMutationError } = live.feedback
   const zone = inLists.find((candidate) => candidate.zoneId === zoneId) ?? inLists[0]
+  const art = zone ? zoneColors.artOfZone(zone.zoneId) : undefined
   const who: Who = { uid: live.identity.uid, displayName: live.identity.displayName }
   const phase = selected.name
   const next = selected.kind === 'current' ? phases.find((option) => option.kind === 'next') : undefined
@@ -260,10 +262,15 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
     {selected.kind === 'current' && <p className="tables-live">{phase} is the live phase: everyone sees what you change here right away.{next ? ` To prepare something for later, pick ${next.name} above.` : ''}</p>}
     {!zone && <p className="drops-empty">{phase} has no zone yet. Tick one in the Zones section above. A Guild Leader adds a zone that is not in the list, in Settings under Zones.</p>}
     {zone && <>
-      <div className="drops-intro zone-colored" style={zoneStyle(zoneColors.ofZone(zone.zoneId))}>
-        <p><strong className="zone-dot">{zone.name}</strong>: {zone.players}-player {zone.kind}{zone.custom ? ', added by the guild.' : '. Built-in list with the guild\u2019s changes on top.'}
+      {art
+        // A zone with a picture shows the picture and its name, nothing else.
+        ? <>
+          <div className="drops-intro drops-banner zone-colored zone-arted" style={zoneStyle(zoneColors.ofZone(zone.zoneId), art)} role="heading" aria-level={3}><strong className="zone-dot">{zone.name}</strong><span>{zone.players}-player {zone.kind}</span></div>
+        </>
+        : <div className="drops-intro zone-colored" style={zoneStyle(zoneColors.ofZone(zone.zoneId))}>
+          <p><strong className="zone-dot">{zone.name}</strong>: {zone.players}-player {zone.kind}{zone.custom ? ', added by the guild.' : '. Built-in list with the guild\u2019s changes on top.'}
         </p>
-      </div>
+        </div>}
       {zone.sources.map((source) => <Creature key={source.key} zone={zone} source={source} index={liveSources.findIndex((candidate) => candidate.key === source.key)} count={liveSources.length} phase={phase} busy={busy} run={run} />)}
       <Creature zone={zone} source={zone.zoneWide} index={0} count={1} phase={phase} busy={busy} run={run} />
       <div className="tables-add tables-new-creature">

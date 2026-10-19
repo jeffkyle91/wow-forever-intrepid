@@ -78,3 +78,18 @@
 .drops-typed .drops-typed-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; color: #8a5a12; font-size: 10px; }
 :root[data-theme='dark'] .drops-typed .drops-typed-note { color: #94a5b6; }
 :root[data-theme='dark'] .drops-typed .drops-typed-ask { color: #f0c987; }
+
+/* A zone with a picture: its title block is the picture and the zone's name, and nothing else (what the text used to say is under About this zone in Browse drops).
+   The picture fills the right and fades out toward the name, so the name keeps the page's ink on a plain background; the kind and size sit on a pill over it. */
+.drops-intro.drops-banner { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-height: 108px; padding: 12px 14px; overflow: hidden; color: #29372f; font: 600 17px/1.3 var(--display); }
+.drops-intro.drops-banner.zone-arted { --zone-art-wash: .95; }
+.drops-banner.zone-arted::before { background-position: center 30%; -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 26%, #000 70%); mask-image: linear-gradient(90deg, transparent 0%, transparent 26%, #000 70%); }
+.drops-banner span { padding: 2px 9px; border-radius: 99px; color: #29372f; background: rgba(255, 255, 255, .86); font: 400 11px var(--sans); }
+.drops-about { margin: 6px 0 0; }
+.drops-about > summary { width: max-content; cursor: pointer; color: #526158; font-size: 11px; }
+.drops-about > .drops-intro { margin-top: 6px; }
+:root[data-theme='dark'] .drops-intro.drops-banner { color: #e8edf3; }
+:root[data-theme='dark'] .drops-banner.zone-arted::before { opacity: .8; }
+:root[data-theme='dark'] .drops-banner span { color: #e8edf3; background: rgba(15, 24, 36, .78); }
+:root[data-theme='dark'] .drops-about > summary { color: #bfccd9; }
+@media (max-width: 640px) { .drops-intro.drops-banner { min-height: 84px; font-size: 15px; } }

@@ -1,0 +1,29 @@
+/* The Zone images panel of Settings: the library of pictures. */
+.zone-images-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.zone-images-pick { position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.zone-images-pick.is-disabled { opacity: .55; cursor: not-allowed; }
+/* The file input is there for the keyboard and for screen readers, drawn as the button around it. */
+.zone-images-pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.zone-images-pick:focus-within { outline: 2px solid #427296; outline-offset: 2px; }
+:root[data-theme='dark'] .zone-images-pick:focus-within { outline-color: #8fc2e6; }
+.zone-images-search { min-width: 190px; }
+.zone-images-actions small { opacity: .7; }
+.zone-images-progress { margin: 0; font-size: .85rem; opacity: .85; }
+.zone-images-outcome { margin: 0; padding: 7px 10px; border-radius: 5px; border: 1px solid rgba(95, 138, 109, 0.5); background: rgba(95, 138, 109, 0.12); font-size: .88rem; }
+.zone-images-outcome.is-error { border-color: #a8402f; background: rgba(168, 64, 47, 0.1); }
+:root[data-theme='dark'] .zone-images-outcome.is-error { border-color: #f0a698; background: rgba(240, 166, 152, 0.12); }
+.zone-images-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.zone-image-card { display: grid; grid-template-rows: auto 1fr; overflow: hidden; border: 1px solid rgba(212, 175, 55, 0.18); border-radius: 6px; }
+.zone-image-card img { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; background: rgba(120, 130, 140, 0.18); }
+.zone-image-body { display: grid; align-content: start; gap: 4px; padding: 9px 11px 11px; }
+.zone-image-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92rem; }
+.zone-image-body small { opacity: .75; overflow-wrap: anywhere; }
+.zone-image-buttons, .zone-image-confirm, .zone-image-rename { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+.zone-image-buttons .button, .zone-image-confirm .button, .zone-image-rename .button { padding: 3px 9px; min-height: 0; font-size: .78rem; }
+.zone-image-rename input { flex: 1 1 130px; min-width: 0; }
+.zone-image-confirm span { flex: 1 0 100%; font-size: .82rem; }
+@media (max-width: 640px) {
+  .zone-images-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; }
+  .zone-image-body { padding: 7px 8px 9px; }
+  .zone-images-search { flex: 1 1 100%; }
+}

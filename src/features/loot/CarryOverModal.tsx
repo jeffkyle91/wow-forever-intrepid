@@ -1,17 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPriorities, deletePriorities, newPriorityId, type PriorityRecord } from '../../guildApi'
 import { makeWho } from '../../shared/game/candidates'
 import { lootCaptureItemIds } from '../../shared/game/lootTables'
 import { phaseNoOf, phaseOptions, type PhaseOption } from '../../shared/game/phases'
+import { peekItem, requestItem } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import { Modal } from '../../shared/ui/Modal'
 import { awardsRecordedFrom } from './carried'
-import { carryOverFields, onTargetList } from './carryOver'
+import { carryFiltersActive, carryOverFields, noCarryFilters, targetIndex, visibleForCarryOver, type CarryFilters } from './carryOver'
 import { listingProgress, priorityLookup } from './completion'
-import { groupPriorities } from './groupPriorities'
+import { encounterOptions, groupPriorities } from './groupPriorities'
+import { slotChoices } from './slots'
 import { useBossOrder, useDropTables } from './useDropTables'
+import { useSlotOf } from './useSlotOf'
 import './Drops.css'
+import './LootFilters.css'
 import './CarryOver.css'
 
 // Bring items from an earlier phase into `target` (the phase being looked at: the current one, or the next one a leader is preparing). Each
@@ -28,21 +32,31 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
   const bossOrder = useBossOrder(live.data.lootTables, Math.max(0, sourceNo)) // the lists of the phase the items come from
   // The drop lists of the phase the items go to: an item or zone it does not have cannot be ticked off again in Browse drops (only in its last group).
   const targetItems = new Set(useDropTables(live.data.lootTables, target.no).flatMap(lootCaptureItemIds))
-  const [query, setQuery] = useState('')
+  const [filters, setFilters] = useState<CarryFilters>(noCarryFilters)
+  const setFilter = (change: Partial<CarryFilters>) => setFilters((current) => ({ ...current, ...change }))
+  const slotOf = useSlotOf()
   const [picked, setPicked] = useState<Set<string>>(new Set())
   // The item whose carried-over copy is being asked about (Remove, then Yes or Keep it).
   const [asking, setAsking] = useState<string | null>(null)
 
   const lookup = priorityLookup([...allPriorities, ...live.data.hiddenPriorities])
   // An item that was taken off the list of the target phase and kept is still there, so it cannot be carried over again.
-  const targetList = [...allPriorities, ...live.data.hiddenPriorities].filter((priority) => phaseNoOf(priority) === target.no)
+  const hidden = live.data.hiddenPriorities
+  const onTarget = useMemo(() => targetIndex([...allPriorities, ...hidden].filter((priority) => phaseNoOf(priority) === target.no)), [allPriorities, hidden, target.no])
   const fromSource = allPriorities.filter((priority) => phaseNoOf(priority) === sourceNo)
-  const text = query.trim().toLowerCase()
-  const shown = fromSource.filter((priority) => !text || `${priority.item} ${priority.encounter} ${priority.rankedPlayers.join(' ')}`.toLowerCase().includes(text))
-  const canPick = (priority: PriorityRecord) => !onTargetList(targetList, priority)
+  // Each dungeon, then its bosses below it, from everything the earlier phase has (not only what the search shows), so a choice is never offered and then empty.
+  const encounters = encounterOptions(fromSource, bossOrder)
+  // The current choice is always offered, so it can be cleared if its priorities are gone (someone else took them off while this was open).
+  if (filters.encounter && !encounters.some((option) => option.value === filters.encounter)) encounters.push({ value: filters.encounter, label: filters.encounter.slice(2).replace('|', ' \u00b7 '), level: 0 })
+  // Look up every item of the phase, not only the rows on screen, so that the slot filter can tell which ones match (the same as the priority list does).
+  useEffect(() => { fromSource.forEach((priority) => { if (priority.itemId) requestItem(priority.itemId) }) }, [fromSource])
+  const lookingUp = filters.slot !== '' && fromSource.some((priority) => priority.itemId !== undefined && (peekItem(priority.itemId)?.status ?? 'loading') === 'loading')
+  const shown = visibleForCarryOver(fromSource, filters, slotOf)
+  const canPick = (priority: PriorityRecord) => !onTarget(priority)
   const missing = (priority: PriorityRecord) => priority.itemId !== undefined && !targetItems.has(priority.itemId)
   const pickable = shown.filter((priority) => canPick(priority) && !missing(priority))
   const staged = fromSource.filter((priority) => picked.has(priority.id) && canPick(priority))
+  const hiddenStaged = staged.filter((priority) => !shown.includes(priority)).length
   const sourceName = sources.find((option) => option.no === sourceNo)?.name ?? ''
 
   // The copy of a source priority that this dialog carried over to the target phase earlier, if it is still on the list: the one that can be taken off again.
@@ -91,13 +105,25 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
     {sources.length === 0 ? <p className="drops-empty">Nothing to carry over: no earlier phase has any priorities.</p> : <>
       <p className="carry-intro">Bring items from an earlier phase into <strong>{target.name}</strong>. Each one comes with its whole candidate list: players who already got it show as received, and the others stay on it. The earlier phase is not changed.</p>
       <div className="drops-controls">
-        <select className="drops-zone-select phase-select" aria-label="Carry over from" value={sourceNo} onChange={(event) => { setSourceNo(Number(event.target.value)); setPicked(new Set()) }}>
+        <select className="drops-zone-select phase-select" aria-label="Carry over from" value={sourceNo} onChange={(event) => { setSourceNo(Number(event.target.value)); setPicked(new Set()); setFilters(noCarryFilters) }}>
           {sources.map((option) => <option key={option.no} value={option.no}>{option.kind === 'current' ? `${option.name} (current)` : option.name}</option>)}
         </select>
-        <input className="drops-search" type="search" aria-label="Find an item or a player" placeholder="Find an item or a player..." value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input className="drops-search" type="search" aria-label="Find an item or a player" placeholder="Find an item or a player..." value={filters.text} onChange={(event) => setFilter({ text: event.target.value })} />
         <button type="button" className="button button-secondary" onClick={() => toggleAll(pickable)} disabled={busy || pickable.length === 0}>{pickable.length > 0 && pickable.every((priority) => picked.has(priority.id)) ? 'Clear all' : `Tick all (${pickable.length})`}</button>
       </div>
-      {shown.length === 0 && <p className="drops-empty">{fromSource.length === 0 ? `${sourceName} has no priorities.` : `Nothing here matches "${query.trim()}".`}</p>}
+      {fromSource.length > 0 && <div className="drops-controls carry-filters">
+        <select className="loot-filter-select" aria-label="Filter by dungeon or boss" value={filters.encounter} onChange={(event) => setFilter({ encounter: event.target.value })}>
+          <option value="">All encounters</option>
+          {encounters.map((option) => <option key={option.value} value={option.value}>{option.level === 1 ? '\u00a0\u00a0\u00a0\u00a0' : ''}{option.label}</option>)}
+        </select>
+        <select className="loot-filter-select" aria-label="Filter by item slot" value={filters.slot} onChange={(event) => setFilter({ slot: event.target.value })}>
+          <option value="">All slots</option>
+          {slotChoices.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
+        </select>
+        {carryFiltersActive(filters) && <button type="button" className="loot-filter-clear" onClick={() => setFilters(noCarryFilters)}>Clear filters</button>}
+        {carryFiltersActive(filters) && <small className="carry-count">Showing {shown.length} of {fromSource.length}{lookingUp ? ' (still looking up item details)' : ''}</small>}
+      </div>}
+      {shown.length === 0 && <p className="drops-empty">{fromSource.length === 0 ? `${sourceName} has no priorities.` : filters.text.trim() !== '' && !filters.encounter && !filters.slot ? `Nothing here matches "${filters.text.trim()}".` : 'Nothing here matches the filters.'}</p>}
       {groupPriorities(shown, bossOrder).map((dungeon) => <div key={dungeon.key} className="carry-dungeon-group">
         <p className="carry-dungeon">{dungeon.dungeon || 'Other priorities'}</p>
         {dungeon.bosses.map((boss) => {
@@ -128,7 +154,7 @@ export function CarryOverModal({ close, live, target }: { close: () => void; liv
         })}
       </div>)}
       {staged.length > 0 && <div className="drops-tray" role="region" aria-label="Items to carry over">
-        <span>{staged.length} to carry over</span>
+        <span>{staged.length} to carry over{hiddenStaged > 0 ? ` (${hiddenStaged} not shown by the filters)` : ''}</span>
         <button type="button" className="button button-secondary" onClick={() => setPicked(new Set())} disabled={busy}>Clear</button>
         <button type="button" className="button button-primary" onClick={carryOver} disabled={busy}>Carry over to {target.name}</button>
       </div>}

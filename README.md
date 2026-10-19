@@ -114,6 +114,17 @@ The deployed site is [intrepid-wow-forever.web.app](https://intrepid-wow-forever
 
 The Raid Teams view shows the complete guild roster grouped into collapsible Tank, Healer, Melee, and Ranged lists. Drag a character onto a 10-player team to assign or move them; drag an assigned character back to the roster list to unassign them. Team add/move controls remain available without dragging. The 20- and 40-player teams derive from the four 10-player groups.
 
+### Planned scheduled-raid workflow
+
+Agreed October 19; **not implemented by this documentation update**. Standing Raid Teams remain the ongoing template, while each scheduled raid gets its own working lineup and bench. Guild and Raid Leaders adjust that raid without changing standing assignments.
+
+- Invite each member whose **main is ready to raid**, regardless of team assignment. A ready alt alone does not qualify an invitation.
+- The intended Raid Teams available roster includes **every ready character, mains and alts**, rather than the complete-roster behavior described above. All are raiders; bench is a position for a particular raid, not a permanent identity.
+- Keep a member's response separate from their leader-assigned position. At start, preserve an immutable snapshot of the scheduled raid's lineup, bench and responses; a sign-up or snapshot alone does not prove attendance.
+- Later Discord automation announces raids, reminds unconfirmed invitees 24 hours and 1 hour before start, and asks assigned bench raiders to confirm readiness 30 minutes before start. Bench attendance credit requires that readiness confirmation.
+
+Scheduled-raid changes come first; Alex's snapshot development is paused until they are complete. The December 9 snapshot requirement remains unchanged. Team expansion and alternate team sets were scrapped, not added to this scope. See the [agreed lifecycle, open decisions and validation plan](docs/ROADMAP.md#scheduled-raid-lifecycle-agreed-2026-10-19) and [canonical backlog](docs/backlog.json) for sequencing. Current Leadership Overview counts any ready owned character; that is not yet the new main-ready invitation population.
+
 Set the Firebase web-app values and a stable guild document ID in `.env.local`. These public Firebase client settings identify the app; Firestore rules enforce data access. Never put service-account credentials in the web app or commit `.env.local`.
 
 ```text

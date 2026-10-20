@@ -32,14 +32,14 @@
 .cov-facts { margin-top: 5px; color: #6b7a88; font-size: 10px; }
 
 .cov-strip { padding: 6px 14px 8px; border-bottom: 1px solid #edf0f3; }
-.cov-strip-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; list-style: none; cursor: pointer; }
+.cov-strip-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 10px; list-style: none; cursor: pointer; }
 .cov-strip-head::-webkit-details-marker { display: none; }
 .cov-strip-head:focus-visible { outline: 2px solid #3c75a2; outline-offset: 2px; border-radius: 3px; }
 .cov-strip-caret { flex: none; width: 0; height: 0; border-left: 5px solid #8491a0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
 .cov-strip[open] .cov-strip-caret { transform: rotate(90deg); }
 .cov-strip-label { margin: 0; color: #6b7a88; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
-.cov-strip-counts { display: inline-flex; flex-wrap: wrap; gap: 4px 6px; }
-.cov-chip { padding: 0 6px; border: 1px solid currentColor; border-radius: 9px; font-size: 11px; line-height: 17px; white-space: nowrap; }
+.cov-strip-counts { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 6px; width: 100%; }
+.cov-chip { display: block; min-height: 32px; padding: 0 4px; border: 1px solid currentColor; border-radius: 9px; font-size: 10px; line-height: 15px; white-space: normal; text-align: center; align-content: center; }
 .cov-chip-available { color: #1f7a45; }
 .cov-chip-missing { color: #b3261e; }
 .cov-chip-potential { color: #8a5a00; }

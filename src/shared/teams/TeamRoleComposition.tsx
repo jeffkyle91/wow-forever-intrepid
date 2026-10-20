@@ -1,6 +1,6 @@
 import type { PlayerRecord as Player } from '../../guildApi'
-import { raidRoles, type Role } from '../../shared/game/classes'
-import { RoleIcon } from '../../shared/ui/RolePill'
+import { raidRoles, type Role } from '../game/classes'
+import { RoleIcon } from '../ui/RolePill'
 
 function RoleCount({ role, count }: { role: Role; count: number }) {
   return <span className={`team-role-count role-${role.toLowerCase()}`} title={`${role}: ${count}`} aria-label={`${role}: ${count}`}><RoleIcon role={role} size={12} /><strong>{count}</strong></span>

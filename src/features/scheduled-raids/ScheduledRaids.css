@@ -3,7 +3,7 @@
 .scheduled-raids-tool > label select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: var(--surface, #fff); font: inherit; }
 .scheduled-raids-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .scheduled-raids-actions .button { max-width: 100%; white-space: normal; }
-.scheduled-roster-pools { display: grid; gap: 14px; min-width: 0; }
+.scheduled-roster-pools { display: grid; gap: 14px; min-width: 0; container-type: inline-size; }
 .scheduled-workbench-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; }
 .scheduled-workbench-toolbar .segmented-control button:disabled { opacity: .4; cursor: not-allowed; }
 .scheduled-workbench .team-member-info, .scheduled-workbench .roster-pool-member-info { padding: 5px 0; }
@@ -15,20 +15,37 @@
 .scheduled-workbench .team-member-info:has(.scheduled-warning-button) > strong,
 .scheduled-workbench .team-member-info:has(.scheduled-warning-button) > small { grid-column: 1; }
 .scheduled-workbench .team-member-info > .scheduled-warning-button { grid-column: 2; grid-row: 1 / 3; }
-.scheduled-workbench .roster-pool-member-info > .scheduled-warning-button { margin-top: 3px; }
+.scheduled-workbench .roster-pool-member { grid-template-columns: 28px minmax(0, 1fr) auto auto auto; column-gap: 5px; row-gap: 2px; }
+.scheduled-workbench .roster-pool-member > .class-avatar { grid-column: 1; grid-row: 1 / 3; }
+.scheduled-workbench .roster-pool-member-info { display: contents; }
+.scheduled-workbench .roster-pool-member-info > strong { grid-column: 2; grid-row: 1; align-self: end; }
+.scheduled-workbench .roster-pool-member-info > small { grid-column: 2; grid-row: 2; align-self: start; }
+.scheduled-workbench .roster-pool-member-info > .scheduled-warning-button { grid-column: 4; grid-row: 1 / 3; }
+.scheduled-workbench .roster-pool-member-info:has(.move-team-select) > .scheduled-warning-button { grid-column: 3; }
+.scheduled-workbench .roster-pool-member-info > .move-team-select { grid-column: 4; grid-row: 1 / 3; width: 75px; max-width: 100%; margin: 0; }
+.scheduled-workbench .roster-pool-member > .pool-unassigned { grid-column: 5; grid-row: 1 / 3; text-align: right; }
 :root[data-theme='dark'] .scheduled-warning-button { color: #ffb4ab; border-color: #ff9d96; background: #542222; }
 :root[data-theme='dark'] .scheduled-warning-button:hover { background: #70302b; }
 :root[data-theme='dark'] .scheduled-warning-button:focus-visible { outline-color: #ff9d96; }
 .scheduled-workbench .team-role-composition { align-items: center; column-gap: 4px; row-gap: 5px; }
 .scheduled-workbench .team-role-composition > .scheduled-response-summary { flex: 0 0 auto; flex-wrap: nowrap; margin-left: auto; }
 .scheduled-workbench .pool-unassigned { min-width: 0; max-width: 100px; white-space: normal; }
-.scheduled-workbench .roster-pool-member-info .move-team-select { max-width: 100%; margin-top: 5px; }
 .scheduled-workbench .team-member-row-with-status { grid-template-columns: 28px minmax(0, 1fr) minmax(65px, 85px); }
 .scheduled-workbench .team-member-row-with-status:not(.team-member-row-editable) > span:last-child:not(.team-member-status) { display: none; }
 .scheduled-workbench .team-member-row-editable { grid-template-columns: 28px minmax(0, 1fr) minmax(65px, 85px) 75px 26px; }
 .scheduled-workbench .team-member-status { min-width: 0; text-align: right; }
 .scheduled-workbench .team-member-status .scheduled-workbench-response { white-space: normal; }
 :root[data-theme='dark'] .scheduled-raids-tool > label select { background: #18283a; }
+@container (max-width: 260px) {
+  .scheduled-workbench .roster-pool-member:has(.move-team-select) { grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 4px; }
+  .scheduled-workbench .roster-pool-member:has(.move-team-select) > .class-avatar { justify-self: start; }
+  .scheduled-workbench .roster-pool-member-info:has(.move-team-select) > strong,
+  .scheduled-workbench .roster-pool-member-info:has(.move-team-select) > small { grid-column: 2 / -1; }
+  .scheduled-workbench .roster-pool-member-info:has(.move-team-select) > .scheduled-warning-button { grid-row: 3; justify-self: end; }
+  .scheduled-workbench .roster-pool-member-info:has(.move-team-select) > .scheduled-warning-button { grid-column: 1 / 3; }
+  .scheduled-workbench .roster-pool-member-info > .move-team-select { grid-column: 3; grid-row: 3; justify-self: end; width: 65px; }
+  .scheduled-workbench .roster-pool-member:has(.move-team-select) > .pool-unassigned { grid-column: 4; grid-row: 3; max-width: 80px; }
+}
 @media (max-width: 600px) { .scheduled-raids-tool > label select { font-size: 16px; } }
 @media (max-width: 600px) {
   .scheduled-workbench .team-member-row-editable { grid-template-columns: 28px minmax(0, 1fr) 75px 26px; }

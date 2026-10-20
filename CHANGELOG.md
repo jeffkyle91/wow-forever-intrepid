@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Scheduled raid roster cards keep warning and bench controls aligned beside responses.
+
 ## 2026-10-19 - 567a689
 
 - Scheduled raid response totals now use colored icon badges for a quicker overview.

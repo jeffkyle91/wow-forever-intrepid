@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { PlayerRecord } from '../../src/shared/game/players.ts'
 import type { RaidSignup } from '../../src/raidSignups.ts'
-import { characterAccount, lineupWarnings, placementWarnings, readScheduledRoster, scheduledAvailableCharacters, scheduledCandidates, scheduledResponseSummary, scheduledRosterGroups } from '../../src/shared/raids/planning.ts'
+import { characterAccount, lineupWarnings, placementWarnings, readScheduledRoster, scheduledAvailableCharacters, scheduledCandidates, scheduledResponseCounts, scheduledResponseSummary, scheduledRosterGroups } from '../../src/shared/raids/planning.ts'
 import { responseOverview } from '../../src/features/leadership/overview.ts'
 
 const main: PlayerRecord = { id: 'main', name: 'Aldric', linkedUid: 'account', className: 'Warrior', specialization: 'Arms', role: 'Melee' }
@@ -73,6 +73,21 @@ describe('character choices and warnings', () => {
 })
 
 describe('scheduled team response summaries', () => {
+  test('provides numeric badge counts for every response without mutating placements', () => {
+    const players = ['accept', 'tentative', 'absent', 'late', 'bench', 'unanswered'].map((status) => ({ ...main, id: status, linkedUid: status }))
+    const ids = players.map(({ id }) => id)
+    const responses: RaidSignup[] = [
+      { id: 'accept', characterId: 'accept', status: 'accept' },
+      { id: 'tentative', characterId: 'tentative', status: 'tentative' },
+      { id: 'absent', characterId: 'absent', status: 'absent' },
+      { id: 'late', characterId: 'late', status: 'late' },
+      { id: 'bench', characterId: 'bench', status: 'bench', benchKind: 'self' },
+      { id: 'outside', characterId: 'outside', status: 'accept' },
+    ]
+    assert.deepEqual(scheduledResponseCounts(ids, [], players, responses), { accept: 1, tentative: 1, absent: 1, late: 1, bench: 1, unanswered: 1 })
+    assert.deepEqual(scheduledResponseCounts([], [], players, responses), { accept: 0, tentative: 0, absent: 0, late: 0, bench: 0, unanswered: 0 })
+    assert.deepEqual(ids, players.map(({ id }) => id))
+  })
   test('matches the requested format and counts only the displayed team characters', () => {
     const players = Array.from({ length: 10 }, (_, index) => ({ ...main, id: `character-${index}`, linkedUid: `account-${index}` }))
     const responses: RaidSignup[] = [

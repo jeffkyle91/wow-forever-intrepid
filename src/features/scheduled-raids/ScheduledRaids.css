@@ -19,7 +19,8 @@
 :root[data-theme='dark'] .scheduled-warning-button { color: #ffb4ab; border-color: #ff9d96; background: #542222; }
 :root[data-theme='dark'] .scheduled-warning-button:hover { background: #70302b; }
 :root[data-theme='dark'] .scheduled-warning-button:focus-visible { outline-color: #ff9d96; }
-.scheduled-team-response-summary { margin: 0; padding: 8px 13px; color: var(--ink); font-size: 10px; line-height: 1.5; }
+.scheduled-workbench .team-role-composition { align-items: center; column-gap: 4px; row-gap: 5px; }
+.scheduled-workbench .team-role-composition > .scheduled-response-summary { flex: 0 0 auto; flex-wrap: nowrap; margin-left: auto; }
 .scheduled-workbench .pool-unassigned { min-width: 0; max-width: 100px; white-space: normal; }
 .scheduled-workbench .roster-pool-member-info .move-team-select { max-width: 100%; margin-top: 5px; }
 .scheduled-workbench .team-member-row-with-status { grid-template-columns: 28px minmax(0, 1fr) minmax(65px, 85px); }

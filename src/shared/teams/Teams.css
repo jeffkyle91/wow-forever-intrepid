@@ -1,3 +1,13 @@
+.team-member-list > .team-member-row.team-member-role-start {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #dce3e9;
+}
+
+:root[data-theme='dark'] .team-member-list > .team-member-row.team-member-role-start {
+  border-top-color: #394b61;
+}
+
 .teams-conflict-warning {
   margin: 8px 0;
   padding: 8px 10px;

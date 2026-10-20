@@ -1,7 +1,15 @@
 import type { RaidGroup, StandingTeam, TenManTeam } from '../../guildApi'
+import type { Role } from './classes'
 
 export type RaidView = 10 | 20 | 40
 export type TeamCharacter = { id: string; mainId?: string }
+
+const teamRoleOrder: Record<Role, number> = { Tank: 0, Healer: 1, Ranged: 2, Melee: 3 }
+
+export function orderTeamMembers<T extends { id: string; name: string; role: Role }>(members: readonly T[]): T[] {
+  return [...members].sort((a, b) => teamRoleOrder[a.role] - teamRoleOrder[b.role]
+    || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+}
 
 // Only a valid direct link to a main identifies two character ids as the same player.
 export function playerIdentity(characterId: string, roster: TeamCharacter[]) {

@@ -2,12 +2,44 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PlayerRecord } from '../../src/shared/game/players.ts'
 import { assignTeamMember, removeTeamMember } from '../../src/features/teams/assignment.ts'
-import { conflictingAssignedCharacter, conflictingTeamGroups, samePlayer } from '../../src/shared/game/teams.ts'
+import { conflictingAssignedCharacter, conflictingTeamGroups, orderTeamMembers, samePlayer } from '../../src/shared/game/teams.ts'
 
 const player = (id: string, name: string, mainId?: string): PlayerRecord => ({
   id, name, mainId, className: 'Mage', specialization: 'Frost', role: 'Ranged',
 })
 const teamOptions = [{ key: 'blue', name: 'Blue' }, { key: 'red', name: 'Red' }] as const
+
+describe('team member display order', () => {
+  it('groups by assigned role, with Hunters included in Ranged, then sorts names', () => {
+    const members: PlayerRecord[] = [
+      { ...player('melee', 'Aster'), role: 'Melee' },
+      { ...player('caster', 'Zephyr'), role: 'Ranged' },
+      { ...player('tank-z', 'Zinnia'), role: 'Tank' },
+      { ...player('hunter', 'Briar'), className: 'Hunter', specialization: 'Marksmanship' },
+      { ...player('healer', 'Elara'), role: 'Healer' },
+      { ...player('tank-a', 'Aldric'), role: 'Tank' },
+    ]
+    const original = members.slice()
+    assert.deepEqual(orderTeamMembers(members).map(({ id }) => id), ['tank-a', 'tank-z', 'healer', 'hunter', 'caster', 'melee'])
+    assert.deepEqual(members, original)
+    assert.equal(orderTeamMembers(members)[0], members[5])
+  })
+
+  it('uses the saved role rather than the class or specialization default', () => {
+    const members: PlayerRecord[] = [
+      { ...player('melee', 'Aster'), role: 'Melee' },
+      { ...player('override', 'Zephyr'), className: 'Mage', specialization: 'Frost', role: 'Tank' },
+    ]
+    assert.deepEqual(orderTeamMembers(members).map(({ id }) => id), ['override', 'melee'])
+  })
+
+  it('handles missing role groups, empty teams, and duplicate names deterministically', () => {
+    assert.deepEqual(orderTeamMembers([]), [])
+    const members = [player('b', 'Briar'), player('a', 'Briar')]
+    assert.deepEqual(orderTeamMembers(members).map(({ id }) => id), ['a', 'b'])
+    assert.deepEqual(orderTeamMembers([...members].reverse()), orderTeamMembers(members))
+  })
+})
 
 describe('raid team character relationships', () => {
   it('recognizes a main and direct alt in either direction', () => {

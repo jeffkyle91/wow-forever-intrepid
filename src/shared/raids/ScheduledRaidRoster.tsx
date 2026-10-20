@@ -5,7 +5,8 @@ import { initializeScheduledRoster } from '../../scheduledRaids'
 import { classAccent } from '../game/classes'
 import type { TabContext } from '../tabs/types'
 import { ClassAvatar } from '../ui/ClassAvatar'
-import { scheduledCharacterResponse, scheduledResponseSummary, scheduledRosterGroups, type ScheduledRoster } from './planning'
+import { scheduledCharacterResponse, scheduledRosterGroups, type ScheduledRoster } from './planning'
+import { ScheduledResponseSummary } from './ScheduledResponseSummary'
 import { useScheduledRoster } from './useScheduledRoster'
 import './ScheduledRaidRoster.css'
 
@@ -75,9 +76,9 @@ function WorkingRoster({ raid, live, responses, roster }: { raid: RaidRecord; li
     <p>Read-only lineup. Guild and Raid Leaders manage positions in Scheduled Raids before raid start.</p>
     <div className="scheduled-team-grid">{groups.map((group) => <section className="scheduled-team" key={group.key}>
       <h4>{group.name} · {group.characterIds.length}{group.key !== 'bench' && group.key !== 'unassigned' ? `/${size}` : ''}</h4>
-      <p>{group.key === 'bench' ? `Bench for this ${size}-player lineup only. A voluntary Bench response does not assign a position. Bench-ready confirmation and attendance credit come later.`
-        : group.key === 'unassigned' ? 'All remaining invitees, including unready and absent raiders. Selected characters appear after a response; otherwise their main is shown. Not automatically benched.'
-          : scheduledResponseSummary(group.characterIds, roster.invitations, characters, responses)}</p>
+      {group.key === 'bench' ? <p>Bench for this {size}-player lineup only. A voluntary Bench response does not assign a position. Bench-ready confirmation and attendance credit come later.</p>
+        : group.key === 'unassigned' ? <p>All remaining invitees, including unready and absent raiders. Selected characters appear after a response; otherwise their main is shown. Not automatically benched.</p>
+          : <ScheduledResponseSummary characterIds={group.characterIds} invitations={roster.invitations} characters={characters} responses={responses} />}
       {group.characterIds.length ? <ul>{group.characterIds.map(row)}</ul> : <p>{group.key === 'unassigned' ? 'All invitees have a scheduled position for this size.' : 'No raiders placed.'}</p>}
     </section>)}</div>
   </section>

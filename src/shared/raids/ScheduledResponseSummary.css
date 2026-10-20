@@ -1,0 +1,15 @@
+.scheduled-response-summary { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.scheduled-response-count { display: inline-flex; align-items: center; gap: 3px; min-height: 19px; padding: 2px 5px; border: 1px solid; border-radius: 4px; font-size: 8px; white-space: nowrap; }
+.scheduled-response-count strong { font-size: 9px; font-variant-numeric: tabular-nums; }
+.scheduled-response-count.response-accept { color: #426437; border-color: #dce8d4; background: #f3f8ef; }
+.scheduled-response-count.response-tentative { color: #765c23; border-color: #eee2bf; background: #fbf7e9; }
+.scheduled-response-count.response-absent { color: #a13737; border-color: #edcccc; background: #fcf0f0; }
+.scheduled-response-count.response-late { color: #355980; border-color: #d8e3ef; background: #f1f6fb; }
+.scheduled-response-count.response-bench { color: #70528d; border-color: #e3d8ef; background: #f7f1fb; }
+.scheduled-response-count.response-unanswered { color: #586879; border-color: #e4e9ed; background: #f8fafb; }
+:root[data-theme='dark'] .scheduled-response-count.response-accept { color: #c2dfa9; border-color: #405b44; background: #293a32; }
+:root[data-theme='dark'] .scheduled-response-count.response-tentative { color: #f0d797; border-color: #645737; background: #393429; }
+:root[data-theme='dark'] .scheduled-response-count.response-absent { color: #ffb4ab; border-color: #754343; background: #432b30; }
+:root[data-theme='dark'] .scheduled-response-count.response-late { color: #b3d6f4; border-color: #3c5977; background: #26384c; }
+:root[data-theme='dark'] .scheduled-response-count.response-bench { color: #d7bdeb; border-color: #5d496e; background: #352c43; }
+:root[data-theme='dark'] .scheduled-response-count.response-unanswered { color: #c5d1de; border-color: #405168; background: #263649; }

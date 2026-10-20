@@ -96,12 +96,17 @@ export function scheduledAvailableCharacters(lineup: ScheduledLineup, invitation
   }).sort((a, b) => a.name.localeCompare(b.name))
 }
 
-export function scheduledResponseSummary(characterIds: string[], invitations: RaidInvitation[], roster: PlayerRecord[], responses: RaidSignup[]) {
+export function scheduledResponseCounts(characterIds: string[], invitations: RaidInvitation[], roster: PlayerRecord[], responses: RaidSignup[]) {
   const counts = { accept: 0, tentative: 0, absent: 0, late: 0, bench: 0, unanswered: 0 }
   for (const characterId of characterIds) {
     const response = scheduledCharacterResponse(characterId, invitations, roster, responses)
     counts[response?.status ?? 'unanswered']++
   }
+  return counts
+}
+
+export function scheduledResponseSummary(characterIds: string[], invitations: RaidInvitation[], roster: PlayerRecord[], responses: RaidSignup[]) {
+  const counts = scheduledResponseCounts(characterIds, invitations, roster, responses)
   return [
     `${counts.accept} Accepted`, `${counts.tentative} Tentative`, `${counts.absent} Absent`,
     ...(counts.late ? [`${counts.late} Late`] : []),

@@ -151,7 +151,9 @@ Initial priorities and dates are a working breakdown of the approved roadmap, no
 
 ### Maintaining patch notes
 
-Include relevant backlog status/scope updates in implementation PRs and concise member-facing bullets under **Unreleased**, referencing their backlog IDs. Describe what members can do or what changed, not internal filenames. Internal-only tooling and documentation need not generate member-facing notes. Unreleased is not evidence of production availability.
+Include relevant backlog status/scope updates in implementation PRs and concise member-facing bullets under **Unreleased**. Keep backlog IDs, PR references and technical evidence in the backlog and PR delivery record, not in member-facing bullets. Internal-only tooling and documentation need not generate member-facing notes. Unreleased is not evidence of production availability.
+
+Write patch notes for guild members, not developers. Use short, plain-language bullets focused on what members can do or what is easier now, usually one sentence and one change per bullet. Combine overlapping updates and omit implementation details, technical jargon, test results and development history. Mention role restrictions or required member actions when useful; keep release verification and source references separate from the bullets. Apply this style to new or unpublished notes without rewriting published entries.
 
 After deployment and verification, the primary maintainer moves only the shipped bullets into a heading `YYYY-MM-DD - <full-or-short-commit>`, records source PRs, and updates completed backlog items with `status: "released"` and that exact heading in `release`. Leave merged-but-unshipped bullets under Unreleased. Preserve existing release entries; explicitly label corrections to published notes instead of silently rewriting history. Do not invent historical backlog IDs or retrospectively mark planned work complete.
 

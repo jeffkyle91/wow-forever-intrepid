@@ -6,21 +6,27 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
-- RAID-011 local review: character planning warnings are tucked into a red ! information button, available to leaders by click, tap or keyboard, instead of expanding every character card.
+## 2026-10-19 - 8665779
 
-- RAID-011 local review: scheduled size/filter controls share the action row, response indicators sit beside team pickers, and coverage results use a consistent separate row in both team workbenches. Empty available-roster/bench role sections auto-collapse and reopen when populated, while keeping manual toggles.
+Refresh open tabs to load the update.
 
-- RAID-011 local review: Scheduled Raids reuses the Raid Teams cards/workbench with a raid dropdown, raid-specific available roster, drag/drop and keyboard placement controls for teams/bench. Edits update the sign-up at-a-glance view live without changing standing teams or responses. Members remain read-only; review warnings are leader-only and absent/unavailable placements require confirmation. The popup stays uncluttered, with class/spec cards and response breakdowns.
+- Raid Teams now has separate lineups for 10-, 20- and 40-player raids.
 
-- RAID-011 (local review, not deployed): standing 10/20/40 teams are independent, with larger teams starting empty and only ready mains/alts in the available roster. Scheduled raids copy standing lineups once and have separate leader-managed teams/bench, main-ready invitations and member-visible rosters. Responses remain member-owned; Absent/unavailable clears positions, with explicit warnings for later leader placement. Leadership missing responses use the raid's invitees. Automatic start snapshots, Discord and attendance are still separate future work.
+- Guild and Raid Leaders can adjust each scheduled raid's teams and bench without changing regular Raid Teams.
 
-- Edit loot priority: ticking a character in the roster now adds them to the candidates at once, at the bottom of the list, and unticking takes their last listing off again (ticking them straight back puts them where they were), so there is no separate Add to the list button to miss before saving. A small plus beside a listed character lists them a second time, and one listed twice needs two unticks (LOOT-012).
+- Raid sign-ups show the full roster and a quick breakdown of responses.
 
-- Loot Drops (Browse drops) can be filtered by creature and by item slot, beside the zone, the phase and the search, with a Clear filters button; the count of items shown follows them. Add all and Remove all still act on the whole zone (LOOT-011).
+- Marking yourself absent or adding unavailable dates clears your scheduled raid spots.
 
-- Carry over can be filtered by dungeon or boss and by item slot, like the priority list, as well as searched, with a Clear filters button and a count of what is shown. Items already ticked stay ticked when a filter hides them, and the bar at the bottom says how many are hidden (LOOT-011).
+- Team views are tidier, with aligned buff coverage, collapsible empty sections and warnings behind a red ! button for leaders.
 
-- Zone artwork: Settings has a new **Zone images** panel where a Guild Leader keeps a library of pictures (loading screens or any artwork; add many at once, rename, replace, remove), and each zone on the Zones page has an **Artwork** dropdown (and Pick pictures by name). A zone's picture shows as a banner on the zone's title in Loot priorities and in Browse drops (in Browse drops the banner is the picture and the zone's name, with the zone's description under a small About this zone; the loot under it has no picture), so a new raid needs a picture and a pick, not a release. Pictures are stored in the guild's own Cloud Storage and shown only inside the app; only a Guild Leader can add or remove them (LOOT-010).
+- Editing loot priorities is quicker: tick characters to add them, untick to remove them, or use + to list one again.
+
+- Browse drops now filters by creature and item slot.
+
+- Carry over now filters by dungeon, boss and item slot without losing your selections.
+
+- Guild Leaders can add zone artwork in Settings to display in Loot priorities and Browse drops.
 
 ## 2026-10-18 - d0ef75d
 

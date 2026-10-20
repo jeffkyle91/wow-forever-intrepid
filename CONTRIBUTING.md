@@ -19,6 +19,18 @@ Awards and raids cannot be deleted from the app (unavailable dates can only be r
 
 ## Before you open a pull request
 
+### Scheduled-raid local review (RAID-011)
+
+Run `npm run dev:emulator` with JDK 21 and existing root/Functions dependencies. It starts only the `demo-intrepid` emulators and Vite at localhost:5173, then seeds invented data. Never run the seeder against a cloud project or a review instance already containing changes; it refuses non-review emulator hosts and does not clear existing data. Stop the previous review instance before starting a fresh one. Unit/rules tests must use their own emulator ports, not the review Firestore at 18080.
+
+Sign in with `leader@example.test` (Guild Leader), `raider@example.test` (Raid Leader), `member@example.test` (Member), or `reserve@example.test` (unassigned ready main); each uses the invented local password `password123`. The seed has independent 10-player assignments, empty 20/40 teams, a ready main/alt pair, an alt whose main is unready, unready assigned characters, a ready unassigned reserve, and scheduled/legacy/cancelled/started raid examples. No production names or data are copied. The old UX-001 comparison panel has been discarded, not shipped.
+
+Review Raid Teams at all three sizes (larger teams start empty), then open **Test raid night** from Dashboard or Raid Calendar and **View scheduled roster**. Check leader moves/bench/unassignment, independent sizes, unchanged standing teams, alt mismatch resolution, main-ready invitations and readiness-loss flags. As a Member check full read-only visibility, signup character changes, Absent clearing positions and unavailable-date enforcement. Test late explicit leader placement with its acknowledgment, cancellation/start refusal and a narrow viewport in both themes. New raids copy standing teams atomically; older raids require explicit one-time initialization after saving a start time.
+
+Use **Scheduled Raids** for management: choose a raid, then use the shared Raid Teams-style available roster, team cards and assigned bench. Test drag/drop and keyboard add/move/remove controls; confirm changes appear live in another sign-up roster window and never affect standing teams or another raid. The size/filter controls sit at the right of the action row and wrap on narrow screens. Empty role sections collapse automatically and reopen when populated; manual toggles remain available. Coverage results have a consistent separate row in both tabs. Guild/Raid Leaders see red ! buttons for character review warnings and editing/initialization controls; verify the warning popovers by tap, keyboard and Escape in both themes. Members see read-only cards and response summaries, without review-warning buttons. The popup is read-only and hides review details for everyone. Check its **Open Scheduled Raids** link preserves the selected raid, switching raids does not retain another raid's responses, and started/cancelled raids cannot be edited. This hides derived review details, not the underlying shared readiness/roster documents. Check actual Guild Leader, Raid Leader and Member sign-ins as well as VIEW AS.
+
+Automatic immutable start snapshots, Discord reminders, bench-ready confirmation and attendance calculations are not implemented by this slice. Do not present a read-only working roster after start as a historical starting snapshot. See the data contract and Alex handoff in `ARCHITECTURE.md`.
+
 ```bash
 npm run build
 npm run lint

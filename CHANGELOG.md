@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+## 2026-10-19 - 567a689
+
 - Scheduled raid response totals now use colored icon badges for a quicker overview.
 
 - Raid Teams and Scheduled Raids group team members by role: tanks, healers, ranged, then melee, with subtle dividers.

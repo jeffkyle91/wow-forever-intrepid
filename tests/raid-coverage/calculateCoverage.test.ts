@@ -261,14 +261,16 @@ describe('team selection', () => {
   })
 
   it('uses only players assigned to the selected team or group', () => {
+    const independent = { ...assignments, a: 'green', c: 'pink' } as const
     const ids = (view: 10 | 20 | 40, index: number) => {
       const target = coverageTargets(view, teams, groupNames)[index]
-      return assignedMembers(target.parts, players, assignments).map((p) => p.id)
+      return assignedMembers(target.parts, players, view === 10 ? assignments : independent).map((p) => p.id)
     }
     assert.deepEqual(ids(10, 0), ['a'])
-    assert.deepEqual(ids(20, 0), ['a', 'b'])
-    assert.deepEqual(ids(20, 1), ['c', 'd'])
-    assert.deepEqual(ids(40, 0), ['a', 'b', 'c', 'd'])
+    assert.deepEqual(ids(20, 0), ['a'])
+    assert.deepEqual(ids(20, 1), ['c'])
+    assert.deepEqual(ids(40, 0), [])
+    assert.deepEqual(assignedMembers(['brown'], players, { d: 'brown' }).map((entry) => entry.id), ['d'])
   })
 
   it('never includes unassigned players', () => {

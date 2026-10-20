@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { id, input, membership } from './access.js'
+import { clearedPlanning, writeClearedPlanning } from './raidPlanning.js'
 
 const statuses = ['accept', 'tentative', 'absent', 'late', 'bench']
 const todayEastern = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
@@ -34,7 +35,8 @@ export async function saveResponse(db, request) {
   await db.runTransaction(async (tx) => {
     const member = await membership(tx, guild, data.uid)
     const lock = await lockMember(tx, guild, data.uid)
-    const raid = (await tx.get(guild.collection('raids').doc(data.raidId))).data()
+    const raidDoc = await tx.get(guild.collection('raids').doc(data.raidId))
+    const raid = raidDoc.data()
     if (!raid || (raid.status && raid.status !== 'scheduled') || !(raid.startsAt instanceof Timestamp) || raid.startsAt.toMillis() <= Date.now()) {
       throw new HttpsError('failed-precondition', 'This raid is cancelled, has started, or does not have sign-ups enabled.')
     }
@@ -43,6 +45,8 @@ export async function saveResponse(db, request) {
     if (entries.docs.some((entry) => overlaps(entry.data(), raid.date))) {
       throw new HttpsError('failed-precondition', 'You are marked unavailable. Remove all overlapping unavailable events before changing your response.')
     }
+    const cleared = data.status === 'absent' ? await clearedPlanning(tx, guild, data.uid, [raidDoc]) : []
+    writeClearedPlanning(tx, cleared)
     tx.set(guild.collection('raids').doc(data.raidId).collection('signups').doc(data.uid), {
       characterId: data.characterId, status: data.status, updatedAt: FieldValue.serverTimestamp(),
       ...(data.status === 'bench' ? { benchKind: 'self' } : {}),
@@ -63,7 +67,7 @@ async function absenceWrites(tx, guild, uid, member, raids) {
       const main = (await tx.get(guild.collection('roster').doc(member.playerId))).data()
       if (main?.linkedUid === uid && !main.mainId) characterId = member.playerId
     }
-    if (characterId && existing?.status !== 'absent') writes.push({ ref, characterId })
+    if (characterId && existing?.status !== 'absent') writes.push({ ref, characterId, raid })
   }
   return writes
 }
@@ -89,6 +93,8 @@ export async function addAbsence(db, request) {
     const lock = await lockMember(tx, guild, data.uid)
     const raids = await tx.get(guild.collection('raids').where('date', '>=', data.startDate).where('date', '<=', data.endDate))
     const writes = await absenceWrites(tx, guild, data.uid, member, raids.docs)
+    const cleared = await clearedPlanning(tx, guild, data.uid, raids.docs)
+    writeClearedPlanning(tx, cleared)
     setAbsent(tx, writes)
     tx.create(entry, { userId: data.uid, displayName: member.displayName, startDate: data.startDate, endDate: data.endDate, createdAt: FieldValue.serverTimestamp() })
     tx.set(lock, { updatedAt: FieldValue.serverTimestamp() })
@@ -109,6 +115,8 @@ export async function removeAbsence(db, request) {
     const raids = await tx.get(guild.collection('raids').where('date', '>=', entry.startDate).where('date', '<=', entry.endDate))
     // Persist Absent even for legacy events that have not been backfilled yet.
     const writes = await absenceWrites(tx, guild, data.uid, member, raids.docs)
+    const cleared = await clearedPlanning(tx, guild, data.uid, writes.map((write) => write.raid))
+    writeClearedPlanning(tx, cleared)
     setAbsent(tx, writes)
     tx.delete(ref)
     tx.set(lock, { updatedAt: FieldValue.serverTimestamp() })
@@ -131,6 +139,8 @@ export async function synchronizeRaid(db, guildId, raidId) {
       const currentEntries = await tx.get(guild.collection('afkEntries').where('userId', '==', uid))
       if (!raid.exists || !upcoming(raid.data()) || !currentEntries.docs.some((entry) => overlaps(entry.data(), raid.data().date))) return
       const writes = await absenceWrites(tx, guild, uid, member, [raid])
+      const cleared = await clearedPlanning(tx, guild, uid, writes.map((write) => write.raid))
+      writeClearedPlanning(tx, cleared)
       setAbsent(tx, writes)
       tx.set(lock, { updatedAt: FieldValue.serverTimestamp() })
     })

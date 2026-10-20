@@ -3,7 +3,6 @@ import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
 import { priorityLookup } from '../../shared/game/completion'
 import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
-import { group40, groups20 } from '../../shared/game/teams'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
 import { classAccent } from '../../shared/game/classes'
@@ -26,7 +25,7 @@ function Panel({ icon, title, help, action, children }: { icon: ReactNode; title
 }
 
 export function DashboardTab({ ctx }: { ctx: TabContext }) {
-  const { roster, assignments, allPriorities, hiddenPriorities, awards, raids, afkEntries, settings } = ctx.data
+  const { roster, assignments, assignments20, assignments40, allPriorities, hiddenPriorities, awards, raids, afkEntries, settings } = ctx.data
   const [today] = useState(() => localDateKey(new Date()))
   const { linked, characters } = findMyCharacters(roster, ctx.identity.uid)
 
@@ -52,9 +51,10 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   const phaseTag = (no: number) => (no === currentNo ? '' : ` \u00b7 ${phaseName(settings, no)}`)
   const absences = myAbsences(afkEntries, ctx.identity.uid, today)
   const teamName = (team: TenManTeam) => settings.teamNames[team]
-  const groupLabel = (team: TenManTeam) => {
-    const group = groups20.find((entry) => entry.parts.includes(team))
-    return `${group ? `${settings.groupNames[group.key]} (20) · ` : ''}${settings.groupNames[group40.key]} (40)`
+  const groupLabel = (characterId: string) => {
+    const twenty = assignments20[characterId]
+    const forty = assignments40[characterId]
+    return `20: ${twenty ? settings.groupNames[twenty] : 'Unassigned'} · 40: ${forty ? settings.groupNames[forty] : 'Unassigned'}`
   }
 
   async function removeAbsence(entryId: string) {
@@ -89,8 +89,8 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
       <ul className="dash-list">{characters.map((character) => {
         const team = assignments[character.id]
         return <li key={character.id} className={classAccent(character.className)}>
-          <span><strong>{character.name}</strong><small>{team ? `${teamName(team)} team` : 'Not assigned to a team'}</small></span>
-          {team && <span className="dash-tag">{groupLabel(team)}</span>}
+          <span><strong>{character.name}</strong><small>10: {team ? teamName(team) : 'Unassigned'}</small></span>
+          <span className="dash-tag">{groupLabel(character.id)}</span>
         </li>
       })}</ul>
     </Panel>

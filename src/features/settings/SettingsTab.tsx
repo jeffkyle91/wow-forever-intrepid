@@ -83,7 +83,7 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
       </div>
     </section>
     <section className="settings-section">
-      <header><h3>Raid team names</h3><p>Rename the raid teams. Each team keeps its color, and the 20 and 40 player teams combine the 10 player teams.</p></header>
+      <header><h3>Raid team names</h3><p>Rename the independent standing teams. Each size has its own assignments; 20- and 40-player teams do not combine smaller teams.</p></header>
       <div className="settings-team-group">
         <h4>10-player teams</h4>
         <div className="settings-grid settings-grid-four">{tenManTeams.map((team) => teamField(team.key, defaultGuildSettings.teamNames[team.key], draft.teamNames[team.key], (value) => setDraft((current) => ({ ...current, teamNames: { ...current.teamNames, [team.key]: value } }))))}</div>

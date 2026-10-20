@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import { calculateCoverage } from '../../src/shared/raid-coverage/calculateCoverage.ts'
 import { coverageTiles, statusGlyphs, statusLabels } from '../../src/shared/raid-coverage/coverageDisplay.ts'
 import { assignedMembers } from '../../src/shared/raid-coverage/teamSelection.ts'
-import type { TenManTeam } from '../../src/guildApi.ts'
+import type { StandingTeam } from '../../src/guildApi.ts'
 import { group40, groups20 } from '../../src/shared/game/teams.ts'
 import type { CoverageEffect, CoverageMember, CoverageStatus } from '../../src/shared/raid-coverage/types.ts'
 
@@ -66,20 +66,20 @@ describe('coverage tiles', () => {
 describe('tiles follow each card\'s team composition', () => {
   const effects = [effect({ id: 'e', kind: 'raid-buff', providers: [{ className: 'Alpha' }] })]
   const players = [member('a', 'Alpha'), member('b', 'Beta'), member('c', 'Beta'), member('d', 'Alpha'), member('e', 'Alpha')]
-  const statusFor = (parts: TenManTeam[], assignments: Record<string, TenManTeam>) => coverageTiles(effects, assignedMembers(parts, players, assignments))[0].status
+  const statusFor = (parts: StandingTeam[], assignments: Record<string, StandingTeam>) => coverageTiles(effects, assignedMembers(parts, players, assignments))[0].status
 
-  it('differs between teams, combined groups and the 40-player raid', () => {
-    const assignments: Record<string, TenManTeam> = { a: 'blue', b: 'yellow', c: 'red', d: 'white' }
+  it('differs between independently assigned 10-, 20- and 40-player teams', () => {
+    const assignments: Record<string, StandingTeam> = { a: 'blue', b: 'yellow', c: 'red', d: 'white' }
     assert.equal(statusFor(['blue'], assignments), 'available')
     assert.equal(statusFor(['yellow'], assignments), 'missing')
-    assert.equal(statusFor(groups20[0].parts, assignments), 'available')
-    assert.equal(statusFor(groups20[1].parts, assignments), 'available')
+    assert.equal(statusFor([groups20[0].key], assignments), 'missing')
+    assert.equal(statusFor([groups20[1].key], { d: 'pink' }), 'available')
     assert.equal(statusFor(['red'], assignments), 'missing')
-    assert.equal(statusFor(group40.parts, assignments), 'available')
+    assert.equal(statusFor([group40.key], { a: 'brown' }), 'available')
   })
 
   it('ignores unassigned players', () => {
-    assert.equal(statusFor(group40.parts, { b: 'blue', c: 'red' }), 'missing')
+    assert.equal(statusFor([group40.key], { b: 'blue', c: 'red' }), 'missing')
   })
 
   it('updates when a player is moved', () => {

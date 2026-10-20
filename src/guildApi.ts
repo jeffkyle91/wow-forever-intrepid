@@ -1,5 +1,4 @@
 import {
-  addDoc,
   collection,
   deleteField,
   deleteDoc,
@@ -38,6 +37,7 @@ export type { PlayerRecord } from './shared/game/players'
 
 export type TenManTeam = 'blue' | 'yellow' | 'red' | 'white'
 export type RaidGroup = 'green' | 'pink' | 'brown'
+export type StandingTeam = TenManTeam | RaidGroup
 // itemId, zoneId and npcId are set when a priority was added from the drop lists (Browse drops): the Wowhead item id, the dungeon
 // in data/loot and the creature that drops it. A priority typed by hand has none of them.
 // phaseNo is the phase the priority belongs to (see shared/game/phases.ts); none means the first phase. carriedFrom is the id of the
@@ -191,10 +191,9 @@ export async function saveGuildRecord(collectionName: 'roster', id: string, data
   await setDoc(doc(requireDb(), 'guilds', guildId, collectionName, id), fields, { merge: true })
 }
 
-export async function setTeamAssignment(playerId: string, team: TenManTeam | null) {
-  const assignmentRef = doc(requireDb(), 'guilds', guildId, 'teamAssignments', playerId)
-  if (team) await setDoc(assignmentRef, { team })
-  else await deleteDoc(assignmentRef)
+export async function setTeamAssignment(playerId: string, team: StandingTeam | null, size: RaidSize = 10) {
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to update standing teams.')
+  await httpsCallable(functions, 'changeStandingTeamAssignment')({ guildId, size, characterId: playerId, team })
 }
 
 export async function saveRaidZone(zone: Omit<RaidZoneRecord, 'id'>, id: string = crypto.randomUUID()) {
@@ -481,8 +480,11 @@ export async function saveMyRaiderType(uid: string, type: RaiderType) {
 }
 
 export async function createRaidEvent(data: Omit<RaidRecord, 'id' | 'createdBy' | 'createdAt'>, uid: string) {
-  const startsAt = Timestamp.fromDate(raidStartDate(data.date, raidTimeOf(data)))
-  await addDoc(guildCollection('raids'), { ...data, startsAt, createdBy: uid, createdAt: serverTimestamp() })
+  if (!functions || !auth?.currentUser || uid !== auth.currentUser.uid) throw new Error('Sign in to schedule a raid.')
+  await httpsCallable(functions, 'createScheduledRaid')({
+    guildId, raidId: crypto.randomUUID(), name: data.name, date: data.date, time: raidTimeOf(data),
+    zones: data.zones, ...(data.description ? { description: data.description } : {}),
+  })
 }
 
 export const RAID_REASON_MAX_LENGTH = 300

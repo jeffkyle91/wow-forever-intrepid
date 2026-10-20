@@ -2,6 +2,8 @@
 
 The shared panel on Raid Teams and Leadership ("Buff and debuff coverage") is read-only and computed from the players assigned to the selected team, not sign-ups or raid-readiness flags. All game facts live in one file, [`coverageData.ts`](./coverageData.ts). Nothing else needs to change.
 
+Standing teams are independent by size. Coverage selects only that size's assignment collection: `teamAssignments` for 10, `teamAssignments20` for 20, and `teamAssignments40` for 40. Green/Pink/Brown no longer combine Blue/Yellow/Red/White. Missing larger-team assignments mean empty teams, not a fallback to the 10-player roster. Local consumable preferences remain on this device and are scoped to the independent team's key.
+
 ## Current state
 
 The data file holds 58 researched effects (23 requirements in the standard checklist, 33 in total) taken from Wowhead's WoW Forever pages. **None is confirmed**: 43 are provisional and 15 are unverified, and none has a `verifiedOn` date. The engine counts only confirmed entries for verified results, so verified status is Unverified until an entry is verified in game and promoted. Provisional entries produce clearly labelled **estimates** from the assigned roster (see below); unverified entries are never counted. No entry has a `slot`, because Forever exclusivity rules (Shaman totems, Paladin blessings, curses, auras, aspects) are unresolved. WoW Classic behaviour must not be assumed to match WoW Forever. Research and open questions: `docs/design/Buff-Checklist-Research.md` (local draft).

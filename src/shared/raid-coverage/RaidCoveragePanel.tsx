@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { HelpPopover } from '../../shared/ui/HelpPopover'
-import type { RaidGroup, TenManTeam } from '../../guildApi'
+import type { RaidGroup, StandingTeam } from '../../guildApi'
 import type { RaidView, TeamOption } from '../../shared/game/teams'
 import { calculateCoverage, summaryText } from './calculateCoverage'
 import { coverageEffects } from './coverageData'
@@ -54,7 +54,7 @@ export function RaidCoveragePanel({ view, teams, groupNames, players, assignment
   teams: TeamOption[]
   groupNames: Record<RaidGroup, string>
   players: CoverageMember[]
-  assignments: Record<string, TenManTeam>
+  assignments: Record<string, StandingTeam>
 }) {
   const [selected, setSelected] = useState('')
   const targets = coverageTargets(view, teams, groupNames)

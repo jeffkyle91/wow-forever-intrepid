@@ -814,6 +814,14 @@ service cloud.firestore {
         allow create, update: if canManageRaid(guildId) && validTeamAssignment();
         allow delete: if canManageRaid(guildId);
       }
+      match /teamAssignments20/{playerId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow write: if false;
+      }
+      match /teamAssignments40/{playerId} {
+        allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+        allow write: if false;
+      }
 
       match /raidZones/{zoneId} {
         allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
@@ -918,6 +926,10 @@ service cloud.firestore {
         allow delete: if false;
 
         match /signups/{userId} {
+          allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
+          allow write: if false;
+        }
+        match /planning/{planId} {
           allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
           allow write: if false;
         }

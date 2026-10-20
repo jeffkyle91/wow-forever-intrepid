@@ -3,7 +3,7 @@ import { CalendarDays, ShieldCheck } from 'lucide-react'
 import { formatRaidTime, raidTimeOf, type RaidRecord } from '../../guildApi'
 import { subscribeRaidSignups, signupLabels, type RaidSignup } from '../../raidSignups'
 import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
-import { namedTeams } from '../../shared/game/teams'
+import { namedTeams, standingAssignments } from '../../shared/game/teams'
 import { RaidCoveragePanel } from '../../shared/raid-coverage/RaidCoveragePanel'
 import { RaidCoverageStrip } from '../../shared/raid-coverage/RaidCoverageStrip'
 import { coverageTargets } from '../../shared/raid-coverage/teamSelection'
@@ -11,9 +11,11 @@ import type { TabContext } from '../../shared/tabs/types'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { classAccent } from '../../shared/game/classes'
 import { responseOverview, upcomingLeadershipRaids } from './overview'
+import { useScheduledRoster } from '../../shared/raids/useScheduledRoster'
 import './Leadership.css'
 
 function RaidResponses({ raid, ctx }: { raid: RaidRecord; ctx: TabContext }) {
+  const planned = useScheduledRoster(raid.id)
   const [responses, setResponses] = useState<RaidSignup[]>([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
@@ -21,24 +23,28 @@ function RaidResponses({ raid, ctx }: { raid: RaidRecord; ctx: TabContext }) {
   useEffect(() => {
     return subscribeRaidSignups(raid.id, (records) => { setResponses(records); setLoaded(true) }, (failure) => setError(failure.message))
   }, [raid.id, retry])
-  const overview = responseOverview(ctx.data.members, ctx.data.roster, ctx.data.readiness, responses)
+  const overview = responseOverview(ctx.data.members, ctx.data.roster, ctx.data.readiness, responses, planned.roster?.invitations.map((entry) => entry.uid))
+  if (planned.error) return <p role="alert">Could not load invited raiders: {planned.error} <button className="button button-secondary" onClick={planned.retry}>Retry roster</button></p>
+  if (!planned.loaded) return <p role="status">Loading invited raiders...</p>
+  if (!planned.roster) return <p>This raid has no scheduled invitation list yet. Open its scheduled roster on the calendar to initialize it; missing-response counts are unavailable.</p>
   if (error) return <p role="alert">Could not load raid responses: {error} <button className="button button-secondary" onClick={() => { setError(''); setLoaded(false); setRetry((value) => value + 1) }}>Retry</button></p>
   if (!loaded) return <p role="status">Loading raid responses...</p>
   return <>
     <div className="leadership-counts" aria-label="Response summary">
       <span><strong>{overview.missing.length}</strong> Missing responses</span>
-      <span><strong>{overview.eligible.length}</strong> Accounts with ready characters</span>
-      <span><strong>{overview.warnings.length}</strong> Character readiness warnings</span>
+      <span><strong>{overview.eligible.length}</strong> Active linked invitees</span>
+      <span><strong>{overview.warnings.length}</strong> Response character warnings</span>
     </div>
-    <p>Each active linked account with a ready main or direct alt needs one response. A response is not proof of attendance.</p>
+    <p>Invite members with a ready main, regardless of team assignment. New invitees are added until start; existing invitations remain if readiness is removed. Ready alts alone do not qualify an invitation. A response is not proof of attendance.</p>
     <ul className="leadership-accounts">{overview.missing.map(({ member, main, ready }) => <li key={member.id}>
       {main && <span className={classAccent(main.className)}><ClassAvatar player={main} /><strong>{main.name}</strong></span>}
-      <small>Ready: {ready.map((character) => character.name).join(', ')}</small>
+      <small>{ready.length ? `Ready characters: ${ready.map((character) => character.name).join(', ')}` : 'No ready characters'}</small>
+      {!ready.some((character) => character.id === main?.id) && <small><strong>Main not ready:</strong> invitation retained for review.</small>}
     </li>)}</ul>
-    {!overview.missing.length && <p>{overview.eligible.length ? 'All eligible accounts have a saved response.' : 'No accounts qualify yet. Mark individual characters raid ready to include their accounts.'}</p>}
-    <details><summary>Setup: {overview.notReady.length} linked accounts without ready characters; {overview.unlinked.length} unlinked accounts</summary>
+    {!overview.missing.length && <p>{overview.eligible.length ? 'All active linked invitees have a saved response.' : 'No active linked invitees yet. Mark mains raid ready to include their accounts.'}</p>}
+    <details><summary>Setup: {overview.notInvited.length} linked accounts not invited; {overview.unlinked.length} unlinked accounts</summary>
       <p>Excluded from missing-response checks. {overview.removed} removed/inactive accounts are also excluded.</p>
-      <ul>{overview.notReady.map(({ member, main }) => <li key={member.id}>{main?.name}: no character marked ready</li>)}{overview.unlinked.map(({ member }) => <li key={member.id}>{member.displayName || 'Guild member'}: missing or inconsistent character link</li>)}</ul>
+      <ul>{overview.notInvited.map(({ member, main }) => <li key={member.id}>{main?.name}: not yet invited; a ready main is required</li>)}{overview.unlinked.map(({ member }) => <li key={member.id}>{member.displayName || 'Guild member'}: missing or inconsistent character link</li>)}</ul>
       <button className="button button-secondary" onClick={() => ctx.navigate('roster')}>Manage character readiness</button>{' '}
       <button className="button button-secondary" onClick={() => ctx.navigate('access')}>Member access</button>
     </details>
@@ -78,8 +84,8 @@ function LeadershipOverview({ ctx }: { ctx: TabContext }) {
       <p>Current assigned teams only, not sign-up-adjusted coverage, attendance or a starting snapshot. Game data is provisional; unknown effects are not confirmed coverage.</p>
       {!raid && <p>Select an upcoming raid to see its team sizes.</p>}
       {coverageSize !== undefined && [coverageSize].map((size) => <section key={size} aria-label={`${size}-player team coverage`}>
-        {coverageTargets(size, teams, ctx.data.settings.groupNames).map((target) => <div key={target.key}><h4>{target.name}</h4><RaidCoverageStrip parts={target.parts} players={ctx.data.roster} assignments={ctx.data.assignments} /></div>)}
-        <RaidCoveragePanel view={size} teams={teams} groupNames={ctx.data.settings.groupNames} players={ctx.data.roster} assignments={ctx.data.assignments} />
+        {coverageTargets(size, teams, ctx.data.settings.groupNames).map((target) => <div key={target.key}><h4>{target.name}</h4><RaidCoverageStrip parts={target.parts} players={ctx.data.roster} assignments={standingAssignments(ctx.data, size)} /></div>)}
+        <RaidCoveragePanel view={size} teams={teams} groupNames={ctx.data.settings.groupNames} players={ctx.data.roster} assignments={standingAssignments(ctx.data, size)} />
         <button className="button button-secondary" onClick={() => { ctx.shell.setRaidView(size); ctx.navigate('teams') }}>Open {size}-player coverage details</button>
       </section>)}
     </section>

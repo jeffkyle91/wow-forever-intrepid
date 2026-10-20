@@ -1,0 +1,21 @@
+.scheduled-roster { display: grid; gap: 12px; min-width: 0; }
+.scheduled-roster p { line-height: 1.5; }
+.scheduled-roster .segmented-control { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; }
+.scheduled-team-grid { display: grid; gap: 12px; }
+.scheduled-team { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.scheduled-roster ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.scheduled-roster .scheduled-character { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; min-height: 44px; padding: 4px 5px; }
+.scheduled-roster .scheduled-character.class-accent { padding-left: calc(var(--class-stripe-width, 6px) + 7px); }
+.scheduled-character-identity { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1 1 100px; }
+.scheduled-character-identity .class-avatar { flex-shrink: 0; }
+.scheduled-character-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; max-width: 100%; }
+.scheduled-character-actions .button { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.scheduled-character-actions .scheduled-response { cursor: default; pointer-events: none; }
+.scheduled-warning { color: #8b4218; }
+.scheduled-roster summary { cursor: pointer; padding: 8px 0; }
+.scheduled-roster button:focus-visible, .scheduled-roster select:focus-visible, .scheduled-roster summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+:root[data-theme='dark'] .scheduled-warning { color: #f5c58b; }
+@media (max-width: 600px) {
+  .scheduled-roster li { flex-wrap: wrap; }
+  .scheduled-roster li .button { min-height: 40px; white-space: normal; }
+}

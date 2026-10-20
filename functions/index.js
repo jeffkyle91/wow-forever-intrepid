@@ -4,11 +4,17 @@ import { onCall } from 'firebase-functions/v2/https'
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 import { addAbsence, removeAbsence, saveResponse, synchronizeGuild, synchronizeMember, synchronizeRaid } from './raids.js'
 import { submitCharacterRequest as submitCharacterChange, resolveCharacterRequest as resolveCharacterChange } from './characters.js'
+import { changePlacement, createScheduledRaid as createRaid, initializePlanning, synchronizePlanning, synchronizePlanningGuild } from './raidPlanning.js'
+import { changeStandingTeam } from './standingTeams.js'
 
 initializeApp()
 const db = getFirestore()
 const options = { region: 'us-central1', maxInstances: 5 }
 
+export const createScheduledRaid = onCall(options, (request) => createRaid(db, request))
+export const changeStandingTeamAssignment = onCall(options, (request) => changeStandingTeam(db, request))
+export const initializeScheduledRoster = onCall(options, (request) => initializePlanning(db, request))
+export const changeScheduledPlacement = onCall(options, (request) => changePlacement(db, request))
 export const submitCharacterRequest = onCall(options, (request) => submitCharacterChange(db, request))
 export const resolveCharacterRequest = onCall(options, (request) => resolveCharacterChange(db, request))
 export const saveRaidResponse = onCall(options, (request) => saveResponse(db, request))
@@ -20,8 +26,10 @@ export const synchronizeScheduledRaid = onDocumentWritten({
 }, async (event) => {
   const before = event.data?.before.data()
   const after = event.data?.after.data()
-  if (!after || (before && before.date === after.date && before.status === after.status && before.startsAt?.isEqual(after.startsAt))) return
+  if (!after || (before && before.date === after.date && before.status === after.status && before.size === after.size
+    && JSON.stringify(before.zones) === JSON.stringify(after.zones) && before.startsAt?.isEqual(after.startsAt))) return
   await synchronizeRaid(db, event.params.guildId, event.params.raidId)
+  await synchronizePlanning(db, event.params.guildId, event.params.raidId)
 })
 
 export const synchronizeLinkedMember = onDocumentWritten({
@@ -32,3 +40,15 @@ export const synchronizeLinkedMember = onDocumentWritten({
   if (!after?.playerId || before?.playerId === after.playerId) return
   await synchronizeMember(db, event.params.guildId, event.params.uid)
 })
+
+export const synchronizeRaidInvitationsFromReadiness = onDocumentWritten({
+  ...options, document: 'guilds/{guildId}/characterReadiness/{characterId}', retry: true,
+}, (event) => synchronizePlanningGuild(db, event.params.guildId))
+
+export const synchronizeRaidInvitationsFromRoster = onDocumentWritten({
+  ...options, document: 'guilds/{guildId}/roster/{characterId}', retry: true,
+}, (event) => synchronizePlanningGuild(db, event.params.guildId))
+
+export const synchronizeRaidInvitationsFromMembership = onDocumentWritten({
+  ...options, document: 'guilds/{guildId}/members/{uid}', retry: true,
+}, (event) => synchronizePlanningGuild(db, event.params.guildId))

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { HelpPopover } from '../../shared/ui/HelpPopover'
-import type { TenManTeam } from '../../guildApi'
+import type { StandingTeam } from '../../guildApi'
 import { slotProblems } from './calculateCoverage'
 import { consumableAlternatives } from './consumableData'
 import { parsePlans, PLANS_STORAGE_KEY, plannedIds, togglePlan } from './consumables'
@@ -14,12 +14,12 @@ const readPlans = () => {
   try { return parsePlans(localStorage.getItem(PLANS_STORAGE_KEY)) } catch { return {} }
 }
 
-// A collapsible icon grid for one team card or combined raid, collapsed by default with a status summary in the header.
+// A collapsible icon grid for one independent standing team, collapsed by default with a status summary in the header.
 // Renders nothing when there is no catalog.
 export function RaidCoverageStrip({ parts, players, assignments }: {
-  parts: TenManTeam[]
+  parts: StandingTeam[]
   players: CoverageMember[]
-  assignments: Record<string, TenManTeam>
+  assignments: Record<string, StandingTeam>
 }) {
   const [open, setOpen] = useState(STRIP_DEFAULT_OPEN)
   const scope = parts.join('+')

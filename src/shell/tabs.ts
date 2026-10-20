@@ -6,6 +6,7 @@ import { prioritiesTab } from '../features/loot/tab'
 import { rosterTab } from '../features/roster/tab'
 import { settingsTab } from '../features/settings/tab'
 import { teamsTab } from '../features/teams/tab'
+import { scheduledRaidsTab } from '../features/scheduled-raids/tab'
 import type { GuildRole } from '../security'
 import type { TabDefinition } from '../shared/tabs/types'
 
@@ -17,6 +18,7 @@ const tabs = [
   rosterTab,
   teamsTab,
   calendarTab,
+  scheduledRaidsTab,
   prioritiesTab,
   leadershipTab,
   accessTab,

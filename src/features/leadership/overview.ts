@@ -11,7 +11,7 @@ export function upcomingLeadershipRaids<T extends ScheduledRaid>(raids: T[], now
   return raids.filter((raid) => raid.status !== 'cancelled' && start(raid) > now).sort((a, b) => start(a) - start(b) || a.id.localeCompare(b.id))
 }
 
-export function responseOverview<T extends Response>(members: Member[], roster: PlayerRecord[], readiness: Readiness[], responses: T[]) {
+export function responseOverview<T extends Response>(members: Member[], roster: PlayerRecord[], readiness: Readiness[], responses: T[], invitedUids?: readonly string[]) {
   const readyIds = new Set(readiness.filter((entry) => entry.ready).map((entry) => entry.id))
   const signups = new Map(responses.map((entry) => [entry.id, entry]))
   const active = members.filter((member) => ['Guild Leader', 'Raid Leader', 'Member'].includes(member.role))
@@ -24,12 +24,13 @@ export function responseOverview<T extends Response>(members: Member[], roster: 
     const warning = response && ['accept', 'tentative', 'late'].includes(response.status) && (!selected || !readyIds.has(selected.id))
     return { member, main, ready, response, selected, warning: !!warning }
   })
-  const eligible = accounts.filter((account) => account.main && account.ready.length > 0)
+  const eligible = accounts.filter((account) => account.main && (invitedUids ? invitedUids.includes(account.member.id) : account.ready.length > 0))
   return {
     eligible,
     missing: eligible.filter((account) => !account.response),
     warnings: accounts.filter((account) => account.warning),
     notReady: accounts.filter((account) => account.main && !account.ready.length),
+    notInvited: accounts.filter((account) => account.main && !eligible.includes(account)),
     unlinked: accounts.filter((account) => !account.main),
     removed: members.length - active.length,
   }

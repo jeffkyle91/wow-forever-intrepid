@@ -1,16 +1,16 @@
 import type { PlayerRecord } from '../../shared/game/players.ts'
-import { conflictingAssignedCharacter, type TeamOption } from '../../shared/game/teams.ts'
-import type { TenManTeam } from '../../guildApi.ts'
+import { conflictingAssignedCharacter, standingTeamSize, type StandingTeamOption } from '../../shared/game/teams.ts'
+import type { StandingTeam } from '../../guildApi.ts'
 
 export type TeamAssignmentConflict = { characterName: string; conflictingCharacterName: string; teamName: string }
 
 export async function assignTeamMember({ playerId, team, roster, assignments, teams, persist, onConflict, setMutationError }: {
   playerId: string
-  team: TenManTeam
+  team: StandingTeam
   roster: PlayerRecord[]
-  assignments: Record<string, TenManTeam>
-  teams: TeamOption[]
-  persist: (playerId: string, team: TenManTeam) => Promise<void>
+  assignments: Record<string, StandingTeam>
+  teams: readonly StandingTeamOption[]
+  persist: (playerId: string, team: StandingTeam) => Promise<void>
   onConflict: (conflict: TeamAssignmentConflict) => void
   setMutationError: (message: string) => void
 }) {
@@ -27,7 +27,7 @@ export async function assignTeamMember({ playerId, team, roster, assignments, te
     onConflict({ characterName: character.name, conflictingCharacterName: conflict.name, teamName })
     return
   }
-  if (roster.filter((player) => assignments[player.id] === team).length >= 10) {
+  if (roster.filter((player) => assignments[player.id] === team).length >= standingTeamSize(team)) {
     setMutationError(`${teamName} is full. Remove or move someone first.`)
     return
   }
@@ -39,7 +39,7 @@ export async function assignTeamMember({ playerId, team, roster, assignments, te
   }
 }
 
-export async function removeTeamMember(playerId: string, persist: (playerId: string, team: TenManTeam | null) => Promise<void>, setMutationError: (message: string) => void) {
+export async function removeTeamMember(playerId: string, persist: (playerId: string, team: StandingTeam | null) => Promise<void>, setMutationError: (message: string) => void) {
   try {
     await persist(playerId, null)
     setMutationError('')

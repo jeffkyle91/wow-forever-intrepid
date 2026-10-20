@@ -37,6 +37,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
   const [readinessError, setReadinessError] = useState('')
   const [leadershipLoaded, setLeadershipLoaded] = useState<string[]>([])
   const [assignments, setAssignments] = useState<Record<string, TeamAssignmentRecord['team']>>({})
+  const [assignments20, setAssignments20] = useState<Record<string, 'green' | 'pink'>>({})
+  const [assignments40, setAssignments40] = useState<Record<string, 'brown'>>({})
   const [priorities, setPriorities] = useState<PriorityRecord[]>([])
   const [awards, setAwards] = useState<AwardRecord[]>([])
   const [lootTables, setLootTables] = useState<LootTableDoc[]>([])
@@ -69,6 +71,16 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       // Settings are cosmetic: if they cannot be read (rules not deployed yet), keep the defaults instead of showing an error.
       subscribeGuildCollection<GuildSettingsRecord>('settings', (records) => setSettings(resolveGuildSettings(records.find((record) => record.id === 'general'))), (error) => console.warn(`settings: ${error.message}`), normalizeSettings),
       subscribeGuildCollection<TeamAssignmentRecord>('teamAssignments', (records) => { setAssignments(Object.fromEntries(records.map(({ id, team }) => [id, team]))); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'assignments'])]) }, onError),
+      subscribeGuildCollection<{ id: string; team: 'green' | 'pink' }>('teamAssignments20', (records, dropped) => {
+        setAssignments20(Object.fromEntries(records.map(({ id, team }) => [id, team])))
+        countUnreadable('teamAssignments20', dropped)
+        setLeadershipLoaded((loaded) => [...new Set([...loaded, 'assignments20'])])
+      }, onError, (id, data) => data.team === 'green' || data.team === 'pink' ? { id, team: data.team } : null),
+      subscribeGuildCollection<{ id: string; team: 'brown' }>('teamAssignments40', (records, dropped) => {
+        setAssignments40(Object.fromEntries(records.map(({ id, team }) => [id, team])))
+        countUnreadable('teamAssignments40', dropped)
+        setLeadershipLoaded((loaded) => [...new Set([...loaded, 'assignments40'])])
+      }, onError, (id, data) => data.team === 'brown' ? { id, team: data.team } : null),
       subscribeGuildCollection<PriorityRecord>('lootPriorities', (records, dropped) => { setPriorities(records); countUnreadable('lootPriorities', dropped) }, onError, normalizePriority),
       // The guild's own drop lists are an addition to the built-in ones: if they cannot be read (rules not deployed yet), the built-in lists still work.
       // The colors the guild chose for zones are one document of the settings collection; without it (or before the rules allow it) every zone has its default color.
@@ -80,7 +92,7 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       }, (error) => console.warn(`zone colors and artwork: ${error.message}`), (id, data) => ({ id, colors: id === 'zoneColors' ? data.colors : undefined, images: id === 'zoneArt' ? data.images : undefined, art: id === 'zoneArt' ? data.art : undefined })),
       subscribeGuildCollection<LootTableDoc>('lootTables', (records) => setLootTables(records), (error) => console.warn(`lootTables: ${error.message}`), normalizeLootTable),
       subscribeGuildCollection<AwardRecord>('awards', (records, dropped) => { setAwards(records.sort((a, b) => b.awardedAt.localeCompare(a.awardedAt))); countUnreadable('awards', dropped) }, onError, normalizeAward),
-      subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))), onError),
+      subscribeGuildCollection<AfkEntryRecord>('afkEntries', (records) => { setAfkEntries(records.sort((a, b) => a.startDate.localeCompare(b.startDate))); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'afkEntries'])]) }, onError),
       subscribeGuildCollection<RaidRecord>('raids', (records) => { setRaids(records.sort((a, b) => a.date.localeCompare(b.date))); setLeadershipLoaded((loaded) => [...new Set([...loaded, 'raids'])]) }, onError),
       subscribeRaidZones((records) => setRaidZoneCatalog(records.sort((a, b) => a.name.localeCompare(b.name))), onError),
       subscribeCharacterRequests(actualUid, actualRole === 'Guild Leader', (records) => {
@@ -100,6 +112,8 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
       setReadinessError('')
       setLeadershipLoaded([])
       setAssignments({})
+      setAssignments20({})
+      setAssignments40({})
       setPriorities([])
       setAwards([])
       setLootTables([])
@@ -135,9 +149,12 @@ export function useGuildData(enabled: boolean, actualRole: GuildRole | null, act
     readiness,
     readinessLoaded,
     readinessError,
-    leadershipLoaded: ['roster', 'raids', 'members', 'assignments'].every((name) => leadershipLoaded.includes(name)),
+    leadershipLoaded: ['roster', 'raids', 'members', 'assignments', 'assignments20', 'assignments40'].every((name) => leadershipLoaded.includes(name)),
+    raidPlanningLoaded: ['roster', 'raids', 'assignments', 'assignments20', 'assignments40', 'afkEntries'].every((name) => leadershipLoaded.includes(name)),
     roster,
     assignments,
+    assignments20,
+    assignments40,
     priorities: currentPriorities,
     allPriorities: visiblePriorities,
     hiddenPriorities,

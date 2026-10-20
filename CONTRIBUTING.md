@@ -33,6 +33,8 @@ Team cards in both Raid Teams and Scheduled Raids display assigned characters by
 
 Scheduled team response totals use compact colored icon/count badges in the workbench and sign-up roster. In workbench cards, responses share the role-count row on the right and wrap together onto the next row when space is insufficient. Check Accepted, Tentative, Absent and Not Responded at zero and nonzero counts; Late and voluntary Bench appear only when nonzero. Each badge has a full accessible status/count label. Counts and individual response controls remain unchanged.
 
+In Scheduled Raids, available-roster warnings and assigned-bench move controls align immediately before the response, with the warning before the move control when both are present. Narrow pool cards with move dropdowns place controls and response together below the identity; cards without move dropdowns retain the compact identity/response row. Verify long names, both controls, popover keyboard/Escape, bench moves, busy/closed states and actual Member read-only visibility; standing Raid Teams cards retain their layout.
+
 Automatic immutable start snapshots, Discord reminders, bench-ready confirmation and attendance calculations are not implemented by this slice. Do not present a read-only working roster after start as a historical starting snapshot. See the data contract and Alex handoff in `ARCHITECTURE.md`.
 
 ```bash

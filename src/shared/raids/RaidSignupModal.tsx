@@ -42,7 +42,7 @@ export function RaidSignupModal({ raidId, close, live, onEdit }: { raidId: strin
       {!showingPreview && closed && <p role="status">{closed}</p>}
       {readError ? <p role="alert">{readError}</p> : signups === null ? <p role="status">Loading sign-ups…</p> : <>
         {!showingPreview ? <>
-        {unavailable && <p role="status">You are marked unavailable: <strong>Absent</strong>. Remove all unavailable events covering this raid date to change your response. Your response will remain Absent until you choose another response.</p>}
+        {unavailable && <p role="status">You are marked unavailable: <strong>Absent</strong>. Edit or remove all unavailable events so none cover this raid date to change your response. Your response will remain Absent until you choose another response.</p>}
         {mine && !unavailable && <p role="status">Your saved response: <strong>{signupLabels[mine.status]}</strong> · {live.data.roster.find((player) => player.id === mine.characterId)?.name ?? 'Character no longer on roster'}</p>}
         {characters.length ? <SignupForm key={`${live.identity.uid}:${mine?.characterId ?? ''}:${mine?.status ?? ''}`} raidId={raidId} live={live} characters={characters} mine={mine} closed={Boolean(closed) || unavailable} />
           : <p>A Guild Leader must link your account to a main character before you can sign up.</p>}

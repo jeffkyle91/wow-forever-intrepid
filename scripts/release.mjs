@@ -1,4 +1,4 @@
-// Deploys main: checks, build, lint and server/rules tests, then Functions, Firestore rules, Storage rules and hosting.
+// Deploys main: checks, tests, indexes/readiness, Functions, Firestore rules, Storage rules and hosting.
 //
 //   npm run release              prints the plan and runs the read-only checks; deploys nothing
 //   npm run release -- --deploy  does all of it
@@ -7,6 +7,7 @@
 // cannot deploy by accident.
 import { spawnSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
+import { createInterface } from 'node:readline/promises'
 import { loadEnv } from 'vite'
 
 const PROJECT = 'intrepid-wow-forever'
@@ -50,7 +51,7 @@ if (env.VITE_FIREBASE_PROJECT_ID !== PROJECT) fail(`the build would use project 
 if (!env.VITE_GUILD_ID) fail('VITE_GUILD_ID is not set for the build. Check .env.local (and .env.production).')
 
 const head = run('git rev-parse --short HEAD', { quiet: true }).out
-console.log(`Release of ${head} to ${PROJECT} (guild ${env.VITE_GUILD_ID}). Steps: build, lint, server/rules tests, deploy Functions, deploy Firestore rules, deploy Storage rules (Cloud Storage has to be turned on once in the Firebase console, Build > Storage > Get started, and its service agent given access to Firestore once, see CONTRIBUTING.md "Cloud Storage"), deploy hosting. Firebase Functions requires the Blaze plan. After the first release, a Guild Leader must run Settings > Synchronize raid absences.`)
+console.log(`Release of ${head} to ${PROJECT} (guild ${env.VITE_GUILD_ID}). Steps: build, lint, server/rules tests, deploy Firestore indexes, confirm index readiness interactively, deploy Functions, deploy Firestore rules, deploy Storage rules (Cloud Storage has to be turned on once in the Firebase console, Build > Storage > Get started, and its service agent given access to Firestore once, see CONTRIBUTING.md "Cloud Storage"), deploy hosting. Firebase Functions requires the Blaze plan. After the first release, a Guild Leader must run Settings > Synchronize raid absences.`)
 if (!deploy) {
   console.log('Checks passed. Nothing was built or deployed. Run again with --deploy to release.')
   process.exit(0)
@@ -69,6 +70,17 @@ function step(command) {
 step('npm run build')
 step('npm run lint')
 step('npm run test:rules')
+step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only firestore:indexes --project ${PROJECT} --non-interactive`)
+if (!process.stdin.isTTY) fail('Index readiness requires an interactive terminal. Check the Firebase console, then rerun this release interactively. Functions were not deployed.')
+console.log(`In https://console.firebase.google.com/project/${PROJECT}/firestore/indexes verify that every index in firestore.indexes.json is ready (not building or failed), including the raids.startsAt collection-group field index. Index deployment success alone does not establish readiness.`)
+const terminal = createInterface({ input: process.stdin, output: process.stdout })
+let confirmation
+try {
+  confirmation = await terminal.question('Type indexes-ready after verifying all required indexes: ')
+} finally {
+  terminal.close()
+}
+if (confirmation !== 'indexes-ready') fail('Index readiness was not confirmed. Functions were not deployed.')
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only functions --project ${PROJECT} --non-interactive`)
 step(`npx --yes --ignore-scripts ${FIREBASE_TOOLS} deploy --only firestore:rules --project ${PROJECT} --non-interactive`)
 rulesDeployed = true

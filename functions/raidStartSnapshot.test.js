@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { after, afterEach, beforeEach, describe, test } from 'node:test'
 import { deleteApp, initializeApp } from 'firebase-admin/app'
-import { getFirestore, Timestamp } from 'firebase-admin/firestore'
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import {
   captureRaidStartSnapshot, initialSnapshotCheckpoint, nextSnapshotExecution, runRaidStartSnapshotSweep,
 } from './raidStartSnapshot.js'
@@ -92,6 +92,35 @@ afterEach(async () => {
 after(() => deleteApp(app))
 
 describe('automatic immutable raid start snapshots', () => {
+  test('captures legacy raids without time using the default while preserving startsAt', async () => {
+    await raid.update({ time: FieldValue.delete() })
+    const result = await startSweep()
+    assert.equal(result.captured, 1)
+    const manifest = (await raid.collection('snapshots').doc('start').get()).data()
+    assert.equal(manifest.status, 'complete')
+    assert.equal(manifest.raid.time, '21:00')
+    assert.equal(manifest.scheduledStartAt.toMillis(), start.toMillis())
+  })
+
+  test('preserves an explicit non-default raid time and its authoritative start instant', async () => {
+    await raid.update({ time: '20:30' })
+    assert.equal(await captureRaidStartSnapshot(db, guild, raid, raid.id, now), 'captured')
+    const manifest = (await raid.collection('snapshots').doc('start').get()).data()
+    assert.equal(manifest.raid.time, '20:30')
+    assert.equal(manifest.scheduledStartAt.toMillis(), start.toMillis())
+  })
+
+  for (const time of [null, 2100, '', '24:00', '21:60', '9:00']) {
+    test(`rejects invalid explicit raid time ${JSON.stringify(time)}`, async () => {
+      await raid.update({ time })
+      assert.equal(await captureRaidStartSnapshot(db, guild, raid, raid.id, now), 'failed')
+      assert.notEqual((await raid.collection('snapshots').doc('start').get()).data()?.status, 'complete')
+      const failures = await guild.collection('raidSnapshotFailures').get()
+      assert.equal(failures.size, 1)
+      assert.equal(failures.docs[0].data().code, 'invalid-raid-details')
+    })
+  }
+
   test('uses Eastern 9 PM boundaries across both daylight-saving transitions', () => {
     const springRun = Timestamp.fromDate(new Date('2026-03-08T21:05:00-04:00'))
     const fallRun = Timestamp.fromDate(new Date('2026-11-01T21:05:00-05:00'))

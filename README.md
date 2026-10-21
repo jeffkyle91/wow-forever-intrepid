@@ -96,7 +96,7 @@ The callables authenticate the real account and read its guild membership; VIEW 
 
 Firestore triggers synchronize newly scheduled/rescheduled/restored raids and newly linked members. These triggers may take a moment; the dialog immediately derives effective Absent from shared unavailable events, and the callable checks the actual events before allowing any response change. Already-started or cancelled raids are not rewritten by this synchronization.
 
-For the first release, deploy **Functions, then Firestore rules, then hosting**. Afterwards a Guild Leader must use **Settings > Synchronize raid absences** once to backfill existing upcoming raids/events; it is safe to repeat. Existing events already block the callable before backfill, and deleting a legacy event also persists Absent before removal. Old browser tabs cannot bypass the new rules; refresh them after release.
+For the first release, deploy **Firestore indexes, verify index readiness, then Functions, Firestore rules, Storage rules and hosting**. See [snapshot deployment prerequisites](CONTRIBUTING.md#snapshot-deployment-prerequisites) for the required index checks. Afterwards a Guild Leader must use **Settings > Synchronize raid absences** once to backfill existing upcoming raids/events; it is safe to repeat. Existing events already block the callable before backfill, and deleting a legacy event also persists Absent before removal. Old browser tabs cannot bypass the new rules; refresh them after release.
 
 ## Firebase Hosting
 
@@ -107,7 +107,7 @@ npm run build
 npx firebase-tools@15.31.0 deploy --only hosting --project intrepid-wow-forever
 ```
 
-`npm run release -- --deploy` runs the build, lint, server/rules tests, Functions deploy, rules deploy and hosting deploy from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for. `npm run release` on its own only prints the plan. Do not use a hosting-only deploy for a server/rules change.
+`npm run release -- --deploy` runs the build, lint, server/rules tests, Firestore index deploy, interactive index-readiness confirmation, Functions deploy, rules deploy and hosting deploy from a clean `main` (see CONTRIBUTING.md); use it only when a deploy was asked for. Verify every required index is ready in the Firebase console before typing `indexes-ready`; failed, missing or building indexes block Functions deployment. `npm run release` on its own only prints the plan and runs read-only checks. Do not use a hosting-only deploy for a server/rules change.
 
 The deployed site is [intrepid-wow-forever.web.app](https://intrepid-wow-forever.web.app/). Hosting deployment does not deploy Firestore rules; deploy those separately when the rules change.
 

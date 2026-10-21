@@ -37,6 +37,14 @@ In Scheduled Raids, available-roster warnings and assigned-bench move controls a
 
 RAID-001 captures automatic immutable start snapshots with a daily server-side schedule at 9:00 PM in `America/New_York`. The local `npm run dev:emulator` workflow does not emulate Cloud Scheduler; snapshot worker tests invoke the sweep directly against Firestore Emulator and verify its retry, lifecycle, publication and failure behavior. This does not verify deployed scheduled delivery. Do not present an unfinished/failed capture or a read-only working roster as a historical snapshot. Discord reminders, bench-ready confirmation and attendance calculations remain out of scope. See the data contract and Raid History read path in `ARCHITECTURE.md`.
 
+Snapshot capture accepts older raids with an omitted `time` as 21:00 Eastern, matching the app contract; `startsAt` remains authoritative. Explicit invalid times still fail. This does not reconstruct missing working rosters or migrate historical mock raids.
+
+### Snapshot deployment prerequisites
+
+After explicit deployment approval, run `npm run release -- --deploy` in an interactive terminal. The release deploys `firestore:indexes` before Functions, then stops at a readiness checkpoint. In the target project's Firebase console, Firestore > Indexes, verify both composite indexes (`auditLog`: `targetType`/`at`; `raidSnapshotJobs`: `state`/`nextAttemptAt`) and the single-field ascending **collection-group** index on `raids.startsAt` have finished building and are ready. Collection-scoped indexes alone are insufficient. Preserve the existing collection-scoped field indexes.
+
+Type `indexes-ready` only after that verification. Failed, missing or still-building indexes must not be acknowledged. Noninteractive runs or any other response stop before Functions deploy; rerun after resolving the problem. Index deployment success does not mean backfill is finished. The default `npm run release` remains read-only and never prompts. Direct service deployments must follow the same index-first/readiness order. Emulator tests do not validate production index provisioning or Scheduler delivery; verify both after the approved deployment.
+
 ```bash
 npm run build
 npm run lint

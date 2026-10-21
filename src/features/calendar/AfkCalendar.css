@@ -54,6 +54,9 @@ button.raid-calendar-event:hover, button.raid-calendar-event:focus-visible { bac
 :root[data-theme='dark'] .raid-zone-picker legend, :root[data-theme='dark'] .modal-form .raid-zone-picker-group label { color: #c0cede; }
 .afk-calendar-entry { display: block; min-width: 0; padding: 3px 4px; overflow: hidden; border-left: 2px solid #7c9fb8; border-radius: 2px; color: #4f687d; background: #edf4f8; font-size: 8px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .afk-calendar-entry.own-entry { border-left-color: #3c78a5; color: #315d7d; background: #e5f0f7; font-weight: 700; }
+button.afk-calendar-entry { width: 100%; border-top: 0; border-right: 0; border-bottom: 0; font-family: inherit; text-align: left; cursor: pointer; }
+button.afk-calendar-entry:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+button.afk-calendar-entry:disabled { opacity: .5; cursor: not-allowed; }
 .afk-calendar-entry span { display: block; overflow: hidden; text-overflow: ellipsis; }
 .afk-calendar-sidebar { display: grid; align-content: start; gap: 18px; min-width: 0; padding-left: 18px; border-left: 1px solid #e9edf1; }
 .afk-entry-section h3, .afk-own-ranges h3 { margin: 2px 0 12px; color: #3b5065; font: 600 12px/1.25 var(--display); }
@@ -67,6 +70,7 @@ button.raid-calendar-event:hover, button.raid-calendar-event:focus-visible { bac
 .afk-own-ranges ul { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .afk-own-ranges li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 7px 0; border-bottom: 1px solid #eef1f3; }
 .afk-own-ranges li > span { display: grid; gap: 2px; min-width: 0; }
+.afk-own-ranges li > span:first-child { flex: 1; }
 .afk-own-ranges li strong { color: #465c70; font-size: 9px; font-variant-numeric: tabular-nums; }
 .afk-own-ranges li small { color: #8996a2; font-size: 8px; }
 .afk-remove-button { display: grid; flex: 0 0 27px; width: 27px; height: 27px; place-items: center; border: 1px solid transparent; border-radius: 4px; color: #8493a0; background: transparent; cursor: pointer; }

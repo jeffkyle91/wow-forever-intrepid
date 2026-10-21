@@ -1,4 +1,4 @@
-import { Award, CalendarDays, CalendarOff, CircleHelp, CornerDownRight, Gem, MessageSquare, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
+import { Award, CalendarDays, CalendarOff, CircleHelp, CornerDownRight, Gem, MessageSquare, Pencil, Plus, Shield, Swords, Trash2, Users } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
 import { priorityLookup } from '../../shared/game/completion'
@@ -10,7 +10,7 @@ import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
 import { HelpPopover } from '../../shared/ui/HelpPopover'
 import { RaidSignupButton } from './RaidSignupButton'
-import { AbsenceModal } from './AbsenceModal'
+import { AbsenceModal } from '../../shared/availability/AbsenceModal'
 import { CommentsPanel } from './CommentsPanel'
 import { findMyCharacters, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
 import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
@@ -36,7 +36,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
       <p>Ask a Guild Leader to link your character in Member Access. Your characters, raid team, loot priorities and upcoming raids will appear here once they do.</p>
       <p>Everything else in the app still works. You can look at the roster, raid teams, calendar and loot in the meantime.</p>
       <div className="dash-actions">
-        <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Raid calendar</button>
+        <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Guild Calendar</button>
         <button className="button button-secondary" onClick={() => ctx.navigate('teams')}>Raid teams</button>
         <button className="button button-secondary" onClick={() => ctx.navigate('priorities')}>Loot priorities</button>
       </div>
@@ -101,12 +101,13 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <RaidSignupButton raidId={raid.id} unavailable={unavailable} ctx={ctx} />
         {isRaidCancelled(raid) ? <span className="dash-tag dash-tag-warn">Cancelled</span> : unavailable && <span className="dash-tag dash-tag-warn">You marked unavailable</span>}
       </li>)}</ul> : <p className="dash-muted">No upcoming raids are scheduled.</p>}
-      <p className="dash-note">Choose a character under Sign-up / roster, or click your response to change it or view details. Responses close at raid start. Unavailable dates set your response to Absent; remove the overlapping events before choosing another response.</p>
+      <p className="dash-note">Choose a character under Sign-up / roster, or click your response to change it or view details. Responses close at raid start. Unavailable dates set your response to Absent; edit or remove overlapping events before choosing another response.</p>
     </Panel>
 
     <Panel icon={<CalendarOff size={15} />} title="Upcoming absences" action={<button className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <AbsenceModal today={today} close={close} live={live} />)}><Plus size={14} /> Add absence</button>}>
-      {absences.length ? <ul className="dash-list">{absences.map((entry) => <li key={entry.id}>
+      {absences.length ? <ul className="dash-list dash-absences">{absences.map((entry) => <li key={entry.id}>
         <span><strong>{entry.startDate === entry.endDate ? dateLabel(entry.startDate) : `${dateLabel(entry.startDate)} \u2013 ${dateLabel(entry.endDate)}`}</strong></span>
+        <button className="dash-icon-button" aria-label="Edit absence" title="Edit absence" disabled={ctx.feedback.busy} onClick={() => ctx.openModal(({ close, live }) => <AbsenceModal entry={entry} close={close} live={live} />)}><Pencil size={14} /></button>
         <button className="dash-icon-button" aria-label="Remove absence" title="Remove absence" disabled={ctx.feedback.busy} onClick={() => removeAbsence(entry.id)}><Trash2 size={14} /></button>
       </li>)}</ul> : <p className="dash-muted">No upcoming absences.</p>}
     </Panel>

@@ -444,6 +444,11 @@ export async function deleteAfkEntry(id: string) {
   await httpsCallable(functions, 'removeUnavailableDates')({ guildId, entryId: id })
 }
 
+export async function updateAfkEntry(entryId: string, dates: Pick<AfkEntryRecord, 'startDate' | 'endDate'>) {
+  if (!functions || !auth?.currentUser) throw new Error('Sign in to edit unavailable dates.')
+  await httpsCallable(functions, 'updateUnavailableDates')({ guildId, entryId, startDate: dates.startDate, endDate: dates.endDate })
+}
+
 export async function synchronizeRaidAbsences() {
   if (!functions || !auth?.currentUser) throw new Error('Sign in to synchronize raid absences.')
   const result = await httpsCallable<{ guildId: string }, { checkedRaids: number }>(functions, 'synchronizeRaidAbsences', { timeout: 540000 })({ guildId })

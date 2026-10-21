@@ -24,7 +24,7 @@ export function ScheduledRaidsTab({ ctx }: { ctx: TabContext }) {
   if (ctx.data.dataError) return <p role="alert">Scheduled raids could not be loaded: {ctx.data.dataError}. Reload to retry.</p>
   if (!ctx.data.raidPlanningLoaded) return <p role="status">Loading scheduled raids...</p>
   if (ctx.data.unreadable) return <p role="alert">Some guild records are unreadable. Correct them before viewing scheduled raids.</p>
-  if (!raid) return <p>No scheduled raids yet. <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Open raid calendar</button></p>
+  if (!raid) return <p>No scheduled raids yet. <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Open Guild Calendar</button></p>
   const closed = isRaidCancelled(raid) || !raid.startsAt || raid.startsAt.toMillis() <= now
   const sizes = [...new Set(raid.zones?.length ? raid.zones.map((zone) => zone.size) : [raid.size])]
   const size = sizes.includes(ctx.shell.raidView) ? ctx.shell.raidView : sizes[0]
@@ -32,7 +32,7 @@ export function ScheduledRaidsTab({ ctx }: { ctx: TabContext }) {
     <label>Scheduled raid<select value={raid.id} onChange={(event) => setSelection({ id: event.target.value, navParam: ctx.navParam })}>{raids.map((entry) => <option key={entry.id} value={entry.id}>{entry.date} · {entry.name}{isRaidCancelled(entry) ? ' (cancelled)' : ''}</option>)}</select></label>
     <div className="scheduled-raids-actions">
       <button className="button button-secondary" onClick={() => ctx.openModal(({ close, live }) => <RaidSignupModal raidId={raid.id} close={close} live={live} />)}>Your sign-up / roster</button>
-      <button className="button button-secondary" onClick={() => ctx.navigate('afk', raid.id)}>Open raid calendar</button>
+      <button className="button button-secondary" onClick={() => ctx.navigate('afk', raid.id)}>Open Guild Calendar</button>
       <div className="scheduled-workbench-toolbar">
         <div className="segmented-control" role="group" aria-label="Scheduled lineup size">{([10, 20, 40] as const).map((option) => <button type="button" key={option} disabled={!sizes.includes(option)} className={option === size ? 'segment selected' : 'segment'} aria-pressed={option === size} onClick={() => ctx.shell.setRaidView(option)}>{option}<span>player</span></button>)}</div>
         <div className="segmented-control" role="group" aria-label="Available characters">

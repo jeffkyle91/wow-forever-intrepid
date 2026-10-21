@@ -1,0 +1,6 @@
+.absence-modal { color: #40566b; font-size: 12px; }
+.absence-modal p { margin: 0; line-height: 1.5; }
+.absence-modal .modal-actions { flex-wrap: wrap; }
+.absence-modal [role='alert'] { color: #a02f2f; }
+:root[data-theme='dark'] .absence-modal { color: #dbe6f0; }
+:root[data-theme='dark'] .absence-modal [role='alert'] { color: #f0b4b4; }

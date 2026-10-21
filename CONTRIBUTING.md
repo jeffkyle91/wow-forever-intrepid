@@ -45,6 +45,14 @@ After explicit deployment approval, run `npm run release -- --deploy` in an inte
 
 Type `indexes-ready` only after that verification. Failed, missing or still-building indexes must not be acknowledged. Noninteractive runs or any other response stop before Functions deploy; rerun after resolving the problem. Index deployment success does not mean backfill is finished. The default `npm run release` remains read-only and never prompts. Direct service deployments must follow the same index-first/readiness order. Emulator tests do not validate production index provisioning or Scheduler delivery; verify both after the approved deployment.
 
+### Editing unavailable dates (MEMBER-005)
+
+The edit dialog also provides **Delete absence**, using the existing owner-only removal callable. Check that it closes on success, reports failures inline, remains disabled while busy or after external deletion, and does not appear in the add dialog. Deletion retains Absent responses and never restores placements; unsaved date-field changes do not alter which saved entry is deleted.
+
+Use an invented Member account to add a range, then use the pencil beside it in **My dashboard > Upcoming absences** and **Guild Calendar > Your date ranges**, or click the owned entry directly on a calendar day. All open the same prefilled dialog, whose body text matches the raid sign-up dialog. Check calendar entry activation by keyboard as well as click, cancel, invalid/reversed dates, saving, narrow screens and both themes. Other members' calendar entries stay read-only; leaders cannot edit another account's ranges. Busy state must disable saving and calendar edit buttons; a deleted entry must show an error rather than recreate it. The visible calendar name is Guild Calendar; retain the internal `afk` tab ID and data names.
+
+Move, shrink and expand a range across future raids, including another overlapping unavailable entry. Previously covered raids retain Absent; newly covered raids become Absent and lose that account's main/alt scheduled placements. Once no unavailable entry overlaps, the member may explicitly change their response; old placements are never restored. Started/cancelled raids and published snapshots remain unchanged. Server tests cover authorization, ranges, concurrency and transactional rollback. Deploy the `updateUnavailableDates` Function before Hosting after explicit release approval; existing add/remove clients remain compatible. No data migration is required.
+
 ```bash
 npm run build
 npm run lint

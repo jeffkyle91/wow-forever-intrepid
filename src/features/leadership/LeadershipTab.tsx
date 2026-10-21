@@ -74,9 +74,9 @@ function LeadershipOverview({ ctx }: { ctx: TabContext }) {
     <section className="leadership-card"><h3><CalendarDays size={15} aria-hidden="true" />Missing raid responses</h3>
       {raid ? <>
         <label>Upcoming raid <select value={raid.id} onChange={(event) => setSelectedId(event.target.value)}>{raids.map((record) => <option key={record.id} value={record.id}>{record.date} - {record.name} ({formatRaidTime(raidTimeOf(record))})</option>)}</select></label>
-        <button className="button button-secondary" onClick={() => ctx.navigate('afk', raid.id)}>Open raid calendar</button>
+        <button className="button button-secondary" onClick={() => ctx.navigate('afk', raid.id)}>Open Guild Calendar</button>
         <RaidResponses key={raid.id} raid={raid} ctx={ctx} />
-      </> : <p>No upcoming non-cancelled raids. <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Open raid calendar</button></p>}
+      </> : <p>No upcoming non-cancelled raids. <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Open Guild Calendar</button></p>}
     </section>
     <CharacterRequestsPanel ctx={ctx} review />
     <section className="leadership-card leadership-coverage"><h3><ShieldCheck size={15} aria-hidden="true" />Coverage gaps</h3>

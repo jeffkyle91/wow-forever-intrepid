@@ -44,6 +44,7 @@
 .dash-card-head h3 { margin: 0; }
 .dash-card-head .button { min-height: 24px; padding: 3px 9px; font-size: 11px; }
 .dash-icon-button { display: inline-grid; place-items: center; padding: 3px; border: 0; border-radius: 4px; color: #7a8a9a; background: transparent; cursor: pointer; }
+.dash-absences li > span:first-child { flex: 1; }
 .dash-icon-button:hover { color: #8c3a3a; background: #f4e3e3; }
 .dash-segment { display: inline-flex; gap: 2px; margin-bottom: 8px; padding: 2px; border: 1px solid var(--line); border-radius: 6px; }
 .dash-segment button { padding: 3px 10px; border: 0; border-radius: 4px; color: #5d7388; background: transparent; font-size: 11px; font-weight: 600; cursor: pointer; }

@@ -60,7 +60,7 @@ export function ZonesPanel({ ctx }: { ctx: TabContext }) {
   return <section className="settings-section zones-panel">
     <header>
       <h3>Zones</h3>
-      <p>Every dungeon and raid the guild uses, each with a color shown as a bar on its loot priorities, in Browse drops and in Edit the drop lists. The zones that come with the app show up here on their own; add any other below. A raid of 10, 20 or 40 can be scheduled in the Raid Calendar. Every zone except the ones marked as from the older raid zone list is ticked into the phases that use it in Edit the drop lists. Each zone can also have a picture, chosen from the library under Zone images below.</p>
+      <p>Every dungeon and raid the guild uses, each with a color shown as a bar on its loot priorities, in Browse drops and in Edit the drop lists. The zones that come with the app show up here on their own; add any other below. A raid of 10, 20 or 40 can be scheduled in the Guild Calendar. Every zone except the ones marked as from the older raid zone list is ticked into the phases that use it in Edit the drop lists. Each zone can also have a picture, chosen from the library under Zone images below.</p>
     </header>
     <AddZone ctx={ctx} zones={zones} chosen={chosen} run={run} />
     {groups.map((group) => <details key={group.key} className="zones-group" open>

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { after, beforeEach, describe, test } from 'node:test'
 import { deleteApp, initializeApp } from 'firebase-admin/app'
 import { getFirestore, Timestamp } from 'firebase-admin/firestore'
-import { addAbsence, removeAbsence, saveResponse, synchronizeGuild, synchronizeMember, synchronizeRaid } from './raids.js'
+import { addAbsence, removeAbsence, updateAbsence, saveResponse, synchronizeGuild, synchronizeMember, synchronizeRaid } from './raids.js'
 
 const host = process.env.FIRESTORE_EMULATOR_HOST
 if (!host || !/^(127\.0\.0\.1|localhost):\d+$/.test(host)) throw new Error('Server tests require a local Firestore emulator.')
@@ -13,6 +13,7 @@ const request = (data, uid = 'test-member') => ({ auth: uid ? { uid } : undefine
 const response = (data = {}, uid) => saveResponse(db, request({ raidId: 'raid-1', characterId: 'main', status: 'accept', ...data }, uid))
 const absence = (data = {}, uid) => addAbsence(db, request({ startDate: '2090-06-10', endDate: '2090-06-12', ...data }, uid))
 const remove = (entryId, uid) => removeAbsence(db, request({ entryId }, uid))
+const edit = (entryId, data = {}, uid) => updateAbsence(db, request({ entryId, startDate: '2090-06-20', endDate: '2090-06-22', ...data }, uid))
 const signup = () => guild.collection('raids').doc('raid-1').collection('signups').doc('test-member')
 const rejected = (operation, code) => assert.rejects(operation, (error) => error.code === code)
 
@@ -199,6 +200,175 @@ describe('unavailable dates force and retain Absent', () => {
     await guild.collection('raids').doc('raid-1').update({ startsAt: Timestamp.fromDate(new Date('2090-06-12T01:00:00Z')), status: 'cancelled' })
     await absence()
     assert.equal((await signup().get()).data().status, 'accept')
+  })
+})
+
+describe('editing owned unavailable ranges', () => {
+  const entryRef = (entryId) => guild.collection('afkEntries').doc(entryId)
+  const planRef = (raidId) => guild.collection('raids').doc(raidId).collection('planning').doc('working')
+  const seedPlan = (raidId) => planRef(raidId).set({
+    schemaVersion: 1, revision: 1, invitations: [],
+    lineups: [10, 20, 40].map((size) => ({
+      size, teams: [{ key: 'invented', name: 'Invented team', characterIds: ['main', 'other'] }], bench: ['alt'],
+    })),
+  })
+
+  test('updates the same document and preserves ownership, creator and creation timestamp', async () => {
+    const { id } = await absence()
+    const before = (await entryRef(id).get()).data()
+    await edit(id)
+    const after = (await entryRef(id).get()).data()
+    assert.equal(after.startDate, '2090-06-20')
+    assert.equal(after.endDate, '2090-06-22')
+    assert.equal(after.userId, before.userId)
+    assert.equal(after.displayName, before.displayName)
+    assert.ok(after.createdAt.isEqual(before.createdAt))
+    assert.ok(after.updatedAt instanceof Timestamp)
+    assert.equal((await entryRef(id).parent.get()).size, 1)
+    assert.equal((await signup().get()).data().status, 'absent')
+    await response({ status: 'tentative' })
+  })
+
+  for (const uid of [null, 'outsider', 'test-leader', 'test-raider']) {
+    test(`${uid ?? 'anonymous'} cannot edit another member's range`, async () => {
+      const { id } = await absence()
+      const before = (await entryRef(id).get()).data()
+      await rejected(edit(id, {}, uid), uid === null ? 'unauthenticated' : 'permission-denied')
+      assert.deepEqual((await entryRef(id).get()).data(), before)
+    })
+  }
+
+  test('removed accounts, another guild and missing entries cannot be edited', async () => {
+    const { id } = await absence()
+    await rejected(edit('missing'), 'permission-denied')
+    await rejected(edit(id, { guildId: 'another-guild' }), 'permission-denied')
+    await guild.collection('members').doc('test-member').update({ role: 'Removed' })
+    await rejected(edit(id), 'permission-denied')
+  })
+
+  for (const changes of [
+    { startDate: '2090-06-23' }, { startDate: '2090-02-30' }, { endDate: '2090-13-01' },
+    { startDate: '' }, { endDate: 42 }, { startDate: '2090-6-01' }, { userId: 'test-leader' },
+    { displayName: 'Spoofed' }, { createdAt: 0 }, { uid: 'test-leader' }, { entryId: 'path/child' },
+  ]) {
+    test(`invalid or spoofed edit ${JSON.stringify(changes)} leaves data unchanged`, async () => {
+      const { id } = await absence()
+      const before = (await entryRef(id).get()).data()
+      await rejected(edit(id, changes), 'invalid-argument')
+      assert.deepEqual((await entryRef(id).get()).data(), before)
+    })
+  }
+
+  test('new coverage overrides alt/bench response, clears all sizes and leaves snapshots untouched', async () => {
+    const { id } = await absence({ startDate: '2090-07-01', endDate: '2090-07-02' })
+    await response({ characterId: 'alt', status: 'bench' })
+    await seedPlan('raid-1')
+    const snapshotRef = guild.collection('raids').doc('raid-1').collection('snapshots').doc('start')
+    await snapshotRef.set({ status: 'complete', marker: 'immutable invented snapshot' })
+    const snapshotBefore = (await snapshotRef.get()).data()
+    await edit(id, { startDate: '2090-06-11', endDate: '2090-06-11' })
+    const saved = (await signup().get()).data()
+    assert.equal(saved.status, 'absent')
+    assert.equal(saved.characterId, 'alt')
+    assert.equal(saved.benchKind, undefined)
+    const plan = (await planRef('raid-1').get()).data()
+    assert.equal(plan.revision, 2)
+    for (const lineup of plan.lineups) {
+      assert.deepEqual(lineup.teams[0].characterIds, ['other'])
+      assert.deepEqual(lineup.bench, [])
+    }
+    await edit(id)
+    assert.deepEqual((await planRef('raid-1').get()).data(), plan)
+    assert.deepEqual((await snapshotRef.get()).data(), snapshotBefore)
+  })
+
+  test('old legacy coverage is materialized without affecting raids between disjoint ranges', async () => {
+    await response()
+    await entryRef('legacy').set({ userId: 'test-member', startDate: '2090-06-11', endDate: '2090-06-11' })
+    const gap = guild.collection('raids').doc('gap')
+    await gap.set({ date: '2090-06-15', startsAt: Timestamp.fromDate(new Date('2090-06-16T01:00:00Z')) })
+    await gap.collection('signups').doc('test-member').set({ characterId: 'main', status: 'late' })
+    await edit('legacy')
+    assert.equal((await signup().get()).data().status, 'absent')
+    assert.equal((await gap.collection('signups').doc('test-member').get()).data().status, 'late')
+  })
+
+  test('overlapping events continue blocking responses after one range moves away', async () => {
+    const first = await absence()
+    const second = await absence({ startDate: '2090-06-11', endDate: '2090-06-11' })
+    await edit(first.id)
+    await rejected(response(), 'failed-precondition')
+    await edit(second.id)
+    assert.equal((await signup().get()).data().status, 'absent')
+    await response({ status: 'accept' })
+    assert.equal((await signup().get()).data().status, 'accept')
+  })
+
+  test('an unchanged range is a no-op and shrinking overlapping ranges deduplicates writes', async () => {
+    const { id } = await absence()
+    const before = (await entryRef(id).get()).data()
+    await edit(id, { startDate: before.startDate, endDate: before.endDate })
+    assert.deepEqual((await entryRef(id).get()).data(), before)
+    await seedPlan('raid-1')
+    await edit(id, { startDate: '2090-06-11', endDate: '2090-06-11' })
+    assert.equal((await planRef('raid-1').get()).data().revision, 2)
+    await rejected(response(), 'failed-precondition')
+  })
+
+  test('expanding a range includes both boundaries and leaves other accounts unchanged', async () => {
+    const { id } = await absence({ startDate: '2090-06-12', endDate: '2090-06-12' })
+    const edge = guild.collection('raids').doc('edge')
+    await edge.set({ date: '2090-06-13', startsAt: Timestamp.fromDate(new Date('2090-06-14T01:00:00Z')) })
+    await signup().parent.doc('test-leader').set({ characterId: 'other', status: 'accept' })
+    await edit(id, { startDate: '2090-06-11', endDate: '2090-06-13' })
+    assert.equal((await signup().get()).data().status, 'absent')
+    assert.equal((await edge.collection('signups').doc('test-member').get()).data().status, 'absent')
+    assert.equal((await signup().parent.doc('test-leader').get()).data().status, 'accept')
+  })
+
+  test('unlinked owners can edit without generating a fictitious signup', async () => {
+    const { id } = await absence({}, 'test-leader')
+    await edit(id, { startDate: '2090-06-11', endDate: '2090-06-11' }, 'test-leader')
+    assert.equal((await signup().parent.doc('test-leader').get()).exists, false)
+  })
+
+  for (const closed of [{ startsAt: Timestamp.fromMillis(0) }, { status: 'cancelled' }]) {
+    test(`edits leave closed raid responses and plans unchanged: ${JSON.stringify(closed)}`, async () => {
+      const { id } = await absence({ startDate: '2090-07-01', endDate: '2090-07-02' })
+      await response()
+      await seedPlan('raid-1')
+      await guild.collection('raids').doc('raid-1').update(closed)
+      const before = (await planRef('raid-1').get()).data()
+      await edit(id, { startDate: '2090-06-11', endDate: '2090-06-11' })
+      assert.equal((await signup().get()).data().status, 'accept')
+      assert.deepEqual((await planRef('raid-1').get()).data(), before)
+    })
+  }
+
+  test('an invalid new plan rolls back the range and every response update', async () => {
+    const { id } = await absence({ startDate: '2090-07-01', endDate: '2090-07-02' })
+    await response()
+    await planRef('raid-1').set({ schemaVersion: 99 })
+    const before = (await entryRef(id).get()).data()
+    await rejected(edit(id, { startDate: '2090-06-11', endDate: '2090-06-11' }), 'failed-precondition')
+    assert.deepEqual((await entryRef(id).get()).data(), before)
+    assert.equal((await signup().get()).data().status, 'accept')
+  })
+
+  test('racing a response with newly covering dates ends Absent', async () => {
+    const { id } = await absence({ startDate: '2090-07-01', endDate: '2090-07-02' })
+    const results = await Promise.allSettled([response(), edit(id, { startDate: '2090-06-11', endDate: '2090-06-11' })])
+    assert.equal(results[1].status, 'fulfilled')
+    assert.equal((await signup().get()).data().status, 'absent')
+    await rejected(response(), 'failed-precondition')
+  })
+
+  test('racing edit and removal cannot resurrect the unavailable document', async () => {
+    const { id } = await absence()
+    const results = await Promise.allSettled([edit(id), remove(id)])
+    assert.equal(results[1].status, 'fulfilled')
+    assert.equal((await entryRef(id).get()).exists, false)
+    assert.equal((await signup().get()).data().status, 'absent')
   })
 })
 

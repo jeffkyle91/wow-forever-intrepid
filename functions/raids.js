@@ -43,7 +43,7 @@ export async function saveResponse(db, request) {
     await ownedCharacter(tx, guild, member, data.uid, data.characterId)
     const entries = await tx.get(guild.collection('afkEntries').where('userId', '==', data.uid))
     if (entries.docs.some((entry) => overlaps(entry.data(), raid.date))) {
-      throw new HttpsError('failed-precondition', 'You are marked unavailable. Remove all overlapping unavailable events before changing your response.')
+      throw new HttpsError('failed-precondition', 'You are marked unavailable. Edit or remove all overlapping unavailable events before changing your response.')
     }
     const cleared = data.status === 'absent' ? await clearedPlanning(tx, guild, data.uid, [raidDoc]) : []
     writeClearedPlanning(tx, cleared)
@@ -122,6 +122,37 @@ export async function removeAbsence(db, request) {
     tx.set(lock, { updatedAt: FieldValue.serverTimestamp() })
   })
   return { removed: true }
+}
+
+export async function updateAbsence(db, request) {
+  const data = input(request, ['guildId', 'entryId', 'startDate', 'endDate'])
+  id(data.entryId)
+  if (!validDate(data.startDate) || !validDate(data.endDate) || data.startDate > data.endDate) {
+    throw new HttpsError('invalid-argument', 'Choose valid unavailable dates with the start on or before the end.')
+  }
+  const guild = db.collection('guilds').doc(data.guildId)
+  const ref = guild.collection('afkEntries').doc(data.entryId)
+  await db.runTransaction(async (tx) => {
+    const member = await membership(tx, guild, data.uid)
+    const lock = await lockMember(tx, guild, data.uid)
+    const entry = (await tx.get(ref)).data()
+    if (!entry || entry.userId !== data.uid) throw new HttpsError('permission-denied', 'Only the owner can edit unavailable dates.')
+    if (entry.startDate === data.startDate && entry.endDate === data.endDate) return
+    const [oldRaids, newRaids] = await Promise.all([
+      tx.get(guild.collection('raids').where('date', '>=', entry.startDate).where('date', '<=', entry.endDate)),
+      tx.get(guild.collection('raids').where('date', '>=', data.startDate).where('date', '<=', data.endDate)),
+    ])
+    const raids = [...new Map([...oldRaids.docs, ...newRaids.docs].map((raid) => [raid.id, raid])).values()]
+    // Retain Absent for the old range, including legacy events not yet backfilled.
+    const writes = await absenceWrites(tx, guild, data.uid, member, raids)
+    const toClear = [...new Map([...newRaids.docs, ...writes.map((write) => write.raid)].map((raid) => [raid.id, raid])).values()]
+    const cleared = await clearedPlanning(tx, guild, data.uid, toClear)
+    writeClearedPlanning(tx, cleared)
+    setAbsent(tx, writes)
+    tx.update(ref, { startDate: data.startDate, endDate: data.endDate, updatedAt: FieldValue.serverTimestamp() })
+    tx.set(lock, { updatedAt: FieldValue.serverTimestamp() })
+  })
+  return { updated: true }
 }
 
 export async function synchronizeRaid(db, guildId, raidId) {

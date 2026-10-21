@@ -6,6 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Raid Calendar is now called Guild Calendar to reflect both raids and unavailable dates.
+- Members can edit their unavailable date ranges from My dashboard or Raid Calendar without deleting and recreating them.
 - Guild members can review published Raid History snapshots, including scheduled team lineups, assigned benches, invitations and sign-up responses. These snapshots show the plan, not attendance.
 - Older scheduled raids without a saved time can capture history using the usual 9 PM Eastern time.
 - Scheduled raid roster cards keep warning and bench controls aligned beside responses.

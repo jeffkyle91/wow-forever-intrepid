@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { formatRaidTime, isRaidCancelled, raidTimeOf, type AfkEntryRecord, type PlayerRecord, type RaidRecord } from '../../guildApi'
 import calendarArt from '../../../Art/icons-split/calendar.png'
 import './AfkCalendar.css'
@@ -23,7 +23,7 @@ function displayName(entry: AfkEntryRecord, roster: PlayerRecord[]) {
   return roster.find((player) => player.linkedUid === entry.userId)?.name || entry.displayName
 }
 
-export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd, onRemove, onOpenRaid, focusRaidId }: {
+export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd, onRemove, onEdit, onOpenRaid, focusRaidId }: {
   entries: AfkEntryRecord[]
   raids: RaidRecord[]
   roster: PlayerRecord[]
@@ -31,6 +31,7 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
   busy: boolean
   onAdd: (startDate: string, endDate: string) => Promise<boolean>
   onRemove: (entryId: string) => Promise<boolean>
+  onEdit: (entry: AfkEntryRecord) => void
   onOpenRaid: (raid: RaidRecord) => void
   focusRaidId?: string
 }) {
@@ -75,7 +76,7 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
   }
 
   return <div className="afk-calendar-tool">
-    <section className="afk-calendar-main" aria-label="Guild Raid Calendar">
+    <section className="afk-calendar-main" aria-label="Guild Calendar">
       <header className="afk-month-toolbar">
         <div className="afk-month-heading"><img className="afk-calendar-art-icon" src={calendarArt} alt="" aria-hidden="true" /><h3>{visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3></div>
         <div className="afk-month-controls">
@@ -106,9 +107,13 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
                 const className = `raid-calendar-event${cancelled ? ' cancelled' : ''}${raid.id === focusRaidId ? ' focused' : ''}`
                 const focusRef = raid.id === focusRaidId ? (node: HTMLElement | null) => node?.scrollIntoView({ block: 'center' }) : undefined
                 return <button type="button" className={className} ref={focusRef} title={`${title} · sign-ups and raid teams`} onClick={() => onOpenRaid(raid)} key={raid.id}>{content}</button>
-              })}{dayEntries.map((entry) => <span className={`afk-calendar-entry${entry.userId === currentUserId ? ' own-entry' : ''}`} title={`${displayName(entry, roster)} unavailable ${formatDate(entry.startDate)}–${formatDate(entry.endDate)}`} key={entry.id}>
-                <span>{displayName(entry, roster)}</span>
-              </span>)}</div>
+              })}{dayEntries.map((entry) => {
+                const title = `${displayName(entry, roster)} unavailable ${formatDate(entry.startDate)}–${formatDate(entry.endDate)}`
+                const content = <span>{displayName(entry, roster)}</span>
+                return entry.userId === currentUserId
+                  ? <button type="button" className="afk-calendar-entry own-entry" title={`${title} · edit unavailable dates`} aria-label={`Edit ${title}`} disabled={busy} onClick={() => onEdit(entry)} key={entry.id}>{content}</button>
+                  : <span className="afk-calendar-entry" title={title} key={entry.id}>{content}</span>
+              })}</div>
             </div>
           })}
         </div>
@@ -130,6 +135,7 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
         <h3>Your date ranges</h3>
         {ownEntries.length ? <ul>{ownEntries.map((entry) => <li key={entry.id}>
           <span><strong>{formatDate(entry.startDate)}</strong><small>to {formatDate(entry.endDate)}</small></span>
+          <button type="button" className="afk-remove-button" title="Edit this unavailable range" aria-label="Edit this unavailable range" disabled={busy} onClick={() => onEdit(entry)}><Pencil size={14} /></button>
           <button type="button" className="afk-remove-button" disabled={busy} onClick={() => void onRemove(entry.id)} aria-label={`Remove unavailable dates ${formatDate(entry.startDate)} to ${formatDate(entry.endDate)}`} title="Remove date range"><Trash2 size={15} /></button>
         </li>)}</ul> : <p className="afk-no-ranges">You haven’t added any unavailable dates.</p>}
       </section>

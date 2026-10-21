@@ -2,9 +2,11 @@ import { initializeApp } from 'firebase-admin/app'
 import { getFirestore } from 'firebase-admin/firestore'
 import { onCall } from 'firebase-functions/v2/https'
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { addAbsence, removeAbsence, saveResponse, synchronizeGuild, synchronizeMember, synchronizeRaid } from './raids.js'
 import { submitCharacterRequest as submitCharacterChange, resolveCharacterRequest as resolveCharacterChange } from './characters.js'
 import { changePlacement, createScheduledRaid as createRaid, initializePlanning, synchronizePlanning, synchronizePlanningGuild } from './raidPlanning.js'
+import { runRaidStartSnapshotSweep } from './raidStartSnapshot.js'
 import { changeStandingTeam } from './standingTeams.js'
 
 initializeApp()
@@ -21,6 +23,9 @@ export const saveRaidResponse = onCall(options, (request) => saveResponse(db, re
 export const addUnavailableDates = onCall(options, (request) => addAbsence(db, request))
 export const removeUnavailableDates = onCall(options, (request) => removeAbsence(db, request))
 export const synchronizeRaidAbsences = onCall({ ...options, timeoutSeconds: 540 }, (request) => synchronizeGuild(db, request))
+export const captureRaidStartSnapshots = onSchedule({
+  ...options, schedule: '0 21 * * *', timeZone: 'America/New_York', timeoutSeconds: 540, retryCount: 3,
+}, () => runRaidStartSnapshotSweep(db))
 export const synchronizeScheduledRaid = onDocumentWritten({
   ...options, document: 'guilds/{guildId}/raids/{raidId}', retry: true,
 }, async (event) => {

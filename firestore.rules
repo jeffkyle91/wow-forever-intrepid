@@ -933,6 +933,30 @@ service cloud.firestore {
           allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member']);
           allow write: if false;
         }
+
+        match /snapshots/{snapshotId} {
+          allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+            && resource.data.status == 'complete';
+          allow write: if false;
+
+          match /lineups/{lineupId} {
+            allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+              && get(/databases/$(database)/documents/guilds/$(guildId)/raids/$(raidId)/snapshots/$(snapshotId)).data.status == 'complete';
+            allow write: if false;
+          }
+
+          match /characters/{characterId} {
+            allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+              && get(/databases/$(database)/documents/guilds/$(guildId)/raids/$(raidId)/snapshots/$(snapshotId)).data.status == 'complete';
+            allow write: if false;
+          }
+
+          match /accounts/{uid} {
+            allow read: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
+              && get(/databases/$(database)/documents/guilds/$(guildId)/raids/$(raidId)/snapshots/$(snapshotId)).data.status == 'complete';
+            allow write: if false;
+          }
+        }
       }
 
       match /characterRequests/{requestId} {

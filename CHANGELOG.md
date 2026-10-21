@@ -6,6 +6,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Guild members can review published Raid History snapshots, including scheduled team lineups, assigned benches, invitations and sign-up responses. These snapshots show the plan, not attendance.
 - Scheduled raid roster cards keep warning and bench controls aligned beside responses.
 
 ## 2026-10-19 - 567a689

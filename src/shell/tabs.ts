@@ -4,6 +4,7 @@ import { dashboardTab } from '../features/dashboard/tab'
 import { leadershipTab } from '../features/leadership/tab'
 import { prioritiesTab } from '../features/loot/tab'
 import { rosterTab } from '../features/roster/tab'
+import { raidHistoryTab } from '../features/raid-history/tab'
 import { settingsTab } from '../features/settings/tab'
 import { teamsTab } from '../features/teams/tab'
 import { scheduledRaidsTab } from '../features/scheduled-raids/tab'
@@ -19,6 +20,7 @@ const tabs = [
   teamsTab,
   calendarTab,
   scheduledRaidsTab,
+  raidHistoryTab,
   prioritiesTab,
   leadershipTab,
   accessTab,

@@ -188,7 +188,8 @@ function validatePlan(plan, raidVersion, scheduledStartAt) {
   if (!usedSizes.length || usedSizes.some((size) => !sizes.includes(size))) {
     throw new PermanentCaptureError('invalid-raid-sizes', 'The scheduled raid has invalid lineup sizes.', scheduledStartAt)
   }
-  if (typeof raidVersion.name !== 'string' || typeof raidVersion.date !== 'string' || typeof raidVersion.time !== 'string'
+  if (typeof raidVersion.name !== 'string' || typeof raidVersion.date !== 'string'
+    || (raidVersion.time !== undefined && (typeof raidVersion.time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(raidVersion.time)))
     || !sizes.includes(raidVersion.size)
     || zones.some((zone) => !zone || typeof zone.id !== 'string' || typeof zone.name !== 'string' || !sizes.includes(zone.size))) {
     throw new PermanentCaptureError('invalid-raid-details', 'Scheduled raid details are invalid and cannot be snapshotted.', scheduledStartAt)
@@ -328,7 +329,7 @@ function buildSnapshotSource({ raidId, raidVersion, scheduledStartAt, plan, sign
     id: raidId,
     name: stringOrNull(raidVersion.name),
     date: stringOrNull(raidVersion.date),
-    time: stringOrNull(raidVersion.time),
+    time: raidVersion.time ?? '21:00',
     description: stringOrNull(raidVersion.description),
     size: raidVersion.size,
     zones: Array.isArray(raidVersion.zones) ? raidVersion.zones : [],

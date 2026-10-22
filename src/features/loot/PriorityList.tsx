@@ -11,6 +11,7 @@ import { carriedLabel } from './carried'
 import { groupPriorities, type DungeonGroup } from './groupPriorities'
 import { toggleOrderLock, useUnlockedOrders } from './orderLock'
 import { zoneStyle, type ZoneColors } from './useZoneColors'
+import '../../shared/ui/spacing.css'
 import '../../shared/ui/zoneArt.css'
 import './PriorityList.css'
 

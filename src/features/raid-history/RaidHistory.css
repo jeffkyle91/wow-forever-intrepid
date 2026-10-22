@@ -1,21 +1,22 @@
-.raid-history-feature { display: grid; gap: 16px; }
-.raid-history-subtabs { display: flex; gap: 6px; border-bottom: 1px solid #e3e8e0; }
+.raid-history-feature { display: grid; gap: 0; }
+.raid-history-feature > section { padding: var(--stack-gap) var(--gutter); }
+.raid-history-subtabs { display: flex; gap: 6px; padding: 0 var(--gutter); border-bottom: 1px solid #e3e8e0; }
 .raid-history-subtab { padding: 9px 13px; color: #647268; border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 11px; font-weight: 700; cursor: pointer; }
 .raid-history-subtab.selected { color: #334b3d; border-bottom-color: #648b68; }
 .raid-history-audit { min-width: 0; }
 .raid-history-actions { display: flex; justify-content: flex-end; margin-bottom: 10px; }
-.raid-history-errors { margin-bottom: 14px; padding: 12px; color: #704b32; border: 1px solid #ead2bd; border-radius: 5px; background: #fff8f1; font-size: 11px; }
+.raid-history-errors { margin-bottom: 14px; padding: 12px; color: #704b32; border: 1px solid #ead2bd; border-radius: var(--card-radius); background: #fff8f1; font-size: 11px; }
 .raid-history-errors ul { margin: 8px 0; padding-left: 18px; }
 .raid-history-empty { margin: 18px 0; }
 .raid-history-browser { display: grid; grid-template-columns: minmax(210px, 270px) minmax(0, 1fr); gap: 18px; align-items: start; }
 .raid-history-reports, .raid-history-report-detail { min-width: 0; }
 .raid-history-reports h2, .raid-history-detail-heading h2 { margin: 0; color: #334b3d; font-size: 14px; }
 .raid-history-report-list { display: grid; gap: 6px; margin-top: 10px; }
-.raid-history-report { display: grid; gap: 5px; width: 100%; padding: 10px; text-align: left; color: #425148; border: 1px solid #e3e8e0; border-radius: 5px; background: #fff; cursor: pointer; }
+.raid-history-report { display: grid; gap: 5px; width: 100%; padding: 10px var(--inner-pad-x); text-align: left; color: #425148; border: 1px solid #e3e8e0; border-radius: var(--card-radius); background: #fff; cursor: pointer; }
 .raid-history-report.selected { border-color: #91a991; background: #f4f8f2; box-shadow: inset 3px 0 #648b68; }
 .raid-history-report strong { font-size: 11px; }
 .raid-history-report small, .raid-history-detail-heading p { margin: 0; color: #7b887f; font-size: 10px; }
-.raid-history-report-detail { padding: 14px; border: 1px solid #e3e8e0; border-radius: 6px; background: #fff; }
+.raid-history-report-detail { padding: var(--card-pad-y) var(--card-pad-x); border: 1px solid #e3e8e0; border-radius: var(--card-radius); background: #fff; }
 .raid-history-detail-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 12px; }
 .raid-history-detail-heading p { margin-top: 5px; }
 .raid-history-read-only { flex: 0 0 auto; padding: 4px 7px; color: #55765b; border-radius: 12px; background: #edf4eb; font-size: 9px; font-weight: 700; }

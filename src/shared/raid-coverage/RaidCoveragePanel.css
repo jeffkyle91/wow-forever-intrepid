@@ -1,4 +1,4 @@
-.cov-panel { margin-top: 14px; border: 1px solid #e2e8ee; border-radius: 6px; background: #fff; color: #47596c; }
+.cov-panel { margin-top: var(--stack-gap); border: 1px solid #e2e8ee; border-radius: var(--card-radius); background: #fff; color: #47596c; }
 .cov-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; cursor: pointer; font-size: 12px; }
 .cov-title { font-weight: 700; }
 .cov-counts { color: #6b7a88; font-size: 11px; }

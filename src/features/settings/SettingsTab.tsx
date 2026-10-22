@@ -7,6 +7,7 @@ import { PhasesPanel } from './PhasesPanel'
 import { ZoneImagesPanel } from './ZoneImagesPanel'
 import { ZonesPanel } from './ZonesPanel'
 import { RaidAbsenceSync } from './RaidAbsenceSync'
+import '../../shared/ui/spacing.css'
 import './SettingsTab.css'
 
 const allGroups = [...groups20, group40]

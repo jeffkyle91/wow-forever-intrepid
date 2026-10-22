@@ -6,6 +6,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- Settings and the loot pages now share one set of margins and spacing: every Settings card sits the same distance from the edge with the same gap between cards, the headings on Loot priorities line up with the rows under them, and the loot dialogs (Browse drops, the drop list editor, Carry over and the Log) share one padding and corner. The raid team name fields on Settings have one width, a clear heading for each team size and each team's color beside its field (UX-005).
 - Raid Calendar is now called Guild Calendar to reflect both raids and unavailable dates.
 - Members can edit their unavailable date ranges from My dashboard or Raid Calendar without deleting and recreating them.
 - Guild members can review published Raid History snapshots, including scheduled team lineups, assigned benches, invitations and sign-up responses. These snapshots show the plan, not attendance.

@@ -1,4 +1,6 @@
-.scheduled-raids-tool { display: grid; gap: 12px; min-width: 0; padding: 16px; }
+.scheduled-raids-tool { display: grid; gap: var(--stack-gap); min-width: 0; padding: var(--stack-gap) var(--gutter); }
+/* The workbench is a .raid-team-view, which brings its own page padding; inside this tool the tool's padding is the page's, so the workbench adds none (it used to inset twice). */
+.scheduled-raids-tool > .raid-team-view { padding: 0; }
 .scheduled-raids-tool > label { display: grid; gap: 5px; min-width: 0; }
 .scheduled-raids-tool > label select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: var(--surface, #fff); font: inherit; }
 .scheduled-raids-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

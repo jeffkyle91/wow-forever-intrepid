@@ -1,4 +1,4 @@
-.afk-calendar-tool { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 22px; padding: 17px; }
+.afk-calendar-tool { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: var(--stack-gap); padding: var(--stack-gap) var(--gutter); }
 .afk-calendar-main { min-width: 0; }
 .afk-month-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
 .afk-month-heading { display: flex; align-items: center; gap: 8px; color: #527694; }
@@ -114,12 +114,11 @@ button.afk-calendar-entry:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 1180px) {
   .afk-calendar-tool { grid-template-columns: minmax(0, 1fr); }
-  .afk-calendar-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 17px 0 0; border-top: 1px solid #e9edf1; border-left: 0; }
+  .afk-calendar-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--stack-gap); padding: var(--stack-gap) 0 0; border-top: 1px solid #e9edf1; border-left: 0; }
   :root[data-theme='dark'] .afk-calendar-sidebar { border-color: #34465c; }
 }
 
 @media (max-width: 560px) {
-  .afk-calendar-tool { gap: 18px; padding: 12px; }
   .afk-calendar-sidebar { grid-template-columns: minmax(0, 1fr); }
   .afk-month-heading h3 { font-size: 12px; }
 }

@@ -11,11 +11,14 @@
 .settings-field { display: grid; gap: 6px; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .settings-field input, .settings-field select { text-transform: none; letter-spacing: normal; padding: 9px 11px; border: 1px solid rgba(212, 175, 55, 0.28); border-radius: 6px; color: inherit; background: rgba(255, 255, 255, 0.06); font: inherit; }
 .settings-field input:focus-visible, .settings-field select:focus-visible { outline: 2px solid #d4af37; outline-offset: 1px; }
-.settings-team-label { display: inline-flex; align-items: center; gap: 8px; }
-.settings-team-group { display: grid; gap: 8px; }
+.settings-team-group { display: grid; gap: 10px; }
+/* The group names (10-player teams, 20-player teams, 40-player team) are headings the eye can find, not small labels. */
+.settings-team-group h4 { padding-bottom: 6px; border-bottom: 1px solid rgba(212, 175, 55, 0.22); font-size: 1.05rem; font-weight: 700; letter-spacing: 0; text-transform: none; opacity: 1; }
+/* A team name field is its color swatch, then the field. The color's name is not shown (the field keeps it as its accessible name). */
+.settings-team-field { grid-template-columns: 14px minmax(0, 320px); align-items: stretch; gap: 12px; text-transform: none; letter-spacing: normal; }
+.settings-team-field .team-color-mark { width: 14px; height: auto; flex-basis: auto; border-radius: 3px; }
 /* Every raid team name field is the same width: the 10-player teams stack, then the 20-player teams, then the one 40-player team. A phone gets the width it has. */
-.settings-grid-four, .settings-grid-two { grid-template-columns: minmax(0, 320px); }
-.settings-team-label .team-color-mark { height: 14px; flex-basis: 10px; }
+.settings-grid-four, .settings-grid-two { grid-template-columns: minmax(0, 346px); } /* the 14px swatch, the gap and the 320px field */
 .settings-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .settings-choice-option { position: relative; display: grid; gap: 2px; padding: 12px 14px; border: 1px solid rgba(212, 175, 55, 0.22); border-radius: var(--card-radius); cursor: pointer; }
 .settings-choice-option input { position: absolute; opacity: 0; pointer-events: none; }

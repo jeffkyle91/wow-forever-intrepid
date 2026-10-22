@@ -1,0 +1,22 @@
+/* Spacing for the Settings and Loot pages, defined once. The values are the ones the toolbar and the priority rows already use, so the cards, headings and dialogs
+   line up with them. Imported by the component that owns each page, so the variables are there whenever a page or dialog that uses them is on screen. */
+:root {
+  /* From the edge of the panel to what is inside it. The toolbar and the priority rows use the same 19px (13px on a phone). */
+  --gutter: 19px;
+  /* Between cards that stand on the page. */
+  --stack-gap: 18px;
+  /* A card that stands on the page (a Settings section). */
+  --card-pad-y: 16px;
+  --card-pad-x: 18px;
+  /* Every card, and the boxes inside a card, share one corner. Inputs and small tags keep their own. */
+  --card-radius: 6px;
+  /* Cards inside a card or a dialog: the padding at their sides, and the next level of nesting. */
+  --inner-pad-x: 12px;
+  --nest-indent: 16px;
+  /* The body of a loot dialog: space under its header, and between its blocks. */
+  --dialog-top: 16px;
+  --dialog-gap: 12px;
+}
+@media (max-width: 600px) {
+  :root { --gutter: 13px; }
+}

@@ -1,5 +1,5 @@
-.leadership-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; padding: 17px; color: #526578; font: 400 12px/1.65 var(--sans); }
-.leadership-card { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255, 255, 255, 0.6); }
+.leadership-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--stack-gap); padding: var(--stack-gap) var(--gutter); color: #526578; font: 400 12px/1.65 var(--sans); }
+.leadership-card { min-width: 0; padding: var(--card-pad-y) var(--card-pad-x); border: 1px solid var(--line); border-radius: var(--card-radius); background: rgba(255, 255, 255, 0.6); }
 .leadership-card > h3, .leadership-grid > .character-requests-panel h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin: 0 0 10px; color: #3b5065; font: 600 13px/1.25 var(--display); }
 .leadership-card > h3 svg { flex-shrink: 0; }
 .leadership-card > p { color: #7a8a9a; font-size: 11px; line-height: 1.5; }

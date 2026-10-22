@@ -13,11 +13,9 @@
 .settings-field input:focus-visible, .settings-field select:focus-visible { outline: 2px solid #d4af37; outline-offset: 1px; }
 .settings-team-label { display: inline-flex; align-items: center; gap: 8px; }
 .settings-team-group { display: grid; gap: 8px; }
-.settings-grid-four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.settings-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Every raid team name field is the same width: the 10-player teams stack, then the 20-player teams, then the one 40-player team. A phone gets the width it has. */
+.settings-grid-four, .settings-grid-two { grid-template-columns: minmax(0, 320px); }
 .settings-team-label .team-color-mark { height: 14px; flex-basis: 10px; }
-@media (max-width: 900px) { .settings-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .settings-grid-four, .settings-grid-two { grid-template-columns: 1fr; } }
 .settings-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
 .settings-choice-option { position: relative; display: grid; gap: 2px; padding: 12px 14px; border: 1px solid rgba(212, 175, 55, 0.22); border-radius: var(--card-radius); cursor: pointer; }
 .settings-choice-option input { position: absolute; opacity: 0; pointer-events: none; }

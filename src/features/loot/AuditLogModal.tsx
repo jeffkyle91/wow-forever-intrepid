@@ -13,6 +13,7 @@ import { logFacts, logFilterActive, logPlayers, matchesLogFilter, noLogFilter, t
 import { slotChoices } from './slots'
 import { useBossOrder, useMergedTables } from './useDropTables'
 import { useSlotOf } from './useSlotOf'
+import '../../shared/ui/spacing.css'
 import './LootFilters.css'
 import './AuditLog.css'
 

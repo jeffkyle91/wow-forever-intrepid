@@ -154,7 +154,7 @@
 .team-dot-yellow { background: #d1ae37; }
 .team-dot-red { background: #cb6662; }
 .team-dot-white { border-color: #aab5bf; background: #fff; }
-.raid-team-view { padding: 17px; }
+.raid-team-view { padding: var(--stack-gap) var(--gutter); }
 .raid-team-workbench { display: grid; grid-template-columns: minmax(225px, .78fr) minmax(0, 2fr); align-items: start; gap: 14px; }
 .raid-team-views { min-width: 0; }
 .guild-roster-pool { position: sticky; top: 14px; align-self: start; min-width: 0; max-height: calc(100vh - 150px); overflow: auto; overscroll-behavior: contain; border: 1px solid #e1e7ed; border-radius: 6px; background: #fff; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
@@ -297,9 +297,9 @@
 .app-error, .app-notice { margin: 12px 17px; padding: 9px 11px; border-radius: 4px; font-size: 10px; }
 .app-error { border: 1px solid #efd8d3; color: #a45448; background: #fff8f6; }
 .app-notice { border: 1px solid #cfe3f0; color: #3f6d90; background: #f2f8fc; }
-.access-management { display: grid; gap: 15px; padding: 16px; }
-.access-section { overflow: hidden; border: 1px solid #e4eaf0; border-radius: 5px; background: #fff; }
-.access-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid #edf1f4; }
+.access-management { display: grid; gap: var(--stack-gap); padding: var(--stack-gap) var(--gutter); }
+.access-section { overflow: hidden; border: 1px solid #e4eaf0; border-radius: var(--card-radius); background: #fff; }
+.access-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px var(--card-pad-x); border-bottom: 1px solid #edf1f4; }
 .access-section-heading h3 { margin: 0; color: #33465b; font: 600 14px var(--display); }
 .access-section-heading p { margin-top: 4px; color: #8190a0; font-size: 9px; }
 .access-count { padding: 4px 7px; border: 1px solid #dce7f0; border-radius: 12px; color: #62809c; background: #f5f9fc; font-size: 9px; white-space: nowrap; }
@@ -397,7 +397,6 @@ button.alt-toggle:hover { color: #315f9f; background: #f1f7fb; }
   .stat-callout { grid-column: 1 / -1; min-height: 42px; border-top: 1px solid #edf0ea; }
   :root[data-theme='dark'] .stat-callout { border-top-color: #314157; }
   .stat-cell:nth-child(3) { border-right: 0; }
-  .raid-team-view { padding: 12px; }
   .raid-team-workbench { grid-template-columns: minmax(205px, .7fr) minmax(0, 1.5fr); gap: 10px; }
   .guild-roster-pool { top: 10px; }
 }

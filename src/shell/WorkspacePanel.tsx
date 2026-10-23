@@ -1,6 +1,7 @@
 import { Search } from 'lucide-react'
 import type { TabContext } from '../shared/tabs/types'
 import type { TabEntry } from './tabs'
+import '../shared/ui/spacing.css'
 
 // `unreadable` is how many guild records were skipped because they could not be read; the shell passes 0
 // unless the viewer is a Guild Leader.

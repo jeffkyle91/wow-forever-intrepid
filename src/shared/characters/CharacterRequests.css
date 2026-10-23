@@ -1,4 +1,4 @@
-.character-requests-panel { min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; color: #526578; background: rgba(255, 255, 255, 0.6); font: 400 12px/1.65 var(--sans); text-align: left; }
+.character-requests-panel { min-width: 0; padding: var(--card-pad-y) var(--card-pad-x); border: 1px solid var(--line); border-radius: var(--card-radius); color: #526578; background: rgba(255, 255, 255, 0.6); font: 400 12px/1.65 var(--sans); text-align: left; }
 .character-requests-panel header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .character-requests-panel h3 { margin: 0; font: 600 13px/1.4 var(--display); }
 .character-requests-panel h3 small { font: 400 11px var(--sans); }
@@ -56,7 +56,7 @@
 .character-request-safety svg { flex-shrink: 0; margin-top: 3px; }
 .character-request-detail .modal-actions, .character-request-form .modal-actions { border-top: 1px solid var(--line); padding-top: 14px; }
 .character-request-detail .character-request-reject { color: #874b4b; border-color: #dbbcbc; }
-.access-management + .character-requests-panel { margin: 18px; }
+.access-management + .character-requests-panel { margin: var(--stack-gap) var(--gutter); }
 :root[data-theme='dark'] .character-requests-panel { color: #b4c3d2; background: rgba(30, 44, 62, 0.55); }
 :root[data-theme='dark'] .character-request-intro, :root[data-theme='dark'] .character-request-choice { color: #b4c3d2; }
 :root[data-theme='dark'] .character-request-choice select { border-color: #3a4b61; color: #e0e8f1; background: #172435; }

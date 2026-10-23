@@ -7,6 +7,7 @@ import { PhasesPanel } from './PhasesPanel'
 import { ZoneImagesPanel } from './ZoneImagesPanel'
 import { ZonesPanel } from './ZonesPanel'
 import { RaidAbsenceSync } from './RaidAbsenceSync'
+import '../../shared/ui/spacing.css'
 import './SettingsTab.css'
 
 const allGroups = [...groups20, group40]
@@ -67,7 +68,7 @@ function SettingsForm({ saved, ctx }: { saved: GuildSettings; ctx: TabContext })
   )
 
   const teamField = (key: string, fallbackName: string, value: string, onChange: (value: string) => void) => (
-    <label className="settings-field" key={key}><span className="settings-team-label"><span className={`team-color-mark mark-${key}`} aria-hidden="true" />{fallbackName}</span><input value={value} maxLength={SETTINGS_LABEL_MAX} onChange={(event) => onChange(event.target.value)} disabled={busy} /></label>
+    <label className="settings-field settings-team-field" key={key}><span className={`team-color-mark mark-${key}`} aria-hidden="true" /><input aria-label={`${fallbackName} team name`} value={value} maxLength={SETTINGS_LABEL_MAX} onChange={(event) => onChange(event.target.value)} disabled={busy} /></label>
   )
 
   return <form className="settings-form" onSubmit={save}>

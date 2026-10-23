@@ -194,6 +194,10 @@ Guild settings (`guilds/<id>/settings/general`) are a single document read throu
 
 Render errors are contained by `shared/ui/ErrorBoundary`: one around the workspace panel (reset when the tab changes), one around the dialog host (reset when the open dialog changes) and one around the whole app in `main.tsx`. A boundary adds no element when nothing has thrown, and a healthy panel stays mounted across tab switches. Once it has caught an error it stays up until its `resetKey` changes (the tab id, or the open dialog's key) or the page reloads, even if the data heals. It does not catch errors in event handlers or async code.
 
+## Spacing on the Settings and Loot pages
+
+`shared/ui/spacing.css` defines the page gutter (19px, 13px on a phone: what the toolbar and the priority rows use), the gap between page cards, the card padding and corner, the side padding and indent for cards and lists inside a card, and the top padding and gap of a loot dialog. The Settings and loot components import it; use the variables instead of new pixel values so a new card or dialog lines up with the rest. The workspace panel has no padding of its own, so a tab's content brings its own gutter: `SettingsTab` returns the form and its panels as siblings, which is why the panels after the form take the gutter and gap with `.settings-form ~ .settings-section`. The other tabs have not been moved onto these variables yet.
+
 ## Help and popovers
 
 Use `shared/ui/HelpPopover.tsx` for explanatory help and expandable read-only text. Pass an accessible `label`, the button's `trigger` content, and the panel's `children`; `triggerClassName` can preserve an existing button layout. Do not nest it inside another button or a label, or put a mutation on its trigger. Dashboard raider-type help is a separate control so reading it cannot save a preference.

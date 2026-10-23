@@ -12,22 +12,22 @@
 :root[data-theme='dark'] .needs-players { color: #f0c987; background: #4a3a1c; }
 
 /* Grouped by dungeon and boss: a heading for each, between the rows. */
-.priority-dungeon { display: flex; align-items: baseline; justify-content: space-between; margin: 14px 0 4px; padding: 0 2px 5px; border-bottom: 2px solid #e3e8e0; color: #29372f; font: 600 14px/1.3 var(--display); }
+.priority-dungeon { display: flex; align-items: baseline; justify-content: space-between; margin: 14px 0 4px; padding: 0 var(--gutter) 5px; border-bottom: 2px solid #e3e8e0; color: #29372f; font: 600 14px/1.3 var(--display); }
 .priority-dungeon:first-child { margin-top: 2px; }
 .priority-dungeon span, .priority-boss span { color: #626e7b; font: 400 10px var(--sans); }
-.priority-boss { display: flex; align-items: baseline; justify-content: space-between; margin: 10px 0 2px; padding: 0 2px; color: #526158; font: 700 11px var(--sans); letter-spacing: .03em; text-transform: uppercase; }
+.priority-boss { display: flex; align-items: baseline; justify-content: space-between; margin: 10px 0 2px; padding: 0 var(--gutter); color: #526158; font: 700 11px var(--sans); letter-spacing: .03em; text-transform: uppercase; }
 :root[data-theme='dark'] .priority-dungeon { border-bottom-color: #33465c; color: #e8edf3; }
 :root[data-theme='dark'] .priority-dungeon span, :root[data-theme='dark'] .priority-boss span { color: #9fb0c3; }
 :root[data-theme='dark'] .priority-boss { color: #bfccd9; }
 
 /* A zone's color (--zone-color) on what belongs to the zone: a bar on its heading and its rows, and a tint on the encounter label. The text keeps its own color. */
-.priority-dungeon.zone-colored { padding-left: 9px; border-left: 5px solid var(--zone-color); border-bottom-color: color-mix(in srgb, var(--zone-color) 55%, #e3e8e0); }
-.priority-boss.zone-colored { padding-left: 9px; border-left: 3px solid color-mix(in srgb, var(--zone-color) 70%, transparent); }
+.priority-dungeon.zone-colored { padding-left: calc(var(--gutter) - 5px); border-left: 5px solid var(--zone-color); border-bottom-color: color-mix(in srgb, var(--zone-color) 55%, #e3e8e0); }
+.priority-boss.zone-colored { padding-left: calc(var(--gutter) - 3px); border-left: 3px solid color-mix(in srgb, var(--zone-color) 70%, transparent); }
 .priority-row.zone-colored { box-shadow: inset 4px 0 0 var(--zone-color); }
 .priority-row.zone-colored .encounter-label { padding: 1px 8px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--zone-color) 42%, transparent); color: #526158; background: color-mix(in srgb, var(--zone-color) 13%, transparent); }
 :root[data-theme='dark'] .priority-dungeon.zone-colored { border-bottom-color: color-mix(in srgb, var(--zone-color) 60%, #33465c); }
 :root[data-theme='dark'] .priority-row.zone-colored .encounter-label { color: #bfccd9; background: color-mix(in srgb, var(--zone-color) 20%, transparent); }
-.phase-notice { margin: 0 0 10px; padding: 9px 12px; border: 1px solid #d9e4ee; border-radius: 5px; color: #3e5368; background: #f2f6fa; font-size: 11px; line-height: 1.45; }
+.phase-notice { margin: 12px var(--gutter) 6px; padding: 9px var(--inner-pad-x); border: 1px solid #d9e4ee; border-radius: var(--card-radius); color: #3e5368; background: #f2f6fa; font-size: 11px; line-height: 1.45; }
 :root[data-theme='dark'] .phase-notice { border-color: #3a4b61; color: #c8d5e3; background: #1c2838; }
 
 /* A line of a priority that names nobody: an idea such as "any warlock who didn't get X". It reads as a note, and crossed off once it is finished. */
@@ -55,7 +55,7 @@
 
 /* A zone's picture (--zone-art) is a banner on its heading and nowhere else: the rows have none. The heading is taller so the picture can be seen. It fills the right
    of the heading and fades out toward the name, so the name keeps the page's ink on a plain background; the count sits on a pill so it stays readable over the picture. */
-.priority-dungeon.zone-arted { --zone-art-wash: .95; min-height: 108px; align-items: flex-end; padding: 12px 14px; overflow: hidden; border-radius: 6px 6px 0 0; font-size: 17px; }
+.priority-dungeon.zone-arted { --zone-art-wash: .95; min-height: 108px; align-items: flex-end; padding-block: 12px; padding-right: var(--gutter); overflow: hidden; border-radius: var(--card-radius) var(--card-radius) 0 0; font-size: 17px; }
 .priority-dungeon.zone-arted::before { background-position: center 30%; -webkit-mask-image: linear-gradient(90deg, transparent 0%, transparent 26%, #000 70%); mask-image: linear-gradient(90deg, transparent 0%, transparent 26%, #000 70%); }
 .priority-dungeon.zone-arted span { padding: 2px 9px; border-radius: 99px; color: #29372f; background: rgba(255, 255, 255, .86); }
 :root[data-theme='dark'] .priority-dungeon.zone-arted::before { opacity: .8; }

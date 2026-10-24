@@ -29,7 +29,7 @@ const linePeople = (names: unknown, ids: unknown, who: Who): Person[] =>
 const namesOf = (value: unknown) => (Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [])
 
 export function logFacts(entry: EntryLike, priorityById: (id: string) => PriorityLike | undefined, who: Who): LogFacts {
-  if (entry.targetType === 'phase') return { about: 'phase', item: '', encounter: '', players: [] }
+  if (entry.targetType === 'phase' || entry.targetType === 'ledger') return { about: 'phase', item: '', encounter: '', players: [] }
   if (entry.targetType === 'table') return { about: 'table', item: '', encounter: '', players: [] }
   const field = (name: string) => entry.after[name] ?? entry.before[name]
   const priority = priorityById(entry.targetType === 'award' ? text(field('priorityId')) : entry.targetId)

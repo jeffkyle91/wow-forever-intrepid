@@ -55,7 +55,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const first = useMemo(() => firstPhases(live.data.lootTables), [live.data.lootTables])
   const lookups = { firstZonePhase: (zoneId: number) => first.zones.get(zoneId), firstSourcePhase: (zoneId: number, key: string) => first.sources.get(`${zoneId}_${key}`), zoneName: (zoneId: number) => zones.find((zone) => zone.zoneId === zoneId)?.name, sourceName: (zoneId: number, key: string) => zones.find((zone) => zone.zoneId === zoneId)?.sources.find((source) => source.key === key)?.name, itemName: (itemId: number) => { const state = peekItem(itemId); return state?.status === 'ready' ? state.info.name : undefined } }
   // A phase started or reopened changes which lists are current, so it is shown with the priorities.
-  const wanted = (type: string) => (show === 'all' ? type === 'priority' || type === 'award' || type === 'phase' || type === 'table' : show === 'priority' ? type === 'priority' || type === 'phase' : show === 'table' ? type === 'table' : type === 'award')
+  const wanted = (type: string) => (show === 'all' ? type === 'priority' || type === 'award' || type === 'phase' || type === 'table' || type === 'ledger' : show === 'priority' ? type === 'priority' || type === 'phase' : show === 'table' ? type === 'table' : type === 'award')
   const earlier = live.data.awards.filter((award) => award.rev === undefined).map(legacyAwardEntry)
   const text = query.trim().toLowerCase()
   const who = useMemo(() => makeWho(live.data.roster), [live.data.roster])
@@ -111,7 +111,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
         <details>
           <summary><span className="audit-title" title={title}>{title}</span><time className="audit-when">{entry.rev === 0 && entry.at ? entry.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : whenOf(entry.at)}</time></summary>
           <div className="audit-body">
-            <p>{entry.rev === 0 ? 'Recorded before the Log began (dated the raid night)' : <>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : entry.targetType === 'table' ? 'Drop list' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</>}</p>
+            <p>{entry.rev === 0 ? 'Recorded before the Log began (dated the raid night)' : <>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : entry.targetType === 'table' ? 'Drop list' : entry.targetType === 'ledger' ? 'Launch reset' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</>}</p>
             {details.length > 0 && <ul>{details.map((line) => <li key={line}>{line}</li>)}</ul>}
           </div>
         </details>

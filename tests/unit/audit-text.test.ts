@@ -85,6 +85,14 @@ describe('describeEntry', () => {
     assert.equal(removed.title, 'Removed the award of \u201cTest Sword\u201d')
     assert.deepEqual(removed.details, ['Reason: Entered twice'])
   })
+  it('says the pre-launch data was erased, once, with what was erased', () => {
+    const { title, details } = text({ targetType: 'ledger', targetId: 'launch-reset', action: 'erase', item: 'Launch prep', changed: ['awards', 'priorities', 'auditEntries'], before: { phaseNo: 0, awards: 12, priorities: 30, auditEntries: 80 }, reason: 'The pre-launch test data was erased once, when the first real phase started.' })
+    assert.equal(title, 'Erased the test data of “Launch prep”, once, for good')
+    assert.deepEqual(details, ['12 awards, 30 loot priorities and 80 Log entries about them were erased, and the guild was sealed: this cannot be done again.', 'Reason: The pre-launch test data was erased once, when the first real phase started.'])
+  })
+  it('reads an erase entry with no numbers as zero erased, and does not break', () => {
+    assert.match(text({ targetType: 'ledger', action: 'erase', item: 'Launch prep' }).details[0] ?? '', /^0 awards, 0 loot priorities and 0 Log entries/)
+  })
   it('does not break on an entry it does not know, or an item with no name', () => {
     assert.equal(text({ targetType: 'raid', action: 'cancel', item: '' }).title, 'cancel raid \u201cUntitled\u201d')
     assert.equal(text({ action: 'create', item: '' }).title, 'Added \u201cUntitled\u201d to the list')

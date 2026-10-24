@@ -44,7 +44,7 @@ The deletes are in batches and are not atomic as a whole, so a run can stop part
 
 1. Rehearse beforehand against a test project or the emulator with invented data (`npm run test:rules` runs the tests; the script itself runs against the emulator when `FIRESTORE_EMULATOR_HOST` is set).
 2. Start the first real phase in Settings (typed confirmation). Wait until you are sure it will not be reopened: reopening is possible only until something is awarded in it, and a reopened "Launch prep" would be empty.
-3. Make sure no leader is recording loot. Take a full Firestore export if OPS-003's safeguards ask for one.
+3. Make sure no leader is recording loot. Take a full Firestore export to a private bucket first (required, not optional: the script's own backup holds only what it erases, and there is no restore script), and note where it is next to the backup file. Confirm Firestore point-in-time recovery is on if the project has it.
 4. Dry run, and read it:
 
    ```

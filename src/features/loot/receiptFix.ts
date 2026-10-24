@@ -17,6 +17,11 @@ export function moveChanges(receipt: Receipt, toId: string, roster: Roster): { c
   return { changes: { recipient: player.name, recipientId: player.id } }
 }
 
+/** Whether the award changed since the dialog showed it (another leader fixed it, or it was removed): the fix is then not made on what the leader decided from. */
+export function receiptChanged(shown: { rev?: number; status?: unknown }, current: { rev?: number; status?: unknown }): boolean {
+  return (shown.rev ?? 0) !== (current.rev ?? 0) || shown.status !== current.status
+}
+
 /** Why a reason cannot be used, or undefined when it can. Removing a receipt needs one; moving one does not. */
 export function reasonProblem(reason: string, required: boolean): string | undefined {
   const trimmed = reason.trim()

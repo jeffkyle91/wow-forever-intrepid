@@ -8,7 +8,7 @@ import type { TabContext } from '../../shared/tabs/types'
 import { ArtIcon } from '../../shared/ui/ArtIcon'
 import { Modal } from '../../shared/ui/Modal'
 import { listingProgress, priorityLookup, recipientChoices } from './completion'
-import { FIX_REASON_MAX, moveChanges, reasonProblem } from './receiptFix'
+import { FIX_REASON_MAX, moveChanges, reasonProblem, receiptChanged } from './receiptFix'
 import './ReceiptFix.css'
 
 // Fixing a receipt: the x next to RECEIVED on an unlocked item opens this. The receipt is moved to someone else (the common case: it was recorded to the
@@ -42,8 +42,9 @@ export function ReceiptFixModal({ priority, award, close, live }: { priority: Pr
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!ready) return
-    // The award as it stands now: someone else may have changed it since this dialog opened, and the fix is written on top of the latest revision.
+    // The award as it stands now. If someone else changed it since this dialog opened, the leader decided from a view that is out of date: nothing is written.
     const current = live.data.awards.find((entry) => entry.id === award.id) ?? award
+    if (receiptChanged(award, current)) { setMutationError('This receipt was changed by someone else since you opened it. Close this and look at it again.'); return }
     const author = { uid: live.identity.uid, displayName: live.identity.displayName }
     setBusy(true)
     try {

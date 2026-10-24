@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { FIX_REASON_MAX, moveChanges, reasonProblem } from '../../src/features/loot/receiptFix.ts'
+import { FIX_REASON_MAX, moveChanges, reasonProblem, receiptChanged } from '../../src/features/loot/receiptFix.ts'
 import { awardEditFields, describeEdit } from '../../src/shared/game/lootAudit.ts'
 
 // Invented names.
@@ -23,6 +23,16 @@ describe('moving a receipt', () => {
     // A renamed character is still the same person: the award keeps the old name, the id says who.
     assert.equal(moveChanges({ recipient: 'Old Name', recipientId: 'p-1' }, 'p-1', who).problem, 'That is who has it already.')
     assert.equal(moveChanges({ recipient: 'Aria' }, 'p-1', who).problem, 'That is who has it already.')
+  })
+})
+
+describe('a receipt that changed under the dialog', () => {
+  it('is told by the revision or the status having moved on since the dialog showed it', () => {
+    assert.equal(receiptChanged({ rev: 1 }, { rev: 1 }), false)
+    assert.equal(receiptChanged({}, {}), false)
+    assert.equal(receiptChanged({ rev: 1 }, { rev: 2 }), true)
+    assert.equal(receiptChanged({}, { rev: 1 }), true)
+    assert.equal(receiptChanged({ rev: 2 }, { rev: 2, status: 'removed' }), true)
   })
 })
 

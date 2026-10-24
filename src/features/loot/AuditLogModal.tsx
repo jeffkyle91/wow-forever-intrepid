@@ -8,6 +8,7 @@ import { peekItem, requestItem } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 import { describeEntry } from './auditText'
+import { dateChoices, entryDate } from './entryDate'
 import { entryPhase, phasesFromEntries } from './entryPhase'
 import { encounterOptions } from './groupPriorities'
 import { logFacts, logFilterActive, logPlayers, matchesLogFilter, noLogFilter, type LogFilter } from './logFilters'
@@ -30,6 +31,9 @@ function whenOf(at: Date | null) {
   const sameYear = at.getFullYear() === new Date().getFullYear()
   return at.toLocaleString(undefined, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }), hour: 'numeric', minute: '2-digit' })
 }
+
+// A day for the date dropdown: "Mon, Dec 9, 2026".
+const nightLabel = (day: string) => new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 
 const timeOf = (entry: AuditEntry) => (entry.at ? entry.at.getTime() : Number.MAX_SAFE_INTEGER)
 
@@ -67,11 +71,12 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const known = phasesFromEntries(allEntries)
   const awardsById = new Map(live.data.awards.map((award) => [award.id, award]))
   const phaseLookups = { awardPhase: (id: string) => { const award = awardsById.get(id); return award ? phaseNoOf(award) : undefined }, priorityPhase: (id: string) => { const priority = priorities.get(id); return priority ? phaseNoOf(priority) : undefined }, fromEntries: (key: string) => known.get(key) }
-  const everything = allEntries.filter((entry) => wanted(entry.targetType)).map((entry) => { const phase = entryPhase(entry, phaseLookups); return { entry, facts: { ...logFacts(entry, (id) => priorities.get(id), who), ...(phase !== undefined ? { phase } : {}) } } })
+  const everything = allEntries.filter((entry) => wanted(entry.targetType)).map((entry) => { const phase = entryPhase(entry, phaseLookups); const date = entryDate(entry, (id) => awardsById.get(id)?.awardedAt); return { entry, facts: { ...logFacts(entry, (id) => priorities.get(id), who), ...(phase !== undefined ? { phase } : {}), ...(date !== undefined ? { date } : {}) } } })
   // The dropdowns offer what the entries are about; looking the items up is what lets the slot filter tell which ones match.
   const itemKey = [...new Set(everything.flatMap(({ facts }) => (facts.itemId ? [facts.itemId] : [])))].join(',')
   useEffect(() => { if (itemKey) itemKey.split(',').forEach((id) => requestItem(Number(id))) }, [itemKey])
   const players = logPlayers(everything.map(({ facts }) => facts), filter.player)
+  const dates = dateChoices(everything.map(({ facts }) => facts.date), filter.date)
   const encounters = encounterOptions(everything.filter(({ facts }) => facts.encounter).map(({ facts }) => ({ encounter: facts.encounter })), bossOrder)
   if (filter.encounter && !encounters.some((option) => option.value === filter.encounter)) encounters.push({ value: filter.encounter, label: filter.encounter.slice(2).replace('|', ' \u00b7 '), level: 0 })
   const rows = everything
@@ -84,7 +89,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const narrowed = !!text || logFilterActive(filter)
 
   return <Modal title="Log" onClose={close}><div className="audit-log">
-    <p className="audit-intro">Every change to a loot priority, an award, a phase or a drop list, newest first, with the loot phase each one is for. Open a line to see who made it and what changed. Nobody can edit or delete an entry.</p>
+    <p className="audit-intro">Every change to a loot priority, an award, a phase or a drop list, newest first, with the loot phase each one is for. Pick a date to see one raid night: an award is on the night it dropped. Open a line to see who made it and what changed. Nobody can edit or delete an entry.</p>
     <div className="audit-controls">
       <div className="segmented-control audit-toggle" role="group" aria-label="What to show">
         {shows.map((option) => <button key={option.value} type="button" className={show === option.value ? 'segment selected' : 'segment'} aria-pressed={show === option.value} onClick={() => setShow(option.value)}>{option.label}</button>)}
@@ -92,6 +97,10 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
       <input className="audit-search" type="search" aria-label="Find in the Log" placeholder="Find an item or a player..." value={query} onChange={(event) => setQuery(event.target.value)} />
     </div>
     <div className="audit-controls">
+      <select className="loot-filter-select" aria-label="Filter by date" value={filter.date} onChange={(event) => setFilter({ ...filter, date: event.target.value })}>
+        <option value="">All dates</option>
+        {dates.map((choice) => <option key={choice.date} value={choice.date}>{nightLabel(choice.date)} ({choice.count})</option>)}
+      </select>
       <select className="loot-filter-select" aria-label="Filter by player" value={filter.player} onChange={(event) => setFilter({ ...filter, player: event.target.value })}>
         <option value="">All players</option>
         {players.map((player) => <option key={player.key} value={player.key}>{player.name}</option>)}

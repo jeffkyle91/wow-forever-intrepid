@@ -16,6 +16,10 @@ export type LogFacts = {
   itemId?: number
   encounter: string
   players: Person[]
+  // The loot phase the entry is for (see entryPhase.ts); none when it cannot be told. Set by the Log, not by logFacts.
+  phase?: number
+  // The day the entry belongs to, YYYY-MM-DD (see entryDate.ts): the raid night for an award. Set by the Log, not by logFacts.
+  date?: string
 }
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
@@ -41,14 +45,18 @@ export function logFacts(entry: EntryLike, priorityById: (id: string) => Priorit
   return { about: 'item', item: entry.item || priority?.item || '', ...(itemId !== undefined ? { itemId } : {}), encounter: text(field('encounter')) || priority?.encounter || '', players: unique(players) }
 }
 
-export type LogFilter = { player: string; slot: string; encounter: string }
-export const noLogFilter: LogFilter = { player: '', slot: '', encounter: '' }
-export const logFilterActive = (filter: LogFilter) => !!(filter.player || filter.slot || filter.encounter)
+// `phase` is a phase number as text, and `date` a day as YYYY-MM-DD; '' for every phase or every day.
+export type LogFilter = { player: string; slot: string; encounter: string; phase: string; date: string }
+export const noLogFilter: LogFilter = { player: '', slot: '', encounter: '', phase: '', date: '' }
+export const logFilterActive = (filter: LogFilter) => !!(filter.player || filter.slot || filter.encounter || filter.phase || filter.date)
 
 // Whether an entry passes the dropdowns. `slotOf` gives the slot choice of an item, or undefined while its lookup has not finished (it matches
-// no slot until it has).
+// no slot until it has). The phase and the day apply to every kind of entry; the others are about an item, so a phase or drop list entry matches none of them.
 export function matchesLogFilter(facts: LogFacts, filter: LogFilter, slotOf: (item: { item: string; itemId?: number }) => string | undefined): boolean {
   if (!logFilterActive(filter)) return true
+  if (filter.phase !== '' && facts.phase !== Number(filter.phase)) return false
+  if (filter.date !== '' && facts.date !== filter.date) return false
+  if (!filter.player && !filter.slot && !filter.encounter) return true
   if (facts.about !== 'item') return false
   return (!filter.encounter || (facts.encounter !== '' && matchesEncounterScope(facts.encounter, filter.encounter)))
     && (!filter.player || facts.players.some((person) => person.key === filter.player))

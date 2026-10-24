@@ -20,6 +20,8 @@ const clip = (text: string) => (text.length > MAX ? `${text.slice(0, MAX - 1)}\u
 export function showValue(field: string, value: unknown, phaseName: (no: number) => string): string {
   if (value === null || value === undefined) return '(none)'
   if (field === 'phaseNo' && typeof value === 'number') return phaseName(value)
+  // How a manual award was decided: roll, council or other, written as a person would.
+  if (field === 'decision' && typeof value === 'string' && value) return `${value.charAt(0).toUpperCase()}${value.slice(1)}`
   if (Array.isArray(value)) return value.length ? clip(value.map(String).join(', ')) : '(nobody)'
   if (typeof value === 'string') return value.trim() ? clip(value) : '(empty)'
   return clip(String(value))

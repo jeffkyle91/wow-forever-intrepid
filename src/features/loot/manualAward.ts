@@ -1,5 +1,6 @@
 import type { NewManualAward } from '../../guildApi'
 import { nameKey } from '../../shared/game/candidates.ts'
+import { splitEncounter } from './groupPriorities.ts'
 
 // Recording loot without a priority list (LOOT-002): what the "Record loot" form says, turned into the award the rules accept, or a sentence about what is wrong.
 // Pure, so Node tests it; the dialog only lays it out. The rules have the last word (validManualAward): the recipient has to be a roster character whose name the
@@ -11,14 +12,75 @@ export const DECISIONS = [{ value: 'roll', label: 'Roll' }, { value: 'council', 
 
 export type ManualAwardForm = {
   item: string
-  /** The boss or dungeon, as free text. Optional. */
-  encounter: string
+  /** The dungeon or raid, picked from the guild's list or typed. Optional. */
+  dungeon: string
+  /** The boss, as free text. Optional. */
+  boss: string
   /** The roster id of the character who received it. */
   recipientId: string
   /** The raid date, YYYY-MM-DD: when it dropped, not when it is entered. */
   awardedAt: string
   decision: string
   awardNote: string
+}
+
+/** The middle dot that joins a dungeon and a boss. */
+export const SEPARATOR = '\u00b7'
+const ANY_CREATURE = 'any creature'
+
+/**
+ * The text an award keeps its place in: "dungeon · boss", the form a priority's encounter is written in, so the Log's dungeon and boss filters read an award the same way
+ * (`splitEncounter`). A dungeon with no boss ends in the separator, which keeps it a dungeon (text with no separator reads as a boss with no dungeon). With no dungeon,
+ * whatever was typed for the boss stands as it is, so "Dungeon · Boss" typed in whole still works.
+ */
+export function encounterOf(dungeon: string, boss: string): string {
+  const place = dungeon.trim()
+  const name = boss.trim()
+  if (!place) return name
+  return name ? `${place} ${SEPARATOR} ${name}` : `${place} ${SEPARATOR}`
+}
+
+export type DungeonChoices = { raids: string[]; dungeons: string[]; others: string[] }
+
+/**
+ * The dungeons the form offers, each name once, with its spaces tidied: the guild's raids, then its dungeons (both from the zone list, by name), then any dungeon a priority of
+ * the phase names that neither has (one typed by hand). A name with the separator in it is left out, because it would split in two when stored. `keep` is a dungeon already
+ * picked: it stays offered even if the lists no longer have it (a zone renamed or a priority hidden while the form is open), so the select never shows one dungeon and records another.
+ * Pure.
+ */
+export function dungeonChoices(zones: readonly { name: string; kind: string }[], priorityEncounters: readonly string[], keep = ''): DungeonChoices {
+  const seen = new Set<string>()
+  const take = (names: readonly string[]) => {
+    const taken: string[] = []
+    for (const name of names) {
+      const tidy = name.trim().replace(/\s+/g, ' ')
+      const key = nameKey(tidy)
+      if (key === '' || tidy.includes(SEPARATOR) || seen.has(key)) continue
+      seen.add(key)
+      taken.push(tidy)
+    }
+    return taken.sort((a, b) => a.localeCompare(b))
+  }
+  return {
+    raids: take(zones.filter((zone) => zone.kind === 'raid').map((zone) => zone.name)),
+    dungeons: take(zones.filter((zone) => zone.kind !== 'raid').map((zone) => zone.name)),
+    others: take([...priorityEncounters.map((encounter) => splitEncounter(encounter).dungeon), keep]),
+  }
+}
+
+/** The bosses to suggest for a dungeon: its drop list's creatures in encounter order, then any boss a priority of the phase names there. "Any creature" is not a boss. */
+export function bossChoices(dungeon: string, listOrder: readonly string[], priorityEncounters: readonly string[]): string[] {
+  if (nameKey(dungeon) === '') return []
+  const fromPriorities = priorityEncounters.map(splitEncounter).filter((place) => nameKey(place.dungeon) === nameKey(dungeon)).map((place) => place.boss)
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const name of [...listOrder, ...fromPriorities]) {
+    const key = nameKey(name)
+    if (key === '' || key === ANY_CREATURE || seen.has(key)) continue
+    seen.add(key)
+    names.push(name.trim())
+  }
+  return names
 }
 
 type Roster = { player: (id: string) => { id: string; name: string } | undefined }
@@ -58,8 +120,9 @@ export function manualAward(form: ManualAwardForm, roster: Roster, phaseNo: numb
   const player = form.recipientId ? roster.player(form.recipientId) : undefined
   if (!form.recipientId) return { problem: 'Choose who received it.', missing: true }
   if (!player) return { problem: 'Choose a character from the roster.' }
-  const encounter = form.encounter.trim()
-  if (encounter.length > MANUAL_ENCOUNTER_MAX) return { problem: `The boss can be up to ${MANUAL_ENCOUNTER_MAX} characters.` }
+  if (form.dungeon.includes(SEPARATOR)) return { problem: `The dungeon's name cannot contain “${SEPARATOR}”.` }
+  const encounter = encounterOf(form.dungeon, form.boss)
+  if (encounter.length > MANUAL_ENCOUNTER_MAX) return { problem: `The dungeon and boss can be up to ${MANUAL_ENCOUNTER_MAX} characters together.` }
   if (!isRealDate(form.awardedAt)) return { problem: 'Enter the raid date.', ...(form.awardedAt ? {} : { missing: true }) }
   const decision = DECISIONS.find((option) => option.value === form.decision)
   if (!decision) return { problem: 'Choose how it was decided.', ...(form.decision ? {} : { missing: true }) }

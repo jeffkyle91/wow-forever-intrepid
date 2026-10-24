@@ -9,7 +9,7 @@ import { deleteField, serverTimestamp, setDoc, writeBatch, type Firestore } from
 import { LABEL, PERSONAS, PLAYER_2, PLAYER_3, RAID_STAFF, UID, rosterDoc, without } from './support/fixtures.ts'
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
 import { MANUAL, clean, createManualAward, describeChange, editAward, entry, entryId, manualAwardDoc, type Staff } from './support/audit.ts'
-import { manualAward } from '../../src/features/loot/manualAward.ts'
+import { encounterOf, manualAward } from '../../src/features/loot/manualAward.ts'
 import { awardCreateFields, describeCreate, manualAwardCreateFields } from '../../src/shared/game/lootAudit.ts'
 
 setUpGuildEmulator()
@@ -350,7 +350,7 @@ describe('how many manual awards fit in one batch', () => {
 // guildApi.recordManualAward uses (manualAwardCreateFields), so the rules run against the app's payload and not a hand-kept copy of it (LOOT-002).
 describe('the award the Record loot form builds', () => {
   const roster = { player: (id: string) => (id === PLAYER_2 ? { id: PLAYER_2, name: rosterDoc(2).name } : undefined) }
-  const built = manualAward({ item: 'Test Sword', encounter: '', recipientId: PLAYER_2, awardedAt: '2026-12-09', decision: 'council', awardNote: '  Both rolled  ' }, roster, 0).award!
+  const built = manualAward({ item: 'Test Sword', dungeon: 'Test Hall', boss: '', recipientId: PLAYER_2, awardedAt: '2026-12-09', decision: 'council', awardNote: '  Both rolled  ' }, roster, 0).award!
 
   /** One batch as recordManualAward writes it: the award with its stamps, and the create entry that lists the fields with the given list. */
   const writeAsTheAppDoes = (db: Firestore, who: Staff, fieldList: readonly string[]) => {
@@ -370,6 +370,19 @@ describe('the award the Record loot form builds', () => {
       assert.deepEqual([...(logged?.changed ?? [])].sort(), [...manualAwardCreateFields].sort())
       assert.equal(logged?.after.decision, 'council')
       assert.equal(logged?.after.awardNote, 'Both rolled')
+      assert.equal(award?.encounter, 'Test Hall \u00b7', 'a dungeon with no boss is kept as the dungeon and a separator')
+    })
+  }
+
+  // Every shape the form's place can take is plain text to the rules (at most 120 characters), and the Log reads each one back as the dungeon and boss it was picked with.
+  for (const place of [{ dungeon: 'Test Hall', boss: 'Hall Warden' }, { dungeon: '', boss: '' }]) {
+    test(`is accepted with the place ${JSON.stringify(encounterOf(place.dungeon, place.boss))}`, async () => {
+      const award = manualAward({ item: 'Test Sword', ...place, recipientId: PLAYER_2, awardedAt: '2026-12-09', decision: 'roll', awardNote: '' }, roster, 0).award!
+      const batch = writeBatch(dbFor('raidLeader'))
+      batch.set(guildDoc(dbFor('raidLeader'), `awards/${MANUAL}`), { ...award, rev: 1, createdBy: UID.raidLeader, createdAt: serverTimestamp() })
+      batch.set(guildDoc(dbFor('raidLeader'), `auditLog/${entryId('award', MANUAL, 1)}`), clean(entry('raidLeader', 'award', MANUAL, 1, { action: 'create', item: award.item, ...describeCreate(award, manualAwardCreateFields) })))
+      await expectAllowed(batch.commit())
+      assert.equal((await stored(`awards/${MANUAL}`))?.encounter, encounterOf(place.dungeon, place.boss))
     })
   }
 
@@ -378,7 +391,7 @@ describe('the award the Record loot form builds', () => {
   })
 
   test('is refused for a character who is not on the roster, whatever name is written', async () => {
-    const stranger = manualAward({ item: 'Test Sword', encounter: '', recipientId: 'player-nobody', awardedAt: '2026-12-09', decision: 'roll', awardNote: '' }, { player: () => ({ id: 'player-nobody', name: 'Nobody Known' }) }, 0).award!
+    const stranger = manualAward({ item: 'Test Sword', dungeon: '', boss: '', recipientId: 'player-nobody', awardedAt: '2026-12-09', decision: 'roll', awardNote: '' }, { player: () => ({ id: 'player-nobody', name: 'Nobody Known' }) }, 0).award!
     const batch = writeBatch(dbFor('raidLeader'))
     batch.set(guildDoc(dbFor('raidLeader'), `awards/${MANUAL}`), { ...stranger, rev: 1, createdBy: UID.raidLeader, createdAt: serverTimestamp() })
     await expectDenied(batch.commit(), 'a recipient the roster does not have')

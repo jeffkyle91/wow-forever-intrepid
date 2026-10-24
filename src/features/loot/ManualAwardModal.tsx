@@ -6,8 +6,12 @@ import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 import { nameKey } from './completion'
-import { DECISIONS, MANUAL_ENCOUNTER_MAX, MANUAL_ITEM_MAX, MANUAL_NOTE_MAX, manualAward, possibleDuplicate } from './manualAward'
+import { bossChoices, DECISIONS, dungeonChoices, MANUAL_ENCOUNTER_MAX, MANUAL_ITEM_MAX, MANUAL_NOTE_MAX, manualAward, possibleDuplicate, SEPARATOR } from './manualAward'
+import { useBossOrder } from './useDropTables'
 import './ManualAward.css'
+
+// The value of the dungeon choice that means "a dungeon that is not in the list": its name is typed in a field of its own, so free text always works.
+const OTHER_DUNGEON = '__other__'
 
 const today = () => {
   const now = new Date()
@@ -24,7 +28,9 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
   const who = useMemo(() => makeWho(roster), [roster])
   const phaseNo = currentPhaseNo(settings)
   const [item, setItem] = useState('')
-  const [encounter, setEncounter] = useState('')
+  const [dungeonPick, setDungeonPick] = useState('')
+  const [otherDungeon, setOtherDungeon] = useState('')
+  const [boss, setBoss] = useState('')
   const [recipientId, setRecipientId] = useState('')
   const [awardedAt, setAwardedAt] = useState(today)
   const [decision, setDecision] = useState('roll')
@@ -33,12 +39,18 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
 
   const listed = [...allPriorities, ...hiddenPriorities].filter((priority) => phaseNoOf(priority) === phaseNo)
   const itemNames = [...new Set(listed.map((priority) => priority.item))].sort((a, b) => a.localeCompare(b))
-  const encounters = [...new Set(listed.map((priority) => priority.encounter).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const encounters = listed.map((priority) => priority.encounter).filter(Boolean)
+  const bossOrder = useBossOrder(live.data.lootTables, phaseNo)
+  const dungeon = dungeonPick === OTHER_DUNGEON ? otherDungeon : dungeonPick
+  const dungeons = dungeonChoices(live.data.zoneList, encounters, dungeonPick === OTHER_DUNGEON ? '' : dungeonPick)
+  const bosses = bossChoices(dungeon, bossOrder(dungeon), encounters)
   const people = [...roster].sort((a, b) => a.name.localeCompare(b.name))
   // An item that is on a priority list of the phase is recorded under the list's own spelling (however it was typed), so it reads the same everywhere.
   const onList = item.trim() === '' ? undefined : listed.find((priority) => nameKey(priority.item) === nameKey(item))
-  const result = manualAward({ item: onList?.item ?? item, encounter, recipientId, awardedAt, decision, awardNote }, who, phaseNo)
+  const result = manualAward({ item: onList?.item ?? item, dungeon, boss, recipientId, awardedAt, decision, awardNote }, who, phaseNo)
   const hasList = onList !== undefined
+  // The Log filters a drop by its dungeon: say so while there is none (a whole "dungeon · boss" typed as the boss counts as one).
+  const placeHint = dungeon.trim() !== '' || boss.includes(SEPARATOR) ? '' : boss.trim() !== '' ? 'Without a dungeon, the Log lists this drop under \u201cOther priorities\u201d in its dungeon filter.' : 'Pick the dungeon so the Log can filter this drop by it.'
   // Two leaders can record the same drop, and an addon import can arrive for one typed here: warn, never block (a second copy can really drop).
   const duplicate = result.award ? possibleDuplicate(result.award, live.data.awards) : undefined
   const ready = !busy && result.award !== undefined
@@ -52,7 +64,7 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
       setMutationError('')
       setNotice(`Recorded ${award.item} to ${award.recipient}.`)
       if (another) {
-        // The next drop of the same night: the date, the boss and how it was decided stay.
+        // The next drop of the same night: the date, the dungeon, the boss and how it was decided stay.
         setItem('')
         setRecipientId('')
         setAwardNote('')
@@ -75,8 +87,21 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
         <option value="" disabled>Choose a character</option>
         {people.map((player) => <option key={player.id} value={player.id}>{player.name} ({player.className})</option>)}
       </select></label>
-      <label>Boss or dungeon (optional)<input value={encounter} list="manual-award-bosses" maxLength={MANUAL_ENCOUNTER_MAX} autoComplete="off" placeholder="For example: The Deadmines · Edwin VanCleef" onChange={(event) => setEncounter(event.target.value)} /></label>
-      <datalist id="manual-award-bosses">{encounters.map((name) => <option key={name} value={name} />)}</datalist>
+      <div className="manual-award-row manual-award-place">
+        <div className="manual-award-dungeon">
+          <label>Dungeon<select value={dungeonPick} aria-describedby={placeHint ? 'manual-award-place-hint' : undefined} onChange={(event) => setDungeonPick(event.target.value)}>
+            <option value="">Not noted</option>
+            {dungeons.raids.length > 0 && <optgroup label="Raids">{dungeons.raids.map((name) => <option key={name} value={name}>{name}</option>)}</optgroup>}
+            {dungeons.dungeons.length > 0 && <optgroup label="Dungeons">{dungeons.dungeons.map((name) => <option key={name} value={name}>{name}</option>)}</optgroup>}
+            {dungeons.others.length > 0 && <optgroup label="From this phase's priorities">{dungeons.others.map((name) => <option key={name} value={name}>{name}</option>)}</optgroup>}
+            <option value={OTHER_DUNGEON}>Other…</option>
+          </select></label>
+          {dungeonPick === OTHER_DUNGEON && <label>Dungeon name<input value={otherDungeon} maxLength={MANUAL_ENCOUNTER_MAX} autoComplete="off" placeholder="The dungeon's name" onChange={(event) => setOtherDungeon(event.target.value)} /></label>}
+        </div>
+        <label>Boss (optional)<input value={boss} list="manual-award-bosses" maxLength={MANUAL_ENCOUNTER_MAX} autoComplete="off" placeholder="The boss it dropped from" onChange={(event) => setBoss(event.target.value)} /></label>
+      </div>
+      <datalist id="manual-award-bosses">{bosses.map((name) => <option key={name} value={name} />)}</datalist>
+      {placeHint && <p className="manual-award-hint" id="manual-award-place-hint">{placeHint}</p>}
       <div className="manual-award-row">
         <label>Raid date<input type="date" value={awardedAt} required onChange={(event) => setAwardedAt(event.target.value)} /></label>
         <div className="manual-award-decision-field"><span id="manual-award-decision-label">How it was decided</span>

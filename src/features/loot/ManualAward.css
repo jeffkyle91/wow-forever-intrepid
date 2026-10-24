@@ -4,6 +4,8 @@
 .manual-award-duplicate { margin: 0; padding: 8px 10px; border-left: 3px solid #d29b2d; border-radius: 0 var(--card-radius) var(--card-radius) 0; color: #6a4a10; background: #fbf3df; font-size: 11px; line-height: 1.45; }
 .manual-award-problem { margin: 0; color: #9a3b2c; font-size: 11px; font-weight: 600; }
 .manual-award-form .manual-award-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: end; }
+.manual-award-form .manual-award-place { align-items: start; }
+.manual-award-form .manual-award-dungeon { display: grid; gap: 12px; min-width: 0; }
 .manual-award-form .manual-award-decision-field { display: grid; gap: 6px; color: #526158; font-size: 10px; font-weight: 700; }
 .manual-award-form .manual-award-decision { width: 100%; }
 .manual-award-form .manual-award-decision .segment { flex: 1; min-height: 36px; }

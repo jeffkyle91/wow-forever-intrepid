@@ -2,6 +2,7 @@ import { Award, CalendarDays, CalendarOff, CircleHelp, CornerDownRight, Gem, Mes
 import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
 import { priorityLookup } from '../../shared/game/completion'
+import { encounterLabel } from '../../shared/game/encounter'
 import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
@@ -121,7 +122,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
 
     <Panel icon={<Award size={15} />} title="My awarded loot">
       {loot.length ? <ul className="dash-list">{loot.slice(0, 5).map((award) => <li key={award.id}>
-        <span><strong>{award.item}</strong><small>{award.encounter || 'No encounter'} · {award.awardedAt}{phaseTag(phaseNoOf(award))}</small></span>
+        <span><strong>{award.item}</strong><small>{encounterLabel(award.encounter) || 'No encounter'} · {award.awardedAt}{phaseTag(phaseNoOf(award))}</small></span>
         <span className="dash-tag">{award.recipient}</span>
       </li>)}</ul> : <p className="dash-muted">No loot has been awarded to your characters yet.</p>}
     </Panel>

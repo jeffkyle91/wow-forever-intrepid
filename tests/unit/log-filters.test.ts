@@ -15,6 +15,13 @@ const person = (name: string) => ({ key: `name:${nameKey(name)}`, name: name.tri
 const entry = (overrides: Record<string, unknown>) => ({ targetType: 'priority', targetId: 'p1', item: 'Iron Ring', before: {}, after: {}, ...overrides }) as Parameters<typeof logFacts>[0]
 const slotOf = (item: { item: string; itemId?: number }) => (item.itemId === 101 ? 'Finger' : item.itemId === undefined ? 'Other' : undefined)
 
+describe('logFacts for a receipt that was moved', () => {
+  it('is about both people, so filtering by either finds the entry', () => {
+    const facts = logFacts(entry({ targetType: 'award', targetId: 'a1', item: 'Iron Ring', before: { recipient: 'Aria' }, after: { recipient: 'Brock' } }), byId, who)
+    assert.deepEqual(facts.players.map((entry) => entry.name).sort(), ['Aria', 'Brock'])
+  })
+})
+
 describe('logFacts', () => {
   it('takes what the entry lists, and the rest from the priority as it stands', () => {
     const facts = logFacts(entry({ after: { councilNote: 'x' } }), byId, who)

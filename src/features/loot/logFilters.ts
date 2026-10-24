@@ -35,8 +35,11 @@ export function logFacts(entry: EntryLike, priorityById: (id: string) => Priorit
   const priority = priorityById(entry.targetType === 'award' ? text(field('priorityId')) : entry.targetId)
   const itemId = typeof field('itemId') === 'number' ? (field('itemId') as number) : priority?.itemId
   const recipientId = text(field('recipientId'))
+  // A receipt moved to someone else is about both people: who had it and who has it now.
+  const beforeId = text(entry.before.recipientId)
+  const was = text(entry.before.recipient) ? [{ key: who.awardKey({ recipient: text(entry.before.recipient), ...(beforeId ? { recipientId: beforeId } : {}) }), name: (beforeId ? who.player(beforeId)?.name : undefined) ?? text(entry.before.recipient) }] : []
   const players = entry.targetType === 'award'
-    ? [...(text(field('recipient')) ? [{ key: who.awardKey({ recipient: text(field('recipient')), ...(recipientId ? { recipientId } : {}) }), name: (recipientId ? who.player(recipientId)?.name : undefined) ?? text(field('recipient')) }] : []), ...linePeople(field('prioritySnapshot'), field('prioritySnapshotIds'), who)]
+    ? [...(text(field('recipient')) ? [{ key: who.awardKey({ recipient: text(field('recipient')), ...(recipientId ? { recipientId } : {}) }), name: (recipientId ? who.player(recipientId)?.name : undefined) ?? text(field('recipient')) }] : []), ...was, ...linePeople(field('prioritySnapshot'), field('prioritySnapshotIds'), who)]
     : [...linePeople(entry.before.rankedPlayers, entry.before.rankedIds, who), ...linePeople(entry.after.rankedPlayers, entry.after.rankedIds, who), ...(priority ? linePeople(priority.rankedPlayers, priority.rankedIds, who) : [])]
   return { about: 'item', item: entry.item || priority?.item || '', ...(itemId !== undefined ? { itemId } : {}), encounter: text(field('encounter')) || priority?.encounter || '', players: unique(players) }
 }

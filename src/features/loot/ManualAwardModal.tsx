@@ -6,7 +6,7 @@ import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
 import { nameKey } from './completion'
-import { DECISIONS, MANUAL_ENCOUNTER_MAX, MANUAL_ITEM_MAX, MANUAL_NOTE_MAX, manualAward } from './manualAward'
+import { DECISIONS, MANUAL_ENCOUNTER_MAX, MANUAL_ITEM_MAX, MANUAL_NOTE_MAX, manualAward, possibleDuplicate } from './manualAward'
 import './ManualAward.css'
 
 const today = () => {
@@ -39,6 +39,8 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
   const onList = item.trim() === '' ? undefined : listed.find((priority) => nameKey(priority.item) === nameKey(item))
   const result = manualAward({ item: onList?.item ?? item, encounter, recipientId, awardedAt, decision, awardNote }, who, phaseNo)
   const hasList = onList !== undefined
+  // Two leaders can record the same drop, and an addon import can arrive for one typed here: warn, never block (a second copy can really drop).
+  const duplicate = result.award ? possibleDuplicate(result.award, live.data.awards) : undefined
   const ready = !busy && result.award !== undefined
 
   async function record(another: boolean) {
@@ -85,10 +87,11 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
       </div>
       <label>Note (optional)<textarea value={awardNote} maxLength={MANUAL_NOTE_MAX} rows={2} placeholder="For example: both rolled, highest roll won" onChange={(event) => setAwardNote(event.target.value)} /></label>
       {result.problem && !result.missing && <p className="manual-award-problem" role="alert">{result.problem}</p>}
+      {duplicate && <p className="manual-award-duplicate" role="status"><strong>Already recorded?</strong> {duplicate.item} was recorded to {duplicate.recipient} on {duplicate.awardedAt}. If that is the same drop, cancel. If a second copy dropped, record it too.</p>}
       <div className="modal-actions">
         <button type="button" className="button button-secondary" onClick={close} disabled={busy}>Cancel</button>
         <button type="button" className="button button-secondary" disabled={!ready} onClick={() => void record(true)}><Plus size={15} /> Record and add another</button>
-        <button className="button button-primary" disabled={!ready}><Check size={15} /> Record loot</button>
+        <button className="button button-primary" disabled={!ready}><Check size={15} /> {duplicate ? 'Record it again' : 'Record loot'}</button>
       </div>
     </form>
   </Modal>

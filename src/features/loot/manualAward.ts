@@ -1,4 +1,5 @@
 import type { NewManualAward } from '../../guildApi'
+import { nameKey } from '../../shared/game/candidates.ts'
 
 // Recording loot without a priority list (LOOT-002): what the "Record loot" form says, turned into the award the rules accept, or a sentence about what is wrong.
 // Pure, so Node tests it; the dialog only lays it out. The rules have the last word (validManualAward): the recipient has to be a roster character whose name the
@@ -21,6 +22,23 @@ export type ManualAwardForm = {
 }
 
 type Roster = { player: (id: string) => { id: string; name: string } | undefined }
+
+type ExistingAward = { id: string; item: string; recipient: string; recipientId?: string; awardedAt: string; status?: unknown }
+
+const DAY = 86_400_000
+const dayOf = (date: string) => Date.parse(`${date}T00:00:00Z`)
+
+/**
+ * An award that looks like the one about to be recorded: not removed, the same recipient (by roster id when both have one, else by name), the same item name and a raid
+ * date within one day. It is the importer's "possible duplicate" rule (docs of the addon exchange, section 6.3), so a drop typed here and later imported from the addon is
+ * caught by the same test. It only warns: two copies of an item can truly drop to one person on one night.
+ */
+export function possibleDuplicate(award: Pick<NewManualAward, 'item' | 'recipient' | 'recipientId' | 'awardedAt'>, existing: readonly ExistingAward[]): ExistingAward | undefined {
+  return existing.find((other) => other.status !== 'removed'
+    && (other.recipientId !== undefined ? other.recipientId === award.recipientId : nameKey(other.recipient) === nameKey(award.recipient))
+    && nameKey(other.item) === nameKey(award.item)
+    && Math.abs(dayOf(other.awardedAt) - dayOf(award.awardedAt)) <= DAY)
+}
 
 /** A real calendar date written YYYY-MM-DD (the rules check the format only; a day that does not exist is refused here). */
 export function isRealDate(value: string): boolean {

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { after, afterEach, beforeEach, describe, test } from 'node:test'
 import { deleteApp, initializeApp } from 'firebase-admin/app'
 import { getFirestore, Timestamp } from 'firebase-admin/firestore'
-import { applyLaunchReset, describePlan, isInside, LaunchResetRefused, planLaunchReset, RECORD_ENTRY, SEAL_DOC } from './launchReset.js'
+import { applyLaunchReset, describePlan, eraseAll, isInside, LaunchResetRefused, planLaunchReset, RECORD_ENTRY, readBackup, SEAL_DOC } from './launchReset.js'
 
 const host = process.env.FIRESTORE_EMULATOR_HOST
 if (!host || !/^(127\.0\.0\.1|localhost):\d+$/.test(host)) throw new Error('The launch reset tests require a local Firestore emulator.')
@@ -175,19 +175,84 @@ describe('applying the reset', () => {
     assert.equal((await guild.collection('settings').doc(SEAL_DOC).get()).exists, false)
   })
 
-  test('does not seal the guild when something of the phase is still there afterwards, and can be run again', async () => {
+  test('does not seal the guild when a run stops part way, and is finished with --resume and the same backup, which counts the whole reset', async () => {
     await seed()
-    // A delete that stops half way: the first batch of the list is erased and then the run fails.
+    // A delete that stops half way: the first document is erased and then the run fails.
     const failing = async (database, refs) => { await refs[0].delete(); throw new Error('The connection dropped.') }
     await assert.rejects(applyLaunchReset(db, options(), confirmed, { erase: failing }), /connection dropped/)
     assert.equal((await guild.collection('settings').doc(SEAL_DOC).get()).exists, false)
     assert.equal(await exists(path.join(dir, 'backup.json')), true)
-    // The dry run now shows what is left, and the second run, confirmed and with a new backup file, finishes and seals.
-    const left = await planLaunchReset(db, options())
+    // Without --resume the backup of that run is in the way and is never overwritten.
+    await assert.rejects(applyLaunchReset(db, options(), { awards: 2, priorities: 2, entries: 5 }), (error) => error instanceof LaunchResetRefused && /never overwritten/.test(error.message))
+    // The dry run with the backup shows what is left; the second run, confirmed, finishes and seals, and the seal counts what the backup holds.
+    const left = await planLaunchReset(db, { ...options(), earlier: await readBackup(path.join(dir, 'backup.json'), options()) })
     assert.equal(left.counts.awards + left.counts.priorities + left.counts.entries, 9)
-    await applyLaunchReset(db, options({ backupFile: path.join(dir, 'second.json') }), left.counts)
+    assert.match(describePlan(left), /RESUMING a run that stopped/)
+    const erased = await applyLaunchReset(db, options({ resume: true }), left.counts)
+    assert.deepEqual(erased, { awards: 2, priorities: 2, auditEntries: 6 })
     assert.deepEqual(await ids('awards'), ['a1'])
+    const seal = (await guild.collection('settings').doc(SEAL_DOC).get()).data()
+    assert.deepEqual(seal.erased, { awards: 2, priorities: 2, auditEntries: 6 })
+    assert.equal(seal.backupFile, 'backup.json')
+    assert.deepEqual((await guild.collection('auditLog').doc(RECORD_ENTRY).get()).data().before, { phaseNo: 0, awards: 2, priorities: 2, auditEntries: 6 })
+  })
+
+  test('stops in an order that never strands an entry: the entries that say a phase go last, and the awards and priorities after them', async () => {
+    await seed()
+    // A priority that was edited twice after it was created: only its create entry says the phase, so once the priority and that entry are gone its edits cannot be placed.
+    const edit = (id, rev) => guild.collection('auditLog').doc(id).set({ at: Timestamp.fromMillis(3000), by: 'uid', byName: 'Invented Leader', rev, action: 'edit', item: 'x', changed: ['councilNote'], before: {}, after: {}, targetType: 'priority', targetId: 'p0a' })
+    await edit('priority_p0a_2', 2)
+    await edit('priority_p0a_3', 3)
+    const all = { awards: 2, priorities: 2, entries: 8 }
+    // Erases the first nine documents of the list, in batches of three, and stops: the old order (awards, priorities, then the entries by id) stops between a
+    // priority's create entry and its edits.
+    const stopping = async (database, refs, size) => { await eraseAll(database, refs.slice(0, 9), size); throw new Error('The connection dropped.') }
+    await assert.rejects(applyLaunchReset(db, options(), all, { erase: stopping, batchSize: 3 }), /connection dropped/)
+    // What is left can still be told apart without the backup: nothing is stranded.
+    const alone = await planLaunchReset(db, options())
+    assert.deepEqual(alone.kept.unresolvedTargets, ['priority:mystery'])
+    assert.deepEqual((await ids('auditLog')).filter((id) => id.startsWith('priority_p0a')), [])
+    const erased = await applyLaunchReset(db, options({ resume: true }), alone.counts)
+    assert.deepEqual(erased, { awards: 2, priorities: 2, auditEntries: 8 })
+    assert.deepEqual(await ids('awards'), ['a1'])
+  })
+
+  test('finishes the seal when the erase is done and the seal was not written', async () => {
+    await seed()
+    await assert.rejects(applyLaunchReset(db, options(), confirmed, { now: () => { throw new Error('The clock failed.') } }), /clock failed/)
+    assert.deepEqual(await ids('awards'), ['a1'])
+    assert.equal((await guild.collection('settings').doc(SEAL_DOC).get()).exists, false)
+    // Nothing is left to erase, so without --resume it is refused; with the backup it only records and seals.
+    await assert.rejects(applyLaunchReset(db, options(), { awards: 0, priorities: 0, entries: 0 }), (error) => error instanceof LaunchResetRefused)
+    const erased = await applyLaunchReset(db, options({ resume: true }), { awards: 0, priorities: 0, entries: 0 })
+    assert.deepEqual(erased, { awards: 2, priorities: 2, auditEntries: 6 })
     assert.equal((await guild.collection('settings').doc(SEAL_DOC).get()).exists, true)
+    assert.equal((await guild.collection('auditLog').doc(RECORD_ENTRY).get()).exists, true)
+  })
+
+  test('refuses to resume with loot recorded in the phase after the backup, or with a backup that is not this reset\'s', async () => {
+    await seed()
+    const failing = async (database, refs) => { await refs[0].delete(); throw new Error('The connection dropped.') }
+    await assert.rejects(applyLaunchReset(db, options(), confirmed, { erase: failing }), /connection dropped/)
+    await guild.collection('awards').doc('late').set({ item: 'Late', recipient: 'Aria', awardedAt: '2026-12-09', phaseNo: 0 })
+    const left = await planLaunchReset(db, { ...options(), earlier: await readBackup(path.join(dir, 'backup.json'), options()) })
+    await assert.rejects(applyLaunchReset(db, options({ resume: true }), left.counts), (error) => error instanceof LaunchResetRefused && /award late of the phase is not in the backup/.test(error.message))
+    assert.ok((await ids('awards')).includes('late'))
+    assert.equal((await guild.collection('settings').doc(SEAL_DOC).get()).exists, false)
+    // Another phase name, another guild, a file that is not a backup, and a file that is not there.
+    await assert.rejects(applyLaunchReset(db, options({ resume: true, phaseName: 'Other' }), left.counts), LaunchResetRefused)
+    await assert.rejects(readBackup(path.join(dir, 'backup.json'), options({ guildId: 'another' })), (error) => error instanceof LaunchResetRefused && /not the backup of this reset/.test(error.message))
+    await writeFile(path.join(dir, 'other.json'), '{"hello":1}')
+    await assert.rejects(readBackup(path.join(dir, 'other.json'), options()), LaunchResetRefused)
+    await assert.rejects(applyLaunchReset(db, options({ resume: true, backupFile: path.join(dir, 'missing.json') }), left.counts), (error) => error instanceof LaunchResetRefused && /cannot be read/.test(error.message))
+  })
+
+  test('refuses when an unfinished backup is left from an earlier try, and erases nothing', async () => {
+    await seed()
+    await writeFile(`${path.join(dir, 'backup.json')}.partial`, '{')
+    await assert.rejects(applyLaunchReset(db, options(), confirmed), (error) => error instanceof LaunchResetRefused && /unfinished backup/.test(error.message))
+    assert.equal((await ids('awards')).length, 3)
+    assert.equal(await exists(path.join(dir, 'backup.json')), false)
   })
 
   test('does not seal the guild when the erase left something behind', async () => {

@@ -9,12 +9,15 @@
 //       --confirm-project <project id> --backup /absolute/path/outside/the/repo/launch-prep-backup.json \
 //       --expect-awards N --expect-priorities N --expect-entries N
 //
+//   If a run stops part way, nothing is sealed. Finish it with the same command and the same backup file plus --resume (the dry run takes --resume and
+//   --backup too, and shows what is left): the backup is not written again, and the seal and the record count the whole reset.
+//
 // The credentials are the maintainer's own (gcloud application-default login, or GOOGLE_APPLICATION_CREDENTIALS). With FIRESTORE_EMULATOR_HOST set it runs
 // against the emulator instead, which is how it is rehearsed.
 import path from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { parseArgs } from 'node:util'
-import { applyLaunchReset, describePlan, isInside, LaunchResetRefused, openDatabase, planLaunchReset } from '../functions/launchReset.js'
+import { applyLaunchReset, describePlan, isInside, LaunchResetRefused, openDatabase, planWithBackup } from '../functions/launchReset.js'
 
 const repository = path.resolve(import.meta.dirname, '..')
 
@@ -28,7 +31,7 @@ try {
   ({ values } = parseArgs({
     options: {
       project: { type: 'string' }, guild: { type: 'string' }, phase: { type: 'string', default: '0' }, 'phase-name': { type: 'string' },
-      apply: { type: 'boolean' }, 'confirm-project': { type: 'string' }, backup: { type: 'string' },
+      apply: { type: 'boolean' }, resume: { type: 'boolean' }, 'confirm-project': { type: 'string' }, backup: { type: 'string' },
       'expect-awards': { type: 'string' }, 'expect-priorities': { type: 'string' }, 'expect-entries': { type: 'string' }, help: { type: 'boolean' },
     },
     strict: true,
@@ -48,17 +51,17 @@ if (!values.guild) stop('--guild is required (the guild id).')
 if (!values['phase-name']) stop('--phase-name is required: the name of the phase to erase, exactly as Settings shows it.')
 if (phase === undefined) stop('--phase must be a whole number (0 is the first phase).')
 
-const options = { guildId: values.guild, phase, phaseName: values['phase-name'], backupFile: values.backup ? path.resolve(values.backup) : undefined }
+const options = { guildId: values.guild, phase, phaseName: values['phase-name'], backupFile: values.backup ? path.resolve(values.backup) : undefined, resume: Boolean(values.resume) }
 const { db, close } = openDatabase({ projectId: values.project })
 console.log(`Project ${values.project}, guild ${values.guild}: ${process.env.FIRESTORE_EMULATOR_HOST ? `the EMULATOR at ${process.env.FIRESTORE_EMULATOR_HOST}` : 'the LIVE database'}.`)
 
 try {
-  const plan = await planLaunchReset(db, options)
+  const { plan } = await planWithBackup(db, options)
   console.log(`\n${describePlan(plan)}\n`)
   const counts = plan.counts
   if (!values.apply) {
     console.log('This was a dry run: nothing was changed. To erase it, run the same command with:')
-    console.log(`  --apply --confirm-project ${values.project} --backup <an absolute path outside the repository> --expect-awards ${counts.awards} --expect-priorities ${counts.priorities} --expect-entries ${counts.entries}`)
+    console.log(`  --apply${options.resume ? ' --resume' : ''} --confirm-project ${values.project} --backup ${options.resume ? options.backupFile : '<an absolute path outside the repository>'} --expect-awards ${counts.awards} --expect-priorities ${counts.priorities} --expect-entries ${counts.entries}`)
     process.exit(0)
   }
 
@@ -73,7 +76,7 @@ try {
   const prompt = createInterface({ input: process.stdin, output: process.stdout })
   let typed = ''
   try {
-    typed = await prompt.question(`Type "${phrase}" to erase ${counts.awards} awards, ${counts.priorities} priorities and ${counts.entries} Log entries for good (a backup is written first): `)
+    typed = await prompt.question(`Type "${phrase}" to erase ${counts.awards} awards, ${counts.priorities} priorities and ${counts.entries} Log entries for good (${options.resume ? 'the backup of the run that stopped is already written' : 'a backup is written first'}): `)
   } catch {
     // The terminal was closed before anything was typed: that is not a confirmation.
   } finally {

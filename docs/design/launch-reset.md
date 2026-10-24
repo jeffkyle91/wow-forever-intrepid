@@ -29,13 +29,16 @@ An entry about something whose phase cannot be told is kept and reported, never 
 2. **Two keys.** To erase, the dry run's three numbers (awards, priorities, entries) are passed back with `--expect-*`, the project id is repeated with `--confirm-project`, and the phase is named with `--phase-name`. The plan is made again at that moment and must be exactly the confirmed numbers: loot recorded in the phase after the dry run stops the reset instead of being erased unseen.
 3. **Typed confirmation.** The last step is typing `ERASE <phase name>` in a terminal. It will not run without a terminal.
 4. **Only a finished phase.** It refuses while the phase is the guild's current one (the first real phase must have started) and when the phase is not called what `--phase-name` says.
-5. **Backup first.** Everything to be erased is written to one file (owner-only permissions), read back and counted before the first delete. The file must be an absolute path outside the repository (it holds real names), and an existing file is never overwritten.
+5. **Backup first.** Everything to be erased is written to one file (owner-only permissions), under a temporary name, read back and counted, and only then moved into place, before the first delete. The file must be an absolute path outside the repository (it holds real names), and an existing file is never overwritten.
 6. **A guard before every delete.** Every award and priority in the erase list must be of the phase.
-7. **Checked afterwards, then sealed.** After the deletes the plan is made again; if anything of the phase is left, the guild is not sealed and nothing is recorded. Only then are the seal (`settings/launchReset`) and the Log record (`auditLog/ledger_launch-reset_1`) written, with `create()` so neither can be written twice.
+7. **Checked afterwards, then sealed.** After the deletes the plan is made again; if anything of the phase is left, or an entry is left whose phase cannot be told, the guild is not sealed and nothing is recorded. Only then are the seal (`settings/launchReset`) and the Log record (`auditLog/ledger_launch-reset_1`) written, with `create()` so neither can be written twice.
 8. **Once.** With the seal there, the script refuses to run again. The seal and the record cannot be written, changed or deleted through the app (`tests/rules/launch-reset.test.ts`). The owner of the Firebase project can still change anything in the console; the rules cannot prevent that, and the script's once-only check is the script's, not the database's.
 9. **The record is visible.** The Log shows one entry, "Erased the test data of 'Launch prep', once, for good", with the numbers. It is the only trace of the erased data in the Log.
 
-The deletes are in batches and are not atomic as a whole. If the run stops half way, nothing is sealed: run the dry run again (it shows what is left), confirm the new numbers and use a new backup file.
+The deletes are in batches and are not atomic as a whole, so a run can stop part way (a lost connection, a closed laptop). Two things keep that safe:
+
+- **The order.** The Log entries that say which phase something is of (the create and delete entries) go after the others, and the awards and priorities go last, so whatever is left can still be attributed to the phase.
+- **`--resume`.** Nothing is sealed after a stop. Run the dry run with `--resume --backup <the same file>`: it reads the backup (which says which phase the entries of an award or priority that is already gone belong to) and shows what is left. Then apply with `--resume`, the same backup file and the new numbers. The backup is not written a second time, anything of the phase that is not in it stops the run (loot recorded since), and the seal and the Log record count the whole reset from the backup, not only the last run's share. The same path finishes the seal when the erase was done and only the seal and the record failed (the numbers are then 0, 0, 0).
 
 ## Launch-day runbook
 
@@ -48,7 +51,7 @@ The deletes are in batches and are not atomic as a whole. If the run stops half 
    node scripts/launch-reset.mjs --project <project id> --guild <guild id> --phase-name "Launch prep"
    ```
 
-5. Erase, with the numbers it printed:
+5. Erase, with the numbers it printed (if it stops part way, see `--resume` above):
 
    ```
    node scripts/launch-reset.mjs --project <project id> --guild <guild id> --phase-name "Launch prep" --apply \

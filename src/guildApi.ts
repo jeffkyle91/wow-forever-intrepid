@@ -27,7 +27,7 @@ import { nextPhaseRev } from './shared/game/phases'
 import type { TableWrite } from './shared/game/guildTables'
 import { isHexColor, isZoneKey } from './shared/game/zoneColors'
 import { EMPTY_ZONE_ART, ZONE_IMAGE_LIMIT, fullPath, isImageName, newImageId, readZoneArt, thumbPath, zonesUsing, type ZoneArt, type ZoneImage } from './shared/game/zoneArt'
-import { awardCreateFields, awardEditFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, tableAuditFields, type AuditEntry } from './shared/game/lootAudit'
+import { awardCreateFields, awardEditFields, manualAwardCreateFields, describeCreate, describeDelete, describeEdit, phaseAuditFields, priorityAuditFields, readAuditEntry, tableAuditFields, type AuditEntry } from './shared/game/lootAudit'
 import { normalizeDocs, type Normalizer } from './shared/lib/normalize'
 import { raidStartDate } from './shared/lib/raidStart'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
@@ -580,6 +580,9 @@ export const AUDITED_BATCH_SIZE = 10
 export type NewPriority = { item: string; encounter: string; rankedPlayers: string[]; rankedIds?: string[]; councilNote: string; phaseNo: number; itemId?: number; zoneId?: number; npcId?: number; carriedFrom?: string }
 // A field set to undefined is taken away.
 export type PriorityChanges = Partial<Pick<PriorityRecord, 'item' | 'encounter' | 'rankedPlayers' | 'rankedIds' | 'councilNote' | 'itemId' | 'zoneId' | 'npcId' | 'hidden'>>
+// A manual award (LOOT-002): who received an item, with no priority behind it, so no candidate order or council note is saved and none is pretended. The recipient is a roster
+// character by id, and `recipient` is that character's name as the roster has it now. `awardedAt` is the raid date; `phaseNo` is the current phase (the rules require it).
+export type NewManualAward = { item: string; encounter: string; recipient: string; recipientId: string; awardedAt: string; awardNote: string; decision: 'roll' | 'council' | 'other'; phaseNo: number }
 export type NewAward = { priorityId: string; item: string; encounter: string; recipient: string; recipientId?: string; awardedAt: string; prioritySnapshot: string[]; prioritySnapshotIds?: string[]; councilNoteSnapshot: string; awardNote: string; phaseNo: number }
 
 // A fresh id for every new priority: an entry id (`priority_{id}_{rev}`) can be used only once, so the id of a deleted priority cannot be created again.
@@ -695,6 +698,17 @@ export async function recordAward(award: NewAward, who: AuditWho) {
   const batch = writeBatch(database)
   batch.set(ref, { ...withoutUndefined(award), rev: 1, createdBy: who.uid, createdAt: serverTimestamp() })
   batch.set(doc(database, 'guilds', guildId, 'auditLog', `award_${ref.id}_1`), auditEntry(who, 'award', ref.id, 1, 'create', award.item, describeCreate(award, awardCreateFields)))
+  await batch.commit()
+  return ref.id
+}
+
+/** Records a manual award (no priority) with its entry, in one batch. Returns the new award's id. */
+export async function recordManualAward(award: NewManualAward, who: AuditWho) {
+  const database = requireDb()
+  const ref = doc(guildCollection('awards'))
+  const batch = writeBatch(database)
+  batch.set(ref, { ...award, rev: 1, createdBy: who.uid, createdAt: serverTimestamp() })
+  batch.set(doc(database, 'guilds', guildId, 'auditLog', `award_${ref.id}_1`), auditEntry(who, 'award', ref.id, 1, 'create', award.item, describeCreate(award, manualAwardCreateFields)))
   await batch.commit()
   return ref.id
 }

@@ -103,6 +103,21 @@ describe('describeEntry', () => {
     assert.deepEqual(restored.details, ['It was removed because: Entered twice'])
     assert.equal(describeEntry(entry({ targetType: 'award', targetId: 'zz', action: 'remove', changed: ['status'], reason: 'x' }), phaseName, lookups).title, 'Removed the award of “Test Sword”')
   })
+  it('says how a manual award was decided, and records it as an award with no priority', () => {
+    const { title, details } = text({ targetType: 'award', action: 'create', changed: ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo'], after: { item: 'Test Sword', encounter: 'Test Hall \u00b7', recipient: 'Aria', recipientId: 'p-1', awardedAt: '2026-12-09', awardNote: 'Both rolled', decision: 'roll', phaseNo: 1 } })
+    assert.equal(title, 'Awarded \u201cTest Sword\u201d to Aria')
+    assert.deepEqual(details, ['Dungeon and boss: Test Hall', 'Award date: 2026-12-09', 'Award note: Both rolled', 'Decision: Roll', 'Phase: Second'])
+    assert.equal(showValue('decision', 'council', phaseName), 'Council')
+    assert.equal(showValue('decision', '', phaseName), '(empty)')
+  })
+  it('reads a dungeon recorded with no boss ("Dungeon \u00b7") as the dungeon, and leaves a dungeon and boss alone', () => {
+    assert.equal(showValue('encounter', 'Test Hall \u00b7', phaseName), 'Test Hall')
+    assert.equal(showValue('encounter', 'Test Hall \u00b7 ', phaseName), 'Test Hall')
+    assert.equal(showValue('encounter', 'Test Hall \u00b7 Hall Warden', phaseName), 'Test Hall \u00b7 Hall Warden')
+    assert.equal(showValue('encounter', 'Hall Warden', phaseName), 'Hall Warden')
+    assert.equal(showValue('encounter', '', phaseName), '(empty)')
+    assert.equal(showValue('encounter', '\u00b7', phaseName), '(empty)')
+  })
   it('does not break on an entry it does not know, or an item with no name', () => {
     assert.equal(text({ targetType: 'raid', action: 'cancel', item: '' }).title, 'cancel raid \u201cUntitled\u201d')
     assert.equal(text({ action: 'create', item: '' }).title, 'Added \u201cUntitled\u201d to the list')

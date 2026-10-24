@@ -1,4 +1,5 @@
 import { readLines } from '../../shared/game/candidates.ts'
+import { encounterLabel } from '../../shared/game/encounter.ts'
 import type { AuditEntry } from '../../shared/game/lootAudit.ts'
 
 // The Log in words: one line for what happened, then what changed. Pure, so Node tests it; the dialog only lays it out.
@@ -20,6 +21,13 @@ const clip = (text: string) => (text.length > MAX ? `${text.slice(0, MAX - 1)}\u
 export function showValue(field: string, value: unknown, phaseName: (no: number) => string): string {
   if (value === null || value === undefined) return '(none)'
   if (field === 'phaseNo' && typeof value === 'number') return phaseName(value)
+  // How a manual award was decided: roll, council or other, written as a person would.
+  if (field === 'decision' && typeof value === 'string' && value) return `${value.charAt(0).toUpperCase()}${value.slice(1)}`
+  // A dungeon with no boss is kept as "Dungeon ·" (see encounterOf in manualAward.ts); it reads as the dungeon.
+  if (field === 'encounter' && typeof value === 'string') {
+    const place = encounterLabel(value)
+    return place ? clip(place) : '(empty)'
+  }
   if (Array.isArray(value)) return value.length ? clip(value.map(String).join(', ')) : '(nobody)'
   if (typeof value === 'string') return value.trim() ? clip(value) : '(empty)'
   return clip(String(value))

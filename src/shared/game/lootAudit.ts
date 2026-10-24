@@ -10,6 +10,9 @@ export const tableAuditFields = ['type', 'zoneId', 'key', 'phaseNo', 'follows', 
 // The settings fields a phase entry lists (when a phase is started or reopened): the ones that differ, each with its old and new value.
 export const phaseAuditFields = ['currentPhase', 'nextPhase', 'phaseHistory'] as const
 export const awardCreateFields = ['priorityId', 'item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'prioritySnapshot', 'prioritySnapshotIds', 'councilNoteSnapshot', 'awardNote', 'phaseNo'] as const
+// A manual award (no priority, LOOT-002) lists every field it has when it is made, how it was decided included. The rules require the entry's `changed` list to be
+// exactly these, so this is not awardCreateFields with one more field: an award from a priority has a priority and a snapshot, and no `decision`.
+export const manualAwardCreateFields = ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo'] as const
 // The fields a leader can correct, remove or restore on an award (LOOT-004). The snapshot fields (the candidate order and council note at decision time),
 // the priority and the item are never changed: an award of the wrong item is removed and recorded again.
 export const awardEditFields = ['recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo', 'status', 'removedReason'] as const

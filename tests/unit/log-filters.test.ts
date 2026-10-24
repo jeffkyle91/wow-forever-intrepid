@@ -62,6 +62,18 @@ describe('matchesLogFilter', () => {
     assert.equal(matchesLogFilter(facts, { ...noLogFilter, encounter: 'b:test hall|queen' }, slotOf), false)
     assert.equal(matchesLogFilter({ ...facts, encounter: '' }, { ...noLogFilter, encounter: 'd:test hall' }, slotOf), false)
   })
+  it('finds a manual award by its dungeon, whether it was recorded with a boss or with none, and by its boss', () => {
+    const award = (encounter: string) => logFacts(entry({ targetType: 'award', targetId: 'a1', item: 'Test Sword', action: 'create', after: { item: 'Test Sword', encounter, recipient: 'Aria', decision: 'roll' } }), byId, who)
+    const dungeonOnly = award('Test Hall \u00b7')
+    assert.equal(dungeonOnly.encounter, 'Test Hall \u00b7')
+    assert.ok(matchesLogFilter(dungeonOnly, { ...noLogFilter, encounter: 'd:test hall' }, slotOf))
+    assert.ok(matchesLogFilter(dungeonOnly, { ...noLogFilter, encounter: 'b:test hall|' }, slotOf), 'listed under the dungeon with no boss noted')
+    assert.equal(matchesLogFilter(dungeonOnly, { ...noLogFilter, encounter: 'b:test hall|warden' }, slotOf), false)
+    const both = award('Test Hall \u00b7 Warden')
+    assert.ok(matchesLogFilter(both, { ...noLogFilter, encounter: 'd:test hall' }, slotOf))
+    assert.ok(matchesLogFilter(both, { ...noLogFilter, encounter: 'b:test hall|warden' }, slotOf))
+    assert.equal(matchesLogFilter(award('Cave \u00b7'), { ...noLogFilter, encounter: 'd:test hall' }, slotOf), false)
+  })
   it('needs every dropdown that is set to match, and hides a phase entry as soon as one is set', () => {
     assert.ok(matchesLogFilter(facts, { ...noLogFilter, player: 'name:brock', slot: 'Finger', encounter: 'd:test hall' }, slotOf))
     assert.equal(matchesLogFilter(facts, { ...noLogFilter, player: 'name:brock', slot: 'Head', encounter: 'd:test hall' }, slotOf), false)

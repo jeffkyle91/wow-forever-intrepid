@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { awardAsRecorded, awardCreateFields, describeCreate, describeDelete, describeEdit, isLegacyAward, legacyAwardEntry, priorityAuditFields, readAuditEntry, sameValue } from '../../src/shared/game/lootAudit.ts'
+import { awardAsRecorded, awardCreateFields, describeCreate, describeDelete, describeEdit, isLegacyAward, legacyAwardEntry, legacyRowUncertain, priorityAuditFields, readAuditEntry, sameValue } from '../../src/shared/game/lootAudit.ts'
 
 // Invented names.
 const priority = { item: 'Test Sword', encounter: 'Test Hall \u00b7 Warden', rankedPlayers: ['Aria', 'Brock'], councilNote: '', phaseNo: 0, itemId: 101 }
@@ -116,6 +116,23 @@ describe('isLegacyAward', () => {
   it('is not an award the app recorded (it has both)', () => {
     assert.equal(isLegacyAward({ rev: 1, createdBy: 'uid' }), false)
     assert.equal(isLegacyAward({ rev: 3, createdBy: 'uid' }), false)
+  })
+})
+
+describe('legacyRowUncertain', () => {
+  const old = { id: 'a1', rev: 1 }
+  const entry = (id: string, rev: number) => ({ targetType: 'award', targetId: id, rev })
+  it('is unsure when the award was fixed, older entries are not loaded and its first fix is not among those that are', () => {
+    assert.equal(legacyRowUncertain(old, [entry('other', 1), entry('a1', 2)], true), true)
+    assert.equal(legacyRowUncertain(old, [], true), true)
+  })
+  it('is sure when everything is loaded, when its first fix is loaded, or when the award was never fixed', () => {
+    assert.equal(legacyRowUncertain(old, [], false), false)
+    assert.equal(legacyRowUncertain(old, [entry('a1', 1)], true), false)
+    assert.equal(legacyRowUncertain({ id: 'a1' }, [], true), false)
+  })
+  it('is never unsure for an award the app recorded', () => {
+    assert.equal(legacyRowUncertain({ id: 'a1', rev: 1, createdBy: 'uid' }, [], true), false)
   })
 })
 

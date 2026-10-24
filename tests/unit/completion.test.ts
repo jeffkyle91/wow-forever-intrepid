@@ -65,6 +65,15 @@ describe('listingProgress', () => {
     assert.deepEqual(progress.receipts.map((receipt) => receipt?.id), ['early', 'vex', 'late'])
     assert.deepEqual(listingProgress(list, [...awards].reverse()).receipts.map((receipt) => receipt?.id), ['early', 'vex', 'late'])
   })
+  it('keeps two receipts of one item on one night in the order they were entered, whatever their ids say', () => {
+    const list = priority(['Morrow', 'Morrow'])
+    const first = { ...award('Morrow'), id: 'zzz', awardedAt: '2026-12-09', createdAt: { toMillis: () => 1000 } }
+    const second = { ...award('Morrow'), id: 'aaa', awardedAt: '2026-12-09', createdAt: { toMillis: () => 2000 } }
+    assert.deepEqual(listingProgress(list, [second, first]).receipts.map((receipt) => receipt?.id), ['zzz', 'aaa'])
+    assert.deepEqual(listingProgress(list, [first, second]).receipts.map((receipt) => receipt?.id), ['zzz', 'aaa'])
+    // Without a time (an award from before the Log, or a time that has not arrived yet) it falls back to the id.
+    assert.deepEqual(listingProgress(list, [{ ...first, createdAt: undefined }, { ...second, createdAt: null }]).receipts.map((receipt) => receipt?.id), ['aaa', 'zzz'])
+  })
   it('has no award for a line that is not received, and none for a note', () => {
     // The first line is an open note (an empty id), the second is Vex (id p-3), the third is Morrow, who has received nothing.
     const list = { ...priority(['Any warlock', 'Vex', 'Morrow']), rankedIds: ['', 'p-3', 'p-1'] }

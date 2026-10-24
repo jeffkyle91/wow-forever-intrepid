@@ -62,8 +62,9 @@ export type AwardRecord = {
   phaseNo?: number
   // Awards made since the Log began have a revision (1 or more); one without is older and has no entry in the Log.
   rev?: number
-  // Who recorded it; none on an award from before the Log began (it stays none after a correction, so such an award can still be told).
+  // Who recorded it, and when (server time); none on an award from before the Log began (they stay none after a fix, so such an award can still be told).
   createdBy?: string
+  createdAt?: unknown
   // How a manual award (no priority) was decided.
   decision?: AwardDecision
   // A removed award is kept, marked, with the reason (never deleted): it stops counting everywhere and stays in the Log. None means active.

@@ -85,6 +85,14 @@ export function awardAsRecorded<A extends { id: string }>(award: A, entries: { t
  */
 export const isLegacyAward = (award: { rev?: number; createdBy?: string }) => award.rev === undefined || award.createdBy === undefined
 
+/**
+ * Whether the first row of an award from before the Log began cannot be trusted yet: it was fixed since (so it has a revision), the Log has older entries it has not
+ * loaded, and the first fix's entry is not among those it has. Without that entry the row can only show the award as it is now, not as it was first recorded.
+ */
+export function legacyRowUncertain(award: { id: string; rev?: number; createdBy?: string }, entries: readonly { targetType: string; targetId: string; rev: number }[], moreToLoad: boolean): boolean {
+  return isLegacyAward(award) && award.rev !== undefined && moreToLoad && !entries.some((entry) => entry.targetType === 'award' && entry.targetId === award.id && entry.rev === 1)
+}
+
 /** An award made before the Log began has no entry; the Log shows it as an entry of its own (revision 0), dated the raid night. */
 export function legacyAwardEntry(award: { id: string; priorityId?: string; item: string; encounter: string; recipient: string; awardedAt: string; prioritySnapshot?: string[]; councilNoteSnapshot?: string; awardNote?: string; phaseNo?: number }): AuditEntry {
   const fields: Values = { priorityId: award.priorityId, item: award.item, encounter: award.encounter, recipient: award.recipient, awardedAt: award.awardedAt, prioritySnapshot: award.prioritySnapshot, councilNoteSnapshot: award.councilNoteSnapshot, awardNote: award.awardNote, phaseNo: award.phaseNo }

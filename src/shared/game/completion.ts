@@ -5,7 +5,7 @@ export { nameKey }
 
 // Structural types, so this file can be tested directly by Node. PriorityRecord and AwardRecord (guildApi.ts) satisfy them.
 type LootPriority = { id: string; item: string; rankedPlayers: string[]; rankedIds?: string[]; phaseNo?: number; carriedFrom?: string }
-type Award = { id?: string; priorityId?: string; item: string; recipient: string; recipientId?: string; awardedAt?: string; phaseNo?: number; status?: unknown }
+type Award = { id?: string; priorityId?: string; item: string; recipient: string; recipientId?: string; awardedAt?: string; createdAt?: unknown; phaseNo?: number; status?: unknown }
 
 // Who a line and an award are about, when the roster is not at hand: the id if there is one, else the name. The app passes the roster's, which also
 // recognizes a name that is a roster character's as that character (so an award with only a name still counts for the character's line).
@@ -69,8 +69,12 @@ export type ListingProgress<A extends Award = Award> = {
   complete: boolean
 }
 
-// The oldest award first (the raid night, then the id), so which award a line stands on never depends on the order the awards arrive in.
-const oldestFirst = (a: Award, b: Award) => (a.awardedAt ?? '').localeCompare(b.awardedAt ?? '') || (a.id ?? '').localeCompare(b.id ?? '')
+// When an award was entered, in milliseconds: a Firestore timestamp, a number, or none (an award from before the Log, or one whose server time has not arrived yet).
+const enteredAt = (award: Award) => { const at = award.createdAt as { toMillis?: () => number } | number | null | undefined; return typeof at === 'number' ? at : typeof at?.toMillis === 'function' ? at.toMillis() : 0 }
+
+// The oldest award first (the raid night, then when it was entered, then the id: the order docs/design/audit-first-loot.md gives for one night), so which award a
+// line stands on never depends on the order the awards arrive in, and two receipts of one item on one night stay in the order they were entered.
+const oldestFirst = (a: Award, b: Award) => (a.awardedAt ?? '').localeCompare(b.awardedAt ?? '') || enteredAt(a) - enteredAt(b) || (a.id ?? '').localeCompare(b.id ?? '')
 
 export function listingProgress<A extends Award>(priority: LootPriority, awards: A[], lookup?: PriorityLookup, who: Who = noRoster): ListingProgress<A> {
   const lines = readLines(priority)

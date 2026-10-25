@@ -17,6 +17,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 - Guild members can review published Raid History snapshots, including scheduled team lineups, assigned benches, invitations and sign-up responses. These snapshots show the plan, not attendance.
 - Older scheduled raids without a saved time can capture history using the usual 9 PM Eastern time.
 - Scheduled raid roster cards keep warning and bench controls aligned beside responses.
+- On My dashboard the second raider type button now says Raider instead of Hardcore, and so does its help (MEMBER-007). Only the label changes: nothing stored changes, so everyone's earlier choice stays selected.
 
 ## 2026-10-19 - 567a689
 

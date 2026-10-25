@@ -18,6 +18,14 @@ export function findMyCharacters(roster: PlayerRecord[], uid: string): { linked:
 // A line or an award is a character's when it carries that character's id; an older one carries a name only, which matches the character's first name.
 const sameName = (name: string, player: PlayerRecord) => name.trim().toLowerCase() === player.name.trim().toLowerCase()
 
+/**
+ * Only what belongs to phase `no` (a priority or an award with no phase is the first phase's). My dashboard shows the phase the guild is in: what an earlier phase still
+ * owed moves forward with Carry over, and the rest is history, which the Log keeps. Pure.
+ */
+export function inPhase<T extends { phaseNo?: unknown }>(records: T[], no: number): T[] {
+  return records.filter((record) => phaseNoOf(record) === no)
+}
+
 export type MyPriority = { priority: PriorityRecord; phaseNo: number; position: number; character: PlayerRecord; received: boolean }
 
 // The priorities this account's characters are on, in every phase given. `received` says whether that listing has been received (see listingProgress).

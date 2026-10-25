@@ -116,3 +116,13 @@ describe('the phase filter', () => {
     assert.equal(matchesLogFilter(facts({ about: 'phase', phase: 1 }), filter, slotOf), false)
   })
 })
+
+describe('the launch reset record in the Log (OPS-005)', () => {
+  const record = entry({ targetType: 'ledger', targetId: 'launch-reset', action: 'erase', item: 'Launch prep', before: { phaseNo: 0, awards: 12 }, after: { awards: 0 } })
+  it('is for no phase, so it shows a dash and matches no phase, and it is found only with no phase chosen', () => {
+    assert.equal(entryPhase(record, none), undefined)
+    const facts: LogFacts = { about: 'phase', item: '', encounter: '', players: [] }
+    assert.ok(matchesLogFilter(facts, noLogFilter, () => undefined))
+    assert.equal(matchesLogFilter(facts, { ...noLogFilter, phase: '0' }, () => undefined), false)
+  })
+})

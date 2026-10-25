@@ -68,3 +68,9 @@ describe('the date filter', () => {
     assert.equal(matchesLogFilter(facts({ about: 'phase', date: '2026-12-09', phase: 1 }), filter, slotOf), false)
   })
 })
+
+describe('the launch reset record in the Log (OPS-005)', () => {
+  it('is on the day it was made, like any entry that is not an award', () => {
+    assert.equal(entryDate(entry({ targetType: 'ledger', targetId: 'launch-reset', at: new Date(2026, 10, 4, 21, 0), before: { phaseNo: 0 } }), none), '2026-11-04')
+  })
+})

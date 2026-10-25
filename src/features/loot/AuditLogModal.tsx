@@ -62,7 +62,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
   const awardsById = new Map(live.data.awards.map((award) => [award.id, award]))
   const lookups = { firstZonePhase: (zoneId: number) => first.zones.get(zoneId), firstSourcePhase: (zoneId: number, key: string) => first.sources.get(`${zoneId}_${key}`), zoneName: (zoneId: number) => zones.find((zone) => zone.zoneId === zoneId)?.name, sourceName: (zoneId: number, key: string) => zones.find((zone) => zone.zoneId === zoneId)?.sources.find((source) => source.key === key)?.name, itemName: (itemId: number) => { const state = peekItem(itemId); return state?.status === 'ready' ? state.info.name : undefined }, awardRecipient: (id: string) => { const award = awardsById.get(id); return award ? ((award.recipientId !== undefined ? who.player(award.recipientId)?.name : undefined) ?? award.recipient) : undefined } }
   // A phase started or reopened changes which lists are current, so it is shown with the priorities.
-  const wanted = (type: string) => (show === 'all' ? type === 'priority' || type === 'award' || type === 'phase' || type === 'table' : show === 'priority' ? type === 'priority' || type === 'phase' : show === 'table' ? type === 'table' : type === 'award')
+  const wanted = (type: string) => (show === 'all' ? type === 'priority' || type === 'award' || type === 'phase' || type === 'table' || type === 'ledger' : show === 'priority' ? type === 'priority' || type === 'phase' : show === 'table' ? type === 'table' : type === 'award')
   // An award from before the Log began has no entry, so it is added from the award itself (isLegacyAward: a correction gives it a revision and an entry of its
   // own, and it must not drop out of the Log by that). Its row says what it said when it was recorded: a later correction is its own entry, with the old and new value.
   const more = entries !== null && entries.length >= limit
@@ -136,7 +136,7 @@ export function AuditLogModal({ close, live }: { close: () => void; live: TabCon
         <details>
           <summary><span className="audit-title" title={title}>{title}</span><span className="audit-phase" title={phase === undefined ? 'The loot phase of this entry could not be told' : `Loot phase: ${name(phase)}`}>{phase === undefined ? '—' : name(phase)}</span><time className="audit-when">{entry.rev === 0 && entry.at ? entry.at.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : whenOf(entry.at)}</time></summary>
           <div className="audit-body">
-            <p>{entry.rev === 0 ? 'Recorded before the Log began (dated the raid night)' : <>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : entry.targetType === 'table' ? 'Drop list' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</>}</p>
+            <p>{entry.rev === 0 ? 'Recorded before the Log began (dated the raid night)' : <>By <strong>{entry.byName || 'Unknown'}</strong>{' '}{'\u00b7'}{' '}{entry.targetType === 'award' ? 'Award' : entry.targetType === 'phase' ? 'Phase' : entry.targetType === 'table' ? 'Drop list' : entry.targetType === 'ledger' ? 'Launch reset' : 'Priority'}{entry.at ? ` \u00b7 ${entry.at.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'medium' })}` : ''}</>}</p>
             {details.length > 0 && <ul>{details.map((line) => <li key={line}>{line}</li>)}</ul>}
           </div>
         </details>

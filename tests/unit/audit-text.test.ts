@@ -86,6 +86,14 @@ describe('describeEntry', () => {
     assert.equal(removed.title, 'Removed the award of \u201cTest Sword\u201d')
     assert.deepEqual(removed.details, ['Reason: Entered twice'])
   })
+  it('says the pre-launch data was erased, once, with what was erased', () => {
+    const { title, details } = text({ targetType: 'ledger', targetId: 'launch-reset', action: 'erase', item: 'Launch prep', changed: ['awards', 'priorities', 'auditEntries'], before: { phaseNo: 0, awards: 12, priorities: 30, auditEntries: 80 }, reason: 'The pre-launch test data was erased once, when the first real phase started.' })
+    assert.equal(title, 'Erased the test data of “Launch prep”, once, for good')
+    assert.deepEqual(details, ['12 awards, 30 loot priorities and 80 Log entries about them were erased, and the guild was sealed: this cannot be done again.', 'Reason: The pre-launch test data was erased once, when the first real phase started.'])
+  })
+  it('reads an erase entry with no numbers as zero erased, and does not break', () => {
+    assert.match(text({ targetType: 'ledger', action: 'erase', item: 'Launch prep' }).details[0] ?? '', /^0 awards, 0 loot priorities and 0 Log entries/)
+  })
   it('says a receipt was moved, from whom to whom, with the reason', () => {
     const moved = text({ targetType: 'award', changed: ['recipient', 'recipientId'], before: { recipient: 'Aria', recipientId: 'p-1' }, after: { recipient: 'Brock', recipientId: 'p-2' }, reason: 'Recorded to the wrong character' })
     assert.equal(moved.title, 'Moved the award of “Test Sword” from Aria to Brock')

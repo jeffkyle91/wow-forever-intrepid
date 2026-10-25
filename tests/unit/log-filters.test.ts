@@ -15,6 +15,13 @@ const person = (name: string) => ({ key: `name:${nameKey(name)}`, name: name.tri
 const entry = (overrides: Record<string, unknown>) => ({ targetType: 'priority', targetId: 'p1', item: 'Iron Ring', before: {}, after: {}, ...overrides }) as Parameters<typeof logFacts>[0]
 const slotOf = (item: { item: string; itemId?: number }) => (item.itemId === 101 ? 'Finger' : item.itemId === undefined ? 'Other' : undefined)
 
+describe('logFacts for the launch reset', () => {
+  it('is about no item, so it matches none of the item filters, like a phase entry', () => {
+    const facts = logFacts(entry({ targetType: 'ledger', targetId: 'launch-reset', item: 'Launch prep' }), byId, who)
+    assert.deepEqual(facts, { about: 'phase', item: '', encounter: '', players: [] })
+  })
+})
+
 describe('logFacts for a receipt that was removed', () => {
   const award = { priorityId: 'p1', recipient: 'Brock', encounter: 'Test Hall \u00b7 Warden', prioritySnapshot: ['Aria', 'Brock'] }
   const removal = entry({ targetType: 'award', targetId: 'a1', action: 'remove', item: 'Iron Ring', before: { status: null }, after: { status: 'removed', removedReason: 'Recorded twice' } })

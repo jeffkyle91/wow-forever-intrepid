@@ -10,7 +10,7 @@ import { LABEL, PERSONAS, PLAYER_2, PLAYER_3, RAID_STAFF, UID, rosterDoc, withou
 import { asAdmin, dbFor, expectAllowed, expectDenied, guildDoc, stored, setUpGuildEmulator } from './support/harness.ts'
 import { MANUAL, clean, createManualAward, describeChange, editAward, entry, entryId, manualAwardDoc, type Staff } from './support/audit.ts'
 import { encounterOf, manualAward } from '../../src/features/loot/manualAward.ts'
-import { awardCreateFields, describeCreate, manualAwardCreateFields } from '../../src/shared/game/lootAudit.ts'
+import { awardCreateFields, awardEditFields, describeCreate, describeEdit, manualAwardCreateFields } from '../../src/shared/game/lootAudit.ts'
 
 setUpGuildEmulator()
 
@@ -403,5 +403,53 @@ describe('the award the Record loot form builds', () => {
     batch.set(guildDoc(dbFor('guildLeader'), `awards/${MANUAL}`), { ...elsewhere, rev: 1, createdBy: UID.guildLeader, createdAt: serverTimestamp() })
     batch.set(guildDoc(dbFor('guildLeader'), `auditLog/${entryId('award', MANUAL, 1)}`), clean(entry('guildLeader', 'award', MANUAL, 1, { action: 'create', item: elsewhere.item, ...describeCreate(elsewhere, manualAwardCreateFields) })))
     await expectDenied(batch.commit(), 'a phase that is not the current one')
+  })
+
+  /** What guildApi.correctAward and removeAward send: the change described with awardEditFields against the award as stored, then the update and its entry in one batch (LOOT-004). */
+  const fixAsTheAppDoes = async (db: Firestore, who: Staff, changes: Record<string, unknown>, action: 'edit' | 'remove', reason?: string) => {
+    const current = (await stored(`awards/${MANUAL}`))!
+    const description = describeEdit(current, changes, awardEditFields)!
+    const rev = (current.rev ?? 0) + 1
+    const update = Object.fromEntries(description.changed.map((key) => [key, changes[key] === undefined ? deleteField() : changes[key]]))
+    const batch = writeBatch(db)
+    batch.update(guildDoc(db, `awards/${MANUAL}`), { ...update, rev, updatedBy: UID[who], updatedAt: serverTimestamp() })
+    batch.set(guildDoc(db, `auditLog/${entryId('award', MANUAL, rev)}`), clean(entry(who, 'award', MANUAL, rev, { action, item: current.item, ...description, ...(reason ? { reason } : {}) })))
+    return batch.commit()
+  }
+
+  // A manual award has no priority and no snapshot, and the only award that has a decision. These run the app's own correction and removal over one that the form made.
+  for (const who of RAID_STAFF as readonly Staff[]) {
+    test(`is moved to another character by a ${LABEL[who]}, as the app writes it, and the entry lists the recipient and its id`, async () => {
+      await expectAllowed(writeAsTheAppDoes(dbFor(who), who, manualAwardCreateFields))
+      await expectAllowed(fixAsTheAppDoes(dbFor(who), who, { recipient: rosterDoc(3).name, recipientId: PLAYER_3 }, 'edit', 'Wrong name picked at the roll'))
+      const award = await stored(`awards/${MANUAL}`)
+      assert.equal(award?.recipientId, PLAYER_3)
+      assert.equal(award?.rev, 2)
+      assert.equal(award?.decision, 'council', 'how it was decided stays')
+      assert.equal(award?.encounter, built.encounter, 'the place stays')
+      const logged = await stored(`auditLog/${entryId('award', MANUAL, 2)}`)
+      assert.equal(logged?.action, 'edit')
+      assert.deepEqual([...(logged?.changed ?? [])].sort(), ['recipient', 'recipientId'])
+      assert.equal(logged?.reason, 'Wrong name picked at the roll')
+    })
+  }
+
+  test('is removed with a reason, which stays in the Log, and is not removed without one', async () => {
+    await expectAllowed(writeAsTheAppDoes(dbFor('raidLeader'), 'raidLeader', manualAwardCreateFields))
+    await expectDenied(fixAsTheAppDoes(dbFor('raidLeader'), 'raidLeader', { status: 'removed', removedReason: '   ' }, 'remove', 'x'), 'a removal with a reason of spaces')
+    await expectAllowed(fixAsTheAppDoes(dbFor('raidLeader'), 'raidLeader', { status: 'removed', removedReason: 'Entered twice' }, 'remove', 'Entered twice'))
+    const award = await stored(`awards/${MANUAL}`)
+    assert.equal(award?.status, 'removed')
+    assert.equal(award?.removedReason, 'Entered twice')
+    assert.equal((await stored(`auditLog/${entryId('award', MANUAL, 2)}`))?.action, 'remove')
+  })
+
+  test('has its decision corrected, and nothing else changes', async () => {
+    await expectAllowed(writeAsTheAppDoes(dbFor('guildLeader'), 'guildLeader', manualAwardCreateFields))
+    await expectAllowed(fixAsTheAppDoes(dbFor('guildLeader'), 'guildLeader', { decision: 'roll' }, 'edit'))
+    const award = await stored(`awards/${MANUAL}`)
+    assert.equal(award?.decision, 'roll')
+    assert.equal(award?.recipientId, built.recipientId)
+    assert.deepEqual([...((await stored(`auditLog/${entryId('award', MANUAL, 2)}`))?.changed ?? [])], ['decision'])
   })
 })

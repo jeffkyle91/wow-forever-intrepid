@@ -6,18 +6,41 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
-- My dashboard now shows loot priorities and awarded loot for the current phase only (MEMBER-006). Before, it listed every earlier phase too, so a listing that was never received in a finished phase looked unfulfilled for ever; what an earlier phase still owed moves forward with Carry over, and the Log keeps the history. When there is nothing in the current phase, the message names the phase.
-- Guild and Raid Leaders can now fix a mistaken item receipt on Loot priorities (LOOT-004): unlock the item and an x appears next to RECEIVED. It moves the receipt to someone else (the Log gets one entry that says who had it and who has it now) or, if it should not have been recorded, removes it with a reason. A removed receipt stops counting for the priority lists, My dashboard and the Awarded total in the header. Nothing is ever deleted, and the Log stays read-only.
-- Guild and Raid Leaders can now record loot without a priority list (LOOT-002): **Record loot** on Loot priorities takes the item, who received it, the dungeon (picked from the guild's raids and dungeons, or typed under "Other…") and boss, the raid date and how it was decided (roll, council or other), and writes it to the Log. The dungeon is kept the way a priority keeps it, so the Log's dungeon and boss filter finds a recorded drop, which is how two runs on one night in different dungeons are told apart. An item that is on a priority list marks that person received there, "Record and add another" keeps the date, dungeon, boss and decision for the next drop of the night, and a warning appears if the same item looks already recorded to the same character within a day, so two leaders recording one drop notice.
-- The Log on Loot priorities now shows which loot phase each entry is for, in a column beside the time, and has a Phase dropdown next to Player, Slot and Encounter. Typing a phase's name in the find box also finds what was done in it, so a search across every phase reads down one list. A Date dropdown lists the raid nights in the Log, newest first with how many entries each has, and shows one night: an award is on the night it dropped, not the day it was typed in (LOOT-013).
-- Every other page (My dashboard, Raid teams, Guild Calendar, Scheduled Raids, Raid History, Leadership Overview and Member access) now uses the same margins and spacing as Settings and Loot priorities: content starts the same distance from the edge, cards share the same gaps, corners and padding, Scheduled Raids is inset once instead of twice, and Raid History no longer sits against the edge. The Guild roster table still runs edge to edge (UX-006).
-- Settings and the loot pages now share one set of margins and spacing: every Settings card sits the same distance from the edge with the same gap between cards, the headings on Loot priorities line up with the rows under them, and the loot dialogs (Browse drops, the drop list editor, Carry over and the Log) share one padding and corner. The raid team name fields on Settings have one width, a clear heading for each team size and each team's color beside its field (UX-005).
-- Raid Calendar is now called Guild Calendar to reflect both raids and unavailable dates.
-- Members can edit their unavailable date ranges from My dashboard or Raid Calendar without deleting and recreating them.
-- Guild members can review published Raid History snapshots, including scheduled team lineups, assigned benches, invitations and sign-up responses. These snapshots show the plan, not attendance.
-- Older scheduled raids without a saved time can capture history using the usual 9 PM Eastern time.
-- Scheduled raid roster cards keep warning and bench controls aligned beside responses.
-- On My dashboard the second raider type button now says Raider instead of Hardcore, and so does its help (MEMBER-007). Only the label changes: nothing stored changes, so everyone's earlier choice stays selected.
+No pending member-facing changes.
+
+## 2026-10-25 - ce1a288
+
+Updates since the October 19 announcement. Refresh open tabs to load them.
+
+- Guild and Raid Leaders can use **Record loot** without a priority list, recording the recipient, raid date, dungeon, boss and how the drop was decided.
+
+- **Record and add another** keeps the night's details ready for the next drop, with a warning when a drop looks already recorded.
+
+- Leaders can fix a mistaken receipt by unlocking its priority and clicking the x beside RECEIVED to move or remove it; the Log keeps the history.
+
+- The Log shows each entry's loot phase and filters by phase and raid date, alongside its existing player and encounter filters.
+
+- My dashboard shows loot priorities and awarded loot for the current phase only; earlier phases remain available in Loot priorities and the Log.
+
+- The second raider type is now called **Raider** instead of Hardcore; existing selections are unchanged.
+
+- Members can edit or delete their unavailable dates from My dashboard or by clicking their entry in the calendar.
+
+- Editing or deleting unavailable dates does not restore raid spots or change an existing Absent response automatically.
+
+- **Raid Calendar** is now **Guild Calendar**.
+
+- Starting raid rosters are captured automatically at 9 PM Eastern; members can browse published snapshots in **Raid History**.
+
+- Raid History preserves starting teams, benches, invitations and responses; it is not an attendance record.
+
+- Raid Teams and Scheduled Raids group characters by role and show compact response badges on scheduled rosters.
+
+- Scheduled roster warning and bench controls now line up beside responses.
+
+- Pages, cards and loot dialogs have more consistent spacing, with clearer team-name fields in Settings.
+
+Verified cumulative production release. Source PRs: #128, #131, #132, #134, #135, #137, #139, #140, #143, #144, #148, #153 and #156; deployment evidence is recorded in the backlog and source PR receipts.
 
 ## 2026-10-19 - 567a689
 

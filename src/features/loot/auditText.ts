@@ -159,6 +159,15 @@ export function describeEntry(entry: AuditEntry, phaseName: (no: number) => stri
   const reason = entry.reason ? [`Reason: ${clip(entry.reason)}`] : []
 
   if (entry.targetType === 'table') return describeTableEntry(entry, lookups, phaseName, change)
+  // The one-time launch reset (docs/design/launch-reset.md): written by the maintainer's script, not by the app, when the pre-launch phase's test data was
+  // erased. The numbers are what was erased; nothing else about it can be read from the Log, which is the point of the entry.
+  if (entry.targetType === 'ledger') {
+    const erased = (field: string) => (typeof entry.before[field] === 'number' ? entry.before[field] as number : 0)
+    return {
+      title: `Erased the test data of ${item}, once, for good`,
+      details: [`${erased('awards')} awards, ${erased('priorities')} loot priorities and ${erased('auditEntries')} Log entries about them were erased, and the guild was sealed: this cannot be done again.`, ...(entry.reason ? [`Reason: ${clip(entry.reason)}`] : [])],
+    }
+  }
   if (entry.targetType === 'phase') {
     // A phase was started or reopened: the history gained or lost its last name, and the current phase changed.
     const history = (values: Record<string, unknown>) => (Array.isArray(values.phaseHistory) ? values.phaseHistory.map(String) : [])

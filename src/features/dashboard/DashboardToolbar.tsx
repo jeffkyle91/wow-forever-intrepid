@@ -5,9 +5,10 @@ import { saveMyRaiderType, subscribeMyRaiderType, type RaiderType } from '../../
 import type { TabContext } from '../../shared/tabs/types'
 import { findMyCharacters } from './myCharacters'
 
+// What is stored (and what the rules accept) stays `casual` and `hardcore`; only the label of the second reads Raider.
 const TYPES: { type: RaiderType; label: string; hint: string }[] = [
   { type: 'casual', label: 'Casual', hint: 'Not looking to push myself and have lower priority for raid spots.' },
-  { type: 'hardcore', label: 'Hardcore', hint: 'Want to push myself and be more involved.' },
+  { type: 'hardcore', label: 'Raider', hint: 'Want to push myself and be more involved.' },
 ]
 
 export function DashboardToolbar({ ctx }: { ctx: TabContext }) {
@@ -41,7 +42,7 @@ export function DashboardToolbar({ ctx }: { ctx: TabContext }) {
     <div className="dash-raider-type" role="group" aria-label="Raider type">
       {TYPES.map((option) => <button key={option.type} aria-pressed={current === option.type} disabled={busy} onClick={() => choose(option.type)}>{option.label}</button>)}
     </div>
-    <HelpPopover label="About Casual and Hardcore" trigger={<CircleHelp size={16} />}>
+    <HelpPopover label="About Casual and Raider" trigger={<CircleHelp size={16} />}>
       {TYPES.map((option) => <p key={option.type}><strong>{option.label}:</strong> {option.hint}</p>)}
       <p>Reading this help does not change your raider type.</p>
     </HelpPopover>

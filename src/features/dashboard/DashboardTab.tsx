@@ -2,7 +2,8 @@ import { Award, CalendarDays, CalendarOff, CircleHelp, CornerDownRight, Gem, Mes
 import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
 import { priorityLookup } from '../../shared/game/completion'
-import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
+import { encounterLabel } from '../../shared/game/encounter'
+import { currentPhaseNo, phaseName } from '../../shared/game/phases'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
 import { classAccent } from '../../shared/game/classes'
@@ -12,7 +13,7 @@ import { HelpPopover } from '../../shared/ui/HelpPopover'
 import { RaidSignupButton } from './RaidSignupButton'
 import { AbsenceModal } from '../../shared/availability/AbsenceModal'
 import { CommentsPanel } from './CommentsPanel'
-import { findMyCharacters, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
+import { findMyCharacters, inPhase, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
 import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
 import './Dashboard.css'
 import { RaidReadyToggle } from '../../shared/members/RaidReadyToggle'
@@ -44,11 +45,11 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   }
 
   const raidList = upcomingRaids(raids, afkEntries, ctx.identity.uid, today)
-  // Every phase up to the current one (the next phase is for leaders to prepare), the latest first; an earlier phase's rows say which phase it is.
+  // The phase the guild is in, and nothing else: the next phase is for leaders to prepare, and what an earlier phase still owed moves forward with Carry over (the Log keeps the rest).
   const currentNo = currentPhaseNo(settings)
-  const prios = myPriorities(allPriorities.filter((priority) => phaseNoOf(priority) <= currentNo), characters, awards, priorityLookup([...allPriorities, ...hiddenPriorities]))
-  const loot = myAwards(awards, characters)
-  const phaseTag = (no: number) => (no === currentNo ? '' : ` \u00b7 ${phaseName(settings, no)}`)
+  const nowName = phaseName(settings, currentNo)
+  const prios = myPriorities(inPhase(allPriorities, currentNo), characters, awards, priorityLookup([...allPriorities, ...hiddenPriorities]))
+  const loot = myAwards(inPhase(awards, currentNo), characters)
   const absences = myAbsences(afkEntries, ctx.identity.uid, today)
   const teamName = (team: TenManTeam) => settings.teamNames[team]
   const groupLabel = (characterId: string) => {
@@ -113,17 +114,17 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
     </Panel>
 
     <Panel icon={<Gem size={15} />} title="My loot priorities">
-      {prios.length ? <ul className="dash-list">{prios.map(({ priority, phaseNo, position, character, received }) => <li key={`${priority.id}-${character.id}`}>
-        <span><strong>{priority.item}</strong><small>{priority.encounter || 'No encounter'} · {character.name}{phaseTag(phaseNo)}</small></span>
+      {prios.length ? <ul className="dash-list">{prios.map(({ priority, position, character, received }) => <li key={`${priority.id}-${character.id}`}>
+        <span><strong>{priority.item}</strong><small>{priority.encounter || 'No encounter'} · {character.name}</small></span>
         <span className="dash-tag">#{position}{received ? ' \u00b7 received' : ''}</span>
-      </li>)}</ul> : <p className="dash-muted">None of your characters are on a loot priority list yet.</p>}
+      </li>)}</ul> : <p className="dash-muted">None of your characters are on a loot priority list in {nowName} yet.</p>}
     </Panel>
 
     <Panel icon={<Award size={15} />} title="My awarded loot">
       {loot.length ? <ul className="dash-list">{loot.slice(0, 5).map((award) => <li key={award.id}>
-        <span><strong>{award.item}</strong><small>{award.encounter || 'No encounter'} · {award.awardedAt}{phaseTag(phaseNoOf(award))}</small></span>
+        <span><strong>{award.item}</strong><small>{encounterLabel(award.encounter) || 'No encounter'} · {award.awardedAt}</small></span>
         <span className="dash-tag">{award.recipient}</span>
-      </li>)}</ul> : <p className="dash-muted">No loot has been awarded to your characters yet.</p>}
+      </li>)}</ul> : <p className="dash-muted">No loot has been awarded to your characters in {nowName} yet.</p>}
     </Panel>
 
     <Panel icon={<MessageSquare size={15} />} title="Comments">

@@ -22,6 +22,30 @@ describe('logFacts for the launch reset', () => {
   })
 })
 
+describe('logFacts for a receipt that was removed', () => {
+  const award = { priorityId: 'p1', recipient: 'Brock', encounter: 'Test Hall \u00b7 Warden', prioritySnapshot: ['Aria', 'Brock'] }
+  const removal = entry({ targetType: 'award', targetId: 'a1', action: 'remove', item: 'Iron Ring', before: { status: null }, after: { status: 'removed', removedReason: 'Recorded twice' } })
+  it('is about who the award is for and where it came from, which the entry does not list', () => {
+    const facts = logFacts(removal, byId, who, (id) => (id === 'a1' ? award : undefined))
+    assert.deepEqual(facts.players.map((person) => person.name).sort(), ['Aria', 'Brock'])
+    assert.equal(facts.encounter, 'Test Hall \u00b7 Warden')
+    assert.equal(facts.itemId, 101)
+    assert.ok(matchesLogFilter(facts, { ...noLogFilter, player: 'name:brock' }, slotOf))
+    assert.ok(matchesLogFilter(facts, { ...noLogFilter, encounter: 'd:test hall' }, slotOf))
+    assert.ok(matchesLogFilter(facts, { ...noLogFilter, slot: 'Finger' }, slotOf))
+  })
+  it('knows nothing more than the entry when the award is not known', () => {
+    assert.deepEqual(logFacts(removal, byId, who).players, [])
+  })
+})
+
+describe('logFacts for a receipt that was moved', () => {
+  it('is about both people, so filtering by either finds the entry', () => {
+    const facts = logFacts(entry({ targetType: 'award', targetId: 'a1', item: 'Iron Ring', before: { recipient: 'Aria' }, after: { recipient: 'Brock' } }), byId, who)
+    assert.deepEqual(facts.players.map((entry) => entry.name).sort(), ['Aria', 'Brock'])
+  })
+})
+
 describe('logFacts', () => {
   it('takes what the entry lists, and the rest from the priority as it stands', () => {
     const facts = logFacts(entry({ after: { councilNote: 'x' } }), byId, who)
@@ -69,9 +93,21 @@ describe('matchesLogFilter', () => {
     assert.equal(matchesLogFilter(facts, { ...noLogFilter, encounter: 'b:test hall|queen' }, slotOf), false)
     assert.equal(matchesLogFilter({ ...facts, encounter: '' }, { ...noLogFilter, encounter: 'd:test hall' }, slotOf), false)
   })
+  it('finds a manual award by its dungeon, whether it was recorded with a boss or with none, and by its boss', () => {
+    const award = (encounter: string) => logFacts(entry({ targetType: 'award', targetId: 'a1', item: 'Test Sword', action: 'create', after: { item: 'Test Sword', encounter, recipient: 'Aria', decision: 'roll' } }), byId, who)
+    const dungeonOnly = award('Test Hall \u00b7')
+    assert.equal(dungeonOnly.encounter, 'Test Hall \u00b7')
+    assert.ok(matchesLogFilter(dungeonOnly, { ...noLogFilter, encounter: 'd:test hall' }, slotOf))
+    assert.ok(matchesLogFilter(dungeonOnly, { ...noLogFilter, encounter: 'b:test hall|' }, slotOf), 'listed under the dungeon with no boss noted')
+    assert.equal(matchesLogFilter(dungeonOnly, { ...noLogFilter, encounter: 'b:test hall|warden' }, slotOf), false)
+    const both = award('Test Hall \u00b7 Warden')
+    assert.ok(matchesLogFilter(both, { ...noLogFilter, encounter: 'd:test hall' }, slotOf))
+    assert.ok(matchesLogFilter(both, { ...noLogFilter, encounter: 'b:test hall|warden' }, slotOf))
+    assert.equal(matchesLogFilter(award('Cave \u00b7'), { ...noLogFilter, encounter: 'd:test hall' }, slotOf), false)
+  })
   it('needs every dropdown that is set to match, and hides a phase entry as soon as one is set', () => {
-    assert.ok(matchesLogFilter(facts, { player: 'name:brock', slot: 'Finger', encounter: 'd:test hall' }, slotOf))
-    assert.equal(matchesLogFilter(facts, { player: 'name:brock', slot: 'Head', encounter: 'd:test hall' }, slotOf), false)
+    assert.ok(matchesLogFilter(facts, { ...noLogFilter, player: 'name:brock', slot: 'Finger', encounter: 'd:test hall' }, slotOf))
+    assert.equal(matchesLogFilter(facts, { ...noLogFilter, player: 'name:brock', slot: 'Head', encounter: 'd:test hall' }, slotOf), false)
     assert.equal(matchesLogFilter({ about: 'phase', item: '', encounter: '', players: [] }, { ...noLogFilter, player: 'name:aria' }, slotOf), false)
     assert.equal(matchesLogFilter({ about: 'table', item: '', encounter: '', players: [] }, { ...noLogFilter, player: 'name:aria' }, slotOf), false)
     assert.ok(matchesLogFilter({ about: 'table', item: '', encounter: '', players: [] }, noLogFilter, slotOf))

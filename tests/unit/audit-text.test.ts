@@ -80,7 +80,8 @@ describe('describeEntry', () => {
     assert.deepEqual(details, ['Award date: 2026-12-09', 'Award note: (empty)', 'Phase: Launch'])
   })
   it('says an award was corrected or removed, with the reason', () => {
-    assert.deepEqual(text({ targetType: 'award', changed: ['recipient'], before: { recipient: 'Aria' }, after: { recipient: 'Brock' } }), { title: 'Corrected the award of \u201cTest Sword\u201d', details: ['Recipient: Aria \u2192 Brock'] })
+    assert.deepEqual(text({ targetType: 'award', changed: ['awardNote'], before: { awardNote: '' }, after: { awardNote: 'Rolled' } }), { title: 'Corrected the award of \u201cTest Sword\u201d', details: ['Award note: (empty) \u2192 Rolled'] })
+    assert.deepEqual(text({ targetType: 'award', changed: ['recipient'], before: { recipient: 'Aria' }, after: { recipient: 'Brock' } }), { title: 'Moved the award of \u201cTest Sword\u201d from Aria to Brock', details: [] })
     const removed = text({ targetType: 'award', action: 'remove', changed: ['status', 'removedReason'], before: { status: null }, after: { status: 'removed' }, reason: 'Entered twice' })
     assert.equal(removed.title, 'Removed the award of \u201cTest Sword\u201d')
     assert.deepEqual(removed.details, ['Reason: Entered twice'])
@@ -92,6 +93,38 @@ describe('describeEntry', () => {
   })
   it('reads an erase entry with no numbers as zero erased, and does not break', () => {
     assert.match(text({ targetType: 'ledger', action: 'erase', item: 'Launch prep' }).details[0] ?? '', /^0 awards, 0 loot priorities and 0 Log entries/)
+  })
+  it('says a receipt was moved, from whom to whom, with the reason', () => {
+    const moved = text({ targetType: 'award', changed: ['recipient', 'recipientId'], before: { recipient: 'Aria', recipientId: 'p-1' }, after: { recipient: 'Brock', recipientId: 'p-2' }, reason: 'Recorded to the wrong character' })
+    assert.equal(moved.title, 'Moved the award of “Test Sword” from Aria to Brock')
+    assert.deepEqual(moved.details, ['Reason: Recorded to the wrong character'])
+    // A change of the date alongside it is still listed; a change that is not of the recipient is a plain correction.
+    assert.deepEqual(text({ targetType: 'award', changed: ['recipient', 'awardedAt'], before: { recipient: 'Aria', awardedAt: '2026-12-09' }, after: { recipient: 'Brock', awardedAt: '2026-12-10' } }).details, ['Award date: 2026-12-09 → 2026-12-10'])
+    assert.equal(text({ targetType: 'award', changed: ['awardNote'], before: { awardNote: '' }, after: { awardNote: 'x' } }).title, 'Corrected the award of “Test Sword”')
+  })
+  it('names who a removed or restored award was for, when the Log can say', () => {
+    const lookups = { awardRecipient: (id: string) => (id === 'a1' ? 'Aria' : undefined) }
+    const removed = describeEntry(entry({ targetType: 'award', targetId: 'a1', action: 'remove', changed: ['status', 'removedReason'], before: { status: null }, after: { status: 'removed' }, reason: 'Entered twice' }), phaseName, lookups)
+    assert.equal(removed.title, 'Removed the award of “Test Sword” to Aria')
+    const restored = describeEntry(entry({ targetType: 'award', targetId: 'a1', changed: ['status', 'removedReason'], before: { status: 'removed', removedReason: 'Entered twice' }, after: { status: 'active', removedReason: null } }), phaseName, lookups)
+    assert.equal(restored.title, 'Restored the award of “Test Sword” to Aria')
+    assert.deepEqual(restored.details, ['It was removed because: Entered twice'])
+    assert.equal(describeEntry(entry({ targetType: 'award', targetId: 'zz', action: 'remove', changed: ['status'], reason: 'x' }), phaseName, lookups).title, 'Removed the award of “Test Sword”')
+  })
+  it('says how a manual award was decided, and records it as an award with no priority', () => {
+    const { title, details } = text({ targetType: 'award', action: 'create', changed: ['item', 'encounter', 'recipient', 'recipientId', 'awardedAt', 'awardNote', 'decision', 'phaseNo'], after: { item: 'Test Sword', encounter: 'Test Hall \u00b7', recipient: 'Aria', recipientId: 'p-1', awardedAt: '2026-12-09', awardNote: 'Both rolled', decision: 'roll', phaseNo: 1 } })
+    assert.equal(title, 'Awarded \u201cTest Sword\u201d to Aria')
+    assert.deepEqual(details, ['Dungeon and boss: Test Hall', 'Award date: 2026-12-09', 'Award note: Both rolled', 'Decision: Roll', 'Phase: Second'])
+    assert.equal(showValue('decision', 'council', phaseName), 'Council')
+    assert.equal(showValue('decision', '', phaseName), '(empty)')
+  })
+  it('reads a dungeon recorded with no boss ("Dungeon \u00b7") as the dungeon, and leaves a dungeon and boss alone', () => {
+    assert.equal(showValue('encounter', 'Test Hall \u00b7', phaseName), 'Test Hall')
+    assert.equal(showValue('encounter', 'Test Hall \u00b7 ', phaseName), 'Test Hall')
+    assert.equal(showValue('encounter', 'Test Hall \u00b7 Hall Warden', phaseName), 'Test Hall \u00b7 Hall Warden')
+    assert.equal(showValue('encounter', 'Hall Warden', phaseName), 'Hall Warden')
+    assert.equal(showValue('encounter', '', phaseName), '(empty)')
+    assert.equal(showValue('encounter', '\u00b7', phaseName), '(empty)')
   })
   it('does not break on an entry it does not know, or an item with no name', () => {
     assert.equal(text({ targetType: 'raid', action: 'cancel', item: '' }).title, 'cancel raid \u201cUntitled\u201d')

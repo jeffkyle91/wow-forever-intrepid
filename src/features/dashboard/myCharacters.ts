@@ -1,6 +1,6 @@
 import type { AfkEntryRecord, AwardRecord, PlayerRecord, PriorityRecord, RaidRecord } from '../../guildApi'
 import { makeWho, readLines } from '../../shared/game/candidates.ts'
-import { listingProgress, type PriorityLookup } from '../../shared/game/completion.ts'
+import { isRemovedAward, listingProgress, type PriorityLookup } from '../../shared/game/completion.ts'
 import { phaseNoOf } from '../../shared/game/phases.ts'
 import { unavailableOn } from '../../shared/raids/availability.ts'
 
@@ -17,6 +17,14 @@ export function findMyCharacters(roster: PlayerRecord[], uid: string): { linked:
 
 // A line or an award is a character's when it carries that character's id; an older one carries a name only, which matches the character's first name.
 const sameName = (name: string, player: PlayerRecord) => name.trim().toLowerCase() === player.name.trim().toLowerCase()
+
+/**
+ * Only what belongs to phase `no` (a priority or an award with no phase is the first phase's). My dashboard shows the phase the guild is in: what an earlier phase still
+ * owed moves forward with Carry over, and the rest is history, which the Log keeps. Pure.
+ */
+export function inPhase<T extends { phaseNo?: unknown }>(records: T[], no: number): T[] {
+  return records.filter((record) => phaseNoOf(record) === no)
+}
 
 export type MyPriority = { priority: PriorityRecord; phaseNo: number; position: number; character: PlayerRecord; received: boolean }
 
@@ -38,8 +46,9 @@ export function myPriorities(priorities: PriorityRecord[], characters: PlayerRec
   return result.sort((a, b) => b.phaseNo - a.phaseNo || a.position - b.position || a.priority.item.localeCompare(b.priority.item))
 }
 
+// The loot this account's characters received. A removed award is not loot anyone received (it stays in the Log).
 export function myAwards(awards: AwardRecord[], characters: PlayerRecord[]) {
-  return awards.filter((award) => characters.some((character) => (award.recipientId !== undefined ? award.recipientId === character.id : sameName(award.recipient, character))))
+  return awards.filter((award) => !isRemovedAward(award) && characters.some((character) => (award.recipientId !== undefined ? award.recipientId === character.id : sameName(award.recipient, character))))
 }
 
 export type UpcomingRaid = { raid: RaidRecord; unavailable: boolean }

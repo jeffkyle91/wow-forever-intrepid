@@ -5,7 +5,9 @@ import { makeWho } from '../../shared/game/candidates'
 import { currentPhaseNo, phaseName, phaseNoOf } from '../../shared/game/phases'
 import type { TabContext } from '../../shared/tabs/types'
 import { Modal } from '../../shared/ui/Modal'
-import { nameKey } from './completion'
+import { listingProgress, nameKey, priorityLookup } from './completion'
+import { mainsFirstText, waitingMains, withAltRunNote } from './mainsFirst'
+import './MainsFirst.css'
 import { bossChoices, DECISIONS, dungeonChoices, MANUAL_ENCOUNTER_MAX, MANUAL_ITEM_MAX, MANUAL_NOTE_MAX, manualAward, possibleDuplicate, SEPARATOR } from './manualAward'
 import { useBossOrder } from './useDropTables'
 import './ManualAward.css'
@@ -35,6 +37,7 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
   const [awardedAt, setAwardedAt] = useState(today)
   const [decision, setDecision] = useState('roll')
   const [awardNote, setAwardNote] = useState('')
+  const [altRun, setAltRun] = useState(false)
   const itemInput = useRef<HTMLInputElement>(null)
 
   const listed = [...allPriorities, ...hiddenPriorities].filter((priority) => phaseNoOf(priority) === phaseNo)
@@ -47,7 +50,10 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
   const people = [...roster].sort((a, b) => a.name.localeCompare(b.name))
   // An item that is on a priority list of the phase is recorded under the list's own spelling (however it was typed), so it reads the same everywhere.
   const onList = item.trim() === '' ? undefined : listed.find((priority) => nameKey(priority.item) === nameKey(item))
-  const result = manualAward({ item: onList?.item ?? item, dungeon, boss, recipientId, awardedAt, decision, awardNote }, who, phaseNo)
+  // Mains get loot priority over alts: when the item is on a list of the phase and an alt is chosen while a main on it is still waiting, say so (a warning, never a block).
+  // The tick is for this award only: it resets with the item and the recipient.
+  const waiting = onList ? waitingMains(onList, listingProgress(onList, live.data.awards, priorityLookup([...allPriorities, ...hiddenPriorities]), who).received, who, roster, recipientId || undefined) : []
+  const result = manualAward({ item: onList?.item ?? item, dungeon, boss, recipientId, awardedAt, decision, awardNote: altRun && waiting.length > 0 ? withAltRunNote(awardNote) : awardNote }, who, phaseNo)
   const hasList = onList !== undefined
   // The Log filters a drop by its dungeon: say so while there is none (a whole "dungeon · boss" typed as the boss counts as one).
   const placeHint = dungeon.trim() !== '' || boss.includes(SEPARATOR) ? '' : boss.trim() !== '' ? 'Without a dungeon, the Log lists this drop under \u201cOther priorities\u201d in its dungeon filter.' : 'Pick the dungeon so the Log can filter this drop by it.'
@@ -68,6 +74,7 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
         setItem('')
         setRecipientId('')
         setAwardNote('')
+        setAltRun(false)
         itemInput.current?.focus()
       } else close()
     } catch (error) {
@@ -80,13 +87,17 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
   return <Modal title="Record loot" onClose={close}>
     <form className="modal-form manual-award-form" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void record(false) }}>
       <p className="manual-award-intro">For a drop decided without a priority list, such as a roll. It is recorded in <strong>{phaseName(settings, phaseNo)}</strong> and written to the Log.</p>
-      <label>Item<input ref={itemInput} value={item} list="manual-award-items" maxLength={MANUAL_ITEM_MAX} autoComplete="off" autoFocus required placeholder="The item's name" onChange={(event) => setItem(event.target.value)} /></label>
+      <label>Item<input ref={itemInput} value={item} list="manual-award-items" maxLength={MANUAL_ITEM_MAX} autoComplete="off" autoFocus required placeholder="The item's name" onChange={(event) => { setItem(event.target.value); setAltRun(false) }} /></label>
       <datalist id="manual-award-items">{itemNames.map((name) => <option key={name} value={name} />)}</datalist>
       {hasList && <p className="manual-award-hint">This item has a priority list in {phaseName(settings, phaseNo)}: a receipt to someone on it marks them received there.</p>}
-      <label>Awarded to<select value={recipientId} onChange={(event) => setRecipientId(event.target.value)} required>
+      <label>Awarded to<select value={recipientId} onChange={(event) => { setRecipientId(event.target.value); setAltRun(false) }} required>
         <option value="" disabled>Choose a character</option>
         {people.map((player) => <option key={player.id} value={player.id}>{player.name} ({player.className})</option>)}
       </select></label>
+      {waiting.length > 0 && <div className={altRun ? 'mains-first mains-first-off' : 'mains-first'} role="status">
+        <p>{altRun ? 'Recorded as an alt-only run: the warning is off for this award.' : mainsFirstText(waiting)}</p>
+        <label className="mains-first-tick"><input type="checkbox" checked={altRun} onChange={(event) => setAltRun(event.target.checked)} /> Alt-only run</label>
+      </div>}
       <div className="manual-award-row manual-award-place">
         <div className="manual-award-dungeon">
           <label>Dungeon<select value={dungeonPick} aria-describedby={placeHint ? 'manual-award-place-hint' : undefined} onChange={(event) => setDungeonPick(event.target.value)}>

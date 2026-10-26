@@ -1,0 +1,13 @@
+/* The warning of the award dialogs when an alt would get an item a main on the list still needs (LOOT-006), and the alt-only tick that switches it off for that award.
+   The selectors start with .mains-first so they win over the dialog form's own rules for labels and inputs (.modal-form label, .modal-form input). */
+.mains-first { display: grid; gap: 6px; margin: 0; padding: 8px 10px; border-left: 3px solid #d29b2d; border-radius: 0 var(--card-radius) var(--card-radius) 0; color: #6a4a10; background: #fbf3df; font-size: 11px; line-height: 1.45; }
+.mains-first p { margin: 0; }
+.mains-first .mains-first-tick { display: flex; align-items: center; gap: 8px; min-height: 28px; color: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.mains-first .mains-first-tick input[type='checkbox'] { flex: 0 0 auto; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; accent-color: #4a6a85; }
+.mains-first .mains-first-tick input[type='checkbox']:focus-visible { outline: 2px solid #568bc0; outline-offset: 2px; }
+.mains-first.mains-first-off { border-left-color: #8a9a8f; color: #526158; background: #eef3ee; }
+:root[data-theme='dark'] .mains-first { border-left-color: #c9a24b; color: #f0d9a0; background: #3a2f17; }
+:root[data-theme='dark'] .mains-first .mains-first-tick { color: inherit; }
+:root[data-theme='dark'] .mains-first .mains-first-tick input[type='checkbox']:focus-visible { outline-color: #8fc2e6; }
+:root[data-theme='dark'] .mains-first.mains-first-off { border-left-color: #6f8296; color: #bfccd9; background: #223040; }
+@media (max-width: 600px) { .mains-first .mains-first-tick { min-height: 44px; } }

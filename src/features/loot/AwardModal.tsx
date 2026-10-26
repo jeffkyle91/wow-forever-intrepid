@@ -1,4 +1,4 @@
-import { useMemo, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Check, Shield } from 'lucide-react'
 import { recordAward, recordAwardThroughNote, type NewAward, type PriorityRecord as LootPriority } from '../../guildApi'
 import { coinsArt } from '../../shared/art'
@@ -8,6 +8,8 @@ import { ArtIcon } from '../../shared/ui/ArtIcon'
 import { Modal } from '../../shared/ui/Modal'
 import { phaseNoOf } from '../../shared/game/phases'
 import { listingProgress, priorityLookup, recipientChoices } from './completion'
+import { mainsFirstText, waitingMains, withAltRunNote } from './mainsFirst'
+import './MainsFirst.css'
 
 // The award snapshot (candidate order and council note at decision time) is built here,
 // from the `priority` captured when the modal was opened, never from live data. It keeps the names and the ids of the lines exactly as the priority stored them.
@@ -28,6 +30,12 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
   const openNotes = lines.flatMap((line, index) => (line.kind === 'note' && !line.done ? [{ text: line.text, index }] : []))
   const listed = new Set(choices.map((choice) => choice.key))
   const others = sortPlayers(live.data.roster.filter((player) => !listed.has(`id:${player.id}`)), 'class')
+  // Mains get loot priority over alts: a warning, never a block. The tick is for this award only, so it resets when the recipient changes.
+  const [recipient, setRecipient] = useState(defaultRecipient)
+  const [altRun, setAltRun] = useState(false)
+  const recipientLine = recipient.startsWith('p:') ? lines.find((entry) => who.lineKey(entry) === recipient.slice(2)) : undefined
+  const recipientId = recipient.startsWith('n:') ? recipient.split(':')[2] : recipientLine?.kind === 'character' ? (recipientLine.id !== undefined ? who.player(recipientLine.id) : who.byName(recipientLine.name))?.id : undefined
+  const waiting = waitingMains(priority, progress.received, who, live.data.roster, recipientId)
 
   async function submitAward(event: FormEvent<HTMLFormElement>, priority: LootPriority) {
     event.preventDefault()
@@ -41,7 +49,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
       prioritySnapshot: [...priority.rankedPlayers],
       ...(priority.rankedIds ? { prioritySnapshotIds: [...priority.rankedIds] } : {}),
       councilNoteSnapshot: priority.councilNote,
-      awardNote: String(data.get('awardNote')).trim(),
+      awardNote: altRun && waiting.length > 0 ? withAltRunNote(String(data.get('awardNote'))) : String(data.get('awardNote')).trim(),
       phaseNo: phaseNoOf(priority),
     }
     const author = { uid: live.identity.uid, displayName: live.identity.displayName }
@@ -76,12 +84,16 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
   const label = (choice: { name: string; listed: number; received: number }) => choice.listed > 1 ? `${choice.name} (${choice.received} of ${choice.listed} received)` : choice.received ? `${choice.name} (received)` : choice.name
 
   return <Modal title="Record loot award" onClose={close}><div className="award-modal-item"><span className="item-gem"><ArtIcon src={coinsArt} className="loot-art-icon" /></span><span><strong>{priority.item}</strong><small>{priority.encounter}</small></span></div><form className="modal-form" onSubmit={(event) => submitAward(event, priority)}>
-    <label>Awarded to<select name="recipient" defaultValue={defaultRecipient} required>
+    <label>Awarded to<select name="recipient" value={recipient} onChange={(event) => { setRecipient(event.target.value); setAltRun(false) }} required>
       <option value="" disabled>Choose a character</option>
       {choices.length > 0 && <optgroup label="On the list">{choices.map((choice) => <option key={choice.key} value={`p:${choice.key}`}>{label(choice)}</option>)}</optgroup>}
       {openNotes.map((note) => <optgroup key={note.index} label={`Through the note: ${note.text}`}>{others.map((player) => <option key={player.id} value={`n:${note.index}:${player.id}`}>{player.name} ({player.className})</option>)}</optgroup>)}
     </select></label>
     {openNotes.length > 0 && <p className="field-hint">A character chosen through a note is put on the list where the note is, and the note moves down.</p>}
+    {waiting.length > 0 && <div className={altRun ? 'mains-first mains-first-off' : 'mains-first'} role="status">
+      <p>{altRun ? 'Recorded as an alt-only run: the warning is off for this award.' : mainsFirstText(waiting)}</p>
+      <label className="mains-first-tick"><input type="checkbox" checked={altRun} onChange={(event) => setAltRun(event.target.checked)} /> Alt-only run</label>
+    </div>}
     <label>Award date<input type="date" name="awardedAt" defaultValue={awardedAt} required /></label>
     <label>Council decision note<textarea name="awardNote" rows={3} placeholder="Optional context for the permanent record" /></label>
     <p className="snapshot-callout"><Shield size={15} /> The current priority order and council note will be saved with this award.</p>

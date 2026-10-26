@@ -6,6 +6,14 @@
 
 ## 1. Method and what "verified" means here
 
+### Local checklist correction (2026-10-25, RAID-007 / #27)
+
+The standard checklist now separates **Faerie Fire** (Druid, E77) and **Curse of Recklessness** (Warlock, E68) from the **Sunder Armor / Expose Armor** planning requirement (Warrior/Rogue, E05/E33). Each separate requirement has its own icon and provider result. R25 below records the original research grouping, not evidence that all four spells are interchangeable.
+
+This is a provider-checklist correction requested for the local implementation, **not new game verification**. The cited Forever tooltips do not establish stacking among these armor effects, nor Sunder/Expose replacement mechanics. Sunder/Expose remain provisional planning alternatives. Separate Available results mean eligible providers exist, not that the effects stack, are active, or can all be maintained simultaneously. Warlock curse exclusivity is still unresolved in the catalog (no slots); do not infer that one Warlock can maintain all curses on one target. No confidence, scope status or verification date has been promoted, and the original research date is unchanged.
+
+Product decision, October 25: the current catalog is accepted for raid planning. The interface uses normal planning statuses, combined counts and consistent solid status borders, without research-confidence warnings, sources or verification caveats. A separate catalog-based planning pass accepts all displayed effects while preserving specialization, talent, party, demand and conflict rules. Existing research results, source/confidence fields and notes remain internal and unchanged. Available means provider availability, not an active spell. This does not complete the recurring research reviews.
+
 Sources used (all Wowhead Forever; no Classic or TBC pages):
 
 | Source | Used for |
@@ -244,7 +252,7 @@ This is a proposed grouping. **Stacking between different groups is mostly not s
 | R22 | Frost resistance | E54 Frost Resistance Totem, E21 Frost Resistance Aura | Not stated. |
 | R23 | Nature resistance | E55 Nature Resistance Totem, E29 Aspect of the Wild | Not stated. |
 | R24 | Shadow resistance | E22 Shadow Resistance Aura, E39 Prayer of Shadow Protection, E38 Shadow Protection | Not stated. |
-| R25 | Enemy armor reduction | E05 Sunder Armor, E33 Expose Armor, E77 Faerie Fire, E68 Curse of Recklessness | **Not stated.** Classic assumptions must not be copied. |
+| R25 | Enemy armor reduction (original research family) | E05 Sunder Armor, E33 Expose Armor; separately E77 Faerie Fire and E68 Curse of Recklessness in the current checklist | **Not stated.** Classic assumptions must not be copied. The current checklist keeps only Sunder/Expose as provisional planning alternatives; separate requirements do not assert stacking (see 2026-10-25 correction). |
 | R26 | Enemy melee AP reduction | E06 Demoralizing Shout, E78 Demoralizing Roar, E46 Hex of Weakness, E70 Curse of Weakness | Not stated. |
 | R27 | Enemy attack speed reduction | E07 Thunder Clap, E47 Homunculi | Not stated. |
 | R28 | Enemy magic vulnerability | E69 Curse of the Elements | One curse per warlock. |

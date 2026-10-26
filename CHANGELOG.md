@@ -6,7 +6,8 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
-No pending member-facing changes.
+- Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
+- Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
 
 ## 2026-10-25 - ce1a288
 

@@ -40,13 +40,13 @@ describe('equivalent debuffs: Sunder Armor versus Expose Armor', () => {
     assert.equal(tile.status, 'available')
     assert.equal(tile.tooltip.heading, 'Sunder Armor')
     assert.ok(tile.tooltip.notes.includes('Provided by: Protection Warrior'))
-    assert.ok(tile.tooltip.notes.includes('Also available: Expose Armor, Faerie Fire, Curse of Recklessness'))
+    assert.ok(tile.tooltip.notes.includes('Also available: Expose Armor'))
   })
 
   it('shows Sunder Armor alone from Warriors, with no Expose Armor, when there is no Rogue (Yellow)', () => {
     const tile = tileOf(team('yellow'), 'armor-reduction')
     assert.equal(tile.tooltip.heading, 'Sunder Armor')
-    assert.ok(tile.tooltip.notes.includes('Also available: Faerie Fire, Curse of Recklessness'))
+    assert.ok(!tile.tooltip.notes.some((note) => note.startsWith('Also available:')))
   })
 
   it('shows Expose Armor when only Rogues can provide the Warrior-or-Rogue effect (Red)', () => {
@@ -60,18 +60,32 @@ describe('equivalent debuffs: Sunder Armor versus Expose Armor', () => {
   it('is Missing, and lists every possible spell with its class, when no provider is present (White)', () => {
     const tile = tileOf(team('white'), 'armor-reduction')
     assert.equal(tile.status, 'missing')
-    assert.deepEqual(tile.tooltip.spells.map((spell) => [spell.name, spell.providers]), [['Sunder Armor', 'Warrior'], ['Expose Armor', 'Rogue'], ['Faerie Fire', 'Druid'], ['Curse of Recklessness', 'Warlock']])
+    assert.deepEqual(tile.tooltip.spells.map((spell) => [spell.name, spell.providers]), [['Sunder Armor', 'Warrior'], ['Expose Armor', 'Rogue']])
   })
 
   it('is one requirement however many alternatives a team has, and each alternative alone satisfies it', () => {
     const armor = standardEffects(coverageEffects).filter((entry) => entry.stackGroup === 'armor-reduction')
-    assert.deepEqual(armor.map((entry) => entry.id), ['sunder-armor', 'expose-armor', 'faerie-fire', 'curse-of-recklessness'])
-    for (const [className, spell] of [['Warrior', 'Sunder Armor'], ['Rogue', 'Expose Armor'], ['Druid', 'Faerie Fire'], ['Warlock', 'Curse of Recklessness']]) {
+    assert.deepEqual(armor.map((entry) => entry.id), ['sunder-armor', 'expose-armor'])
+    for (const [className, spell] of [['Warrior', 'Sunder Armor'], ['Rogue', 'Expose Armor']]) {
       const [requirement, ...rest] = calculateCoverage(armor, [{ id: '1', name: 'P', className, specialization: '' }]).requirements
       assert.equal(rest.length, 0)
       assert.equal(requirement.estimate.status, 'available', spell)
     }
     assert.equal(calculateCoverage(armor, [...team('blue'), ...team('red')]).requirements.length, 1)
+  })
+
+  it('tracks Druid and Warlock armor effects separately on every seeded team', () => {
+    for (const key of ['blue', 'yellow', 'red', 'white'] as const) {
+      for (const [id, className, name] of [['faerie-fire', 'Druid', 'Faerie Fire'], ['curse-of-recklessness', 'Warlock', 'Curse of Recklessness']]) {
+        const tile = tileOf(team(key), id)
+        assert.equal(tile.status, team(key).some((player) => player.className === className) ? 'available' : 'missing', `${key}: ${id}`)
+        assert.equal(tile.spellName, name)
+        assert.deepEqual(tile.providerClasses, [className])
+        assert.deepEqual(tile.alternatives, [])
+        assert.equal(tile.estimated, true)
+        assert.ok(tile.iconUrl)
+      }
+    }
   })
 
   it('applies the same alternative-provider rule to the other consolidated debuffs and buffs', () => {
@@ -101,10 +115,10 @@ describe('checklist audit', () => {
     assert.equal(new Set(names).size, names.length)
   })
 
-  it('has one requirement per group and 23 in total', () => {
+  it('has one requirement per group and 25 in total', () => {
     const keys = calculateCoverage(standard, []).requirements.map((requirement) => requirement.key)
     assert.equal(new Set(keys).size, keys.length)
-    assert.equal(keys.length, 23)
+    assert.equal(keys.length, 25)
   })
 
   it('has no requirement whose group mixes unrelated categories', () => {
@@ -146,7 +160,7 @@ describe('coverage across the seeded teams', () => {
 
   it('keeps every requirement satisfiable or explained for the full raid', () => {
     const tiles = coverageTiles(coverageEffects, players)
-    assert.equal(tiles.length, 23)
+    assert.equal(tiles.length, 25)
     for (const tile of tiles) assert.ok(tile.tooltip.heading && tile.tooltip.headline, tile.key)
     const effect: CoverageEffect | undefined = coverageEffects.find((entry) => entry.id === 'sunder-armor')
     assert.ok(effect)

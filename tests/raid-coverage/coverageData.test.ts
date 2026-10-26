@@ -44,7 +44,7 @@ describe('real catalog', () => {
   it('has the expected size and verification split', () => {
     const report = calculateCoverage(coverageEffects, [])
     assert.equal(coverageEffects.length, 58)
-    assert.equal(report.requirements.length, 33)
+    assert.equal(report.requirements.length, 35)
     assert.equal(coverageEffects.filter((entry) => entry.confidence ===     'provisional').length, 43)
         assert.equal(coverageEffects.filter((entry) => entry.confidence === 'unverified').length, 15)
   })
@@ -87,7 +87,9 @@ describe('real catalog', () => {
 
   it('keeps alternative providers together in one requirement', () => {
     const report = calculateCoverage(coverageEffects, [])
-    assert.deepEqual(providersOf(report, 'armor-reduction'), ['Druid', 'Rogue', 'Warlock', 'Warrior'])
+    assert.deepEqual(providersOf(report, 'armor-reduction'), ['Rogue', 'Warrior'])
+    assert.deepEqual(providersOf(report, 'faerie-fire'), ['Druid'])
+    assert.deepEqual(providersOf(report, 'curse-of-recklessness'), ['Warlock'])
     assert.deepEqual(providersOf(report, 'melee-attack-power-reduction'), ['Druid', 'Priest', 'Warlock', 'Warrior'])
     assert.deepEqual(providersOf(report, 'extra-melee-attacks'), ['Druid', 'Shaman'])
     assert.deepEqual(providersOf(report, 'melee-attack-power'), ['Paladin'])
@@ -98,6 +100,28 @@ describe('real catalog', () => {
   it('does not copy the Classic Moonkin and Leader of the Pack exclusivity', () => {
     const keys = calculateCoverage(coverageEffects, []).requirements.map((requirement) => requirement.key)
     assert.ok(keys.includes('moonkin-form') && keys.includes('leader-of-the-pack'))
+  })
+
+  it('keeps armor requirements independent without promoting confidence or asserting stacking', () => {
+    const armor = coverageEffects.filter((entry) => ['sunder-armor', 'expose-armor', 'faerie-fire', 'curse-of-recklessness'].includes(entry.id))
+    for (const entry of armor) {
+      assert.equal(entry.confidence, 'provisional')
+      assert.equal(entry.scopeStatus, 'provisional')
+      assert.equal(entry.verifiedOn, undefined)
+      assert.equal(entry.slot, undefined)
+      assert.match(entry.notes!, /not (?:evidence|verified)|unverified/)
+    }
+    for (const [className, expected] of [
+      ['Warrior', ['available', 'missing', 'missing']],
+      ['Rogue', ['available', 'missing', 'missing']],
+      ['Druid', ['missing', 'available', 'missing']],
+      ['Warlock', ['missing', 'missing', 'available']],
+    ] as const) {
+      const report = calculateCoverage(armor, [member('1', className)])
+      assert.deepEqual(report.requirements.map((requirement) => requirement.key), ['armor-reduction', 'faerie-fire', 'curse-of-recklessness'])
+      assert.deepEqual(report.requirements.map((requirement) => requirement.estimate.status), expected, className)
+      assert.ok(report.requirements.every((requirement) => requirement.status === 'unverified'))
+    }
   })
 
   it('marks effects that need a talent or rune on the provider', () => {
@@ -121,7 +145,9 @@ describe('real catalog, if every entry were later confirmed (provider matching o
     assert.equal(druid['leader-of-the-pack'], 'potential')
     assert.equal(druid['moonkin-form'], 'potential')
     assert.equal(druid['mark-of-the-wild'], 'available')
-    assert.equal(druid['armor-reduction'], 'available')
+    assert.equal(druid['armor-reduction'], 'missing')
+    assert.equal(druid['faerie-fire'], 'available')
+    assert.equal(druid['curse-of-recklessness'], 'missing')
     assert.equal(druid['extra-melee-attacks'], 'potential')
     const hunter = Object.fromEntries(calculateCoverage(pretendConfirmed(), [member('1', 'Hunter')]).requirements.map((r) => [r.key, r.status]))
     assert.equal(hunter['trueshot-aura'], 'potential')

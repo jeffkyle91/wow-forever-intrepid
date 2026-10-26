@@ -274,17 +274,17 @@ describe('tooltip provider text', () => {
     assert.ok(!lines.some((line) => line.startsWith('Possible in this team')))
   })
 
-  it('shows an assumed Feral Druid as Estimated Available with the assumption explained', () => {
+  it('shows an assumed Feral Druid as Available with the talent assumption explained', () => {
     const t = tile('leader-of-the-pack')
-    assert.equal(t.statusLabel, 'Estimated Available')
+    assert.equal(t.statusLabel, 'Available')
     assert.equal(t.glyph, '✓')
     assert.ok(t.estimated)
-    assert.ok(t.lines.some((line) => line.startsWith('Planning assumption, not a confirmed talent selection or verified Forever mechanic:') && line.includes('Feral Combat tree')))
+    assert.ok(t.lines.includes('The catalog assumes this talent for the assigned specialization; individual talent selections are not tracked.'))
   })
 
   it('keeps a Guardian Druid Possible, with no assumption wording', () => {
     const t = tile('leader-of-the-pack', [member('1', 'Druid', 'Guardian')])
-    assert.equal(t.statusLabel, 'Estimated Potential')
+    assert.equal(t.statusLabel, 'Potential')
     assert.ok(t.lines.includes('Possible in this team (talent, rune or specialization not confirmed): Guardian Druid'))
     assert.ok(!t.lines.some((line) => line.includes('Planning assumption') || line.startsWith('Assumed')))
   })

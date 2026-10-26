@@ -411,6 +411,6 @@ describe('slot presentation', () => {
 
   it('says Available means no modelled conflict, not active in game', () => {
     const tiles = coverageTiles([effect({ id: 'a', kind: 'raid-buff' })], [member('1')])
-    assert.match(tiles[0].lines.join(' '), /not a guarantee it is active in game/)
+    assert.match(tiles[0].lines.join(' '), /roster coverage, not whether the spell is active/)
   })
 })

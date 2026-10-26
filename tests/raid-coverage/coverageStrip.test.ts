@@ -89,16 +89,16 @@ describe('real catalog visibility', () => {
     assert.ok(coverageEffects.some((entry) => entry.id === 'gift-of-the-wild' && entry.visibility !== 'encounter'))
   })
 
-  it('shows 23 standard requirements and the full catalog still validates', () => {
+  it('shows 25 standard requirements and the full catalog still validates', () => {
     assert.equal(tiles.length, VISIBLE_REQUIREMENTS)
     assert.equal(standardEffects(coverageEffects).length, coverageEffects.length - 9 - excludedIds.length - 4)
-    assert.equal(calculateCoverage(coverageEffects, []).requirements.length, 33)
+    assert.equal(calculateCoverage(coverageEffects, []).requirements.length, 35)
     assert.deepEqual(validateEffects(coverageEffects), [])
   })
 })
 
 const excludedIds = ['heart-of-the-lion', 'valor-of-azeroth', 'tremor-totem', 'devotion-aura', 'judgement-of-wisdom', 'stoneskin-totem', 'fear-ward', 'judgement-of-light', 'windwall-totem']
-const VISIBLE_REQUIREMENTS = 23
+const VISIBLE_REQUIREMENTS = 25
 
 describe('excluded effects', () => {
   const members = [member('1', 'Shaman'), member('2', 'Paladin'), member('3', 'Priest'), member('4', 'Warrior')]
@@ -201,7 +201,7 @@ describe('tooltip descriptions', () => {
   it('uses the displayed alternative\'s description, not a combined one', () => {
     const armor = tiles.find((tile) => tile.name.includes('Sunder Armor'))!
     assert.equal(armor.description, spellInfo[armor.spellId!].description)
-    assert.ok(armor.alternatives.length >= 2)
+    assert.deepEqual(armor.alternatives, ['Expose Armor'])
     assert.ok(!armor.description.includes('Faerie Fire'))
   })
 
@@ -311,7 +311,7 @@ describe('icon selection', () => {
     const tiles = coverageTiles(coverageEffects, [member('1', 'Warrior')])
     const armor = tiles.filter((tile) => tile.name.includes('Sunder Armor'))
     assert.equal(armor.length, 1)
-    assert.ok(armor[0].alternatives.length >= 2)
+    assert.deepEqual(armor[0].alternatives, ['Expose Armor'])
     assert.ok(armor[0].iconUrl)
     assert.equal(tiles.every((tile) => tile.iconUrl), true)
   })
@@ -326,11 +326,11 @@ describe('tooltip content', () => {
     assert.equal(tile.estimated, true)
     assert.ok(tile.lines.includes('Eligible providers: Alpha; Beta (needs talent or rune)'))
     assert.ok(tile.lines.includes('Guaranteed in this team: Alpha (spec not set) ×2'))
-    assert.ok(tile.lines[0].startsWith('Estimate:'))
-    assert.ok(tile.lines.some((line) => line.startsWith('Estimate: provisional')))
+    assert.match(tile.lines[0], /eligible provider is assigned/)
+    assert.doesNotMatch(tile.lines.join(' '), /provisional|verified in game|Estimate:/)
     assert.ok(tile.lines.some((line) => line.includes('talent or rune')))
     assert.ok(tile.lines.some((line) => line.startsWith('Targeted')))
-    assert.equal(tile.label, 'Eff: Estimated Available')
+    assert.equal(tile.label, 'Eff: Available')
   })
 
   it('says "none" when no eligible class is assigned', () => {
@@ -346,10 +346,10 @@ describe('tooltip content', () => {
     assert.ok(tiles[0].lines.some((line) => line.startsWith('Cannot all be served together with: b')))
   })
 
-  it('never claims verified coverage for the real catalog, and explains the estimate or the lack of data', () => {
+  it('keeps research confidence internal and explains roster coverage', () => {
     for (const tile of coverageTiles(coverageEffects, [member('1', 'Warrior'), member('2', 'Druid')])) {
       assert.notEqual(tile.basis, 'verified')
-      assert.ok(tile.lines.some((line) => /^(Estimate:|Unverified:)/.test(line)), tile.key)
+      assert.doesNotMatch(tile.lines.join(' '), /Estimate:|Unverified:|provisional|verified Forever/, tile.key)
     }
   })
 })
@@ -369,17 +369,17 @@ describe('collapsed summary and default state', () => {
     ]
     const tiles = coverageTiles(effects, [member('1', 'Alpha')])
     const counts = statusCounts(tiles)
-    assert.deepEqual(counts.map((entry) => [entry.status, entry.count]), [['available', 1], ['missing', 2], ['party-unknown', 1], ['unverified', 1]])
+    assert.deepEqual(counts.map((entry) => [entry.status, entry.count]), [['available', 2], ['missing', 2], ['party-unknown', 1]])
     assert.equal(counts.reduce((sum, entry) => sum + entry.count, 0), tiles.length)
     assert.ok(counts.every((entry) => entry.glyph && entry.label))
   })
 
-  it('has no summary for an empty catalog and splits the real catalog into estimated and unverified', () => {
+  it('has no summary for an empty catalog and uses plain planning counts', () => {
     assert.deepEqual(statusCounts(coverageTiles([], [member('1', 'Alpha')])), [])
     const counts = statusCounts(coverageTiles(coverageEffects, [member('1', 'Warrior')]))
     assert.equal(counts.reduce((sum, entry) => sum + entry.count, 0), VISIBLE_REQUIREMENTS)
     assert.ok(!counts.some((entry) => entry.status === 'unverified'))
-    assert.ok(counts.filter((entry) => entry.estimated).every((entry) => entry.label.startsWith('Est. ')))
+    assert.ok(counts.every((entry) => !/Est\.|Estimated/.test(entry.label)))
     assert.ok(counts.every((entry) => entry.estimated !== (entry.status === 'unverified' || entry.status === 'party-unknown')))
   })
 })

@@ -63,18 +63,21 @@ describe('icon visual state', () => {
       effect({ id: 'c2', kind: 'raid-buff', slot: 's' }),
     ]
     const tiles = coverageTiles(effects, [member('1', 'Alpha')])
-    assert.deepEqual(tiles.map((tile) => [tile.key, tile.visual]), [['a', 'covered'], ['m', 'missing'], ['p', 'uncertain'], ['u', 'uncertain'], ['q', 'uncertain'], ['c1', 'uncertain'], ['c2', 'uncertain']])
+    assert.deepEqual(tiles.map((tile) => [tile.key, tile.visual]), [['a', 'covered'], ['m', 'missing'], ['p', 'uncertain'], ['u', 'covered'], ['q', 'uncertain'], ['c1', 'uncertain'], ['c2', 'uncertain']])
     for (const tile of tiles) {
       assert.equal(tile.glyph, statusGlyphs[tile.status])
       assert.ok(tile.label.endsWith(tile.statusLabel), tile.key)
     }
   })
 
-  it('does not draw an estimate as a verified result: the tile stays labelled Estimated', () => {
+  it('keeps research metadata internal with consistent status styling', () => {
     const [tile] = coverageTiles([effect({ id: 'e', kind: 'raid-buff', confidence: 'provisional', scopeStatus: 'provisional' })], [member('1', 'Alpha')])
     assert.equal(tile.visual, 'covered')
     assert.equal(tile.estimated, true)
-    assert.equal(tile.label, 'e: Estimated Available')
+    assert.equal(tile.label, 'e: Available')
+    assert.doesNotMatch(tile.tooltip.notes.join(' '), /Estimate|provisional|verified in game/)
+    const css = readFileSync(new URL('../../src/shared/raid-coverage/RaidCoveragePanel.css', import.meta.url), 'utf8')
+    assert.doesNotMatch(css, /cov-icon-est|cov-chip-est|cov-status-est|dashed/)
   })
 
   it('has CSS for the missing red tint and the consumable gold, in both themes', () => {
@@ -121,8 +124,14 @@ describe('active provider selection', () => {
     assert.equal(armor.tooltip.spells[0].rank, 'Rank 5')
     assert.equal(armor.tooltip.spells[0].description, spellInfo[8647].description)
     assert.equal(armor.tooltip.spells[0].iconUrl, armor.iconUrl)
-    assert.ok(armor.tooltip.notes.includes('Also available: Faerie Fire, Curse of Recklessness'))
+    assert.ok(!armor.tooltip.notes.some((note) => note.startsWith('Also available:')))
     assert.ok(armor.tooltip.notes.includes('Provided by: Combat Rogue'))
+    for (const [key, name] of [['faerie-fire', 'Faerie Fire'], ['curse-of-recklessness', 'Curse of Recklessness']]) {
+      const tile = tileOf(tiles, key)
+      assert.equal(tile.tooltip.heading, name)
+      assert.equal(tile.tooltip.spells[0].iconUrl, tile.iconUrl)
+      assert.notEqual(tile.iconUrl, armor.iconUrl)
+    }
   })
 
   it('shows the highest-rank description of a single covering spell', () => {
@@ -140,16 +149,16 @@ describe('missing and uncertain tooltips', () => {
     assert.equal(tile.visual, 'missing')
     assert.equal(tile.tooltip.state, 'missing')
     assert.deepEqual(tile.tooltip.spells.map((spell) => [spell.name, spell.providers]), [
-      ['Sunder Armor', 'Warrior'], ['Expose Armor', 'Rogue'], ['Faerie Fire', 'Druid'], ['Curse of Recklessness', 'Warlock'],
+      ['Sunder Armor', 'Warrior'], ['Expose Armor', 'Rogue'],
     ])
     assert.equal(tile.tooltip.spells[0].description, spellInfo[7386].description)
     assert.equal(tile.tooltip.spells[0].rank, 'Rank 5')
   })
 
-  it('does not offer an unverified alternative as coverage, and says it is not counted', () => {
+  it('offers catalog alternatives independently of research confidence', () => {
     const tile = tileOf(coverageTiles(coverageEffects, [member('1', 'Mage', 'Fire')]), 'spirit')
-    assert.deepEqual(tile.tooltip.spells.map((spell) => spell.name), ['Divine Spirit', 'Prayer of Spirit'])
-    assert.ok(tile.tooltip.notes.some((note) => note.startsWith('Not counted (unverified): Dark Inspiration')))
+    assert.deepEqual(tile.tooltip.spells.map((spell) => spell.name), ['Divine Spirit', 'Prayer of Spirit', 'Dark Inspiration'])
+    assert.doesNotMatch(tile.tooltip.notes.join(' '), /unverified|Not counted/)
   })
 
   it('names only the specializations a provider rule allows', () => {
@@ -169,8 +178,8 @@ describe('missing and uncertain tooltips', () => {
     assert.ok(potential.tooltip.notes.length <= 3)
     assert.ok(potential.tooltip.notes[0].includes('talent'))
     const unverified = coverageTiles([effect({ id: 'u', kind: 'raid-buff', confidence: 'unverified' })], [member('1', 'Alpha')])[0]
-    assert.equal(unverified.tooltip.state, 'uncertain')
-    assert.ok(unverified.tooltip.notes[0].startsWith('Not confirmed'))
+    assert.equal(unverified.tooltip.state, 'covered')
+    assert.doesNotMatch(unverified.tooltip.notes.join(' '), /Not confirmed|unverified/)
   })
 
   it('caps a long list of possible spells', () => {
@@ -303,7 +312,7 @@ describe('scope changes through catalog configuration', () => {
 describe('regressions', () => {
   it('keeps the real catalog valid and the standard checklist unchanged', () => {
     assert.deepEqual(validateEffects(coverageEffects), [])
-    assert.equal(calculateCoverage(coverageEffects.filter((entry) => (entry.visibility ?? 'standard') === 'standard'), []).requirements.length, 23)
+    assert.equal(calculateCoverage(coverageEffects.filter((entry) => (entry.visibility ?? 'standard') === 'standard'), []).requirements.length, 25)
   })
 
   it('keeps slot conflicts as an unresolved (not covered) icon', () => {
@@ -311,11 +320,11 @@ describe('regressions', () => {
     assert.deepEqual(tiles.map((tile) => [tile.status, tile.visual]), [['contested', 'uncertain'], ['contested', 'uncertain']])
   })
 
-  it('keeps an assumed Feral Druid as Estimated Available, drawn covered but labelled as an estimate', () => {
+  it('keeps an assumed Feral Druid Available without research warnings', () => {
     const tile = tileOf(coverageTiles(coverageEffects, [member('1', 'Druid', 'Feral')]), 'leader-of-the-pack')
-    assert.equal(tile.statusLabel, 'Estimated Available')
+    assert.equal(tile.statusLabel, 'Available')
     assert.equal(tile.visual, 'covered')
-    assert.ok(tile.tooltip.notes.includes('Estimate from provisional data; not verified in game.'))
+    assert.doesNotMatch(tile.tooltip.notes.join(' '), /Estimate|provisional|verified in game/)
   })
 })
 
@@ -375,12 +384,13 @@ describe('per-provider scope inside one requirement', () => {
   })
 })
 describe('coverage help popover rendering', () => {
-  it('renders only the selected spell name and its stored description', () => {
+  it('renders the spell description with roster status and provider requirements', () => {
     const source = readFileSync(new URL('../../src/shared/raid-coverage/RaidCoverageStrip.tsx', import.meta.url), 'utf8')
     const tip = source.slice(source.indexOf('</>}>'), source.indexOf('</HelpPopover>'))
     assert.match(source, /<HelpPopover label=\{tile\.label\}/)
     assert.match(tip, /tile\.spellName/)
     assert.match(tip, /tile\.description/)
-    assert.doesNotMatch(tip, /tooltip\.|statusLabel|\.lines|\.team|providerClasses|alternatives|basis|estimated|confidence/)
+    assert.match(tip, /tile\.lines/)
+    assert.doesNotMatch(tip, /basis|estimated|confidence/)
   })
 })

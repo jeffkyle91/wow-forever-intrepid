@@ -2,7 +2,7 @@ import { spellInfo } from './spellDescriptions.ts'
 import { iconUrl } from './spellIcons.ts'
 import type { ConsumableAlternative, CoverageEffect, ProviderMatch, RequirementResult } from './types.ts'
 
-// Tooltip content, built only from local catalog data (coverageData.ts and spellDescriptions.ts). Nothing is fetched on hover.
+// Planning help content from the accepted local catalog. Research metadata is retained, never rendered as a warning.
 
 export const MISSING_SPELL_LIMIT = 4
 export const UNCERTAIN_SPELL_LIMIT = 2
@@ -16,7 +16,7 @@ export type TipSpell = {
   iconUrl?: string
   // Which classes (and specializations) can provide it, straight from the catalog's provider rules.
   providers: string
-  // False for an effect whose data is unverified: shown, but never counted as coverage.
+  // Internal research-pass eligibility, independent of accepted-catalog planning coverage.
   counted: boolean
 }
 
@@ -76,7 +76,7 @@ export function describeSpell(effect: CoverageEffect): TipSpell {
   }
 }
 
-const providesNow = (match: ProviderMatch) => match.estimable && (match.eligibility === 'guaranteed' || match.eligibility === 'assumed')
+const providesNow = (match: ProviderMatch) => match.eligibility === 'guaranteed' || match.eligibility === 'assumed'
 
 export type ActiveProvider = { effect: CoverageEffect; players: string[] }
 
@@ -104,18 +104,13 @@ type TooltipInput = {
   statusLabel: string
   // Why the result is uncertain, one sentence (for example the status hint or the slot conflict).
   reason: string
-  estimated: boolean
   representative: CoverageEffect
   consumable?: ConsumableAlternative
 }
 
-const estimateNote = 'Estimate from provisional data; not verified in game.'
-
 export function buildTooltip(input: TooltipInput): CoverageTooltip {
-  const { requirement, state, statusLabel, reason, estimated, representative, consumable } = input
-  const counted = requirement.effects.filter(isCounted)
-  const uncounted = requirement.effects.filter((effect) => !isCounted(effect))
-  const uncountedNote = uncounted.length && counted.length ? [`Not counted (unverified): ${uncounted.map((effect) => effect.name).join(', ')}.`] : []
+  const { requirement, state, statusLabel, reason, representative, consumable } = input
+  const effects = requirement.effects
   const fit = (spells: CoverageEffect[], limit: number) => ({ spells: spells.slice(0, limit).map(describeSpell), hiddenSpells: Math.max(0, spells.length - limit) })
 
   if (state === 'consumable' && consumable) {
@@ -140,7 +135,6 @@ export function buildTooltip(input: TooltipInput): CoverageTooltip {
       notes: [
         ...(active?.players.length ? [`Provided by: ${active.players.join(', ')}`] : []),
         ...(others.length ? [`Also available: ${others.map((other) => describeSpell(other.effect).name).join(', ')}`] : []),
-        ...(estimated ? [estimateNote] : []),
       ],
     }
   }
@@ -150,17 +144,16 @@ export function buildTooltip(input: TooltipInput): CoverageTooltip {
       state,
       heading: requirement.name,
       headline: `${statusLabel}. Can be provided by:`,
-      ...fit(counted.length ? counted : [representative], MISSING_SPELL_LIMIT),
-      notes: [...uncountedNote, ...(estimated ? [estimateNote] : [])],
+      ...fit(effects, MISSING_SPELL_LIMIT),
+      notes: [reason],
     }
   }
 
-  const shown = counted.length ? counted : [representative]
   return {
     state,
     heading: describeSpell(representative).name,
     headline: statusLabel,
-    ...fit(shown, UNCERTAIN_SPELL_LIMIT),
-    notes: [reason, ...uncountedNote, ...(estimated ? [estimateNote] : [])].filter(Boolean),
+    ...fit(effects, UNCERTAIN_SPELL_LIMIT),
+    notes: [reason],
   }
 }

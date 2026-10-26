@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { calculateCoverage, summaryText } from '../../src/shared/raid-coverage/calculateCoverage.ts'
 import { coverageEffects } from '../../src/shared/raid-coverage/coverageData.ts'
-import { coverageTiles, standardEffects, statusCounts } from '../../src/shared/raid-coverage/coverageDisplay.ts'
+import { coverageTiles, displayLabel, standardEffects, statusCounts } from '../../src/shared/raid-coverage/coverageDisplay.ts'
 import type { CoverageEffect, CoverageMember } from '../../src/shared/raid-coverage/types.ts'
 
 const effect = (over: Partial<CoverageEffect> & Pick<CoverageEffect, 'id' | 'kind'>): CoverageEffect => ({
@@ -81,13 +81,13 @@ describe('mixed-confidence alternatives', () => {
     assert.ok(r.matches.every((m) => !m.estimable || m.className !== 'Beta'))
   })
 
-  it('counts the provisional alternative and omits the unverified class from eligible and team lists', () => {
+  it('uses all accepted catalog alternatives in planning while retaining research metadata', () => {
     const [tile] = coverageTiles(group, [member('1', 'Alpha'), member('2', 'Beta')])
     assert.equal(tile.estimated, true)
     assert.equal(tile.status, 'available')
-    assert.deepEqual(tile.providerClasses, ['Alpha'])
-    assert.ok(tile.lines.includes('Guaranteed in this team: Alpha (spec not set)'))
-    assert.ok(tile.lines.some((l) => l.startsWith('Not counted (unverified)')))
+    assert.deepEqual(tile.providerClasses, ['Alpha', 'Beta'])
+    assert.ok(tile.lines.includes('Guaranteed in this team: Alpha (spec not set), Beta (spec not set)'))
+    assert.doesNotMatch(tile.lines.join(' '), /unverified|provisional/)
   })
 
   it('stays Unverified when every alternative is unverified', () => {
@@ -117,16 +117,45 @@ describe('mixed-confidence alternatives', () => {
 })
 
 describe('summary text', () => {
-  it('says Estimated, not confirmed, when estimates exist', () => {
-    const report = calculateCoverage([effect({ id: 'a', kind: 'raid-buff' })], [member('1', 'Alpha')])
-    assert.equal(report.estimatedCount, 1)
-    assert.ok(summaryText(report).startsWith('Estimated: '))
+  it('uses plain labels for every coverage status', () => {
+    for (const [status, label] of [
+      ['available', 'Available'], ['missing', 'Missing'], ['potential', 'Potential'], ['contested', 'Contested'],
+      ['unverified', 'Not calculated'], ['party-unknown', 'Party Unknown'], ['indeterminate', 'Not calculated'],
+    ] as const) assert.equal(displayLabel(status), label)
   })
 
-  it('keeps the no-confirmed-data wording when nothing is estimable', () => {
+  it('combines mixed-confidence totals once per status and retains the provisional share', () => {
+    const effects = [
+      effect({ id: 'estimate', kind: 'raid-buff' }),
+      effect({ id: 'verified', kind: 'raid-buff', confidence: 'confirmed', scopeStatus: 'confirmed', verifiedOn: '2026-01-01' }),
+      effect({ id: 'missing', kind: 'debuff', providers: [{ className: 'Beta' }] }),
+      effect({ id: 'potential', kind: 'raid-buff', providers: [{ className: 'Alpha', talent: 'T' }] }),
+      effect({ id: 'c1', kind: 'raid-buff', slot: 's' }),
+      effect({ id: 'c2', kind: 'raid-buff', slot: 's' }),
+    ]
+    const tiles = coverageTiles(effects, [member('1', 'Alpha')])
+    for (const tile of tiles) assert.equal(tile.statusLabel, displayLabel(tile.status))
+    const counts = statusCounts(tiles)
+    assert.deepEqual(counts.map(({ label, count, estimatedCount }) => [label, count, estimatedCount]), [
+      ['Available', 2, 1], ['Potential', 1, 1], ['Contested', 2, 2], ['Missing', 1, 1],
+    ])
+    assert.equal(new Set(counts.map((entry) => entry.label)).size, counts.length)
+    assert.equal(counts.reduce((sum, entry) => sum + entry.count, 0), tiles.length)
+    assert.equal(tiles.find((tile) => tile.key === 'verified')!.estimated, false)
+    assert.equal(tiles.find((tile) => tile.key === 'estimate')!.estimated, true)
+    assert.equal(summaryText(calculateCoverage(effects, [member('1', 'Alpha')])), '2 available, 2 contested, 1 missing, 1 potential')
+  })
+
+  it('uses clean summary labels without changing the internal estimated count', () => {
+    const report = calculateCoverage([effect({ id: 'a', kind: 'raid-buff' })], [member('1', 'Alpha')])
+    assert.equal(report.estimatedCount, 1)
+    assert.equal(summaryText(report), '1 available, 0 missing, 0 potential')
+  })
+
+  it('shows accepted catalog planning counts even when research data is unverified', () => {
     const report = calculateCoverage([unverified({ id: 'a', kind: 'raid-buff' })], [member('1', 'Alpha')])
     assert.equal(report.estimatedCount, 0)
-    assert.ok(summaryText(report).includes('No confirmed coverage data yet'))
+    assert.equal(summaryText(report), '1 available, 0 missing, 0 potential')
   })
 })
 
@@ -137,21 +166,23 @@ const statusOf = (members: CoverageMember[]) => Object.fromEntries(calculateCove
 const countsOf = (members: CoverageMember[]) => calculateCoverage(standardEffects(coverageEffects), members).estimateSummary
 
 describe('real catalog against the seeded Blue and Yellow rosters', () => {
-  it('Blue: 18 available, 1 potential, 4 missing, 0 party unknown, 0 unverified (all estimates)', () => {
+  it('Blue: 19 available, 1 potential, 5 missing, 0 party unknown, 0 unverified (all estimates)', () => {
     const s = countsOf(blue)
-    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [18, 1, 4, 0, 0, 0, 0])
+    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [19, 1, 5, 0, 0, 0, 0])
   })
 
-  it('Yellow: 21 available, 1 potential, 1 missing, 0 party unknown, 0 unverified (all estimates)', () => {
+  it('Yellow: 23 available, 1 potential, 1 missing, 0 party unknown, 0 unverified (all estimates)', () => {
     const s = countsOf(yellow)
-    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [21, 1, 1, 0, 0, 0, 0])
+    assert.deepEqual([s.available, s.potential, s.missing, s['party-unknown'], s.unverified, s.contested, s.indeterminate], [23, 1, 1, 0, 0, 0, 0])
   })
 
-  it('Blue lacks a Warlock, so both curses are estimated Missing; Yellow has one', () => {
+  it('Blue lacks a Warlock, so all three curses are estimated Missing; Yellow has one', () => {
     assert.equal(statusOf(blue)['curse-of-the-elements'], 'missing')
     assert.equal(statusOf(blue)['curse-of-tongues'], 'missing')
+    assert.equal(statusOf(blue)['curse-of-recklessness'], 'missing')
     assert.equal(statusOf(yellow)['curse-of-the-elements'], 'available')
     assert.equal(statusOf(yellow)['curse-of-tongues'], 'available')
+    assert.equal(statusOf(yellow)['curse-of-recklessness'], 'available')
   })
 
   it('resolves talent-dependent effects by specialization; only the researched spec assumptions become Estimated Available', () => {
@@ -170,7 +201,7 @@ describe('real catalog against the seeded Blue and Yellow rosters', () => {
     for (const roster of [blue, yellow]) {
       const report = calculateCoverage(standardEffects(coverageEffects), roster)
       assert.equal(report.confirmedCount, 0)
-      assert.equal(report.summary.unverified, 23)
+      assert.equal(report.summary.unverified, 25)
       const chips = statusCounts(coverageTiles(coverageEffects, roster))
       assert.ok(chips.filter((c) => c.status === 'available' || c.status === 'missing' || c.status === 'potential').every((c) => c.estimated))
     }

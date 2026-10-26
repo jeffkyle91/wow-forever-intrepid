@@ -33,7 +33,7 @@ describe('coverage tiles', () => {
       effect({ id: 'q', kind: 'party-buff' }),
     ]
     const tiles = coverageTiles(effects, [member('1', 'Alpha')])
-    const expected: Record<string, [CoverageStatus, string]> = { a: ['available', '✓'], m: ['missing', '✕'], p: ['potential', '?'], u: ['unverified', '?'], q: ['party-unknown', '?'] }
+    const expected: Record<string, [CoverageStatus, string]> = { a: ['available', '✓'], m: ['missing', '✕'], p: ['potential', '?'], u: ['available', statusGlyphs.available], q: ['party-unknown', '?'] }
     assert.equal(tiles.length, 5)
     for (const tile of tiles) {
       const [status, glyph] = expected[tile.key]

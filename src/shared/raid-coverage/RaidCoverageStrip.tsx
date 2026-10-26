@@ -42,16 +42,17 @@ export function RaidCoverageStrip({ parts, players, assignments }: {
     <summary className="cov-strip-head">
       <span className="cov-strip-caret" aria-hidden="true" />
       <span className="cov-strip-label">Buff &amp; debuff coverage</span>
-      <span className="cov-strip-counts">{statusCounts(tiles).map((entry) => <span key={`${entry.status}-${entry.estimated}`} className={`cov-chip cov-chip-${entry.status}${entry.estimated ? ' cov-chip-est' : ''}`}><span aria-hidden="true">{entry.glyph}</span> {entry.count} {entry.label}</span>)}</span>
+      <span className="cov-strip-counts">{statusCounts(tiles).map((entry) => <span key={entry.status} className={`cov-chip cov-chip-${entry.status}`}><span aria-hidden="true">{entry.glyph}</span> {entry.count} {entry.label}</span>)}</span>
     </summary>
     <ul className="cov-icons" aria-label="Buff and debuff coverage">
       {tiles.map((tile) => <li key={tile.key}>
-        <HelpPopover label={tile.label} triggerClassName={`cov-icon cov-icon-${tile.status} cov-icon-visual-${tile.visual}${tile.estimated ? ' cov-icon-est' : ''}`} trigger={<>
+        <HelpPopover label={tile.label} triggerClassName={`cov-icon cov-icon-${tile.status} cov-icon-visual-${tile.visual}`} trigger={<>
         <span className="cov-icon-fallback" aria-hidden="true">{tile.initials}</span>
         {tile.iconUrl && <img src={tile.iconUrl} alt="" width={32} height={32} style={visualTreatments[tile.visual]} loading="lazy" draggable={false} onError={(event) => { event.currentTarget.hidden = true }} />}
         </>}>
           <strong>{tile.spellName}</strong>
           <p>{tile.description}</p>
+          <p>{tile.lines.join('\n')}</p>
         </HelpPopover>
       </li>)}
     </ul>

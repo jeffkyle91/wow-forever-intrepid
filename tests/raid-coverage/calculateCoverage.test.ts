@@ -195,19 +195,19 @@ describe('duplicates, empty data and extra cases', () => {
     assert.equal(summaryText(report), 'No coverage data yet')
   })
 
-  it('shows no counts when every entry is unverified', () => {
+  it('shows planning counts independently of research confidence', () => {
     const report = calculateCoverage([effect({ id: 'u', kind: 'raid-buff', confidence: 'unverified' })], [member('1', 'Alpha')])
     assert.equal(report.confirmedCount, 0)
-    assert.equal(summaryText(report), 'No confirmed coverage data yet (1 unverified)')
+    assert.equal(summaryText(report), '1 available, 0 missing, 0 potential')
   })
 
-  it('shows counts once something is confirmed', () => {
+  it('combines planning counts across research confidence levels', () => {
     const report = calculateCoverage([
       effect({ id: 'a', kind: 'raid-buff' }),
       effect({ id: 'u', kind: 'raid-buff', confidence: 'unverified' }),
       effect({ id: 'p', kind: 'party-buff' }),
     ], [member('1', 'Alpha')])
-    assert.equal(summaryText(report), '1 available, 0 missing, 0 potential, 1 party unknown, 1 unverified')
+    assert.equal(summaryText(report), '2 available, 0 missing, 0 potential, 1 party unknown')
   })
 
   it('matches the Combat Rogue spec', () => {

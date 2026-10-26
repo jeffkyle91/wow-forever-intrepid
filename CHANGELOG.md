@@ -8,6 +8,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 - Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
 - Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
+- Awarding loot to an alt now warns when a main on the item's list still needs it (LOOT-006): the Award loot and Record loot dialogs say "Mains get loot prio over alts" and name the mains who are waiting. It never blocks: the council decides. Ticking **Alt-only run** switches the warning off for that award and starts its note with "Alt-only run.", so the reason is in the Log.
 
 ## 2026-10-25 - ce1a288
 

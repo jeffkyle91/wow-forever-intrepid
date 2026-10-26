@@ -17,8 +17,8 @@
 .cov-status-available { color: #1f7a45; }
 .cov-status-missing { color: #b3261e; }
 .cov-status-potential { color: #8a5a00; }
-.cov-status-unverified { color: #6b7783; border-style: dashed; }
-.cov-status-indeterminate { color: #6b7783; border-style: dashed; }
+.cov-status-unverified { color: #6b7783; }
+.cov-status-indeterminate { color: #6b7783; }
 .cov-status-contested { color: #a34a00; }
 .cov-conflict { margin: 5px 0 0; color: #a34a00; font-size: 11px; }
 .cov-error { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #b3261e; border-radius: 6px; color: #b3261e; font-size: 12px; }
@@ -46,17 +46,6 @@
 .cov-chip-contested { color: #a34a00; }
 .cov-chip-party-unknown { color: #5f6b77; }
 .cov-chip-unverified, .cov-chip-indeterminate { color: #5f6b77; }
-.cov-chip-unverified, .cov-chip-indeterminate, .cov-chip-est { border-style: dashed; }
-.cov-status-est { border-style: dashed; }
-.cov-icon-est { border-style: dashed; }
-.cov-icon-est.cov-icon-available { color: #1f7a45; }
-.cov-icon-est.cov-icon-missing { color: #b3261e; }
-.cov-icon-est.cov-icon-potential { color: #8a5a00; }
-.cov-icon-est.cov-icon-contested { color: #a34a00; }
-:root[data-theme='dark'] .cov-icon-est.cov-icon-available { color: #8fdcae; }
-:root[data-theme='dark'] .cov-icon-est.cov-icon-missing { color: #ff9d96; }
-:root[data-theme='dark'] .cov-icon-est.cov-icon-potential { color: #f0d797; }
-:root[data-theme='dark'] .cov-icon-est.cov-icon-contested { color: #ffb877; }
 .cov-icons { display: grid; grid-template-columns: repeat(auto-fill, 44px); gap: 7px; margin: 8px 0 2px; padding: 0 4px 0 0; list-style: none; }
 .cov-icon { position: relative; box-sizing: border-box; width: 44px; height: 44px; padding: 0; border: 2px solid; border-radius: 5px; background: #eef2f6; cursor: pointer; }
 .cov-icon img { display: block; position: relative; width: 100%; height: 100%; border-radius: 3px; object-fit: cover; }
@@ -67,7 +56,7 @@
 .cov-icon-potential { border-color: #c8921a; }
 .cov-icon-contested { border-color: #e07b1f; }
 .cov-icon-party-unknown { border-color: #8a96a3; }
-.cov-icon-unverified, .cov-icon-indeterminate { border-style: dashed; border-color: #8a96a3; }
+.cov-icon-unverified, .cov-icon-indeterminate { border-color: #8a96a3; }
 :root[data-theme='dark'] .cov-strip-caret { border-left-color: #9fb0c1; }
 :root[data-theme='dark'] .cov-strip-label { color: #9fb0c1; }
 :root[data-theme='dark'] .cov-icon { background: #263649; }

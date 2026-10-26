@@ -67,11 +67,11 @@ const isConfirmed = (effect: CoverageEffect) => effect.confidence === 'confirmed
 // Supported enough to estimate from: confirmed or provisional, with a known scope. An unverified effect, or one with unknown scope, never counts.
 const isEstimable = (effect: CoverageEffect) => effect.confidence !== 'unverified' && effect.scopeStatus !== 'unknown'
 
-type Mode = 'verified' | 'estimated'
-const counted = (effect: CoverageEffect, mode: Mode) => (mode === 'verified' ? isConfirmed(effect) : isEstimable(effect))
-const matchCounted = (match: ProviderMatch, mode: Mode) => (mode === 'verified' ? match.confirmed : match.estimable)
-// An assumed provider is a planning assumption, so only the estimate treats it as able to provide the effect.
-const providesNow = (match: ProviderMatch, mode: Mode) => match.eligibility === 'guaranteed' || (match.eligibility === 'assumed' && mode === 'estimated')
+type Mode = 'verified' | 'estimated' | 'planning'
+const counted = (effect: CoverageEffect, mode: Mode) => (mode === 'planning' || (mode === 'verified' ? isConfirmed(effect) : isEstimable(effect)))
+const matchCounted = (match: ProviderMatch, mode: Mode) => (mode === 'planning' || (mode === 'verified' ? match.confirmed : match.estimable))
+// An explicit specialization assumption supplies planning and estimated coverage, never verified coverage.
+const providesNow = (match: ProviderMatch, mode: Mode) => match.eligibility === 'guaranteed' || (match.eligibility === 'assumed' && mode !== 'verified')
 const rank: Record<'guaranteed' | 'assumed' | 'possible', number> = { guaranteed: 0, assumed: 1, possible: 2 }
 
 function matchesFor(effect: CoverageEffect, members: CoverageMember[]): ProviderMatch[] {
@@ -126,9 +126,9 @@ function statusFor(effects: CoverageEffect[], required: number, counts: { availa
   return 'missing'
 }
 
-type Evaluated = Omit<RequirementResult, 'basis' | 'estimate'>
+type Evaluated = Omit<RequirementResult, 'basis' | 'estimate' | 'planning'>
 
-// One pass over every requirement, counting only the effects `mode` allows. Raid-wide buffs and enemy debuffs that share a slot
+// One pass over every requirement, counting only the effects `mode` allows. Planning accepts the entire supplied catalog. Raid-wide buffs and enemy debuffs that share a slot
 // are then checked for conflicts (see slotConflicts.ts).
 function evaluate(groups: Map<string, CoverageEffect[]>, members: CoverageMember[], nodeLimit: number, mode: Mode): Evaluated[] {
   const slotBuckets = new Map<string, SlotRequirement[]>()
@@ -201,8 +201,8 @@ function evaluate(groups: Map<string, CoverageEffect[]>, members: CoverageMember
 const emptySummary = (): CoverageSummary => ({ available: 0, contested: 0, missing: 0, potential: 0, unverified: 0, 'party-unknown': 0, indeterminate: 0 })
 
 // Effects that share a stackGroup are one requirement, so alternative providers never double-count.
-// Two results per requirement: `status` counts only confirmed effects; `estimate` also counts provisional ones. Unverified effects
-// never count in either, so an unknown provider is never treated as an alternative.
+// Research results are retained: `status` counts confirmed effects and `estimate` also counts provisional ones.
+// The user-facing `planning` result accepts every catalog effect, preserving eligibility, scope, demand and slot rules.
 export function calculateCoverage(effects: CoverageEffect[], players: CoverageMember[], options: { nodeLimit?: number } = {}): CoverageReport {
   const nodeLimit = options.nodeLimit ?? DEFAULT_NODE_LIMIT
   const members = uniqueMembers(players)
@@ -214,6 +214,7 @@ export function calculateCoverage(effects: CoverageEffect[], players: CoverageMe
       requirements: [],
       summary: emptySummary(),
       estimateSummary: emptySummary(),
+      planningSummary: emptySummary(),
       confirmedCount: 0,
       estimatedCount: 0,
       hasIndeterminate: false,
@@ -228,6 +229,7 @@ export function calculateCoverage(effects: CoverageEffect[], players: CoverageMe
 
   const verified = evaluate(groups, members, nodeLimit, 'verified')
   const estimated = new Map(evaluate(groups, members, nodeLimit, 'estimated').map((requirement) => [requirement.key, requirement]))
+  const planning = new Map(evaluate(groups, members, nodeLimit, 'planning').map((requirement) => [requirement.key, requirement]))
   const requirements: RequirementResult[] = verified.map((requirement) => {
     const estimate = estimated.get(requirement.key)!
     const usable = requirement.effects.filter(isEstimable)
@@ -235,6 +237,7 @@ export function calculateCoverage(effects: CoverageEffect[], players: CoverageMe
     return {
       ...requirement,
       basis,
+      planning: planning.get(requirement.key)!,
       estimate: {
         status: estimate.status,
         required: estimate.required,
@@ -248,15 +251,18 @@ export function calculateCoverage(effects: CoverageEffect[], players: CoverageMe
 
   const summary = emptySummary()
   const estimateSummary = emptySummary()
+  const planningSummary = emptySummary()
   for (const requirement of requirements) {
     summary[requirement.status] += 1
     estimateSummary[requirement.estimate.status] += 1
+    planningSummary[requirement.planning.status] += 1
   }
   return {
     memberCount: members.length,
     requirements,
     summary,
     estimateSummary,
+    planningSummary,
     confirmedCount: requirements.length - summary.unverified,
     estimatedCount: requirements.filter((requirement) => requirement.basis === 'estimated').length,
     hasIndeterminate: estimateSummary.indeterminate > 0,
@@ -264,20 +270,17 @@ export function calculateCoverage(effects: CoverageEffect[], players: CoverageMe
   }
 }
 
-// Header text for the collapsed panel. Counts appear once something is confirmed or can be estimated.
+// Header text for the collapsed panel, using accepted-catalog planning counts.
 export function summaryText(report: CoverageReport): string {
   if (report.catalogErrors.length) return `Catalog error (${report.catalogErrors.length})`
   if (!report.requirements.length) return 'No coverage data yet'
-  const estimated = report.estimatedCount > 0
-  const { summary } = report.estimatedCount > 0 ? { summary: report.estimateSummary } : report
-  if (!report.confirmedCount && !estimated) return `No confirmed coverage data yet (${summary.unverified} unverified)`
+  const summary = report.planningSummary
   const parts = [`${summary.available} available`]
   if (summary.contested) parts.push(`${summary.contested} contested`)
   parts.push(`${summary.missing} missing`, `${summary.potential} potential`)
   if (summary.indeterminate) parts.push(`${summary.indeterminate} not calculated`)
   if (summary['party-unknown']) parts.push(`${summary['party-unknown']} party unknown`)
-  if (summary.unverified) parts.push(`${summary.unverified} unverified`)
-  return estimated ? `Estimated: ${parts.join(', ')}` : parts.join(', ')
+  return parts.join(', ')
 }
 
 

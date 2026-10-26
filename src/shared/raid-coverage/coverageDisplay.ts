@@ -26,18 +26,18 @@ export const statusLabels: Record<CoverageStatus, string> = {
   contested: 'Contested',
   missing: 'Missing',
   potential: 'Potential',
-  unverified: 'Unverified',
+  unverified: 'Not calculated',
   'party-unknown': 'Party Unknown',
   indeterminate: 'Not calculated',
 }
 
 export const statusHints: Record<CoverageStatus, string> = {
-  available: 'A confirmed provider is assigned, and no modelled conflict was found. This is not a guarantee it is active in game.',
+  available: 'An eligible provider is assigned, and no modelled conflict was found. Available describes roster coverage, not whether the spell is active.',
   contested: 'Eligible providers exist, but competing effects cannot all be guaranteed simultaneously.',
-  indeterminate: 'Too many competing effects to check within the limit; neither confirmed nor ruled out.',
-  missing: 'No confirmed provider is assigned.',
-  potential: 'Only providers that need a talent we cannot check.',
-  unverified: 'Not confirmed for WoW Forever; not counted as coverage.',
+  indeterminate: 'Too many competing effects to check within the limit; coverage remains unknown.',
+  missing: 'Not enough eligible providers are assigned.',
+  potential: 'Assigned candidates need a talent, rune or specialization that is not recorded.',
+  unverified: 'Coverage could not be calculated.',
   'party-unknown': 'Party groups are not tracked, so actual coverage is unknown.',
 }
 
@@ -69,25 +69,12 @@ export function conflictExplanation(requirement: RequirementResult): string {
   return ''
 }
 
-// The same explanation for the estimate, which may differ from the verified result when provisional effects are counted.
-export function estimateExplanation(requirement: RequirementResult): string {
-  const { estimate } = requirement
-  return conflictExplanation({ ...requirement, status: estimate.status, conflict: estimate.conflict, limitReason: estimate.limitReason })
-}
-
 // Statuses that claim something about coverage. Party Unknown, Not calculated and Unverified claim nothing, so they are never "estimated".
 const claimingStatuses: CoverageStatus[] = ['available', 'missing', 'potential', 'contested']
 export const isEstimatedResult = (basis: CoverageBasis, status: CoverageStatus) => basis === 'estimated' && claimingStatuses.includes(status)
 
-export const estimatedHints: Partial<Record<CoverageStatus, string>> = {
-  available: 'Estimate: a provider whose data is provisional is assigned, and no modelled conflict was found. Not verified in game.',
-  contested: 'Estimate: eligible providers exist, but competing effects cannot all be guaranteed simultaneously. Not verified in game.',
-  missing: 'Estimate: no provider with supported data is assigned. Unverified alternatives are not counted.',
-  potential: 'Estimate: only providers that need a talent we cannot check. Not verified in game.',
-}
-
-export const displayLabel = (status: CoverageStatus, estimated: boolean) => (estimated ? `Estimated ${statusLabels[status]}` : statusLabels[status])
-export const displayHint = (status: CoverageStatus, estimated: boolean) => (estimated ? estimatedHints[status] ?? statusHints[status] : statusHints[status])
+export const displayLabel = (status: CoverageStatus) => statusLabels[status]
+export const displayHint = (status: CoverageStatus) => statusHints[status]
 
 export type CoverageTile = {
   key: string
@@ -95,17 +82,17 @@ export type CoverageTile = {
   name: string
   // Name of the representative effect, shown first in the tooltip.
   title: string
-  // Roster result shown on the icon: from confirmed and provisional effects together. Equals the verified result when basis is 'verified'.
+  // Accepted-catalog planning result shown on the icon, independent of research confidence.
   status: CoverageStatus
   basis: CoverageBasis
-  // True when the result relies on provisional data and claims coverage (Available, Missing, Potential or Contested).
+  // Internal research estimate marker, never used for labels, styling or help content.
   estimated: boolean
-  // "Estimated Available" for an estimate, plain "Available" for a verified result.
+  // Plain planning status label; research confidence remains internal.
   statusLabel: string
   glyph: string
-  // Accessible name: the spell name and the coverage status. The status is not shown in the mouseover tooltip.
+  // Accessible name: the spell name and actual planning status. Provider requirements are in the help popover.
   label: string
-  // What the mouseover tooltip shows, and nothing else: the icon's own spell name and its Wowhead Forever description,
+  // The icon's spell name and stored description, shown alongside planning details in the help popover,
   // or DESCRIPTION_UNAVAILABLE when none could be read accurately.
   spellName: string
   description: string
@@ -118,11 +105,11 @@ export type CoverageTile = {
   providerClasses: string[]
   // Who in this team can provide it, with specializations named.
   team: TeamEligibility
-  // The calculation explanation (eligibility, confidence, uncertainty). Not shown in the tooltip; kept for tests and detail views.
+  // User-facing planning explanation: provider eligibility, talents, party limits and conflicts.
   lines: string[]
   // How the icon is drawn (see visualTreatments). A planned consumable on a requirement that class coverage does not satisfy is 'consumable'.
   visual: CoverageVisual
-  // Structured mouseover content, built from local catalog data only.
+  // Structured planning help content, built from local catalog data only.
   tooltip: CoverageTooltip
   // The best planned consumable standing in for this requirement. It never changes `status`.
   consumable?: ConsumableAlternative
@@ -157,8 +144,7 @@ export type TeamEligibility = { guaranteed: string[]; assumed: string[]; possibl
 // (talent, rune or an unreadable specialization), or ineligible (a provider class whose specialization cannot provide it).
 // Classes that provide nothing here are not listed.
 function teamEligibilityOf(requirement: RequirementResult, members: CoverageMember[]): TeamEligibility {
-  const matches = requirement.basis === 'unverified' ? requirement.matches : requirement.matches.filter((match) => match.estimable)
-  const effects = requirement.basis === 'unverified' ? requirement.effects : requirement.effects.filter((effect) => effect.confidence !== 'unverified' && effect.scopeStatus !== 'unknown')
+  const { matches, effects } = requirement
   const providerClasses = new Set(effects.flatMap((effect) => effect.providers.map((provider) => provider.className.trim().toLowerCase())))
   const idsWith = (eligibility: string) => new Set(matches.filter((match) => match.eligibility === eligibility).map((match) => match.playerId))
   const guaranteedIds = idsWith('guaranteed')
@@ -172,39 +158,33 @@ function teamEligibilityOf(requirement: RequirementResult, members: CoverageMemb
   }
 }
 
-// What is uncertain about a requirement, in plain words. Empty when every effect is confirmed and no other caveat applies.
+// Operational limitations only; source/confidence notes remain in the catalog.
 function uncertaintyOf(requirement: RequirementResult): string[] {
   const notes: string[] = []
-  const isUnverified = (effect: CoverageEffect) => effect.confidence === 'unverified' || effect.scopeStatus === 'unknown'
-  const counted = requirement.effects.filter((effect) => !isUnverified(effect))
-  const uncounted = requirement.effects.filter(isUnverified)
-  if (requirement.basis === 'unverified') notes.push('Unverified: wording is ambiguous or information conflicts, so it is not counted and not checked in game.')
-  else if (requirement.basis === 'estimated') {
-    const provisional = counted.filter((effect) => effect.confidence !== 'confirmed' || effect.scopeStatus !== 'confirmed')
-    notes.push(`Estimate: provisional Wowhead Forever data (${provisional.map((effect) => effect.name).join(', ')}); not verified in game.`)
-  }
-  if (requirement.basis !== 'unverified' && uncounted.length) notes.push(`Not counted (unverified): ${uncounted.map((effect) => effect.name).join(', ')}.`)
-  if (counted.some((effect) => effect.providers.some((provider) => provider.talent))) notes.push('Some providers need a talent or rune that is not tracked.')
-  const bases = [...new Set(requirement.matches.filter((match) => match.estimable && match.eligibility === 'assumed' && match.assumption).map((match) => match.assumption))]
-  for (const basis of bases) notes.push(`Planning assumption, not a confirmed talent selection or verified Forever mechanic: ${basis}`)
+  if (requirement.effects.some((effect) => effect.providers.some((provider) => provider.talent))) notes.push('Some providers need a talent or rune that is not tracked.')
+  if (requirement.matches.some((match) => match.eligibility === 'assumed')) notes.push('The catalog assumes this talent for the assigned specialization; individual talent selections are not tracked.')
   if (requirement.kind === 'targeted-buff') notes.push('Targeted: eligible providers are listed; not every player is assumed to receive it.')
   return notes
 }
 
+export function planningExplanation(requirement: RequirementResult): string {
+  return conflictExplanation({ ...requirement, ...requirement.planning })
+}
+
 // One tile per requirement, from the same engine as the detailed panel. Empty when there is no catalog.
-// The status is the roster estimate; `basis` and `estimated` say whether it rests on provisional data.
+// Planning accepts the catalog. `basis` and `estimated` retain research metadata internally only.
 export function coverageTiles(effects: CoverageEffect[], members: CoverageMember[], options?: { nodeLimit?: number; consumables?: ConsumableAlternative[]; planned?: ReadonlySet<string> }): CoverageTile[] {
   return calculateCoverage(standardEffects(effects), members, options).requirements.map((requirement) => {
     const representative = representativeEffect(requirement.effects)
-    const { status } = requirement.estimate
+    const { status } = requirement.planning
     const estimated = isEstimatedResult(requirement.basis, status)
-    const conflict = estimateExplanation(requirement)
-    const providerClasses = providerClassesOf(requirement.basis === 'unverified' ? requirement.effects : requirement.effects.filter((effect) => effect.confidence !== 'unverified' && effect.scopeStatus !== 'unknown'))
-    const providerRules = providerRulesOf(requirement.basis === 'unverified' ? requirement.effects : requirement.effects.filter((effect) => effect.confidence !== 'unverified' && effect.scopeStatus !== 'unknown'))
+    const conflict = planningExplanation(requirement)
+    const providerClasses = providerClassesOf(requirement.effects)
+    const providerRules = providerRulesOf(requirement.effects)
     const team = teamEligibilityOf(requirement, uniqueMembers(members))
     const alternatives = requirement.effects.filter((effect) => effect !== representative).map((effect) => effect.name)
     const lines = [
-      displayHint(status, estimated),
+      displayHint(status),
       ...(conflict ? [conflict] : []),
       `Eligible providers: ${providerRules.join('; ')}`,
       ...(team.guaranteed.length ? [`Guaranteed in this team: ${team.guaranteed.join(', ')}`] : []),
@@ -223,13 +203,12 @@ export function coverageTiles(effects: CoverageEffect[], members: CoverageMember
     const consumableOptions = plannableFor(options?.consumables ?? [], requirement.key)
     const consumable = status === 'available' ? undefined : bestPlanned(options?.consumables ?? [], requirement.key, options?.planned ?? new Set())
     const visual: CoverageVisual = consumable ? 'consumable' : visualOf(status)
-    const statusLabel = displayLabel(status, estimated)
+    const statusLabel = displayLabel(status)
     const tooltip = buildTooltip({
       requirement,
       state: visual,
       statusLabel,
-      reason: conflict || displayHint(status, estimated),
-      estimated,
+      reason: conflict || displayHint(status),
       representative,
       consumable,
     })
@@ -262,15 +241,20 @@ export function coverageTiles(effects: CoverageEffect[], members: CoverageMember
 
 const summaryOrder: CoverageStatus[] = ['available', 'potential', 'contested', 'missing', 'party-unknown', 'unverified', 'indeterminate']
 
-export type StatusCount = { status: CoverageStatus; estimated: boolean; count: number; glyph: string; label: string }
+export type StatusCount = { status: CoverageStatus; estimated: boolean; estimatedCount: number; count: number; glyph: string; label: string }
 
-// Counts per status for the collapsed header, in a fixed order, omitting empty ones. Verified results and estimates are counted apart.
+// One count per planning status. Research counts remain internal, never rendered as warnings.
 export function statusCounts(tiles: CoverageTile[]): StatusCount[] {
-  return summaryOrder.flatMap((status) => [false, true].map((estimated) => ({
-    status,
-    estimated,
-    count: tiles.filter((tile) => tile.status === status && tile.estimated === estimated).length,
-    glyph: statusGlyphs[status],
-    label: estimated ? `Est. ${statusLabels[status]}` : statusLabels[status],
-  }))).filter((entry) => entry.count > 0)
+  return summaryOrder.map((status) => {
+    const matching = tiles.filter((tile) => tile.status === status)
+    const estimatedCount = matching.filter((tile) => tile.estimated).length
+    return {
+      status,
+      estimated: estimatedCount > 0,
+      estimatedCount,
+      count: matching.length,
+      glyph: statusGlyphs[status],
+      label: displayLabel(status),
+    }
+  }).filter((entry) => entry.count > 0)
 }

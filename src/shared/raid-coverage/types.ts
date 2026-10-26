@@ -21,7 +21,7 @@ export type Eligibility = 'guaranteed' | 'assumed' | 'possible' | 'ineligible'
 export type SpecAssumption = {
   // Must be a subset of the provider's `specs`.
   specs: string[]
-  // Why the assumption is reasonable, shown in the tooltip. Cite the research; do not present it as a confirmed fact.
+  // Internal research basis for the assumption; not displayed in the coverage interface.
   basis: string
 }
 
@@ -57,7 +57,7 @@ export type CoverageEffect = {
   // alternatives, which then remain the requirement. 'inactive' keeps research on an ability suspected to be Season of Discovery only (not
   // proven to exist in Forever); it behaves like 'excluded' and must not be made 'standard' without Forever-specific evidence.
   visibility?: EffectVisibility
-  // Minimum number of different eligible players needed. Defaults to 1; for a stackGroup the largest value among its confirmed effects applies.
+  // Minimum different eligible players. Planning uses the largest value among the group's catalog effects; research passes filter by confidence.
   // Use a number above 1 only when a verified mechanic requires it.
   requirement?: number
   // Effects sharing a slot compete for the same player: one player can fill at most one requirement per slot.
@@ -155,9 +155,11 @@ export type RequirementResult = {
   kind: EffectKind
   // Verified status: counts only confirmed effects, so it is Unverified until an effect is confirmed in game.
   status: CoverageStatus
-  // Where the estimate comes from. Show `estimate.status` to users, labelled as an estimate unless basis is 'verified'.
+  // Internal research confidence; never used as a user-facing warning.
   basis: CoverageBasis
   estimate: EstimateResult
+  // Accepted-catalog planning result, independent of research confidence.
+  planning: EstimateResult
   // Minimum different players needed, from the confirmed effects.
   required: number
   // Different players from confirmed effects who need no talent (they can satisfy the requirement).
@@ -182,6 +184,8 @@ export type CoverageReport = {
   summary: CoverageSummary
   // Counts by estimated status, which include provisional effects.
   estimateSummary: CoverageSummary
+  // User-facing totals from the accepted catalog.
+  planningSummary: CoverageSummary
   // Number of requirements with at least one confirmed effect (everything except Unverified).
   confirmedCount: number
   // Number of requirements whose estimate relies on at least one provisional effect.

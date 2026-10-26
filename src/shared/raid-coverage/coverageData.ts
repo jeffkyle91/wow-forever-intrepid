@@ -3,9 +3,9 @@ import type { CoverageEffect } from './types.ts'
 // The editable game-facts file. See README.md in this folder before changing it.
 //
 // Source: Wowhead WoW Forever class ability and talent pages, read on 2026-10-16, plus the Forever build article below.
-// Nothing here has been checked in game or approved by the repository owner, so NO entry is `confirmed` and none has
-// `verifiedOn`. The calculation engine only counts confirmed entries, so every requirement below shows as Unverified
-// until an entry is checked in game and promoted (confidence and scopeStatus 'confirmed', plus a verifiedOn date).
+// Accepted by the owner as the raid-planning catalog on 2026-10-25. Research remains separate: no entry has
+// an in-game check or a `verifiedOn` date. Confidence and source notes are retained internally, without UI warnings.
+// Planning counts eligible assigned providers from every displayed entry while preserving scope, talent and conflict rules.
 //
 // - `provisional`: the current Forever tooltip states provider, scope and effect clearly.
 // - `unverified`: ambiguous wording, an unknown talent or rune requirement, or conflicting information.
@@ -25,12 +25,12 @@ import type { CoverageEffect } from './types.ts'
 // - `representative: true` picks the icon spell of a group. Consumable alternatives live in consumableData.ts, not here.
 // - `visibility: 'inactive'` keeps research on an ability that is suspected to be Season of Discovery only. Like 'excluded' it is never shown or counted, and it needs Forever-specific evidence before it is made 'standard'.
 // - Spell icons are looked up by `spellId` in spellIcons.ts.
-// - Talents and runes are not tracked, so a provider that needs one carries `talent` and can only ever be Potential once confirmed.
+// - Talents and runes are not tracked, so a provider with `talent` is Potential unless explicitly assumed for its specialization.
 // - `specs` marks which roster specializations can hold that talent (from the talent tree on Wowhead). Other recognised specs are
 //   ineligible. It never makes a talent provider guaranteed. "Guardian" is listed with Feral because the roster splits the Feral Combat
 //   tree into Feral and Guardian; that mapping is unchecked. Baseline abilities have no `specs`: Wowhead's skill line is not a spec requirement.
 // - `assumed` is an explicit raid-planning assumption for named specs of one talent provider: those players count as providers in
-//   the estimate only (Estimated Available), never in the verified result, and it is never applied to other talents of that spec.
+//   planning and the internal estimate, never in the verified result; it is never applied to other talents of that spec.
 //   Enabled only where the research records the talent tree: Leader of the Pack (Feral) and Moonkin Form (Balance). Not enabled:
 //   Trueshot Aura (Marksmanship tree is only inferred), Guardian for Leader of the Pack, Mana Tide Totem (unverified), or any rune.
 
@@ -143,15 +143,16 @@ export const coverageEffects: CoverageEffect[] = [
   { id: 'shadow-protection', visibility: 'encounter', name: 'Shadow Protection', kind: 'targeted-buff', stackGroup: 'shadow-resistance', category: 'resistance', spellId: 976, providers: [{ className: 'Priest' }], ...provisional,
     sources: [spell(976)], notes: '+60 shadow resistance, 10 min. Ranks 976, 10957, 10958.' },
 
-  // Enemy debuffs. Armor reduction: stacking between these is not stated, so none is assumed (no Classic rules copied).
+  // Enemy debuffs. Separate checklist requirements do not assert simultaneous stacking in Forever.
+  // Sunder/Expose remain provisional planning alternatives; their replacement mechanics are not verified either.
   { id: 'sunder-armor', name: 'Sunder Armor', kind: 'debuff', stackGroup: 'armor-reduction', category: 'enemy debuff', spellId: 7386, providers: [{ className: 'Warrior' }], ...provisional,
-    sources: [spell(7386)], notes: '-450 armor per application, up to 5, 30 sec. Ranks 7386, 7405, 8380, 11596, 11597.' },
+    sources: [spell(7386)], notes: '-450 armor per application, up to 5, 30 sec. Ranks 7386, 7405, 8380, 11596, 11597. Sunder/Expose are planning alternatives, not verified replacement mechanics. Stacking with Faerie Fire and Curse of Recklessness is unverified in Forever.' },
   { id: 'expose-armor', name: 'Expose Armor', kind: 'debuff', stackGroup: 'armor-reduction', category: 'enemy debuff', spellId: 8647, providers: [{ className: 'Rogue' }], ...provisional,
-    sources: [spell(8647)], notes: 'Armor reduction by combo points (450 per point, 1,800 at four). Ranks 8647 to 11198 (5 ranks).' },
-  { id: 'faerie-fire', name: 'Faerie Fire', kind: 'debuff', stackGroup: 'armor-reduction', category: 'enemy debuff', spellId: 770, providers: [{ className: 'Druid' }], ...provisional,
-    sources: [spell(770)], notes: '-505 armor, 40 sec. Ranks 770 to 9907 (4 ranks).' },
-  { id: 'curse-of-recklessness', name: 'Curse of Recklessness', kind: 'debuff', stackGroup: 'armor-reduction', category: 'enemy debuff', spellId: 704, providers: [{ className: 'Warlock' }], ...provisional,
-    sources: [spell(704)], notes: '-505 armor, 2 min. Tooltip: one Curse per Warlock per target. Ranks 704 to 11717 (4 ranks).' },
+    sources: [spell(8647)], notes: 'Armor reduction by combo points (450 per point, 1,800 at four). Ranks 8647 to 11198 (5 ranks). Sunder/Expose are planning alternatives, not verified replacement mechanics. Stacking with Faerie Fire and Curse of Recklessness is unverified in Forever.' },
+  { id: 'faerie-fire', name: 'Faerie Fire', kind: 'debuff', category: 'enemy debuff', spellId: 770, providers: [{ className: 'Druid' }], ...provisional,
+    sources: [spell(770)], notes: '-505 armor, 40 sec. Ranks 770 to 9907 (4 ranks). Separate provider requirement, not evidence of stacking with other armor debuffs in Forever.' },
+  { id: 'curse-of-recklessness', name: 'Curse of Recklessness', kind: 'debuff', category: 'enemy debuff', spellId: 704, providers: [{ className: 'Warlock' }], ...provisional,
+    sources: [spell(704)], notes: '-505 armor, 2 min. Tooltip: one Curse per Warlock per target. Ranks 704 to 11717 (4 ranks). Separate provider requirement, not evidence of stacking with other armor debuffs or simultaneous curses in Forever.' },
   { id: 'demoralizing-shout', name: 'Demoralizing Shout', kind: 'debuff', stackGroup: 'melee-attack-power-reduction', category: 'enemy debuff', spellId: 1160, providers: [{ className: 'Warrior' }], ...provisional,
     sources: [spell(1160)], notes: '-210 melee attack power, 45 sec, 10 yards. Ranks 1160 to 11556 (5 ranks).' },
   { id: 'demoralizing-roar', name: 'Demoralizing Roar', kind: 'debuff', stackGroup: 'melee-attack-power-reduction', category: 'enemy debuff', spellId: 99, providers: [{ className: 'Druid' }], ...provisional,

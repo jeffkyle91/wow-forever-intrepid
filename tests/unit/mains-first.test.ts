@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { makeWho } from '../../src/shared/game/candidates.ts'
-import { ALT_RUN_NOTE, mainsFirstText, waitingMains, withAltRunNote } from '../../src/features/loot/mainsFirst.ts'
+import { ALT_RUN_NOTE, AWARD_NOTE_MAX, mainsFirstText, waitingMains, withAltRunNote } from '../../src/features/loot/mainsFirst.ts'
 
 const roster = [
   { id: 'm1', name: 'Aria', className: 'Mage', mainId: undefined },
@@ -33,7 +33,7 @@ describe('the mains still waiting when an alt gets the item', () => {
     assert.deepEqual(waitingMains(list(['Aria', 'Aria-Alt'], ['m1', 'a1']), [true, false], who, roster, 'a2'), [])
     assert.deepEqual(waitingMains(list(['Aria-Alt', 'Brock-Alt'], ['a1', 'a2']), [false, false], who, roster, 'a1'), [])
   })
-  it('does not count another alt, the recipient, a note, or a name the roster does not have', () => {
+  it('does not count another alt, a note, or a name the roster does not have', () => {
     const noted = { rankedPlayers: ['Aria-Alt', 'Brock-Alt', 'Any mage who did not get it', 'Stranger', 'Brock'], rankedIds: ['a1', 'a2', '', '', 'm2'] }
     assert.deepEqual(waitingMains(noted, [false, false, false, false, false], who, roster, 'a1'), ['Brock'])
     assert.deepEqual(waitingMains({ rankedPlayers: ['Aria-Alt', 'Stranger'] }, [false, false], who, roster, 'a1'), [])
@@ -44,6 +44,9 @@ describe('the mains still waiting when an alt gets the item', () => {
   it('treats an alt linked to a missing main as a main, and a recipient it makes an alt only by the roster\'s rule', () => {
     assert.deepEqual(waitingMains(list(['Orphan-Alt', 'Aria-Alt'], ['x1', 'a1']), [false, false], who, roster, 'a1'), ['Orphan-Alt'])
     assert.deepEqual(waitingMains(list(['Aria', 'Aria-Alt'], ['m1', 'a1']), [false, false], who, roster, 'x1'), [])
+  })
+  it('counts the recipient\'s own main: the main still comes first', () => {
+    assert.deepEqual(waitingMains(list(['Aria', 'Aria-Alt'], ['m1', 'a1']), [false, false], who, roster, 'a1'), ['Aria'])
   })
   it('is nobody when there is no recipient or the recipient is not on the roster', () => {
     assert.deepEqual(waitingMains(list(['Aria'], ['m1']), [false], who, roster, undefined), [])
@@ -63,10 +66,13 @@ describe('the words and the note', () => {
     assert.equal(withAltRunNote(''), ALT_RUN_NOTE)
     assert.equal(withAltRunNote('  rolled 98  '), 'Alt-only run. rolled 98')
     assert.equal(withAltRunNote('Alt-only run. rolled 98'), 'Alt-only run. rolled 98')
-    assert.equal(withAltRunNote('this was an ALT-ONLY RUN night'), 'this was an ALT-ONLY RUN night')
+    assert.equal(withAltRunNote('this was an ALT-ONLY RUN night'), 'Alt-only run. this was an ALT-ONLY RUN night', 'only a note that starts with it is kept as it is')
+    assert.equal(withAltRunNote('alt-only run, rolled 98'), 'alt-only run, rolled 98')
   })
-  it('stays within the rules\' 500 characters', () => {
-    assert.equal(withAltRunNote('x'.repeat(600)).length, 500)
-    assert.ok(withAltRunNote('x'.repeat(600)).startsWith(ALT_RUN_NOTE))
+  it('never cuts what the leader wrote: a note that no longer fits is left for the dialogs to refuse', () => {
+    const long = 'x'.repeat(490)
+    assert.equal(withAltRunNote(long), `${ALT_RUN_NOTE} ${long}`)
+    assert.ok(withAltRunNote(long).length > AWARD_NOTE_MAX)
+    assert.equal(withAltRunNote('x'.repeat(AWARD_NOTE_MAX - ALT_RUN_NOTE.length - 1)).length, AWARD_NOTE_MAX, 'the longest note that fits, with the mark')
   })
 })

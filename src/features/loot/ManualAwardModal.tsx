@@ -52,7 +52,8 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
   const onList = item.trim() === '' ? undefined : listed.find((priority) => nameKey(priority.item) === nameKey(item))
   // Mains get loot priority over alts: when the item is on a list of the phase and an alt is chosen while a main on it is still waiting, say so (a warning, never a block).
   // The tick is for this award only: it resets with the item and the recipient.
-  const waiting = onList ? waitingMains(onList, listingProgress(onList, live.data.awards, priorityLookup([...allPriorities, ...hiddenPriorities]), who).received, who, roster, recipientId || undefined) : []
+  // A list that was taken off (hidden) is left out of every list and count, so its mains are not waiting for anything: no warning for it.
+  const waiting = onList && !onList.hidden ? waitingMains(onList, listingProgress(onList, live.data.awards, priorityLookup([...allPriorities, ...hiddenPriorities]), who).received, who, roster, recipientId || undefined) : []
   const result = manualAward({ item: onList?.item ?? item, dungeon, boss, recipientId, awardedAt, decision, awardNote: altRun && waiting.length > 0 ? withAltRunNote(awardNote) : awardNote }, who, phaseNo)
   const hasList = onList !== undefined
   // The Log filters a drop by its dungeon: say so while there is none (a whole "dungeon · boss" typed as the boss counts as one).
@@ -95,7 +96,7 @@ export function ManualAwardModal({ close, live }: { close: () => void; live: Tab
         {people.map((player) => <option key={player.id} value={player.id}>{player.name} ({player.className})</option>)}
       </select></label>
       {waiting.length > 0 && <div className={altRun ? 'mains-first mains-first-off' : 'mains-first'} role="status">
-        <p>{altRun ? 'Recorded as an alt-only run: the warning is off for this award.' : mainsFirstText(waiting)}</p>
+        <p>{altRun ? 'Alt-only run: the warning is off for this award, and its note starts with "Alt-only run."' : mainsFirstText(waiting)}</p>
         <label className="mains-first-tick"><input type="checkbox" checked={altRun} onChange={(event) => setAltRun(event.target.checked)} /> Alt-only run</label>
       </div>}
       <div className="manual-award-row manual-award-place">

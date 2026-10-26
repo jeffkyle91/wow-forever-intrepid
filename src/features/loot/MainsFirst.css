@@ -8,6 +8,7 @@
 .mains-first.mains-first-off { border-left-color: #8a9a8f; color: #526158; background: #eef3ee; }
 :root[data-theme='dark'] .mains-first { border-left-color: #c9a24b; color: #f0d9a0; background: #3a2f17; }
 :root[data-theme='dark'] .mains-first .mains-first-tick { color: inherit; }
+:root[data-theme='dark'] .mains-first .mains-first-tick input[type='checkbox'] { accent-color: #8fc2e6; }
 :root[data-theme='dark'] .mains-first .mains-first-tick input[type='checkbox']:focus-visible { outline-color: #8fc2e6; }
 :root[data-theme='dark'] .mains-first.mains-first-off { border-left-color: #6f8296; color: #bfccd9; background: #223040; }
 @media (max-width: 600px) { .mains-first .mains-first-tick { min-height: 44px; } }

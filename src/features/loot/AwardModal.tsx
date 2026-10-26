@@ -8,7 +8,7 @@ import { ArtIcon } from '../../shared/ui/ArtIcon'
 import { Modal } from '../../shared/ui/Modal'
 import { phaseNoOf } from '../../shared/game/phases'
 import { listingProgress, priorityLookup, recipientChoices } from './completion'
-import { mainsFirstText, waitingMains, withAltRunNote } from './mainsFirst'
+import { AWARD_NOTE_MAX, mainsFirstText, waitingMains, withAltRunNote } from './mainsFirst'
 import './MainsFirst.css'
 
 // The award snapshot (candidate order and council note at decision time) is built here,
@@ -41,6 +41,9 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
     event.preventDefault()
     const data = new FormData(event.currentTarget)
     const choice = String(data.get('recipient'))
+    // An alt-only run starts its note with "Alt-only run."; the leader's own words are never cut, so a note that no longer fits is refused here, before anything is written.
+    const note = altRun && waiting.length > 0 ? withAltRunNote(String(data.get('awardNote'))) : String(data.get('awardNote')).trim()
+    if (note.length > AWARD_NOTE_MAX) { setMutationError(`The note can be up to ${AWARD_NOTE_MAX} characters${altRun ? ', and "Alt-only run." takes 14 of them' : ''}.`); return }
     const base = {
       priorityId: priority.id,
       item: priority.item,
@@ -49,7 +52,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
       prioritySnapshot: [...priority.rankedPlayers],
       ...(priority.rankedIds ? { prioritySnapshotIds: [...priority.rankedIds] } : {}),
       councilNoteSnapshot: priority.councilNote,
-      awardNote: altRun && waiting.length > 0 ? withAltRunNote(String(data.get('awardNote'))) : String(data.get('awardNote')).trim(),
+      awardNote: note,
       phaseNo: phaseNoOf(priority),
     }
     const author = { uid: live.identity.uid, displayName: live.identity.displayName }
@@ -91,7 +94,7 @@ export function AwardModal({ priority, awardedAt, close, live }: { priority: Loo
     </select></label>
     {openNotes.length > 0 && <p className="field-hint">A character chosen through a note is put on the list where the note is, and the note moves down.</p>}
     {waiting.length > 0 && <div className={altRun ? 'mains-first mains-first-off' : 'mains-first'} role="status">
-      <p>{altRun ? 'Recorded as an alt-only run: the warning is off for this award.' : mainsFirstText(waiting)}</p>
+      <p>{altRun ? 'Alt-only run: the warning is off for this award, and its note starts with "Alt-only run."' : mainsFirstText(waiting)}</p>
       <label className="mains-first-tick"><input type="checkbox" checked={altRun} onChange={(event) => setAltRun(event.target.checked)} /> Alt-only run</label>
     </div>}
     <label>Award date<input type="date" name="awardedAt" defaultValue={awardedAt} required /></label>

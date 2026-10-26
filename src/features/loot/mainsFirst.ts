@@ -11,7 +11,7 @@ type ListedPriority = { rankedPlayers: readonly string[]; rankedIds?: unknown }
  * The mains on a priority list who are still waiting for the item, when `recipientId` is an alt (otherwise nobody: a main may always be given it). A main is a roster
  * character that is not an alt by the roster's own rule (`altIds`); a line is waiting when its listing has not been received (`received`, the positional completion
  * the list shows, one entry per line of the priority). A main listed twice counts once, notes and characters the roster does not have are ignored, and the recipient
- * never counts. Each name is the roster's current one.
+ * is never one (the recipient is an alt, and an alt is not waiting). Each name is the roster's current one.
  */
 export function waitingMains(priority: ListedPriority, received: readonly boolean[], who: Who, roster: readonly { id: string; mainId?: string }[], recipientId: string | undefined): string[] {
   if (recipientId === undefined) return []
@@ -22,7 +22,7 @@ export function waitingMains(priority: ListedPriority, received: readonly boolea
   readLines(priority).forEach((line, index) => {
     if (line.kind !== 'character' || received[index]) return
     const player = line.id !== undefined ? who.player(line.id) : who.byName(line.name)
-    if (!player || player.id === recipientId || alts.has(player.id) || seen.has(player.id)) return
+    if (!player || alts.has(player.id) || seen.has(player.id)) return
     seen.add(player.id)
     names.push(player.name)
   })
@@ -35,9 +35,15 @@ export function mainsFirstText(names: readonly string[]): string {
   return `Mains get loot prio over alts. ${names.length} ${names.length === 1 ? 'main on this list still needs' : 'mains on this list still need'} it: ${shown}.`
 }
 
-/** The award note of an alt-only run: "Alt-only run." first, so the reason is in the permanent record. Said once, and cut at the rules' limit. */
-export function withAltRunNote(note: string, max = 500): string {
+/**
+ * The award note of an alt-only run: "Alt-only run." first, so the reason is in the permanent record, and said once (a note that already starts with it is kept). It never
+ * cuts what the leader wrote: when the result is longer than the rules allow (500), the dialogs say so instead of saving a shortened note.
+ */
+export function withAltRunNote(note: string): string {
   const text = note.trim()
-  if (/alt-only run/i.test(text)) return text
-  return (text ? `${ALT_RUN_NOTE} ${text}` : ALT_RUN_NOTE).slice(0, max)
+  if (/^alt-only run\b/i.test(text)) return text
+  return text ? `${ALT_RUN_NOTE} ${text}` : ALT_RUN_NOTE
 }
+
+/** The most an award note can be (the rules' limit). */
+export const AWARD_NOTE_MAX = 500

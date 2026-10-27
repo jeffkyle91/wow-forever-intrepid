@@ -8,6 +8,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 - Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
 - Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
+- Scheduled Raids is now a list of collapsed rows (RAID-016): each shows a banner of the raid's zone pictures side by side, each fading into the next, with its name, date, time and zones. Open a row to see that raid's roster, sign-ups and buff coverage; raids that have started or been cancelled wait in a collapsed group under the upcoming ones. Add Raid and Edit Raid show each zone's picture and a preview of the banner.
 
 ## 2026-10-25 - ce1a288
 

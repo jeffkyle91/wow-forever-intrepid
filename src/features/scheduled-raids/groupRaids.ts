@@ -1,34 +1,42 @@
-// Scheduled Raids lists the raids still to come as rows and keeps the rest (started, cancelled, or with no saved start time) in a group under them (RAID-016). Pure, so Node
-// tests it, and it takes only what it reads of a raid so it needs nothing from the app's data layer.
+// Scheduled Raids lists a raid from the moment it is scheduled until 5 hours after it starts (RAID-016); Raid History keeps it from then on. Pure, so Node tests it, and it
+// takes only what it reads of a raid so it needs nothing from the app's data layer.
 
 /** The element id of a raid's row, which is where the tab scrolls to when the navigation names the raid. */
 export const raidRowId = (raidId: string) => `raid-row-${raidId}`
 
+/** How long a raid stays on Scheduled Raids after its start. */
+export const STAYS_AFTER_START_MS = 5 * 3_600_000
+
 type RaidTiming = { status?: string; startsAt?: { toMillis(): number } }
 
 /**
- * A raid is closed, and sits in the older group, when it is cancelled, has no saved start time, or has started. This is the test the tab has always used for read-only,
- * and the one the server applies to sign-ups and planning (`open` in functions/raidPlanning.js).
+ * A raid is closed, and its row read-only, when it is cancelled, has no saved start time, or has started. This is the test the tab has always used for read-only, and the one
+ * the server applies to sign-ups and planning (`open` in functions/raidPlanning.js).
  */
 export function isClosedRaid(raid: RaidTiming, now: number): boolean {
   return raid.status === 'cancelled' || !raid.startsAt || raid.startsAt.toMillis() <= now
 }
 
-/** The raids still to come in the order given (the caller sorts oldest first), and the older ones, most recent first. */
-export function groupScheduledRaids<T extends RaidTiming>(sorted: readonly T[], now: number): { upcoming: T[]; older: T[] } {
-  const upcoming: T[] = []
-  const older: T[] = []
-  for (const raid of sorted) (isClosedRaid(raid, now) ? older : upcoming).push(raid)
-  return { upcoming, older: older.reverse() }
+/**
+ * A raid is listed while it is still to come and for 5 hours after it starts, cancelled or not. A raid with no saved start time has no moment to count from, so it is not
+ * listed (a leader saving it once in Edit raid gives it one).
+ */
+export function isListedRaid(raid: RaidTiming, now: number): boolean {
+  return raid.startsAt !== undefined && now < raid.startsAt.toMillis() + STAYS_AFTER_START_MS
 }
 
-/** When the next raid still to come starts, so the tab can show it as started at that moment without polling every second. */
-export function nextStartAfter(raids: readonly RaidTiming[], now: number): number | undefined {
+/** The raids to list, in the order given (the caller sorts oldest first, so a raid that has started sits above the ones still to come). */
+export function listedRaids<T extends RaidTiming>(sorted: readonly T[], now: number): T[] {
+  return sorted.filter((raid) => isListedRaid(raid, now))
+}
+
+/** The next moment the list changes: a raid starting (its row then says Started and goes read-only) or leaving, so the tab can wait for it instead of polling every second. */
+export function nextChangeAfter(raids: readonly RaidTiming[], now: number): number | undefined {
   let next: number | undefined
   for (const raid of raids) {
-    if (raid.status === 'cancelled' || !raid.startsAt) continue
+    if (!raid.startsAt) continue
     const start = raid.startsAt.toMillis()
-    if (start > now && (next === undefined || start < next)) next = start
+    for (const moment of [start, start + STAYS_AFTER_START_MS]) if (moment > now && (next === undefined || moment < next)) next = moment
   }
   return next
 }

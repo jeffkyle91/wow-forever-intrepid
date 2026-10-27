@@ -61,7 +61,7 @@
 .raid-row { min-width: 0; }
 .raid-row-summary { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: end; align-items: end; gap: 6px 10px; min-height: 108px; padding: 12px var(--gutter); overflow: hidden; border: 1px solid var(--line); border-radius: var(--card-radius); background: #fff; list-style: none; cursor: pointer; }
 .raid-row-summary::-webkit-details-marker { display: none; }
-.raid-row-summary:focus-visible, .raid-older-summary:focus-visible { outline: 2px solid #3c75a2; outline-offset: 2px; }
+.raid-row-summary:focus-visible { outline: 2px solid #3c75a2; outline-offset: 2px; }
 .raid-row-art { position: absolute; inset: 0; z-index: -1; }
 .raid-row-name, .raid-row-meta { grid-column: 1; width: fit-content; max-width: 100%; margin: 0; padding: 2px 9px; border-radius: var(--card-radius); color: #29372f; background: rgba(255, 255, 255, .86); text-transform: none; overflow-wrap: anywhere; }
 .raid-row-name { display: inline-flex; align-items: center; gap: 8px; font: 600 17px/1.3 var(--display); }
@@ -70,18 +70,14 @@
 .raid-row-chip-cancelled { color: #a1281f; background: #fff0ee; }
 .raid-row-chip-closed { color: #2a4a68; background: #e8eef5; }
 .raid-row-caret { flex: none; width: 0; height: 0; border-left: 5px solid #5d6b78; border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
-.raid-row[open] > .raid-row-summary .raid-row-caret, .raid-older[open] > .raid-older-summary .raid-row-caret { transform: rotate(90deg); }
+.raid-row[open] > .raid-row-summary .raid-row-caret { transform: rotate(90deg); }
 .raid-row-body { display: grid; gap: var(--stack-gap); min-width: 0; padding-top: var(--stack-gap); }
-.raid-older { min-width: 0; }
-.raid-older-summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 2px; color: var(--ink); font-weight: 700; list-style: none; cursor: pointer; }
-.raid-older-summary::-webkit-details-marker { display: none; }
-.raid-older-count { padding: 1px 8px; border-radius: 99px; color: #2a4a68; background: #e8eef5; font-size: 11px; }
-.raid-older > .scheduled-raids-list { padding-top: 6px; }
+.scheduled-raids-gone { margin: 0 0 10px; }
 :root[data-theme='dark'] .raid-row-summary { background: #182536; }
 :root[data-theme='dark'] .raid-row-name { color: #e8edf3; background: rgba(15, 24, 36, .78); }
 :root[data-theme='dark'] .raid-row-meta { color: #c4d0dc; background: rgba(15, 24, 36, .78); }
 :root[data-theme='dark'] .raid-row-chip-cancelled { color: #ffb4ab; background: #542222; }
-:root[data-theme='dark'] .raid-row-chip-closed, :root[data-theme='dark'] .raid-older-count { color: #c7dcf0; background: #243a52; }
+:root[data-theme='dark'] .raid-row-chip-closed { color: #c7dcf0; background: #243a52; }
 :root[data-theme='dark'] .raid-row-caret { border-left-color: #9fb0c1; }
-:root[data-theme='dark'] .raid-row-summary:focus-visible, :root[data-theme='dark'] .raid-older-summary:focus-visible { outline-color: #8cc4ea; }
+:root[data-theme='dark'] .raid-row-summary:focus-visible { outline-color: #8cc4ea; }
 @media (max-width: 640px) { .raid-row-summary { min-height: 84px; } .raid-row-name { font-size: 15px; } }

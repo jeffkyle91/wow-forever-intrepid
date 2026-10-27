@@ -17,7 +17,6 @@ const dateLabel = (date: string) => {
 // What a closed raid says it is. A raid still to come shows no chip.
 function statusChip(raid: RaidRecord, closed: boolean) {
   if (isRaidCancelled(raid)) return { label: 'Cancelled', tone: 'cancelled' }
-  if (!raid.startsAt) return { label: 'Read-only', tone: 'closed' }
   return closed ? { label: 'Started', tone: 'closed' } : null
 }
 

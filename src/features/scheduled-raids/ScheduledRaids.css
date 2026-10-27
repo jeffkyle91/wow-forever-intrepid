@@ -1,8 +1,7 @@
 .scheduled-raids-tool { display: grid; gap: var(--stack-gap); min-width: 0; padding: var(--stack-gap) var(--gutter); }
-/* The workbench is a .raid-team-view, which brings its own page padding; inside this tool the tool's padding is the page's, so the workbench adds none (it used to inset twice). */
-.scheduled-raids-tool > .raid-team-view { padding: 0; }
-.scheduled-raids-tool > label { display: grid; gap: 5px; min-width: 0; }
-.scheduled-raids-tool > label select { width: 100%; min-width: 0; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink); background: var(--surface, #fff); font: inherit; }
+/* The workbench is a .raid-team-view, which brings its own page padding; inside this tool the tool's padding is the page's, so the workbench adds none (it used to inset twice).
+   It now sits inside an opened row, so this is a descendant rule of two classes: App.css loads after this file and its one-class .raid-team-view would otherwise win. */
+.scheduled-raids-tool .scheduled-workbench.raid-team-view { padding: 0; }
 .scheduled-raids-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .scheduled-raids-actions .button { max-width: 100%; white-space: normal; }
 .scheduled-roster-pools { display: grid; gap: 14px; min-width: 0; container-type: inline-size; }
@@ -37,7 +36,6 @@
 .scheduled-workbench .team-member-row-editable { grid-template-columns: 28px minmax(0, 1fr) minmax(65px, 85px) 75px 26px; }
 .scheduled-workbench .team-member-status { min-width: 0; text-align: right; }
 .scheduled-workbench .team-member-status .scheduled-workbench-response { white-space: normal; }
-:root[data-theme='dark'] .scheduled-raids-tool > label select { background: #18283a; }
 @container (max-width: 260px) {
   .scheduled-workbench .roster-pool-member:has(.move-team-select) { grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 4px; }
   .scheduled-workbench .roster-pool-member:has(.move-team-select) > .class-avatar { justify-self: start; }
@@ -48,7 +46,6 @@
   .scheduled-workbench .roster-pool-member-info > .move-team-select { grid-column: 3; grid-row: 3; justify-self: end; width: 65px; }
   .scheduled-workbench .roster-pool-member:has(.move-team-select) > .pool-unassigned { grid-column: 4; grid-row: 3; max-width: 80px; }
 }
-@media (max-width: 600px) { .scheduled-raids-tool > label select { font-size: 16px; } }
 @media (max-width: 600px) {
   .scheduled-workbench .team-member-row-editable { grid-template-columns: 28px minmax(0, 1fr) 75px 26px; }
   .scheduled-workbench .team-member-row-editable > .class-avatar { grid-column: 1; grid-row: 1; }
@@ -57,3 +54,34 @@
   .scheduled-workbench .team-member-row-editable > .move-team-select { grid-column: 3; grid-row: 2; }
   .scheduled-workbench .team-member-row-editable > .remove-member-button { grid-column: 4; grid-row: 2; }
 }
+
+/* RAID-016: each scheduled raid is a collapsed row. The summary is a banner of the raid's zone pictures (RaidBanner, behind) with the name and details on pills so they stay
+   readable over any picture, as on the Loot banners; opening it shows the raid's panel below, with no extra inset (the tool's own padding is the page's). */
+.scheduled-raids-list { display: grid; gap: 10px; min-width: 0; }
+.raid-row { min-width: 0; }
+.raid-row-summary { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: end; align-items: end; gap: 6px 10px; min-height: 108px; padding: 12px var(--gutter); overflow: hidden; border: 1px solid var(--line); border-radius: var(--card-radius); background: #fff; list-style: none; cursor: pointer; }
+.raid-row-summary::-webkit-details-marker { display: none; }
+.raid-row-summary:focus-visible, .raid-older-summary:focus-visible { outline: 2px solid #3c75a2; outline-offset: 2px; }
+.raid-row-art { position: absolute; inset: 0; z-index: -1; }
+.raid-row-name, .raid-row-meta { grid-column: 1; width: fit-content; max-width: 100%; margin: 0; padding: 2px 9px; border-radius: var(--card-radius); color: #29372f; background: rgba(255, 255, 255, .86); text-transform: none; overflow-wrap: anywhere; }
+.raid-row-name { display: inline-flex; align-items: center; gap: 8px; font: 600 17px/1.3 var(--display); }
+.raid-row-meta { color: #3d4d44; font-size: 12px; line-height: 1.4; }
+.raid-row-chip { grid-column: 2; grid-row: 1 / span 2; align-self: end; padding: 3px 9px; border-radius: 99px; font-size: 11px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
+.raid-row-chip-cancelled { color: #a1281f; background: #fff0ee; }
+.raid-row-chip-closed { color: #2a4a68; background: #e8eef5; }
+.raid-row-caret { flex: none; width: 0; height: 0; border-left: 5px solid #5d6b78; border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform .12s; }
+.raid-row[open] > .raid-row-summary .raid-row-caret, .raid-older[open] > .raid-older-summary .raid-row-caret { transform: rotate(90deg); }
+.raid-row-body { display: grid; gap: var(--stack-gap); min-width: 0; padding-top: var(--stack-gap); }
+.raid-older { min-width: 0; }
+.raid-older-summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 2px; color: var(--ink); font-weight: 700; list-style: none; cursor: pointer; }
+.raid-older-summary::-webkit-details-marker { display: none; }
+.raid-older-count { padding: 1px 8px; border-radius: 99px; color: #2a4a68; background: #e8eef5; font-size: 11px; }
+.raid-older > .scheduled-raids-list { padding-top: 6px; }
+:root[data-theme='dark'] .raid-row-summary { background: #182536; }
+:root[data-theme='dark'] .raid-row-name { color: #e8edf3; background: rgba(15, 24, 36, .78); }
+:root[data-theme='dark'] .raid-row-meta { color: #c4d0dc; background: rgba(15, 24, 36, .78); }
+:root[data-theme='dark'] .raid-row-chip-cancelled { color: #ffb4ab; background: #542222; }
+:root[data-theme='dark'] .raid-row-chip-closed, :root[data-theme='dark'] .raid-older-count { color: #c7dcf0; background: #243a52; }
+:root[data-theme='dark'] .raid-row-caret { border-left-color: #9fb0c1; }
+:root[data-theme='dark'] .raid-row-summary:focus-visible, :root[data-theme='dark'] .raid-older-summary:focus-visible { outline-color: #8cc4ea; }
+@media (max-width: 640px) { .raid-row-summary { min-height: 84px; } .raid-row-name { font-size: 15px; } }

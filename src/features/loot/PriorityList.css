@@ -61,3 +61,26 @@
 :root[data-theme='dark'] .priority-dungeon.zone-arted::before { opacity: .8; }
 :root[data-theme='dark'] .priority-dungeon.zone-arted span { color: #e8edf3; background: rgba(15, 24, 36, .78); }
 @media (max-width: 640px) { .priority-dungeon.zone-arted { min-height: 84px; font-size: 15px; } }
+
+/* UX-008: on a desktop window (1101px and wider) the item comes first. A card is three columns: the item alone at the left and twice as large (name 22px, icon 40px), then where it
+   drops over the council note, then the council order with the leader's buttons under it. The boss heading is a little larger too. The markup is untouched: the three wrappers
+   around the item, the place and the note (.priority-main, .priority-item-line and its inner div) stop being boxes (display: contents), so their children are placed on the card's
+   own grid by class. Placement therefore depends on the order of those children in PriorityList.tsx: change one and this block must change with it. Narrower windows keep the
+   cards as they are (App.css). The selectors start with .priority-list so they win over App.css, which loads last. */
+@media not all and (max-width: 1100px) {
+  .priority-list .priority-row { grid-template-columns: 40px minmax(190px, 1.25fr) minmax(170px, .8fr) minmax(250px, 1.1fr); grid-template-rows: auto auto 1fr auto; align-items: start; gap: 0 20px; }
+  .priority-list .priority-main, .priority-list .priority-item-line, .priority-list .priority-item-line > div { display: contents; }
+  .priority-list .priority-row .item-gem { grid-column: 1; grid-row: 1 / span 4; width: 40px; height: 40px; }
+  .priority-list .priority-row .priority-loot-icon { width: 30px; height: 30px; }
+  .priority-list .priority-row h3 { grid-column: 1 / 3; grid-row: 1 / span 4; margin: 0; font-size: 22px; line-height: 1.2; }
+  .priority-list .priority-row:has(.item-gem) h3 { grid-column: 2; }
+  .priority-list .priority-row .item-tt-trigger { gap: 12px; min-height: 52px; padding: 5px 14px 5px 6px; font-size: 22px; line-height: 1.2; }
+  .priority-list .priority-row .item-tt-icon { flex-basis: 40px; width: 40px; height: 40px; }
+  .priority-list .priority-row .encounter-label { grid-column: 3; grid-row: 1; justify-self: start; }
+  .priority-list .priority-row .carried-tag { grid-column: 3; grid-row: 2; }
+  .priority-list .priority-row .council-note { grid-column: 3; grid-row: 3; margin: 8px 0 0; }
+  .priority-list .priority-row .priority-ranking { grid-column: 4; grid-row: 1 / span 3; }
+  .priority-list .priority-row .priority-actions { grid-column: 4; grid-row: 4; flex-wrap: wrap; justify-content: flex-end; min-width: 0; margin-top: 10px; }
+  .priority-list .priority-row .priority-actions .awarded-tag { position: static; margin: 0 auto 0 0; }
+  .priority-boss { font-size: 13px; }
+}

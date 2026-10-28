@@ -1,6 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { formatRaidTime, isRaidCancelled, raidTimeOf, type AfkEntryRecord, type PlayerRecord, type RaidRecord } from '../../guildApi'
+import { absencesOnDay, hiddenNote, raidsOnDay } from './calendarLayers'
+import { showCalendarRaids, useCalendarLayers } from './useCalendarLayers'
 import calendarArt from '../../../Art/icons-split/calendar.png'
 import './AfkCalendar.css'
 
@@ -44,6 +46,10 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
   const [endDate, setEndDate] = useState('')
   const [formError, setFormError] = useState('')
   const [todayKey] = useState(() => dateKey(new Date()))
+  const layers = useCalendarLayers()
+  const layersNote = hiddenNote(layers)
+  // A link to a raid (from Scheduled Raids or Leadership) has to show that raid, so it turns Raids back on.
+  useEffect(() => { if (focusRaidId) showCalendarRaids() }, [focusRaidId])
 
   const monthStart = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1)
   const firstCalendarDay = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1 - monthStart.getDay())
@@ -86,13 +92,15 @@ export function AfkCalendar({ entries, raids, roster, currentUserId, busy, onAdd
         </div>
       </header>
 
+      {layersNote && <p className="calendar-layers-note" role="status">{layersNote}</p>}
+
       <div className="afk-calendar-scroll">
         <div className="afk-calendar-grid" role="grid" aria-label={visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}>
           {weekdays.map((weekday) => <div className="afk-weekday" role="columnheader" key={weekday}>{weekday}</div>)}
           {calendarDays.map((date) => {
             const key = dateKey(date)
-            const dayEntries = entries.filter((entry) => entry.startDate <= key && entry.endDate >= key)
-            const dayRaids = raids.filter((raid) => raid.date === key).sort((a, b) => raidTimeOf(a).localeCompare(raidTimeOf(b)))
+            const dayEntries = absencesOnDay(entries, key, layers)
+            const dayRaids = raidsOnDay(raids, key, layers).sort((a, b) => raidTimeOf(a).localeCompare(raidTimeOf(b)))
             const dayLabels = [
               ...dayRaids.map((raid) => isRaidCancelled(raid) ? `${raid.name}, cancelled` : `${raid.name}, ${raid.size}-player raid`),
               ...dayEntries.map((entry) => `${displayName(entry, roster)} unavailable`),

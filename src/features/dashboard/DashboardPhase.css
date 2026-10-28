@@ -1,6 +1,5 @@
-/* The phase choice in the My loot priorities card and the tag that names it in My awarded loot (MEMBER-008). The card's head wraps, and the tag with it, so a phase name of up to 40 characters still fits on a phone. */
-.dash-card-head:has(.dash-phase, .dash-phase-tag) { flex-wrap: wrap; }
-.dash-phase-tag { max-width: 100%; overflow-wrap: anywhere; }
+/* The phase choice in the head of the My loot priorities and My awarded loot cards (MEMBER-008). The head wraps, so a phase name of up to 40 characters still fits on a phone. */
+.dash-card-head:has(.dash-phase) { flex-wrap: wrap; }
 .dash-phase { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
 .dash-phase-label { color: #4a6075; font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .dash-phase select { min-width: 0; max-width: 100%; min-height: 28px; padding: 0 6px; border: 1px solid #7d93a8; border-radius: 4px; color: #3b5065; background: #fff; font: inherit; font-size: 11px; cursor: pointer; }

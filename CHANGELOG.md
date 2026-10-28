@@ -9,7 +9,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 - Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
 - Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
 - On a desktop window (1101px wide or more), Loot priorities puts the item first (UX-008): the item is twice as large, with its icon, alone at the left; where it drops and the council note come next, then the council order with the Award loot and Edit Prio buttons under it. The boss heading is a little larger. Narrower windows and phones look as before.
-- My dashboard can look back at earlier phases (MEMBER-008). Once a loot phase has finished, a **Phase** choice appears in My loot priorities, and a tag in My awarded loot says which phase you are looking at. It starts on the current phase; pick a finished one to see that phase's priorities (with what you received) and all the loot awarded to your characters in it. The choice is only yours and starts again from the current phase when you reload or when the guild starts a new phase.
+- My dashboard can look back at earlier phases (MEMBER-008). Once a loot phase has finished, My loot priorities and My awarded loot each get a **Phase** choice. Each starts on the current phase; pick a finished one to see that phase's priorities (with what you received) or all the loot awarded to your characters in it, and the two cards can show different phases. The choices are only yours and start again from the current phase when you reload or when the guild starts a new phase.
 
 ## 2026-10-25 - ce1a288
 

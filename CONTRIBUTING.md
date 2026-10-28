@@ -45,6 +45,10 @@ After explicit deployment approval, run `npm run release -- --deploy` in an inte
 
 Type `indexes-ready` only after that verification. Failed, missing or still-building indexes must not be acknowledged. Noninteractive runs or any other response stop before Functions deploy; rerun after resolving the problem. Index deployment success does not mean backfill is finished. The default `npm run release` remains read-only and never prompts. Direct service deployments must follow the same index-first/readiness order. Emulator tests do not validate production index provisioning or Scheduler delivery; verify both after the approved deployment.
 
+### Showing and hiding raids and absences (UX-007)
+
+On **Guild Calendar**, use the **Show:** buttons in the heading row as a Guild Leader, a Raid Leader and a Member. Turn Raids off, Absences off and then both off: the grid keeps its month, weekdays and day numbers, one line says both are hidden, the heading and footer counts do not change, and a day's accessible name lists only what is shown. With Absences off, add, edit and remove a range (the sidebar list and the dialog still show it). Open the calendar from **Leadership Overview** and from a raid in **Scheduled Raids** with Raids off and check that Raids turn on. A reload shows both again; nothing is stored.
+
 ### Editing unavailable dates (MEMBER-005)
 
 The edit dialog also provides **Delete absence**, using the existing owner-only removal callable. Check that it closes on success, reports failures inline, remains disabled while busy or after external deletion, and does not appear in the add dialog. Deletion retains Absent responses and never restores placements; unsaved date-field changes do not alter which saved entry is deleted.

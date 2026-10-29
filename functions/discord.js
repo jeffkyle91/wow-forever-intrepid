@@ -225,10 +225,12 @@ async function record(db, guildId, raidId, lease, outcome, now, again) {
     if (!stored) return false
     const ours = stored.lease?.id === lease.id
     const rerun = ours && stored.dirty === true && again
+    // Changed again during the last pass this run may make: the next sweep posts that change.
+    const leftover = ours && stored.dirty === true && !again
     const failures = outcome.failure ? (Number.isInteger(stored.failures) ? stored.failures : 0) + 1 : 0
     // A minute early, so the sweep that runs at the retry time finds it; never before Discord's own retry_after.
     const retryAt = outcome.failure ? now + Math.max(retryDelay(failures) - 60_000, outcome.retryAfterMs ?? 0, 60_000) : null
-    const due = outcome.raid ? nextDueAt(outcome.raid, outcome.state, now, retryAt) : null
+    const due = leftover ? now : outcome.raid ? nextDueAt(outcome.raid, outcome.state, now, retryAt) : null
     const fields = { ...outcome.changes, lastError: outcome.failure, failures, dueAt: stamp(due), updatedAt: FieldValue.serverTimestamp() }
     if (ours) Object.assign(fields, { lease: rerun ? { id: lease.id, until: Timestamp.fromMillis(now + LEASE) } : null, dirty: false })
     tx.update(ref, fields)

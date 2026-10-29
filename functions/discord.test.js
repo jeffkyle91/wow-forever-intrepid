@@ -249,6 +249,26 @@ describe('the announcement', () => {
     assert.equal(stored.lease, null)
     assert.equal(stored.dirty, false)
   })
+
+  test('a raid that keeps changing while it posts is left to the next sweep, not dropped', async () => {
+    clockNow = START - 3 * DAY
+    await raid.set(raidData())
+    fake.delayMs = 200
+    const first = syncRaidAnnouncement(db, guild.id, raid.id, options())
+    for (const [pass, name] of [[1, 'Second name'], [2, 'Third name'], [3, 'Fourth name']]) {
+      for (let i = 0; i < 300 && fake.requests.length < pass; i += 1) await delay(10)
+      await raid.update({ name })
+      assert.equal(await syncRaidAnnouncement(db, guild.id, raid.id, options()), 'busy')
+    }
+    assert.deepEqual(await first, ['posted', 'edited', 'edited'])
+    fake.delayMs = 0
+    const messageId = (await state()).messageId
+    assert.equal(fake.messages.get(messageId).embeds[0].title, 'Third name')
+    assert.equal((await state()).dueAt.toMillis(), clockNow)
+    assert.deepEqual(await sweep(clockNow), { checked: 1 })
+    assert.equal(fake.messages.get(messageId).embeds[0].title, 'Fourth name')
+    assert.equal(posts().length, 1)
+  })
 })
 
 describe('the reminders', () => {

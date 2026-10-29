@@ -9,6 +9,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 - Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
 - Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
 - On a desktop window (1101px wide or more), Loot priorities puts the item first (UX-008): the item is twice as large, with its icon, alone at the left; where it drops and the council note come next, then the council order with the Award loot and Edit Prio buttons under it. The boss heading is a little larger. Narrower windows and phones look as before.
+- Guild and Raid Leaders can open **Recent awards** on Loot priorities (LOOT-014) to see this phase's awards, newest first, and move one to another character or remove it with a reason, including loot recorded without a priority list. The Log keeps the history.
 - Scheduled Raids is now a list of collapsed rows (RAID-016): each shows a banner of the raid's zone pictures side by side, each fading into the next, with its name, date, time and zones. Open a row to see that raid's roster, sign-ups and buff coverage; a raid stays in the list for 5 hours after it starts and then leaves it (Raid History keeps it). Add Raid and Edit Raid show each zone's picture and a preview of the banner.
 
 ## 2026-10-25 - ce1a288

@@ -20,7 +20,7 @@ function nightOf(day: string) {
 // Recently recorded (LOOT-014): every award of the current phase, newest raid night first, with or without a priority list, so a leader can move one to
 // someone else or remove it. Before priority lists exist (the first raid nights) every award is a Record loot award, and the x on a priority line, the
 // only other way to fix one, never appears for them. Fix opens the same ReceiptFixModal as that x: the move, the removal, the reason rules and the check
-// that the award did not change meanwhile are its own, and the rules check the write and its Log entry as before. A removed award is listed, dimmed, with its
+// that the award did not change meanwhile are its own, and the rules check the write and its Log entry as before. A removed award is listed, its item struck through, with its
 // reason and no Fix (it is recorded again instead). Only one dialog is open at a time, so Fix takes the place of this one.
 export function RecentAwardsModal({ close, live }: { close: () => void; live: TabContext }) {
   const [shown, setShown] = useState(RECENT_STEP)

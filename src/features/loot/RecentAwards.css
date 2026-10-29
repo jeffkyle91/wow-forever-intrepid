@@ -14,9 +14,10 @@
 .recent-tag-removed { color: #8a3b2c; background: #fbeeea; }
 .recent-award-reason { color: #8a3b2c; font-size: 10px; line-height: 1.4; }
 .recent-fix { flex: none; min-height: 28px; gap: 5px; padding: 0 10px; }
-/* A removed award stays in the list, dimmed, with its reason at full strength: it is no longer anyone's, and it has no Fix. */
+/* A removed award stays in the list with its item struck through and its reason: it is no longer anyone's, and it has no Fix. Its text keeps its full color (fading it
+   dropped the details below 3:1). */
 .recent-award.recent-removed { border-left-color: #c9b9b4; background: #fafaf9; }
-.recent-award.recent-removed .recent-award-line strong, .recent-award.recent-removed .recent-award-to, .recent-award.recent-removed .recent-award-facts { opacity: .62; }
+.recent-award.recent-removed .recent-award-line strong { text-decoration: line-through; text-decoration-thickness: 1px; }
 .recent-empty { margin: 0; padding: 14px 0; color: #626e7b; font-size: 11px; text-align: center; }
 .recent-count { margin: 0; color: #626e7b; font-size: 10px; text-align: center; }
 .recent-more { justify-self: center; }

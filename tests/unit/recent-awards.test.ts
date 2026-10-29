@@ -96,7 +96,7 @@ describe('paging', () => {
 })
 
 describe('the state of a row', () => {
-  it('is removed for a removed award, whatever else it has, so the row is dimmed and has no Fix', () => {
+  it('is removed for a removed award, whatever else it has, so the row is struck through and has no Fix', () => {
     assert.equal(awardState({ status: 'removed', rev: 2, createdBy: 'uid-leader' }), 'removed')
     assert.equal(awardState({ status: 'removed' }), 'removed')
   })

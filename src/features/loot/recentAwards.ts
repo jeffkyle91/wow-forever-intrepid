@@ -40,7 +40,7 @@ export function newestFirst(a: RecentAward, b: RecentAward): number {
   return b.awardedAt.localeCompare(a.awardedAt) || descending(enteredTime(a.createdAt), enteredTime(b.createdAt)) || a.id.localeCompare(b.id)
 }
 
-/** Every award of this phase, removed ones included (they are shown, dimmed), newest first. An award with no phase is in the first phase. */
+/** Every award of this phase, removed ones included (they are shown, struck through), newest first. An award with no phase is in the first phase. */
 export function recentAwards<A extends RecentAward>(awards: readonly A[], phaseNo: number): A[] {
   return awards.filter((award) => phaseNoOf(award) === phaseNo).sort(newestFirst)
 }

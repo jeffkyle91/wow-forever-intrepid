@@ -1,0 +1,4 @@
+/* RAID-017: the zone pictures of an upcoming raid (RaidBanner), a strip across the top of its row on My dashboard. The strip is the row's last child, so no existing child
+   changes position (the row's text is styled as `li > span:first-child`), and `order: -1` puts it first. The text and the sign-up button stay on the plain surface below it, so
+   their contrast never depends on a picture. The strip has a fixed height, so nothing moves while pictures load. */
+.dash-raids li > .dash-raid-art { order: -1; grid-column: 1 / -1; height: 40px; margin-bottom: 6px; overflow: hidden; border-radius: 4px; }

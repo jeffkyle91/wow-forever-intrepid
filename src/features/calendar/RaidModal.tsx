@@ -41,7 +41,7 @@ export function RaidModal({ date: defaultDate, close, live }: { date: string; cl
     <label>Raid night name<input name="name" placeholder="e.g. Tuesday raid night" maxLength={80} required autoFocus /></label>
     <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={defaultDate} required /></label></div>
     <div className="time-picker-field"><span>Start time (ET)</span><TimePicker name="time" defaultValue={DEFAULT_RAID_TIME} /></div>
-    <RaidZonePicker zones={live.data.raidZones} selectedIds={selectedZoneIds} onChange={setSelectedZoneIds} />
+    <RaidZonePicker zones={live.data.raidZones} selectedIds={selectedZoneIds} onChange={setSelectedZoneIds} zoneArt={live.data.zoneArt} zoneColors={live.data.zoneColors} />
     <label>Description (optional)<textarea name="description" rows={3} maxLength={RAID_DESCRIPTION_MAX_LENGTH} placeholder="e.g. Bring flasks. Summons at 7:45 pm." /></label>
     <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close}>Cancel</button><button className="button button-primary" disabled={live.feedback.busy}><Plus size={15} /> Add Raid</button></div>
   </form></Modal>

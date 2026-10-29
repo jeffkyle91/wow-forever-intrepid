@@ -39,6 +39,10 @@ RAID-001 captures automatic immutable start snapshots with a daily server-side s
 
 Snapshot capture accepts older raids with an omitted `time` as 21:00 Eastern, matching the app contract; `startsAt` remains authoritative. Explicit invalid times still fail. This does not reconstruct missing working rosters or migrate historical mock raids.
 
+### Zone pictures on My dashboard (RAID-017)
+
+As a Member, open **My dashboard** with upcoming raids that have 1, 2, 3 and 10 zones, a zone with no picture (it shows its color), and a raid with no zones listed (a single tint). Each of the (up to five) raids shows a strip above its details; check that the sign-up button, its Accepted, Absent and closed states, the "You marked unavailable" and Cancelled tags and **View on calendar** work as before, that the text never sits on a picture, and that the strip is 40px tall in light and dark and at 375px and 320px with no sideways scroll.
+
 ### Snapshot deployment prerequisites
 
 After explicit deployment approval, run `npm run release -- --deploy` in an interactive terminal. The release deploys `firestore:indexes` before Functions, then stops at a readiness checkpoint. In the target project's Firebase console, Firestore > Indexes, verify both composite indexes (`auditLog`: `targetType`/`at`; `raidSnapshotJobs`: `state`/`nextAttemptAt`) and the single-field ascending **collection-group** index on `raids.startsAt` have finished building and are ready. Collection-scoped indexes alone are insufficient. Preserve the existing collection-scoped field indexes.

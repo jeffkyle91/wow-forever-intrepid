@@ -50,7 +50,11 @@ button.raid-calendar-event:hover, button.raid-calendar-event:focus-visible { bac
 .raid-zone-picker-group > strong { min-width: 74px; color: #7a8a9a; font-size: 10px; }
 .modal-form .raid-zone-picker-group label { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 5px; color: #34463a; font-size: 11px; font-weight: 500; }
 .modal-form .raid-zone-picker input[type='checkbox'] { width: 14px; min-height: 14px; margin: 0; accent-color: #4a6a85; }
+.raid-zone-preview-field { display: grid; gap: 4px; }
+.raid-zone-preview-field > span { color: #7a8a9a; font-size: 10px; font-weight: 700; }
+.raid-zone-preview { height: 64px; overflow: hidden; border: 1px solid #dfe6dc; border-radius: 4px; }
 :root[data-theme='dark'] .raid-zone-picker { border-color: #3a4b61; }
+:root[data-theme='dark'] .raid-zone-preview { border-color: #3a4b61; }
 :root[data-theme='dark'] .raid-zone-picker legend, :root[data-theme='dark'] .modal-form .raid-zone-picker-group label { color: #c0cede; }
 .afk-calendar-entry { display: block; min-width: 0; padding: 3px 4px; overflow: hidden; border-left: 2px solid #7c9fb8; border-radius: 2px; color: #4f687d; background: #edf4f8; font-size: 8px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .afk-calendar-entry.own-entry { border-left-color: #3c78a5; color: #315d7d; background: #e5f0f7; font-weight: 700; }

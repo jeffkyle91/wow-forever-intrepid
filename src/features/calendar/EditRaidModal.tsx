@@ -54,7 +54,7 @@ export function EditRaidModal({ raidId, close, live }: { raidId: string; close: 
       <label>Raid night name<input name="name" defaultValue={raid.name} maxLength={80} required autoFocus /></label>
       <div className="form-grid"><label>Date<input name="date" type="date" defaultValue={raid.date} required /></label></div>
       <div className="time-picker-field"><span>Start time (ET)</span><TimePicker name="time" defaultValue={raidTimeOf(raid)} /></div>
-      <RaidZonePicker zones={live.data.raidZones} selectedIds={selectedZoneIds} onChange={setSelectedZoneIds} />
+      <RaidZonePicker zones={live.data.raidZones} selectedIds={selectedZoneIds} onChange={setSelectedZoneIds} zoneArt={live.data.zoneArt} zoneColors={live.data.zoneColors} savedZones={raid.zones} />
       <label>Description (optional)<textarea name="description" rows={3} defaultValue={raid.description ?? ''} maxLength={RAID_DESCRIPTION_MAX_LENGTH} /></label>
       <div className="modal-actions"><button type="button" className="button button-secondary" onClick={close}>Close</button><button className="button button-primary" disabled={busy}><Save size={15} /> Save changes</button></div>
     </form>

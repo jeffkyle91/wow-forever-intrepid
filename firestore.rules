@@ -397,6 +397,9 @@ service cloud.firestore {
     // A raid edit or cancellation is accepted only together with its audit entry (type 'raid'), like an award edit.
     // A cancelled raid stays on the calendar with status 'cancelled' and a reason; it can be put back to
     // 'scheduled', which clears the reason. Raids made before this change have no rev or status (scheduled).
+    // Mark Complete (RAID-019) sets status 'complete' (entry action 'complete') and undoing it puts it back to 'scheduled'
+    // (an 'edit'). A raid can be complete only once it has a saved start that has passed, never straight from cancelled,
+    // and never with a reason; so a complete raid cannot be moved to a future start without undoing it first.
     // The start time, 24-hour HH:MM in Eastern Time. Raids made without one start at the guild's usual 9:00 PM ET.
     function validRaidTime(value) {
       return value is string && value.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
@@ -454,10 +457,12 @@ service cloud.firestore {
         && (!('description' in after) || validRaidDescription(after.description))
         && (!('time' in after) || validRaidTime(after.time))
         && (!('zones' in after) || validRaidZones(after.zones))
-        && after.get('status', 'scheduled') in ['scheduled', 'cancelled']
+        && after.get('status', 'scheduled') in ['scheduled', 'cancelled', 'complete']
         && (!('cancelReason' in after) || (after.cancelReason is string && after.cancelReason.size() <= 300))
         && (after.get('status', 'scheduled') != 'cancelled' || (after.get('cancelReason', null) is string && after.cancelReason.trim().size() >= 1))
-        && (after.get('status', 'scheduled') != 'scheduled' || !('cancelReason' in after));
+        && (after.get('status', 'scheduled') == 'cancelled' || !('cancelReason' in after))
+        && (after.get('status', 'scheduled') != 'complete'
+          || ('startsAt' in after && after.startsAt <= request.time && before.get('status', 'scheduled') != 'cancelled'));
     }
 
     // get() and getAfter() of a document that is not there are errors, and an error denies the request. So the
@@ -541,6 +546,7 @@ service cloud.firestore {
     // The item label is the item as it was before the change (as created, for a create).
     // The entry has to say exactly what happened to the target: the fields that differ between the document before
     // and after the batch (a created document has no "before", a deleted one no "after"), with their old and new values.
+    // A raid entry says 'complete' exactly when the batch marks the raid complete (RAID-019), as 'cancel' does for cancelling.
     function auditDescribesChange(data, oldDoc, newDoc) {
       let award = data.targetType == 'award';
       let raid = data.targetType == 'raid';
@@ -575,6 +581,7 @@ service cloud.firestore {
             && auditFieldLogged(data, oldDoc, newDoc, 'zones')
             && auditFieldLogged(data, oldDoc, newDoc, 'time')
             && auditFieldLogged(data, oldDoc, newDoc, 'startsAt')
+            && (data.action == 'complete') == (newDoc.get('status', 'scheduled') == 'complete' && oldDoc.get('status', 'scheduled') != 'complete')
           : award
             ? awardFieldsLogged(data, oldDoc, newDoc)
             : table
@@ -607,7 +614,7 @@ service cloud.firestore {
         && data.targetId is string && data.targetId.matches('^[A-Za-z0-9_-]{1,100}$')
         && data.rev is int && data.rev >= 1
         && entryId == data.targetType + '_' + data.targetId + '_' + string(data.rev)
-        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel'] : data.targetType == 'phase' ? data.action in ['start', 'reopen'] : data.targetType == 'table' ? data.action in ['create', 'edit'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
+        && (data.targetType == 'raid' ? data.action in ['edit', 'cancel', 'complete'] : data.targetType == 'phase' ? data.action in ['start', 'reopen'] : data.targetType == 'table' ? data.action in ['create', 'edit'] : data.action in ['create', 'edit', 'remove', 'reorder', 'delete'])
         && (data.targetType != 'award' || data.action in ['create', 'edit', 'remove'])
         && data.item is string && data.item.size() <= 120
         && data.changed is list && data.changed.size() <= 20

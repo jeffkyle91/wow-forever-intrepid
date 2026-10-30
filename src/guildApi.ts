@@ -116,7 +116,10 @@ export type GuildSettings = {
   groupNames: Record<RaidGroup, string>
   // The names of the finished phases, oldest first. Its length is the number of the current phase. Absent until a phase has been closed.
   phaseHistory?: string[]
-  // How many times a phase has been started or reopened (each one is in the Log). Absent until the first.
+  // The day each phase started (RAID-019): one Eastern date "YYYY-MM-DD" per phase, finished ones first, then the current one, '' for a phase with
+  // no date; never longer than the phases, never ending with a blank, never going backwards (shared/game/phases.ts). Absent until a phase has a date.
+  phaseStarts?: string[]
+  // How many times a phase has been started or reopened, or the start dates changed (each one is in the Log). Absent until the first.
   phaseRev?: number
 }
 export type GuildSettingsRecord = GuildSettings & { id: string }
@@ -430,15 +433,16 @@ export async function pickZoneArt(zoneKey: string, imageId: string | null, who: 
   })
 }
 
-// Starting a phase or reopening one saves the settings together with its Log entry (`phase_settings_{n}`, n counting every start and reopen),
-// which the rules require, so nobody can move the phase without it showing. The entry says what the phase fields were before: what is stored now
-// (nothing on a guild's first save, which is why the stored document is read here), not what this browser last showed.
-export async function changePhase(next: GuildSettings, action: 'start' | 'reopen', who: AuditWho) {
+// Starting a phase or reopening one, and setting or correcting a phase's start date ('edit', RAID-019), saves the settings together with its Log
+// entry (`phase_settings_{n}`, n counting every start, reopen and change of the dates), which the rules require, so nobody can move the phase or
+// its dates without it showing. The entry says what the phase fields were before: what is stored now (nothing on a guild's first save, which is
+// why the stored document is read here), not what this browser last showed.
+export async function changePhase(next: GuildSettings, action: 'start' | 'reopen' | 'edit', who: AuditWho) {
   const database = requireDb()
   const ref = doc(database, 'guilds', guildId, 'settings', 'general')
   const stored = (await getDoc(ref)).data() ?? {}
   const rev = nextPhaseRev(stored)
-  const description = describeEdit(stored, { currentPhase: next.currentPhase, nextPhase: next.nextPhase, phaseHistory: next.phaseHistory }, phaseAuditFields)
+  const description = describeEdit(stored, { currentPhase: next.currentPhase, nextPhase: next.nextPhase, phaseHistory: next.phaseHistory, phaseStarts: next.phaseStarts }, phaseAuditFields)
   if (!description) throw new Error('Nothing was changed.')
   const batch = writeBatch(database)
   batch.set(ref, { ...next, phaseRev: rev })

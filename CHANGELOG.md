@@ -6,6 +6,7 @@ Earlier releases have not been reconstructed here. These entries do not assert t
 
 ## Unreleased
 
+- The Guild Calendar has a **Show:** choice in its heading row (UX-007): turn Raids or Absences (unavailable dates) off to read the other alone, or both off for a bare month. Both are on when you open the page and the choice lasts until you reload; it changes only what you see. The counts in the heading and footer still count every raid and date range, and opening the calendar from a raid turns Raids back on.
 - Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
 - Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
 - On a desktop window (1101px wide or more), Loot priorities puts the item first (UX-008): the item is twice as large, with its icon, alone at the left; where it drops and the council note come next, then the council order with the Award loot and Edit Prio buttons under it. The boss heading is a little larger. Narrower windows and phones look as before.

@@ -62,11 +62,11 @@
 .raid-history-banner-failed { color: #85231b; border-color: #efb5ac; border-left-color: #c4473b; background: #fff0ee; }
 .raid-history-failure-code { display: inline-block; margin-left: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; }
 .raid-history-gap { margin: 0 0 8px; color: #425148; font-size: 11px; line-height: 1.5; }
-.raid-history-table .raid-history-not-written td { color: #6e4500; font-size: 11px; white-space: normal; }
+.raid-history-not-written { margin: 6px 0 0; color: #6e4500; font-size: 11px; line-height: 1.5; }
 :root[data-theme='dark'] .raid-history-status-complete { color: #b6e6c4; background: #1f4030; }
 :root[data-theme='dark'] .raid-history-status-capturing { color: #ffd69a; background: #46361a; }
 :root[data-theme='dark'] .raid-history-status-failed { color: #ffb4ab; background: #542222; }
 :root[data-theme='dark'] .raid-history-banner-capturing { color: #ffe2b0; border-color: #6b5326; border-left-color: #d9a441; background: #3a2e15; }
 :root[data-theme='dark'] .raid-history-banner-failed { color: #ffd0c9; border-color: #6b3530; border-left-color: #e0675c; background: #3d2020; }
 :root[data-theme='dark'] .raid-history-gap { color: #bfccd9; }
-:root[data-theme='dark'] .raid-history-table .raid-history-not-written td { color: #ffd69a; }
+:root[data-theme='dark'] .raid-history-not-written { color: #ffd69a; }

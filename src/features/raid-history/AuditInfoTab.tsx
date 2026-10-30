@@ -165,17 +165,20 @@ function StatusBanner({ progress }: { progress: SnapshotProgress }) {
 
 function RosterTable({ report, roster }: { report: SnapshotReport; roster: SnapshotReportRoster }) {
   const notWritten = snapshotNotWrittenText(roster.notWritten, report.progress.status)
-  return <div className="table-scroll">
-    <table className="data-table raid-history-table">
-      <thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th>PLACEMENT</th></tr></thead>
-      <tbody>
-        {roster.team.map((character) => <CharacterRow key={`${report.id}:${character.id}`} character={character} placement={report.teamName} />)}
-        {roster.bench.map((character) => <CharacterRow key={`${report.id}:bench:${character.id}`} character={character} placement="Assigned bench" />)}
-        {!roster.team.length && !roster.bench.length && !notWritten && <EmptyRow colSpan={5} title="No captured characters" detail="This published lineup contains no team or bench assignments." />}
-        {notWritten && <tr className="raid-history-not-written"><td colSpan={5}>{notWritten}</td></tr>}
-      </tbody>
-    </table>
-  </div>
+  // The note sits under the table, not in it: the table scrolls sideways in a narrow panel, and a row would hide the end of the note.
+  return <>
+    <div className="table-scroll">
+      <table className="data-table raid-history-table">
+        <thead><tr><th>CHARACTER</th><th>CLASS</th><th>SPECIALIZATION</th><th>ROLE</th><th>PLACEMENT</th></tr></thead>
+        <tbody>
+          {roster.team.map((character) => <CharacterRow key={`${report.id}:${character.id}`} character={character} placement={report.teamName} />)}
+          {roster.bench.map((character) => <CharacterRow key={`${report.id}:bench:${character.id}`} character={character} placement="Assigned bench" />)}
+          {!roster.team.length && !roster.bench.length && !notWritten && <EmptyRow colSpan={5} title="No captured characters" detail="This published lineup contains no team or bench assignments." />}
+        </tbody>
+      </table>
+    </div>
+    {notWritten && <p className="raid-history-not-written">{notWritten}</p>}
+  </>
 }
 
 function CharacterRow({ character, placement }: { character: SnapshotReportRoster['team'][number]; placement: string }) {
@@ -200,22 +203,24 @@ function InvitationTable({ report, rows, loading, error, retry }: { report: Snap
   const characterName = (character: SnapshotInvitationRow['invitationCharacter'], expected: boolean) => character
     ? [character.name, character.surname].filter(Boolean).join(' ')
     : expected && partial ? 'Not written yet' : '—'
-  return <div className="table-scroll">
-    <table className="data-table raid-history-table raid-history-response-table">
-      <thead><tr><th>ACCOUNT DISPLAY NAME</th><th>INVITED CHARACTER</th><th>INVITATION</th><th>SIGN-UP CHARACTER</th><th>RESPONSE</th></tr></thead>
-      <tbody>
-        {rows.map(({ account, invitationCharacter, signupCharacter }) => <tr key={account.uid}>
-          <td>{account.displayName ?? 'Not recorded'}</td>
-          <td>{characterName(invitationCharacter, Boolean(account.invitationMainId))}</td>
-          <td>{account.invited ? `Invited${account.invitationOrder === null ? '' : ` · #${account.invitationOrder + 1}`}` : 'Not invited'}</td>
-          <td>{characterName(signupCharacter, Boolean(account.signup))}</td>
-          <td>{account.signup ? `${account.signup.status}${account.signup.benchKind === 'self' ? ' · voluntary bench' : ''}` : 'No response'}</td>
-        </tr>)}
-        {!rows.length && !notWritten && <EmptyRow colSpan={5} title="No captured invitations or sign-ups" detail="No account response records were present in this snapshot." />}
-        {notWritten && <tr className="raid-history-not-written"><td colSpan={5}>{notWritten}</td></tr>}
-      </tbody>
-    </table>
-  </div>
+  return <>
+    <div className="table-scroll">
+      <table className="data-table raid-history-table raid-history-response-table">
+        <thead><tr><th>ACCOUNT DISPLAY NAME</th><th>INVITED CHARACTER</th><th>INVITATION</th><th>SIGN-UP CHARACTER</th><th>RESPONSE</th></tr></thead>
+        <tbody>
+          {rows.map(({ account, invitationCharacter, signupCharacter }) => <tr key={account.uid}>
+            <td>{account.displayName ?? 'Not recorded'}</td>
+            <td>{characterName(invitationCharacter, Boolean(account.invitationMainId))}</td>
+            <td>{account.invited ? `Invited${account.invitationOrder === null ? '' : ` · #${account.invitationOrder + 1}`}` : 'Not invited'}</td>
+            <td>{characterName(signupCharacter, Boolean(account.signup))}</td>
+            <td>{account.signup ? `${account.signup.status}${account.signup.benchKind === 'self' ? ' · voluntary bench' : ''}` : 'No response'}</td>
+          </tr>)}
+          {!rows.length && !notWritten && <EmptyRow colSpan={5} title="No captured invitations or sign-ups" detail="No account response records were present in this snapshot." />}
+        </tbody>
+      </table>
+    </div>
+    {notWritten && <p className="raid-history-not-written">{notWritten}</p>}
+  </>
 }
 
 function errorMessage(error: unknown, fallback: string) {

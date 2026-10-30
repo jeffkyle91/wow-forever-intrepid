@@ -33,8 +33,10 @@
 .raid-history-filters .segmented-control { flex-wrap: wrap; max-width: 100%; }
 .raid-history-filters .segment { gap: 5px; font-size: 11px; }
 .raid-history-filters .segment span { font-size: 10px; font-variant-numeric: tabular-nums; }
-.raid-history-month { display: flex; align-items: center; gap: 6px; color: #647268; font-size: 11px; font-weight: 700; }
-.raid-history-month select { min-width: 0; max-width: 100%; height: 30px; padding: 0 8px; border: 1px solid #e3e8e0; border-radius: 4px; color: #425148; background: #fff; font: inherit; font-size: 11px; font-weight: 400; }
+.raid-history-month, .raid-history-phase { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; color: #647268; font-size: 11px; font-weight: 700; }
+.raid-history-month select, .raid-history-phase select { min-width: 0; max-width: 100%; height: 30px; padding: 0 8px; border: 1px solid #e3e8e0; border-radius: 4px; color: #425148; background: #fff; font: inherit; font-size: 11px; font-weight: 400; }
+.raid-history-phase select:disabled { opacity: 0.6; cursor: not-allowed; }
+.raid-history-phase-why { flex: 1 1 100%; margin: 0; color: #647268; font-size: 11px; line-height: 1.5; }
 .raid-history-raids { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .raid-history-raid { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; padding: 10px var(--inner-pad-x); color: #425148; border: 1px solid #e3e8e0; border-radius: var(--card-radius); background: #fff; }
 .raid-history-raid-text { display: grid; gap: 3px; min-width: 0; }
@@ -61,9 +63,12 @@
 :root[data-theme='dark'] .raid-history-read-only { color: #b9d2bb; background: #263c30; }
 :root[data-theme='dark'] .raid-history-inline-error { color: #efab9d; }
 :root[data-theme='dark'] .raid-history-month,
+:root[data-theme='dark'] .raid-history-phase,
+:root[data-theme='dark'] .raid-history-phase-why,
 :root[data-theme='dark'] .raid-history-none,
 :root[data-theme='dark'] .raid-history-more { color: #aab8c8; }
-:root[data-theme='dark'] .raid-history-month select { color: #d3deea; border-color: #314157; background: #182536; }
+:root[data-theme='dark'] .raid-history-month select,
+:root[data-theme='dark'] .raid-history-phase select { color: #d3deea; border-color: #314157; background: #182536; }
 :root[data-theme='dark'] .raid-history-raid { color: #bfccd9; border-color: #314157; background: #182536; }
 :root[data-theme='dark'] .raid-history-raid-text small { color: #9cabbc; }
 :root[data-theme='dark'] .raid-history-category-scheduled { color: #c7dcf0; background: #243a52; }

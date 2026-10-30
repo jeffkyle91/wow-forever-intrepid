@@ -1,7 +1,7 @@
-// The All raids list of Raid History (features/raid-history/raidList.ts, RAID-019): newest first, each with its category, filtered by category and month.
+// The All raids list of Raid History (features/raid-history/raidList.ts, RAID-019): newest first, each with its category, filtered by category, month and loot phase.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { categorizedRaids, categoryCounts, inCategory, inMonth, monthLabel, monthOf, PAGE_SIZE, raidMonths } from '../../src/features/raid-history/raidList.ts'
+import { categorizedRaids, categoryCounts, inCategory, inMonth, inPhase, monthLabel, monthOf, PAGE_SIZE, phaseChoices, raidMonths } from '../../src/features/raid-history/raidList.ts'
 
 const NOW = Date.parse('2026-12-10T12:00:00Z') // 7:00 AM Eastern, December 10
 const HOUR = 3_600_000
@@ -103,6 +103,44 @@ describe('the months', () => {
     assert.equal(monthLabel('2026-12'), 'December 2026')
     assert.equal(monthLabel('2027-01'), 'January 2027')
     assert.equal(monthLabel('nonsense'), 'nonsense')
+  })
+})
+
+// The Phase filter: each raid is placed by its date in the phases' start dates (Settings), not by anything the raid stores. Invented phase names.
+describe('the phases', () => {
+  const listed = categorizedRaids(raids, NOW, timeOf)
+  const ids = (entries: ReturnType<typeof inPhase>) => entries.map(({ raid: entry }) => (entry as Raid).id)
+  // Phase 0 (Launch) has no date, Second started on November 21 and Third, the current one, on December 10.
+  const dated = { currentPhase: 'Third', nextPhase: 'Fourth', phaseHistory: ['Launch', 'Second'], phaseStarts: ['', '2026-11-21', '2026-12-10'] }
+
+  test('are offered newest first, the current one first, saying which have a start date, and never the next one', () => {
+    assert.deepEqual(phaseChoices(dated), [{ no: 2, name: 'Third', dated: true }, { no: 1, name: 'Second', dated: true }, { no: 0, name: 'Launch', dated: false }])
+    assert.deepEqual(phaseChoices({ currentPhase: 'Launch', nextPhase: 'Second' }), [{ no: 0, name: 'Launch', dated: false }])
+  })
+
+  test('place each raid by its date: the start day is the new phase, the day before the one before, newest first as ever', () => {
+    assert.deepEqual(ids(inPhase(listed, dated, 2)), ['jan-legacy', 'dec-called-off', 'dec-tonight-b', 'dec-tonight', 'dec-early', 'dec-marked'])
+    assert.deepEqual(ids(inPhase(listed, dated, 1)), ['nov-cancelled'])
+    assert.deepEqual(ids(inPhase(listed, dated, 0)), ['nov-held', 'old-legacy'])
+    assert.equal(inPhase(listed, dated, 'all').length, raids.length)
+  })
+
+  test('leave out of every phase a raid that cannot be placed, which All phases still shows', () => {
+    const late = { ...dated, phaseStarts: ['', '', '2026-12-10'] }
+    assert.deepEqual(ids(inPhase(listed, late, 0)), [])
+    assert.deepEqual(ids(inPhase(listed, late, 1)), [])
+    assert.equal(inPhase(listed, late, 2).length, 6)
+    assert.equal(inPhase(listed, late, 'all').length, raids.length)
+    const undated = { currentPhase: 'Third', nextPhase: 'Fourth', phaseHistory: ['Launch', 'Second'] }
+    for (const no of [0, 1, 2]) assert.deepEqual(inPhase(listed, undated, no), [], `phase ${no} with no dates`)
+    assert.equal(inPhase(listed, undated, 'all').length, raids.length)
+  })
+
+  test('combine with the month and the category, and the counts are those of the phase and month picked', () => {
+    const third = inPhase(inMonth(listed, '2026-12'), dated, 2)
+    assert.deepEqual(categoryCounts(third), { all: 5, scheduled: 2, 'in-progress': 1, complete: 1, cancelled: 1 })
+    assert.deepEqual(ids(inCategory(inPhase(listed, dated, 1), 'cancelled')), ['nov-cancelled'])
+    assert.deepEqual(categoryCounts(inPhase(inMonth(listed, '2026-11'), dated, 0)), { all: 1, scheduled: 0, 'in-progress': 0, complete: 1, cancelled: 0 })
   })
 })
 

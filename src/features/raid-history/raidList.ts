@@ -1,5 +1,6 @@
 // The All raids list of Raid History (RAID-019): every raid the guild has, from the raids already loaded (no read of its own), each with its category, newest first, with
-// a category and a month filter and "Show more". Pure, so Node tests it, and it takes only what it reads of a raid.
+// a category, a month and a loot phase filter and "Show more". Pure, so Node tests it, and it takes only what it reads of a raid.
+import { phaseOfDate, phaseOptions, phaseStartOf, type PhaseSettings } from '../../shared/game/phases.ts'
 import { RAID_CATEGORIES, raidCategory, type RaidCategory } from '../../shared/raids/raidCategory.ts'
 
 type ListedRaid = { id: string; date: string; time?: string; status?: string; startsAt?: { toMillis(): number } }
@@ -36,6 +37,26 @@ export function monthLabel(month: string): string {
 /** The raids of one month ('' for every month). */
 export function inMonth<T extends Pick<ListedRaid, 'date'>>(entries: readonly CategorizedRaid<T>[], month: string): CategorizedRaid<T>[] {
   return month ? entries.filter(({ raid }) => monthOf(raid.date) === month) : [...entries]
+}
+
+/** A loot phase by its number, or every raid. */
+export type PhaseFilter = number | 'all'
+export type PhaseChoice = { no: number; name: string; dated: boolean }
+
+/**
+ * The choices of the Phase filter after All phases: every finished phase and the current one, newest first, by name, each saying whether it has a start
+ * date (Settings, Loot phases). Raids carry no phase: each is placed by its date (phaseOfDate), so only the dates in Settings are needed, not a read.
+ */
+export const phaseChoices = (settings: PhaseSettings): PhaseChoice[] =>
+  phaseOptions(settings, false).map((option) => ({ no: option.no, name: option.name, dated: phaseStartOf(settings, option.no) !== undefined }))
+
+/**
+ * The raids of one loot phase ('all' for every raid), each by its Eastern date: the latest phase whose start date is on or before it (phaseOfDate). A raid
+ * that cannot be placed (no start dates yet, or a date before every start that more than one phase could hold) is in no phase, so it is shown under All
+ * phases only.
+ */
+export function inPhase<T extends Pick<ListedRaid, 'date'>>(entries: readonly CategorizedRaid<T>[], settings: Pick<PhaseSettings, 'phaseHistory' | 'phaseStarts'>, phase: PhaseFilter): CategorizedRaid<T>[] {
+  return phase === 'all' ? [...entries] : entries.filter(({ raid }) => phaseOfDate(settings, raid.date) === phase)
 }
 
 /** The raids of one category ('all' for every category). */

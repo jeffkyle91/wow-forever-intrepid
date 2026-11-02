@@ -41,11 +41,19 @@ RAID-001 captures automatic immutable start snapshots with a daily server-side s
 
 Snapshot capture accepts older raids with an omitted `time` as 21:00 Eastern, matching the app contract; `startsAt` remains authoritative. Explicit invalid times still fail. This does not reconstruct missing working rosters or migrate historical mock raids.
 
+### Zone pictures on My dashboard (RAID-017)
+
+As a Member, open **My dashboard** with upcoming raids that have 1, 2, 3 and 10 zones, a zone with no picture (it shows its color), and a raid with no zones listed (a single tint). Each of the (up to five) raids shows a strip above its details; check that the sign-up button, its Accepted, Absent and closed states, the "You marked unavailable" and Cancelled tags and **View on calendar** work as before, that the text never sits on a picture, and that the strip is 40px tall in light and dark and at 375px and 320px with no sideways scroll.
+
 ### Snapshot deployment prerequisites
 
 After explicit deployment approval, run `npm run release -- --deploy` in an interactive terminal. The release deploys `firestore:indexes` before Functions, then stops at a readiness checkpoint. In the target project's Firebase console, Firestore > Indexes, verify both composite indexes (`auditLog`: `targetType`/`at`; `raidSnapshotJobs`: `state`/`nextAttemptAt`) and the single-field ascending **collection-group** index on `raids.startsAt` have finished building and are ready. Collection-scoped indexes alone are insufficient. Preserve the existing collection-scoped field indexes.
 
 Type `indexes-ready` only after that verification. Failed, missing or still-building indexes must not be acknowledged. Noninteractive runs or any other response stop before Functions deploy; rerun after resolving the problem. Index deployment success does not mean backfill is finished. The default `npm run release` remains read-only and never prompts. Direct service deployments must follow the same index-first/readiness order. Emulator tests do not validate production index provisioning or Scheduler delivery; verify both after the approved deployment.
+
+### Showing and hiding raids and absences (UX-007)
+
+On **Guild Calendar**, use the **Show:** buttons in the heading row as a Guild Leader, a Raid Leader and a Member. Turn Raids off, Absences off and then both off: the grid keeps its month, weekdays and day numbers, one line says both are hidden, the heading and footer counts do not change, and a day's accessible name lists only what is shown. With Absences off, add, edit and remove a range (the sidebar list and the dialog still show it). Open the calendar from **Leadership Overview** and from a raid in **Scheduled Raids** with Raids off and check that Raids turn on. A reload shows both again; nothing is stored.
 
 ### Editing unavailable dates (MEMBER-005)
 
@@ -54,6 +62,10 @@ The edit dialog also provides **Delete absence**, using the existing owner-only 
 Use an invented Member account to add a range, then use the pencil beside it in **My dashboard > Upcoming absences** and **Guild Calendar > Your date ranges**, or click the owned entry directly on a calendar day. All open the same prefilled dialog, whose body text matches the raid sign-up dialog. Check calendar entry activation by keyboard as well as click, cancel, invalid/reversed dates, saving, narrow screens and both themes. Other members' calendar entries stay read-only; leaders cannot edit another account's ranges. Busy state must disable saving and calendar edit buttons; a deleted entry must show an error rather than recreate it. The visible calendar name is Guild Calendar; retain the internal `afk` tab ID and data names.
 
 Move, shrink and expand a range across future raids, including another overlapping unavailable entry. Previously covered raids retain Absent; newly covered raids become Absent and lose that account's main/alt scheduled placements. Once no unavailable entry overlaps, the member may explicitly change their response; old placements are never restored. Started/cancelled raids and published snapshots remain unchanged. Server tests cover authorization, ranges, concurrency and transactional rollback. Deploy the `updateUnavailableDates` Function before Hosting after explicit release approval; existing add/remove clients remain compatible. No data migration is required.
+
+### Fixing a recent award (LOOT-014)
+
+In the local emulator, give the current phase more than 30 invented awards (most from **Record loot**, some from a priority list, one removed with a reason, one corrected) and put one in a finished phase. As a Guild Leader and as a Raid Leader, **Recent awards** beside Record loot opens **Recently recorded** with the current phase's awards only: newest raid night first, then the latest entered, 30 rows and then **Show 30 more**. The removed award is struck through, with its reason and no Fix. Fix a Record loot award: the choice is the roster; move it, then remove another with a reason, and check that each award and its Log entry match what the x on a priority line writes. The x on an unlocked priority line still opens the same dialog, with the people on the list first. As a Member, as a Guild Leader in VIEW AS Member, and while looking at a finished phase, there is no Recent awards button. Check light and dark, and a 375px window: the heading buttons wrap and the rows fit without sideways scrolling.
 
 ```bash
 npm run build
@@ -100,6 +112,10 @@ Character-readiness changes must keep `tests/rules/character-readiness.test.ts` 
 - Opening a PR: `gh pr create --fill` (GitHub CLI). The merge is done in GitHub.
 - After the merge, a maintainer asks for the deploy. `npm run release` from a clean `main` that matches `origin/main` runs the read-only checks and prints the plan (and refuses if the build would use a Firebase project other than the live one). `npm run release -- --deploy` then builds, lints, runs server/rules tests, deploys Functions, Firestore rules, Storage rules, then hosting, then moves the `last-deploy` note. Any other argument is an error, so `--help` and typos cannot deploy. Cloud Storage has to be turned on once in the Firebase console (Build > Storage > Get started, same location as Firestore, which needs the Blaze plan) before the Storage rules can be deployed; until then `npm run release -- --deploy` stops at that step.
 - Match the existing style. There is no formatter yet, so do not reformat code you are not changing; it makes the diff unreadable.
+
+### Looking back on My dashboard (MEMBER-008)
+
+In the local emulator, put the guild into a third phase (**Settings > Loot phases**, twice) with invented priorities and awards in each phase for a Member's characters, a removed award, and a list prepared for the next phase. As that Member, My dashboard shows a **Phase** choice in each of My loot priorities and My awarded loot only once a phase has finished (with one phase there is no choice). Pick each finished phase on each card, and check that the two cards are independent: priorities (with the received marks) and every award to the account's characters appear, and nothing from another phase, the next phase or a removed award. Reload, and start another phase as a Guild Leader while the page is open, and check that the dashboard returns to the current phase. Check the empty messages with an account that has no loot, and the control at 375px and 320px (44px tall, no sideways scroll).
 
 ### Branch cleanup after merge
 

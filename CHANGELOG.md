@@ -2,22 +2,35 @@
 
 Member-facing changes, grouped by verified production release. See [contribution rules](CONTRIBUTING.md#backlog-patch-notes-and-publishing) for maintenance and [the backlog](docs/backlog.json) for remaining work.
 
-Earlier releases have not been reconstructed here. These entries do not assert that Discord patch notes were published.
+These entries reconcile changes present in verified production releases. They do not assert that Discord patch notes were published.
 
 ## Unreleased
 
-- The Guild Calendar has a **Show:** choice in its heading row (UX-007): turn Raids or Absences (unavailable dates) off to read the other alone, or both off for a bare month. Both are on when you open the page and the choice lasts until you reload; it changes only what you see. The counts in the heading and footer still count every raid and date range, and opening the calendar from a raid turns Raids back on.
-- Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
-- Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
-- Each upcoming raid on My dashboard now has a strip of its zone pictures above its details, the same pictures as on Scheduled Raids (RAID-017). A zone with no picture shows its color.
-- On a desktop window (1101px wide or more), Loot priorities puts the item first (UX-008): the item is twice as large, with its icon, alone at the left; where it drops and the council note come next, then the council order with the Award loot and Edit Prio buttons under it. The boss heading is a little larger. Narrower windows and phones look as before.
-- Raid History opens on **All raids**: every raid, newest first, marked Scheduled, In Progress, Complete or Cancelled, with a filter for each, by month and by loot phase (RAID-019). Each loot phase now has a start date: starting a phase records the day, and a Guild Leader can set or correct the dates in Settings, under Loot phases.
-- Guild and Raid Leaders can press **Mark complete** on a started raid's row in Scheduled Raids, and undo it; a raid nobody marks counts as complete 5 hours after it starts.
-- An opened raid on Scheduled Raids has two tabs (RAID-018): **Signups** shows who is coming in Tanks, Healers, Ranged and Melee columns, by class, with Bench, Tentative, Late, Absent and Not responded below, and **Groups** shows the team lineups as before. Members start on Signups; Guild and Raid Leaders start on Groups.
-- Guild and Raid Leaders can open **Recent awards** on Loot priorities (LOOT-014) to see this phase's awards, newest first, and move one to another character or remove it with a reason, including loot recorded without a priority list. The Log keeps the history.
-- Scheduled Raids is now a list of collapsed rows (RAID-016): each shows a banner of the raid's zone pictures side by side, each fading into the next, with its name, date, time and zones. Open a row to see that raid's roster, sign-ups and buff coverage; a raid stays in the list for 5 hours after it starts and then leaves it (Raid History keeps it). Add Raid and Edit Raid show each zone's picture and a preview of the banner.
-- My dashboard can look back at earlier phases (MEMBER-008). Once a loot phase has finished, My loot priorities and My awarded loot each get a **Phase** choice. Each starts on the current phase; pick a finished one to see that phase's priorities (with what you received) or all the loot awarded to your characters in it, and the two cards can show different phases. The choices are only yours and start again from the current phase when you reload or when the guild starts a new phase.
-- Raid History's Audit Info shows a raid's starting snapshot as soon as it starts being taken, and when it fails, not only once it is finished (RAID-015). Each one is marked Complete, In progress or Failed. One still in progress has a banner saying the list may be incomplete and how much is written so far, and a failed one says in plain words why it could not be taken.
+## 2026-11-02 - bb1a2d2
+
+Refresh open tabs to load the update.
+
+- Raid Teams and Scheduled Raids distinguish Faerie Fire and Curse of Recklessness from Sunder Armor / Expose Armor. Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
+
+- On a desktop window (1101px wide or more), Loot priorities puts the item first, with its icon, beside where it drops and the council note; the council order and leader buttons follow. Narrower windows and phones look as before.
+
+- Scheduled Raids is a list of collapsed rows with zone-picture banners. Open a row to see that raid's roster and sign-ups; the raid leaves the list five hours after its start. Add Raid and Edit Raid show zone pictures and a banner preview.
+
+- My dashboard can look back at earlier loot phases, with independent phase choices for priorities and awarded loot.
+
+- The Guild Calendar has a **Show:** choice to hide raids or unavailable dates, or both. Counts remain guild totals, and opening the calendar from a raid turns Raids back on.
+
+- Upcoming raids on My dashboard show a strip of their zone pictures above their details.
+
+- Guild and Raid Leaders can open **Recent awards** on Loot priorities to review this phase's awards and move one to another character or remove it with a reason, including loot recorded without a priority list. The Log keeps the history.
+
+- An opened raid on Scheduled Raids has **Signups** and **Groups** tabs: Signups shows responses by role and class, with Bench, Tentative, Late, Absent and Not responded below. Members start on Signups; Guild and Raid Leaders start on Groups.
+
+- Raid History opens on **All raids**, listing raids by category with month and loot-phase filters. Guild and Raid Leaders can mark a started raid complete and undo it; an unmarked raid becomes complete five hours after its start.
+
+- Raid History's **Audit Info** shows a starting snapshot while it is being captured and after it fails, not only after completion. It labels each snapshot Complete, In progress or Failed and explains incomplete and failed captures.
+
+Verified cumulative production release, including changes already present in the previous production deployment. Source PRs: #161, #164, #166, #171, #172, #173, #174, #175, #177 and #178. PR #180 changes test automation and PR #181 adds an award-import design; neither adds a member-facing feature. Discord publication is not implied.
 
 ## 2026-10-25 - ce1a288
 

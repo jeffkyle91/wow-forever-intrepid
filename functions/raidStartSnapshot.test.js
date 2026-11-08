@@ -4,7 +4,7 @@ import { after, afterEach, beforeEach, describe, test } from 'node:test'
 import { deleteApp, initializeApp } from 'firebase-admin/app'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import {
-  captureRaidStartSnapshot, initialSnapshotCheckpoint, nextSnapshotExecution, runRaidStartSnapshotSweep,
+  captureRaidStartSnapshot, initialSnapshotCheckpoint, lateSaveMillis, runRaidStartSnapshotSweep, sweepSettleMillis, transientRetryAt,
 } from './raidStartSnapshot.js'
 
 const host = process.env.FIRESTORE_EMULATOR_HOST
@@ -15,6 +15,10 @@ const db = getFirestore(app)
 const start = Timestamp.fromMillis(Date.parse('2026-10-21T01:00:00.000Z'))
 const now = Timestamp.fromMillis(Date.parse('2026-10-21T01:05:00.000Z'))
 const previousBoundary = Timestamp.fromMillis(start.toMillis() - 24 * 60 * 60 * 1000)
+const minutes = (count) => count * 60 * 1000
+const later = (at, millis) => Timestamp.fromMillis(at.toMillis() + millis)
+// The scheduler runs the sweep every five minutes; this is the run after `now`.
+const nextRun = later(now, minutes(5))
 let guild
 let raid
 
@@ -78,6 +82,32 @@ async function startSweep(at = now) {
   return runRaidStartSnapshotSweep(db, at)
 }
 
+// A database whose transactions fail to read the raid the first `failures` times.
+function flakyRaidReads(failures) {
+  let remaining = failures
+  return new Proxy(db, {
+    get(target, property) {
+      if (property === 'runTransaction') {
+        return (handler, options) => target.runTransaction((transaction) => handler(new Proxy(transaction, {
+          get(inner, key) {
+            if (key === 'get') return async (ref) => {
+              if (remaining > 0 && ref.path === raid.path) {
+                remaining--
+                throw new Error('Injected transient raid read failure.')
+              }
+              return transaction.get(ref)
+            }
+            const value = Reflect.get(inner, key, inner)
+            return typeof value === 'function' ? value.bind(inner) : value
+          },
+        })), options)
+      }
+      const value = Reflect.get(target, property, target)
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
+}
+
 // RAID-015: a capture that fails before writing anything leaves this small failed record at the snapshot's path, for members to see.
 async function assertFailedRecord(code, { name = 'Invented Raid', date = '2026-10-20', startsAt = start } = {}) {
   const record = raid.collection('snapshots').doc('start')
@@ -135,20 +165,24 @@ describe('automatic immutable raid start snapshots', () => {
     })
   }
 
-  test('uses Eastern 9 PM boundaries across both daylight-saving transitions', () => {
+  test('bootstraps from the Eastern 9 PM boundary before the previous day across both daylight-saving transitions', () => {
     const springRun = Timestamp.fromDate(new Date('2026-03-08T21:05:00-04:00'))
     const fallRun = Timestamp.fromDate(new Date('2026-11-01T21:05:00-05:00'))
     assert.equal(initialSnapshotCheckpoint(springRun).toDate().toISOString(), '2026-03-08T01:59:59.999Z')
     assert.equal(initialSnapshotCheckpoint(fallRun).toDate().toISOString(), '2026-11-01T00:59:59.999Z')
-    assert.equal(nextSnapshotExecution(springRun).toDate().toISOString(), '2026-03-10T01:00:00.000Z')
-    assert.equal(nextSnapshotExecution(fallRun).toDate().toISOString(), '2026-11-03T02:00:00.000Z')
+  })
+
+  test('a transient failure is retried after 5 minutes, then after twice as long each time, at most 6 hours apart', () => {
+    const failedAt = Timestamp.fromDate(new Date('2026-11-01T01:30:00-04:00')) // the hour that repeats when daylight saving ends
+    const delays = [1, 2, 3, 4, 5, 6, 7, 8, 30].map((attempts) => (transientRetryAt(failedAt, attempts).toMillis() - failedAt.toMillis()) / minutes(1))
+    assert.deepEqual(delays, [5, 10, 20, 40, 80, 160, 320, 360, 360])
   })
 
   test('bootstrap includes already-scheduled raids on the first execution', async () => {
     const overdueRaid = await cloneRaid('raid-yesterday')
     await overdueRaid.update({ startsAt: previousBoundary, date: '2026-10-19' })
     await db.collection('system').doc('raidStartSnapshotSweep').delete()
-    const result = await startSweep(start)
+    const result = await startSweep(later(start, sweepSettleMillis))
     assert.equal(result.captured, 2)
     assert.equal((await db.collection('system').doc('raidStartSnapshotSweep').get()).data().coveredThrough.toMillis(), start.toMillis())
     assert.equal((await raid.collection('snapshots').doc('start').get()).data().status, 'complete')
@@ -251,28 +285,7 @@ describe('automatic immutable raid start snapshots', () => {
 
   test('a transient failure stays queued while other raids progress', async () => {
     const otherRaid = await cloneRaid('raid-two')
-    let failOnce = true
-    const flakyDb = new Proxy(db, {
-      get(target, property) {
-        if (property === 'runTransaction') {
-          return (handler, options) => target.runTransaction((transaction) => handler(new Proxy(transaction, {
-            get(inner, key) {
-              if (key === 'get') return async (ref) => {
-                if (failOnce && ref.path === raid.path) {
-                  failOnce = false
-                  throw new Error('Injected transient raid read failure.')
-                }
-                return transaction.get(ref)
-              }
-              const value = Reflect.get(inner, key, inner)
-              return typeof value === 'function' ? value.bind(inner) : value
-            },
-          })), options)
-        }
-        const value = Reflect.get(target, property, target)
-        return typeof value === 'function' ? value.bind(target) : value
-      },
-    })
+    const flakyDb = flakyRaidReads(1)
 
     const first = await runRaidStartSnapshotSweep(flakyDb, now)
     assert.equal(first.captured, 1)
@@ -281,7 +294,7 @@ describe('automatic immutable raid start snapshots', () => {
     assert.equal((await otherRaid.collection('snapshots').doc('start').get()).data().status, 'complete')
     assert.equal((await guild.collection('raidSnapshotJobs').doc(raid.id).get()).data().state, 'pending')
 
-    const next = await runRaidStartSnapshotSweep(flakyDb, nextSnapshotExecution(now))
+    const next = await runRaidStartSnapshotSweep(flakyDb, nextRun)
     assert.equal(next.captured, 1)
     assert.equal((await raid.collection('snapshots').doc('start').get()).data().status, 'complete')
   })
@@ -312,7 +325,7 @@ describe('automatic immutable raid start snapshots', () => {
     })
 
     const beforeStart = Timestamp.fromMillis(start.toMillis() - 500)
-    assert.equal((await startSweep(beforeStart)).captured, 0)
+    assert.equal((await startSweep(later(beforeStart, sweepSettleMillis))).captured, 0)
     assert.equal((await db.collection('system').doc('raidStartSnapshotSweep').get()).data().coveredThrough.toMillis(), beforeStart.toMillis())
     const afterChanges = await startSweep(now)
     assert.equal(afterChanges.captured, 1)
@@ -400,44 +413,23 @@ describe('automatic immutable raid start snapshots', () => {
     await addRaidAudit({ rev: 1, at: Timestamp.fromMillis(start.toMillis() + 30_000), changed: ['status'], before: { status: null }, after: { status: 'complete' }, action: 'complete' })
     await addRaidAudit({ rev: 2, at: Timestamp.fromMillis(start.toMillis() + 90_000), changed: ['status'], before: { status: 'complete' }, after: { status: 'scheduled' } })
     assert.equal((await startSweep()).captured, 1)
-    assert.equal((await startSweep(nextSnapshotExecution(now))).captured, 0)
+    assert.equal((await startSweep(nextRun)).captured, 0)
     assert.equal((await raid.collection('snapshots').doc('start').get()).data().scheduledStartAt.toMillis(), start.toMillis())
   })
 
   test('a raid marked complete between a transient failure and its retry is captured by the retry', async () => {
-    let failOnce = true
-    const flakyDb = new Proxy(db, {
-      get(target, property) {
-        if (property === 'runTransaction') {
-          return (handler, options) => target.runTransaction((transaction) => handler(new Proxy(transaction, {
-            get(inner, key) {
-              if (key === 'get') return async (ref) => {
-                if (failOnce && ref.path === raid.path) {
-                  failOnce = false
-                  throw new Error('Injected transient raid read failure.')
-                }
-                return transaction.get(ref)
-              }
-              const value = Reflect.get(inner, key, inner)
-              return typeof value === 'function' ? value.bind(inner) : value
-            },
-          })), options)
-        }
-        const value = Reflect.get(target, property, target)
-        return typeof value === 'function' ? value.bind(target) : value
-      },
-    })
+    const flakyDb = flakyRaidReads(1)
     const first = await runRaidStartSnapshotSweep(flakyDb, now)
     assert.equal(first.retry, 1)
     assert.equal((await guild.collection('raidSnapshotJobs').doc(raid.id).get()).data().state, 'pending')
     assert.equal((await raid.collection('snapshots').doc('start').get()).exists, false)
 
-    // A leader marks it complete after the failed attempt and before the next day's run.
+    // A leader marks it complete after the failed attempt and before the next run.
     await raid.update({ status: 'complete', rev: 1 })
     await addRaidAudit({
       at: Timestamp.fromMillis(now.toMillis() + 60_000), changed: ['status'], before: { status: null }, after: { status: 'complete' }, action: 'complete',
     })
-    const retry = await runRaidStartSnapshotSweep(flakyDb, nextSnapshotExecution(now))
+    const retry = await runRaidStartSnapshotSweep(flakyDb, nextRun)
     assert.equal(retry.captured, 1)
     const manifest = (await raid.collection('snapshots').doc('start').get()).data()
     assert.equal(manifest.status, 'complete')
@@ -545,7 +537,7 @@ describe('automatic immutable raid start snapshots', () => {
     // Fixing the cause does not quietly replace it: a retry is a separate, deliberate step (RAID-014).
     await seedRaid()
     assert.equal(await captureRaidStartSnapshot(db, guild, raid, raid.id, now), 'skipped')
-    assert.equal((await startSweep(nextSnapshotExecution(now))).captured, 0)
+    assert.equal((await startSweep(nextRun)).captured, 0)
     assert.deepEqual((await record.get()).data(), written)
     assert.equal((await guild.collection('raidSnapshotFailures').get()).size, 1)
   })
@@ -586,5 +578,136 @@ describe('automatic immutable raid start snapshots', () => {
     assert.equal(await captureRaidStartSnapshot(db, guild, raid, raid.id, now), 'failed')
     assert.equal((await raid.collection('snapshots').doc('start').get()).exists, false)
     assert.equal((await guild.collection('raidSnapshotFailures').get()).docs[0].data().code, 'invalid-raid-audit-history')
+  })
+})
+
+// RAID-014's first step: the same sweep, run every five minutes instead of once a day at 9 PM Eastern.
+describe('five-minute sweep', () => {
+  const checkpointRef = () => db.collection('system').doc('raidStartSnapshotSweep')
+  const manifest = async () => (await raid.collection('snapshots').doc('start').get()).data()
+
+  test('a 10 PM raid is captured by the 10:05 PM run, not before and not the next evening', async () => {
+    const tenPm = later(start, minutes(60))
+    await raid.update({ time: '22:00', startsAt: tenPm })
+    await checkpointRef().set({ coveredThrough: later(start, -1) })
+    for (let minute = 5; minute <= 60; minute += 5) {
+      assert.equal((await startSweep(later(start, minutes(minute)))).captured, 0, `nothing at 9:${String(minute).padStart(2, '0')}`)
+    }
+    assert.equal(await manifest(), undefined)
+    assert.equal((await startSweep(later(tenPm, minutes(5)))).captured, 1)
+    assert.equal((await manifest()).scheduledStartAt.toMillis(), tenPm.toMillis())
+    assert.equal((await manifest()).raid.time, '22:00')
+  })
+
+  test('a raid counts as started two minutes after its start time', async () => {
+    await checkpointRef().set({ coveredThrough: later(start, -minutes(10)) })
+    const early = await startSweep(later(start, sweepSettleMillis - 1))
+    assert.equal(early.captured, 0)
+    assert.equal(early.checkpointAdvanced, true)
+    assert.equal((await checkpointRef().get()).data().coveredThrough.toMillis(), start.toMillis() - 1)
+    assert.equal((await startSweep(later(start, sweepSettleMillis))).captured, 1)
+    assert.equal((await checkpointRef().get()).data().coveredThrough.toMillis(), start.toMillis())
+  })
+
+  test('a run less than two minutes after the last covered time does nothing and leaves the checkpoint alone', async () => {
+    await checkpointRef().set({ coveredThrough: now })
+    const result = await startSweep(later(now, minutes(1)))
+    assert.deepEqual(result, { captured: 0, failed: 0, retry: 0, skipped: 0, candidates: 0, checkpointAdvanced: false })
+    assert.equal((await checkpointRef().get()).data().coveredThrough.toMillis(), now.toMillis())
+  })
+
+  test('two runs at once publish one complete snapshot and no failure', async () => {
+    const otherRaid = await cloneRaid('raid-two')
+    const results = await Promise.all([startSweep(now), startSweep(later(now, minutes(1)))])
+    assert.equal(results.reduce((sum, result) => sum + result.failed, 0), 0)
+    for (const ref of [raid, otherRaid]) {
+      const root = ref.collection('snapshots').doc('start')
+      const data = (await root.get()).data()
+      assert.equal(data.status, 'complete')
+      assert.equal(data.scheduledStartAt.toMillis(), start.toMillis())
+      assert.deepEqual((await root.collection('lineups').get()).docs.map((entry) => entry.id).sort(), ['10', '20', '40'])
+      assert.deepEqual((await root.collection('characters').get()).docs.map((entry) => entry.id).sort(), ['alt', 'main'])
+      assert.deepEqual((await root.collection('accounts').get()).docs.map((entry) => entry.id), ['member-uid'])
+    }
+    assert.equal((await guild.collection('raidSnapshotFailures').get()).size, 0)
+    // The first run to finish moves the checkpoint to its own time; the other sees it moved and leaves it, so it never moves backwards and leaves no gap.
+    const covered = (await checkpointRef().get()).data().coveredThrough.toMillis()
+    assert.ok([now.toMillis() - sweepSettleMillis, now.toMillis() + minutes(1) - sweepSettleMillis].includes(covered))
+    // A run that lost a race on a write may leave its job pending for a moment; the next run finds the snapshot complete and closes the job.
+    await startSweep(later(nextRun, minutes(5)))
+    assert.deepEqual((await guild.collection('raidSnapshotJobs').get()).docs.map((entry) => entry.data().state), ['complete', 'complete'])
+  })
+
+  test('a transient failure is retried 5 minutes later, then 10 minutes after that', async () => {
+    const flakyDb = flakyRaidReads(2)
+    const job = guild.collection('raidSnapshotJobs').doc(raid.id)
+    assert.equal((await runRaidStartSnapshotSweep(flakyDb, now)).retry, 1)
+    assert.equal((await job.get()).data().attempts, 1)
+    assert.equal((await job.get()).data().nextAttemptAt.toMillis(), later(now, minutes(5) - sweepSettleMillis).toMillis())
+
+    assert.deepEqual(await runRaidStartSnapshotSweep(flakyDb, later(now, minutes(4))), { captured: 0, failed: 0, retry: 0, skipped: 0, candidates: 0, checkpointAdvanced: true })
+    assert.equal((await runRaidStartSnapshotSweep(flakyDb, nextRun)).retry, 1)
+    assert.equal((await job.get()).data().attempts, 2)
+    assert.equal((await job.get()).data().nextAttemptAt.toMillis(), later(nextRun, minutes(10) - sweepSettleMillis).toMillis())
+
+    assert.equal((await runRaidStartSnapshotSweep(flakyDb, later(nextRun, minutes(5)))).retry, 0)
+    assert.equal((await runRaidStartSnapshotSweep(flakyDb, later(nextRun, minutes(10)))).captured, 1)
+    assert.equal((await job.get()).data().state, 'complete')
+    assert.equal((await manifest()).status, 'complete')
+  })
+})
+
+// A save the app accepted before the start can finish a moment after it; up to a minute later it still counts (loot owner, 2026-11-08).
+describe('saves that finish just after the start', () => {
+  const signup = () => raid.collection('signups').doc('member-uid')
+  const capturedSignup = async () => (await raid.collection('snapshots').doc('start').collection('accounts').doc('member-uid').get()).data()?.signup
+  const moveRaidLater = (at) => Promise.all([
+    raid.update({ startsAt: later(start, minutes(60)), time: '22:00', rev: 1 }),
+    addRaidAudit({ at, changed: ['startsAt', 'time'], before: { startsAt: start, time: '21:00' }, after: { startsAt: later(start, minutes(60)), time: '22:00' } }),
+  ])
+
+  test('the capture waits longer than the allowance, so every counted save has landed', () => {
+    assert.ok(lateSaveMillis < sweepSettleMillis)
+  })
+
+  for (const millis of [1, 30_000, lateSaveMillis]) {
+    test(`a sign-up saved ${millis} ms after the start is captured`, async () => {
+      await signup().update({ characterId: 'main', status: 'accept', benchKind: FieldValue.delete(), updatedAt: later(start, millis) })
+      assert.equal((await startSweep()).captured, 1)
+      assert.deepEqual(await capturedSignup(), { characterId: 'main', status: 'accept' })
+    })
+  }
+
+  test('a sign-up saved more than a minute after the start fails the capture, as before', async () => {
+    await signup().update({ status: 'accept', updatedAt: later(start, lateSaveMillis + 1) })
+    assert.equal((await startSweep()).failed, 1)
+    await assertFailedRecord('signup-changed-after-start')
+  })
+
+  test('a working roster saved within a minute of the start is captured', async () => {
+    await raid.collection('planning').doc('working').update({ revision: 4, updatedAt: later(start, 45_000) })
+    assert.equal((await startSweep()).captured, 1)
+    assert.equal((await raid.collection('snapshots').doc('start').get()).data().status, 'complete')
+  })
+
+  test('a working roster saved more than a minute after the start fails the capture, as before', async () => {
+    await raid.collection('planning').doc('working').update({ revision: 4, updatedAt: later(start, lateSaveMillis + 1) })
+    assert.equal((await startSweep()).failed, 1)
+    await assertFailedRecord('working-roster-changed-after-start')
+  })
+
+  test('once a leader moves a started raid later, a sign-up saved after the move no longer counts for the original start', async () => {
+    await moveRaidLater(later(start, 10_000))
+    await signup().update({ status: 'accept', updatedAt: later(start, 20_000) })
+    assert.equal((await startSweep()).failed, 1)
+    await assertFailedRecord('signup-changed-after-start')
+  })
+
+  test('a sign-up that finished saving before the leader moved the raid still counts for the original start', async () => {
+    await moveRaidLater(later(start, 10_000))
+    await signup().update({ characterId: 'main', status: 'accept', benchKind: FieldValue.delete(), updatedAt: later(start, 5_000) })
+    assert.equal((await startSweep()).captured, 1)
+    assert.deepEqual(await capturedSignup(), { characterId: 'main', status: 'accept' })
+    assert.equal((await raid.collection('snapshots').doc('start').get()).data().scheduledStartAt.toMillis(), start.toMillis())
   })
 })

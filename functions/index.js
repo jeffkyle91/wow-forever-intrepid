@@ -24,8 +24,10 @@ export const addUnavailableDates = onCall(options, (request) => addAbsence(db, r
 export const removeUnavailableDates = onCall(options, (request) => removeAbsence(db, request))
 export const updateUnavailableDates = onCall(options, (request) => updateAbsence(db, request))
 export const synchronizeRaidAbsences = onCall({ ...options, timeoutSeconds: 540 }, (request) => synchronizeGuild(db, request))
+// RAID-014: every five minutes, so each raid is captured a few minutes after its own start. The timeout is shorter than the interval, a failed run waits for the next
+// one instead of retrying, and the time zone is UTC so daylight-saving changes cannot skip or repeat runs. Overlapping runs are still safe: every write is idempotent.
 export const captureRaidStartSnapshots = onSchedule({
-  ...options, schedule: '0 21 * * *', timeZone: 'America/New_York', timeoutSeconds: 540, retryCount: 3,
+  ...options, schedule: '*/5 * * * *', timeZone: 'Etc/UTC', timeoutSeconds: 240, retryCount: 0,
 }, () => runRaidStartSnapshotSweep(db))
 export const synchronizeScheduledRaid = onDocumentWritten({
   ...options, document: 'guilds/{guildId}/raids/{raidId}', retry: true,

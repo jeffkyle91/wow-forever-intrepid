@@ -4,7 +4,7 @@ import { after, afterEach, beforeEach, describe, test } from 'node:test'
 import { deleteApp, initializeApp } from 'firebase-admin/app'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import {
-  captureRaidStartSnapshot, initialSnapshotCheckpoint, lateSaveMillis, runRaidStartSnapshotSweep, sweepSettleMillis, transientRetryAt,
+  captureRaidStartSnapshot, initialSnapshotCheckpoint, lateSaveMillis, runRaidStartSnapshotSweep, sweepRunAt, sweepSettleMillis, transientRetryAt,
 } from './raidStartSnapshot.js'
 
 const host = process.env.FIRESTORE_EMULATOR_HOST
@@ -638,6 +638,39 @@ describe('five-minute sweep', () => {
     assert.deepEqual((await guild.collection('raidSnapshotJobs').get()).docs.map((entry) => entry.data().state), ['complete', 'complete'])
   })
 
+  test('a run works from the time Cloud Scheduler meant to run it, never later than the clock', () => {
+    const clock = later(now, 1_500)
+    assert.equal(sweepRunAt(now.toDate().toISOString(), clock).toMillis(), now.toMillis(), 'a run delivered 1.5 s late')
+    assert.equal(sweepRunAt(later(clock, 1).toDate().toISOString(), clock).toMillis(), clock.toMillis(), 'a scheduled time ahead of the clock')
+    for (const missing of [undefined, '', 'not a time']) assert.equal(sweepRunAt(missing, clock).toMillis(), clock.toMillis())
+  })
+
+  test('a raid created moments before its start, saved just after it, is still captured', async () => {
+    await raid.update({ createdAt: later(start, 400) })
+    assert.equal((await startSweep()).captured, 1)
+    assert.equal((await manifest()).scheduledStartAt.toMillis(), start.toMillis())
+  })
+
+  test('a raid first saved more than a minute after its start is not captured, as before', async () => {
+    await raid.update({ createdAt: later(start, lateSaveMillis + 1) })
+    const result = await startSweep()
+    assert.equal(result.captured + result.failed, 0)
+    assert.equal(await manifest(), undefined)
+  })
+
+  test('a capture another run began moments ago is left to that run when the source changed, and retried', async () => {
+    const root = raid.collection('snapshots').doc('start')
+    const inProgress = { schemaVersion: 1, status: 'capturing', raidId: raid.id, scheduledStartAt: start, contentHash: 'other-run', createdAt: Timestamp.now() }
+    await root.set(inProgress)
+    assert.equal(await captureRaidStartSnapshot(db, guild, raid, raid.id, now), 'retry')
+    assert.deepEqual((await root.get()).data(), inProgress)
+    assert.equal((await guild.collection('raidSnapshotFailures').get()).size, 0)
+    // Once that run is long past its timeout, the changed source is a failure, as before.
+    await root.update({ createdAt: Timestamp.fromMillis(Date.now() - minutes(6)) })
+    assert.equal(await captureRaidStartSnapshot(db, guild, raid, raid.id, now), 'failed')
+    assert.equal((await root.get()).data().failureCode, 'snapshot-source-changed')
+  })
+
   test('a transient failure is retried 5 minutes later, then 10 minutes after that', async () => {
     const flakyDb = flakyRaidReads(2)
     const job = guild.collection('raidSnapshotJobs').doc(raid.id)
@@ -674,6 +707,14 @@ describe('saves that finish just after the start', () => {
     test(`a sign-up saved ${millis} ms after the start is captured`, async () => {
       await signup().update({ characterId: 'main', status: 'accept', benchKind: FieldValue.delete(), updatedAt: later(start, millis) })
       assert.equal((await startSweep()).captured, 1)
+      assert.deepEqual(await capturedSignup(), { characterId: 'main', status: 'accept' })
+    })
+  }
+
+  for (const runAfter of [sweepSettleMillis, sweepSettleMillis + 400, sweepSettleMillis + 30_000]) {
+    test(`a sign-up saved a minute after the start counts for a run ${runAfter} ms after it, the earliest that captures`, async () => {
+      await signup().update({ characterId: 'main', status: 'accept', benchKind: FieldValue.delete(), updatedAt: later(start, lateSaveMillis) })
+      assert.equal((await startSweep(later(start, runAfter))).captured, 1)
       assert.deepEqual(await capturedSignup(), { characterId: 'main', status: 'accept' })
     })
   }

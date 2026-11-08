@@ -16,11 +16,14 @@ const easternTimeZone = 'America/New_York'
 // the delay lets both land before the sweep reads, so the checkpoint never passes a start the sweep could not yet see.
 export const sweepSettleMillis = 2 * 60 * 1000
 // A sign-up or working roster saved up to a minute after the start still counts (loot owner, 2026-11-08): every writer checks the start inside its transaction and
-// refuses a change once it has passed, so such a save was accepted before the start and was still finishing, within a Function's 60-second default timeout. The
-// allowance ends sooner if the raid was edited after its start, because moving a started raid later reopens sign-ups. It must stay shorter than sweepSettleMillis.
+// refuses a change once it has passed, so such a save was accepted before the start and was still finishing; a transaction finishes in seconds, so a minute is a
+// generous bound. The same minute lets a raid created just before its start count from its creation. The allowance ends sooner at the raid's first edit after its
+// start, because moving a started raid later reopens sign-ups. It must stay shorter than sweepSettleMillis.
 export const lateSaveMillis = 60 * 1000
 const retryBaseMillis = 5 * 60 * 1000
 const retryMaxMillis = 6 * 60 * 60 * 1000
+// Runs can overlap (a late or hand-started run). A capture another run began less than this long ago is still being written, not abandoned (the run times out at 240 s).
+const runOverlapMillis = 5 * 60 * 1000
 
 class PermanentAuditError extends Error {
   constructor(message, scheduledStartAt) {
@@ -73,6 +76,13 @@ function easternBoundary(date) {
     }
   }
   throw new Error(`Could not resolve the 9:00 PM Eastern boundary for ${date}.`)
+}
+
+// The time a sweep runs as: when Cloud Scheduler meant to run it (its X-CloudScheduler-ScheduleTime), so runs five minutes apart work five minutes apart whatever the
+// delivery delay, and a retry set for the next run is never missed by a few seconds. Never later than the clock, so the settle delay still holds; the clock if it is missing.
+export function sweepRunAt(scheduleTime, clock = Timestamp.now()) {
+  const scheduled = Date.parse(scheduleTime ?? '')
+  return Number.isFinite(scheduled) && scheduled <= clock.toMillis() ? Timestamp.fromMillis(scheduled) : clock
 }
 
 export function initialSnapshotCheckpoint(now) {
@@ -159,14 +169,16 @@ function dueRaidVersion(raid, audits, now) {
 
   const intervals = []
   let state = initial
-  let from = raid.createdAt instanceof Timestamp ? raid.createdAt.toMillis() : 0
+  // A raid created just before its start can commit just after it (createdAt is the commit time), so its first version counts from lateSaveMillis earlier.
+  let from = raid.createdAt instanceof Timestamp ? raid.createdAt.toMillis() - lateSaveMillis : 0
   for (const audit of audits) {
     const at = audit.at.toMillis()
     intervals.push({ state, from, to: at })
     state = applyAudit(state, audit, changedFields(audit))
     from = at
   }
-  intervals.push({ state, from, to: now.toMillis() + 1 })
+  // The current version has no end: only a real edit ends an interval (and the allowance in `savedBy`); whether its start is due is decided by `now` below.
+  intervals.push({ state, from, to: Infinity })
 
   // The version in effect at its start is due unless it was cancelled. A raid marked complete (RAID-019) was started, so it is captured like any started raid: the rules
   // allow 'complete' only once the start has passed, so the version at the start is normally still 'scheduled', and a 'complete' one (written outside the app) counts too.
@@ -539,6 +551,11 @@ async function prepareCapture(db, guildRef, raidRef, raidId, now, attempt) {
     const hash = contentHash(source)
     const existing = manifest.data()
     if (existing) {
+      // RAID-014: another run may still be writing this capture; if its source changed meanwhile, that run decides, and this one retries later.
+      if (existing.status === 'capturing' && existing.scheduledStartAt?.isEqual(scheduledStartAt) && existing.contentHash !== hash
+        && existing.createdAt instanceof Timestamp && Timestamp.now().toMillis() - existing.createdAt.toMillis() < runOverlapMillis) {
+        throw new Error('Another run started this capture moments ago; retrying later.')
+      }
       if (existing.status !== 'capturing' || !existing.scheduledStartAt?.isEqual(scheduledStartAt) || existing.contentHash !== hash) {
         throw new PermanentCaptureError('snapshot-source-changed', 'Snapshot source changed while an incomplete capture was being retried.', scheduledStartAt)
       }

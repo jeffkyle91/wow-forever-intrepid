@@ -48,7 +48,7 @@ Collaborators track actionable work in [the shared backlog](docs/backlog.json), 
 ### Rollout milestones (2026)
 
 - **November 4:** game launch, not a full-app deadline. Most core web functionality rolls out progressively between November 4 and December 9.
-- **December 9, firm:** scheduled raids and sign-ups must be usable ahead of the first raid, and its first immutable starting roster/sign-up snapshot must be captured at the scheduled start. Scheduling/sign-ups are already live; automatic starting snapshots are not yet implemented.
+- **December 9, firm:** scheduled raids and sign-ups must be usable ahead of the first raid, and its first immutable starting roster/sign-up snapshot must be captured at the scheduled start. Scheduling, sign-ups and automatic starting snapshots are live; RAID-014 tracks capturing each snapshot within minutes of its raid's start.
 - **December 9, loot target:** record awards from the first raid independently of priorities. Use need-before-greed rolls initially. If app loot recording is not ready, use a spreadsheet and build a later validated upload; that fallback upload is not implemented yet.
 - **Around December 15:** start using priority listings.
 - **December 22, full-rollout target:** all planned functionality, including loot audits, priorities, the production addon, Discord and advanced automation. Full adoption can begin December 9 if ready, or soft-open over the next one or two weeks. The December 9 raid/sign-up/snapshot requirements remain firm.

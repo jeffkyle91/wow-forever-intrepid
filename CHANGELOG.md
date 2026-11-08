@@ -6,6 +6,8 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- A raid's starting roster in **Raid History** is captured a few minutes after the raid starts, instead of at 9 PM Eastern, so a later raid has it the same night. A sign-up saved in the last moment before the start still counts.
+
 ## 2026-11-02 - bb1a2d2
 
 Refresh open tabs to load the update.

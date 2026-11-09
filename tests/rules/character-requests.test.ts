@@ -40,4 +40,10 @@ describe('private, server-written character requests', () => {
   test("an account cannot query someone else's requests by knowing their uid", async () => {
     await expectDenied(getDocs(query(guildCollection(dbFor('member'), 'characterRequests'), where('userId', '==', UID.raidLeader))))
   })
+  test('clients cannot read or modify the first-main pending guard', async () => {
+    const db = dbFor('member')
+    const guard = guildDoc(db, `pendingFirstMainRequests/${UID.member}`)
+    await expectDenied(getDocFromServer(guard))
+    await expectDenied(setDoc(guard, { requestId: 'forged' }))
+  })
 })

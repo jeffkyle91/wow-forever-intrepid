@@ -19,6 +19,10 @@ const resolve = (action = 'approve', data = {}, uid = 'leader') => resolveCharac
 const stored = async (path) => (await record(path).get()).data()
 const rejected = (operation, code) => assert.rejects(operation, (error) => error.code === code)
 const alt = { name: 'Moonfern', surname: '', className: 'Druid', specialization: 'Guardian' }
+const submitFirstMain = (requestId = 'first-main', note = 'Please create this character.', uid = 'unlinked') => submit({
+  requestId, kind: 'create-main', characterId: null,
+  proposed: { name: 'Starlily', surname: 'Brightwater', className: 'Mage', specialization: 'Frost' }, note,
+}, uid)
 
 beforeEach(async () => {
   const cleared = await fetch(`http://${host}/emulator/v1/projects/demo-intrepid/databases/(default)/documents`, { method: 'DELETE' })
@@ -27,6 +31,7 @@ beforeEach(async () => {
   for (const [uid, role, playerId] of [['member', 'Member', 'main'], ['leader', 'Guild Leader', null], ['raider', 'Raid Leader', null], ['other', 'Member', 'other-main'], ['removed', 'Removed', null]]) {
     batch.set(guild.collection('members').doc(uid), { role, playerId, displayName: `Invented ${uid}` })
   }
+  batch.set(guild.collection('members').doc('unlinked'), { role: 'Member', playerId: null, displayName: 'Invented Unlinked' })
   for (const [characterId, fields] of [
     ['main', { linkedUid: 'member' }], ['alt', { mainId: 'main' }], ['alt-two', { mainId: 'main' }],
     ['free', {}], ['other-main', { linkedUid: 'other' }], ['other-alt', { mainId: 'other-main' }],
@@ -118,6 +123,86 @@ describe('character request authorization and validation', () => {
 })
 
 describe('applying approved character changes', () => {
+  test('unlinked active member submits one private request without creating or linking a character', async () => {
+    const originalMember = await stored('members/unlinked')
+    await submitFirstMain()
+    const change = await stored('characterRequests/first-main')
+    const expectedRole = classes.Mage.find((entry) => entry.name === 'Frost').role
+    assert.equal(change.status, 'pending')
+    assert.equal(change.kind, 'create-main')
+    assert.equal(change.userId, 'unlinked')
+    assert.equal(change.note, 'Please create this character.')
+    assert.equal(change.before, null)
+    assert.equal(change.proposed.role, expectedRole)
+    assert.notEqual(change.characterId, 'first-main')
+    assert.equal(change.mainId, change.characterId)
+    assert.equal(await stored(`roster/${change.characterId}`), undefined)
+    assert.deepEqual(await stored('members/unlinked'), originalMember)
+    assert.deepEqual(await stored('pendingFirstMainRequests/unlinked'), { requestId: 'first-main' })
+  })
+  test('linked and removed accounts cannot submit first-main requests', async () => {
+    await rejected(submitFirstMain('linked-main', '', 'member'), 'failed-precondition')
+    await rejected(submitFirstMain('removed-main', '', 'removed'), 'permission-denied')
+    assert.equal(await stored('pendingFirstMainRequests/member'), undefined)
+  })
+  test('one pending first-main request is enforced across distinct and concurrent submissions', async () => {
+    await submitFirstMain()
+    await rejected(submitFirstMain('second-first-main'), 'failed-precondition')
+    await record('pendingFirstMainRequests/unlinked').delete()
+    await record('characterRequests/first-main').delete()
+    const outcomes = await Promise.allSettled([submitFirstMain('racing-one'), submitFirstMain('racing-two')])
+    assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length, 1)
+    const requests = await guild.collection('characterRequests').where('userId', '==', 'unlinked').where('status', '==', 'pending').get()
+    assert.equal(requests.size, 1)
+    assert.ok((await stored('pendingFirstMainRequests/unlinked'))?.requestId)
+  })
+  test('approval atomically creates the main and reciprocal membership link', async () => {
+    await submitFirstMain()
+    const change = await stored('characterRequests/first-main')
+    await resolve('approve', { requestId: 'first-main' })
+    assert.deepEqual(await stored(`roster/${change.characterId}`), {
+      ...change.proposed, linkedUid: 'unlinked',
+    })
+    assert.equal((await stored('members/unlinked')).playerId, change.characterId)
+    assert.equal((await stored('characterRequests/first-main')).status, 'approved')
+    assert.equal(await stored('pendingFirstMainRequests/unlinked'), undefined)
+  })
+  test('Raid Leaders cannot approve first-main requests', async () => {
+    await submitFirstMain()
+    await rejected(resolve('approve', { requestId: 'first-main' }, 'raider'), 'permission-denied')
+    assert.equal((await stored('characterRequests/first-main')).status, 'pending')
+    assert.equal((await stored('members/unlinked')).playerId, null)
+  })
+  test('stale requests fail when account linkage changes before approval', async () => {
+    await submitFirstMain()
+    await record('members/unlinked').update({ playerId: 'other-main' })
+    await rejected(resolve('approve', { requestId: 'first-main' }), 'failed-precondition')
+    assert.equal((await stored('characterRequests/first-main')).status, 'pending')
+    assert.equal(await stored(`roster/${(await stored('characterRequests/first-main')).characterId}`), undefined)
+    assert.equal((await stored('pendingFirstMainRequests/unlinked')).requestId, 'first-main')
+  })
+  test('an occupied reserved id fails without partially linking the account', async () => {
+    await submitFirstMain()
+    const change = await stored('characterRequests/first-main')
+    await record(`roster/${change.characterId}`).set({ name: 'Invented collision' })
+    await rejected(resolve('approve', { requestId: 'first-main' }), 'failed-precondition')
+    assert.equal((await stored('members/unlinked')).playerId, null)
+    assert.equal((await stored(`roster/${change.characterId}`)).name, 'Invented collision')
+    assert.equal((await stored('characterRequests/first-main')).status, 'pending')
+  })
+  test('withdrawal and rejection release the pending slot for resubmission', async () => {
+    await submitFirstMain()
+    await resolve('withdraw', { requestId: 'first-main' }, 'unlinked')
+    assert.equal((await stored('characterRequests/first-main')).status, 'withdrawn')
+    assert.equal(await stored('pendingFirstMainRequests/unlinked'), undefined)
+    await submitFirstMain('second-first-main')
+    await resolve('reject', { requestId: 'second-first-main', note: 'Please confirm the specialization.' })
+    assert.equal((await stored('characterRequests/second-first-main')).status, 'rejected')
+    assert.equal((await stored('characterRequests/second-first-main')).resolutionNote, 'Please confirm the specialization.')
+    assert.equal(await stored('pendingFirstMainRequests/unlinked'), undefined)
+    await submitFirstMain('third-first-main')
+  })
+
   test('rename retains document identity, extra fields, teams and all history', async () => {
     await record('roster/alt').update({ customField: 'preserve me' })
     const paths = ['teamAssignments/main', 'teamAssignments/alt', 'awards/history', 'raids/history', 'raids/history/signups/member', 'lootPriorities/history', 'members/member']

@@ -8,9 +8,12 @@ import { seedRoster } from './seedRoster.ts'
 import { createRequire } from 'node:module'
 import { initializePlanning } from '../functions/raidPlanning.js'
 
-if (process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:18080' || process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:19099') {
+const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST
+if (!/^127\.0\.0\.1:\d+$/.test(firestoreEmulatorHost ?? '') || !/^127\.0\.0\.1:\d+$/.test(authEmulatorHost ?? '')) {
   throw new Error('Seeding requires the local review emulators. Run npm run dev:emulator; never point this script at a cloud project.')
 }
+const firestorePort = Number(firestoreEmulatorHost.split(':')[1])
 
 const PROJECT_ID = 'demo-intrepid'
 const GUILD = 'guild-local'
@@ -20,10 +23,11 @@ const USERS = [
   { email: 'raider@example.test', displayName: 'Local Raider', role: 'Raid Leader', playerId: 'player-3' },
   { email: 'member@example.test', displayName: 'Local Member', role: 'Member', playerId: 'player-1' },
   { email: 'reserve@example.test', displayName: 'Local Reserve', role: 'Member', playerId: 'player-reserve' },
+  { email: 'firstmain@example.test', displayName: 'Local New Member', role: 'Member', playerId: null },
 ]
 
 async function createUser(email) {
-  const response = await fetch('http://127.0.0.1:19099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key', {
+  const response = await fetch(`http://${authEmulatorHost}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password: PASSWORD, returnSecureToken: false }),
@@ -33,7 +37,7 @@ async function createUser(email) {
   return body.localId
 }
 
-const env = await initializeTestEnvironment({ projectId: PROJECT_ID, firestore: { host: '127.0.0.1', port: 18080 } })
+const env = await initializeTestEnvironment({ projectId: PROJECT_ID, firestore: { host: '127.0.0.1', port: firestorePort } })
 const accountByCharacter = new Map()
 let leaderUid
 await env.withSecurityRulesDisabled(async (context) => {
@@ -46,7 +50,7 @@ await env.withSecurityRulesDisabled(async (context) => {
     const uid = await createUser(user.email)
     if (user.role === 'Guild Leader') leaderUid = uid
     uids[user.email] = uid
-    accountByCharacter.set(user.playerId, uid)
+    if (user.playerId) accountByCharacter.set(user.playerId, uid)
     await set(`${g}/members/${uid}`, { email: user.email, displayName: user.displayName, role: user.role, playerId: user.playerId })
   }
   for (const [i, player] of seedRoster.entries()) {

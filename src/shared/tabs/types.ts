@@ -22,6 +22,8 @@ export type TabContext = {
   identity: {
     uid: string
     displayName: string
+    // True while a Guild Leader previews another role; preview UI must never invoke writes.
+    isPreviewing: boolean
     // Guild Leader only (see canManageRoster in security.ts).
     canEditRoster: boolean
     // Guild Leader and Raid Leader (see canManageRaidData in security.ts).

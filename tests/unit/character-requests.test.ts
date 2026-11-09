@@ -43,6 +43,7 @@ describe('character request reading and choices', () => {
   })
   test('new alt, spec and main-swap shapes are read explicitly', () => {
     for (const fields of [
+      { kind: 'create-main', before: null, proposed: { name: 'Starlily', surname: 'Brightwater', className: 'Mage', specialization: 'Frost', role: 'Ranged' } },
       { kind: 'create-alt', before: null, proposed: { name: 'Moonfern', surname: '', className: 'Druid', specialization: 'Guardian', role: 'Tank' } },
       { kind: 'change-spec', proposed: { className: 'Druid', specialization: 'Guardian', role: 'Tank' } },
       { kind: 'promote-main', proposed: {} }, { kind: 'link-alt', proposed: {} },
@@ -52,6 +53,15 @@ describe('character request reading and choices', () => {
     const request = normalizeCharacterRequest('request', raw)!
     assert.equal(requestCharacterName(request), 'Oldname')
     assert.equal(requestCharacterName({ ...request, before: null }), 'Newname')
+  })
+  test('first-main requests identify the requested character as their main', () => {
+    const request = normalizeCharacterRequest('first-main', {
+      ...raw, kind: 'create-main', characterId: 'reserved-id', mainId: 'reserved-id', before: null,
+      proposed: { name: 'Starlily', surname: 'Brightwater', className: 'Mage', specialization: 'Frost', role: 'Ranged' },
+    })!
+    assert.equal(requestCharacterName(request), 'Starlily')
+    assert.equal(requestMainName(request, []), 'Starlily')
+    assert.equal(requestMainName(request, [character('reserved-id', { name: 'Starlily', linkedUid: 'account' })]), 'Starlily')
   })
   test('every request kind is headed by the account main, not the affected alt', () => {
     const request = normalizeCharacterRequest('request', raw)!

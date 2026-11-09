@@ -37,17 +37,17 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   const { linked, characters } = findMyCharacters(roster, ctx.identity.uid)
 
   if (!linked) {
-    return <><div className="dash-empty">
+    return <><CharacterRequestsPanel ctx={ctx} /><div className="dash-empty">
       <Shield size={26} />
       <h3>No character linked to your account yet</h3>
-      <p>Ask a Guild Leader to link your character in Member Access. Your characters, raid team, loot priorities and upcoming raids will appear here once they do.</p>
+      <p>Request a first main character for Guild Leader approval, or ask a Guild Leader to link your character in Member Access. Your characters, raid team, loot priorities and upcoming raids will appear here once linked.</p>
       <p>Everything else in the app still works. You can look at the roster, raid teams, calendar and loot in the meantime.</p>
       <div className="dash-actions">
         <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Guild Calendar</button>
-        <button className="button button-secondary" onClick={() => ctx.navigate('teams')}>Raid teams</button>
-        <button className="button button-secondary" onClick={() => ctx.navigate('priorities')}>Loot priorities</button>
+        <button className="button button-secondary" onClick={() => ctx.navigate('teams')}>Raid Teams</button>
+        <button className="button button-secondary" onClick={() => ctx.navigate('priorities')}>Loot Priorities</button>
       </div>
-    </div><CharacterRequestsPanel ctx={ctx} /></>
+    </div></>
   }
 
   const raidList = upcomingRaids(raids, afkEntries, ctx.identity.uid, today)

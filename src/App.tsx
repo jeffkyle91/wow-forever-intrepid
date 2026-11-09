@@ -94,7 +94,7 @@ function App() {
   const ctx: TabContext = {
     data,
     query,
-    identity: { uid: session.user?.uid ?? '', displayName: session.membership.displayName, canEditRoster, canEditRaidData },
+    identity: { uid: session.user?.uid ?? '', displayName: session.membership.displayName, isPreviewing: Boolean(impersonatedRole), canEditRoster, canEditRaidData },
     shell: { raidView, setRaidView },
     feedback: { busy, setBusy, setMutationError, setNotice },
     openModal,

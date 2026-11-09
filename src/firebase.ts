@@ -29,8 +29,9 @@ export const storage = app && storageBucket ? getStorage(app, `gs://${storageBuc
 
 // `npm run dev:emulator` (vite --mode emulator) points the app at the local emulators instead of the live project.
 if (import.meta.env.DEV && import.meta.env.VITE_USE_EMULATORS === 'true' && auth && db && !(auth as { emulatorConfig?: unknown }).emulatorConfig) {
-  connectAuthEmulator(auth, 'http://127.0.0.1:19099', { disableWarnings: true })
-  connectFirestoreEmulator(db, '127.0.0.1', 18080)
-  if (functions) connectFunctionsEmulator(functions, '127.0.0.1', 15001)
-  if (storage) connectStorageEmulator(storage, '127.0.0.1', 19199)
+  const emulatorHost = import.meta.env.VITE_EMULATOR_HOST?.trim() || '127.0.0.1'
+  connectAuthEmulator(auth, import.meta.env.VITE_AUTH_EMULATOR_URL?.trim() || `http://${emulatorHost}:${import.meta.env.VITE_AUTH_EMULATOR_PORT || '19099'}`, { disableWarnings: true })
+  connectFirestoreEmulator(db, import.meta.env.VITE_FIRESTORE_EMULATOR_HOST?.trim() || emulatorHost, Number(import.meta.env.VITE_FIRESTORE_EMULATOR_PORT || '18080'))
+  if (functions) connectFunctionsEmulator(functions, import.meta.env.VITE_FUNCTIONS_EMULATOR_HOST?.trim() || emulatorHost, Number(import.meta.env.VITE_FUNCTIONS_EMULATOR_PORT || '15001'))
+  if (storage) connectStorageEmulator(storage, import.meta.env.VITE_STORAGE_EMULATOR_HOST?.trim() || emulatorHost, Number(import.meta.env.VITE_STORAGE_EMULATOR_PORT || '19199'))
 }

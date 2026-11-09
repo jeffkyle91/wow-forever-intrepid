@@ -6,6 +6,8 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- In a future release, active members without a linked character will be able to request a first main from My dashboard. A Guild Leader must approve before the main is created and linked; an unlinked member can have one pending request at a time and may withdraw it to resubmit. This is MEMBER-009 and is not deployed.
+
 ## 2026-11-08 - 6721a31
 
 Refresh open tabs to load the update.

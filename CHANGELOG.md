@@ -7,7 +7,14 @@ These entries reconcile changes present in verified production releases. They do
 ## Unreleased
 
 - In a future release, active members without a linked character will be able to request a first main from My dashboard. A Guild Leader must approve before the main is created and linked; an unlinked member can have one pending request at a time and may withdraw it to resubmit. This is MEMBER-009 and is not deployed.
-- A raid's starting roster in **Raid History** is captured a few minutes after the raid starts, instead of at 9 PM Eastern, so a later raid has it the same night. A sign-up saved in the last moment before the start still counts.
+
+## 2026-11-08 - 6721a31
+
+Refresh open tabs to load the update.
+
+- A raid's starting roster is captured every five minutes instead of waiting until 9 PM Eastern, so later raids get a snapshot the same night. Sign-ups and roster changes saved within one minute after the start can still count.
+
+Verified production deployment. Source PR: #184. This is the first step of RAID-014; the backlog item remains in progress.
 
 ## 2026-11-02 - bb1a2d2
 

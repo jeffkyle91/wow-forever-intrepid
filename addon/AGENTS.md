@@ -1,6 +1,6 @@
-# Intrepid Manager: instructions for coding assistants and contributors
+# The addons: instructions for coding assistants and contributors
 
-A WoW: Forever addon (Lua 5.1, interface 16001) for the Intrepid guild, working with the Raid Desk web app. Read `README.md` first.
+The guild's WoW: Forever addons (Lua 5.1, interface 16001), working with the Raid Desk web app. Read `README.md` in this folder first. The repository's own rules (the root `AGENTS.md` and `CONTRIBUTING.md`: backlog IDs, claims, shared files, pull requests) apply here too; this file adds what is particular to the Lua code.
 
 ## Rules that must not be broken
 
@@ -8,7 +8,7 @@ A WoW: Forever addon (Lua 5.1, interface 16001) for the Intrepid guild, working 
 - **TOC.** Never set `AllowLoadGameType: classic`. Interface number is `16001`. TOC file names must match the real case exactly (CI is case-sensitive).
 - **Lua 5.1 only.** No `goto`, no integer division, no bitwise operators, no `//`. Check with `luacheck`.
 - **Names.** Characters have a first name and a surname ("Jorren Ashvale"); the second word is not a realm. Match on the roster's full name or the player GUID, never on the first name alone. Code written for `Name-Realm` is wrong here.
-- **Privacy.** This repository will be public. Never put real character names, guild names, account emails, keys or saved-variables files in code, tests, fixtures, docs or screenshots. Use invented names (Jorren Ashvale). `results/` and `SavedVariables/` are git-ignored; keep it that way.
+- **Privacy.** This repository is public. Never put real character names, guild names, account emails, keys or saved-variables files in code, tests, fixtures, docs or screenshots. Use invented names (Jorren Ashvale). `results/` and `SavedVariables/` are git-ignored (`addon/.gitignore`); keep it that way.
 - **No Firebase.** The addon never talks to Firebase or any server. Data moves as pasted text strings and the saved-variables file.
 - **Never break loot mid-raid.** Wrap event handlers in `pcall`, keep an error buffer, and always keep a manual path (the loot master can award by hand). Never enforce what the leadership decided is advisory.
 - **Terms of service.** No live, automated in-game probing of the Forever API. The pattern is: a person runs a test, the addon writes a file, someone reads the file afterwards.
@@ -33,6 +33,5 @@ A WoW: Forever addon (Lua 5.1, interface 16001) for the Intrepid guild, working 
 
 ## Commands
 
-- `lua5.1 tests/run.lua` and `luacheck IntrepidManager tests` must both pass, and so must `python3 -B tools/api_lint.py check`
-  (add `selftest` when you touch the tool or the list; see `tools/README.md`).
-- Release: see `README.md`.
+Run them from `addon/`. `lua5.1 tests/run.lua` and `luacheck IntrepidManager tests` must both pass, and so must `python3 -B tools/api_lint.py check`
+(add `selftest` when you touch the tool or the list; see `tools/README.md`). CI runs these and the rest of the list in `README.md`.

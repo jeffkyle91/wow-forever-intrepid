@@ -2,6 +2,8 @@
 
 A developer tool. It only reads and records what the Forever client offers and what happens when loot drops; it changes nothing in the game and sends nothing over the internet. Everything it records goes to its own saved-variables file, which contains character and guild names: **never commit it or paste it into an issue**.
 
+**Install:** copy this `IntrepidProbe` folder into the live game's `_forever_/Interface/AddOns/` folder, restart the game, tick **Intrepid Probe** under **AddOns**, and type `/console scriptErrors 1` so Lua errors show. A new version only needs `/reload`; a new folder needs a full restart.
+
 | Command | What it does |
 | --- | --- |
 | `/ip bundle [label]` | Runs every safe check in one go (client and group facts, name and screen forms as shapes only, guild roster shapes, window templates, a safe invite and raid-conversion check, the client's own loot and trade message texts, API names, the Encounter Journal, and the item ids of the Raid Desk's loot tables), then switches the event log on and names the run. See `Bundle.lua`. |
@@ -22,6 +24,6 @@ A developer tool. It only reads and records what the Forever client offers and w
 
 The event log stays on after a `/reload` (it is remembered in the saved file) until `/ip log off`.
 
-One-run tests: `Helper-instructions.md` is a page to send with the zip to someone who runs the probe alone (`/ip bundle`, play for a while, send one file). `Group-session-steps.md` is the checklist for two players in a party (Master Looter, trade, messages). `Final-beta-day-steps.md` is the plan for the last day of the beta (invite, whispers, `GiveMasterLoot`, three players, a soulbound item). `Items.lua` is generated: `python3 tools/make-probe-items.py` rewrites it from the Raid Desk's `data/loot/*.json`.
+The step-by-step pages for test rounds stay with the loot owner, because they name the players who ran them. `Items.lua` is generated: `python3 tools/make-probe-items.py` (from `addon/`) rewrites it from this repository's `data/loot/*.json`.
 
 Test round: install on two clients, `/reload`, `/ip run <label>`, `/ip log on`, run the commands, `/reload`, then read `WTF/Account/<account>/SavedVariables/IntrepidProbe.lua`. Keep RCLootCouncil Classic disabled on a test client: it interfered with addon-message receiving in one observed round (not proven).

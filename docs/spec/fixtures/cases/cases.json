@@ -1,0 +1,481 @@
+[
+  {
+    "file": "cases/awards-bad-altered.txt",
+    "box": "awards",
+    "expect": "E_CHECKSUM"
+  },
+  {
+    "file": "cases/awards-bad-checksum-colon.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-checksum-not-hex.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-checksum-uppercase.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-empty-payload.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-header-short.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-kind-before-encoding.txt",
+    "box": "awards",
+    "expect": "E_KIND"
+  },
+  {
+    "file": "cases/awards-bad-length-empty.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-length-huge.txt",
+    "box": "awards",
+    "expect": "E_TRUNCATED"
+  },
+  {
+    "file": "cases/awards-bad-length-leading-zero.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-length-sign.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-length.txt",
+    "box": "awards",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/awards-bad-nan.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-nesting-over-limit.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-newer-envelope.txt",
+    "box": "awards",
+    "expect": "E_VERSION"
+  },
+  {
+    "file": "cases/awards-bad-newer-schema.txt",
+    "box": "awards",
+    "expect": "E_SCHEMA"
+  },
+  {
+    "file": "cases/awards-bad-non-ascii.txt",
+    "box": "awards",
+    "expect": "E_CHARS"
+  },
+  {
+    "file": "cases/awards-bad-not-an-object.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-not-ours.txt",
+    "box": "awards",
+    "expect": "E_NOT_IM"
+  },
+  {
+    "file": "cases/awards-bad-nul-in-by.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD",
+    "layer": "content"
+  },
+  {
+    "file": "cases/awards-bad-pipe.txt",
+    "box": "awards",
+    "expect": "E_CHARS"
+  },
+  {
+    "file": "cases/awards-bad-schema-fraction.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-schema-missing.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-schema-text.txt",
+    "box": "awards",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/awards-bad-schema-zero.txt",
+    "box": "awards",
+    "expect": "E_SCHEMA"
+  },
+  {
+    "file": "cases/awards-bad-smart-quote.txt",
+    "box": "awards",
+    "expect": "E_CHARS"
+  },
+  {
+    "file": "cases/awards-bad-truncated.txt",
+    "box": "awards",
+    "expect": "E_TRUNCATED"
+  },
+  {
+    "file": "cases/awards-bad-unknown-encoding.txt",
+    "box": "awards",
+    "expect": "E_ENCODING"
+  },
+  {
+    "file": "cases/awards-bad-wrong-kind.txt",
+    "box": "awards",
+    "expect": "E_KIND"
+  },
+  {
+    "file": "cases/awards-ok-im1-inside-text.txt",
+    "box": "awards",
+    "expect": "OK",
+    "envelopes": 1
+  },
+  {
+    "file": "cases/awards-ok-nesting-at-limit.txt",
+    "box": "awards",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/awards-ok-nul-in-text.txt",
+    "box": "awards",
+    "expect": "OK",
+    "rowErrors": [
+      "s-tpt2u0-q4tz-1"
+    ]
+  },
+  {
+    "file": "cases/awards-ok-relaxed-json.txt",
+    "box": "awards",
+    "expect": "OK",
+    "sameAs": "awards-small"
+  },
+  {
+    "file": "cases/awards-ok-row-errors.txt",
+    "box": "awards",
+    "expect": "OK",
+    "rowErrors": [
+      "award:6",
+      "s-tpt2u0-q4tz-2",
+      "s-tpt55c-j7wd-2",
+      "s-tpt55c-j7wd-9"
+    ]
+  },
+  {
+    "file": "cases/awards-ok-surrounded.txt",
+    "box": "awards",
+    "expect": "OK",
+    "sameAs": "awards-small"
+  },
+  {
+    "file": "cases/awards-ok-two-strings.txt",
+    "box": "awards",
+    "expect": "OK",
+    "envelopes": 2
+  },
+  {
+    "file": "cases/awards-ok-unknown-fields.txt",
+    "box": "awards",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/awards-ok-wrapped.txt",
+    "box": "awards",
+    "expect": "OK",
+    "sameAs": "awards-small"
+  },
+  {
+    "file": "cases/night-bad-altered.txt",
+    "box": "night",
+    "expect": "E_CHECKSUM"
+  },
+  {
+    "file": "cases/night-bad-checksum-colon.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-checksum-not-hex.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-checksum-uppercase.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-empty-payload.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-header-short.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-kind-before-encoding.txt",
+    "box": "night",
+    "expect": "E_KIND"
+  },
+  {
+    "file": "cases/night-bad-length-empty.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-length-huge.txt",
+    "box": "night",
+    "expect": "E_TRUNCATED"
+  },
+  {
+    "file": "cases/night-bad-length-leading-zero.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-length-sign.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-length.txt",
+    "box": "night",
+    "expect": "E_MALFORMED"
+  },
+  {
+    "file": "cases/night-bad-lone-surrogate.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-nan.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-nesting-over-limit.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-newer-envelope.txt",
+    "box": "night",
+    "expect": "E_VERSION"
+  },
+  {
+    "file": "cases/night-bad-newer-schema.txt",
+    "box": "night",
+    "expect": "E_SCHEMA"
+  },
+  {
+    "file": "cases/night-bad-non-ascii.txt",
+    "box": "night",
+    "expect": "E_CHARS"
+  },
+  {
+    "file": "cases/night-bad-not-an-object.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-not-ours.txt",
+    "box": "night",
+    "expect": "E_NOT_IM"
+  },
+  {
+    "file": "cases/night-bad-nul-in-by.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD",
+    "layer": "content"
+  },
+  {
+    "file": "cases/night-bad-null-in-list.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-pipe.txt",
+    "box": "night",
+    "expect": "E_CHARS"
+  },
+  {
+    "file": "cases/night-bad-schema-fraction.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-schema-missing.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-schema-text.txt",
+    "box": "night",
+    "expect": "E_PAYLOAD"
+  },
+  {
+    "file": "cases/night-bad-schema-zero.txt",
+    "box": "night",
+    "expect": "E_SCHEMA"
+  },
+  {
+    "file": "cases/night-bad-smart-quote.txt",
+    "box": "night",
+    "expect": "E_CHARS"
+  },
+  {
+    "file": "cases/night-bad-truncated.txt",
+    "box": "night",
+    "expect": "E_TRUNCATED"
+  },
+  {
+    "file": "cases/night-bad-two-strings-second-broken.txt",
+    "box": "night",
+    "expect": "E_MULTIPLE"
+  },
+  {
+    "file": "cases/night-bad-two-strings.txt",
+    "box": "night",
+    "expect": "E_MULTIPLE"
+  },
+  {
+    "file": "cases/night-bad-unknown-encoding.txt",
+    "box": "night",
+    "expect": "E_ENCODING"
+  },
+  {
+    "file": "cases/night-bad-wrong-kind.txt",
+    "box": "night",
+    "expect": "E_KIND"
+  },
+  {
+    "file": "cases/night-ok-bad-raid.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "raid"
+    ]
+  },
+  {
+    "file": "cases/night-ok-blank-names.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "roster:7"
+    ]
+  },
+  {
+    "file": "cases/night-ok-code-points-over.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "roster:5"
+    ]
+  },
+  {
+    "file": "cases/night-ok-code-points.txt",
+    "box": "night",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/night-ok-duplicates.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "priority:4",
+      "roster:7",
+      "roster:8"
+    ]
+  },
+  {
+    "file": "cases/night-ok-empty-encounter.txt",
+    "box": "night",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/night-ok-false-and-null.txt",
+    "box": "night",
+    "expect": "OK",
+    "sameAs": "night-small"
+  },
+  {
+    "file": "cases/night-ok-fraction.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "pr-blade"
+    ]
+  },
+  {
+    "file": "cases/night-ok-im1-inside-text.txt",
+    "box": "night",
+    "expect": "OK",
+    "envelopes": 1
+  },
+  {
+    "file": "cases/night-ok-nesting-at-limit.txt",
+    "box": "night",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/night-ok-nul-in-text.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "roster:5"
+    ]
+  },
+  {
+    "file": "cases/night-ok-relaxed-json.txt",
+    "box": "night",
+    "expect": "OK",
+    "sameAs": "night-small"
+  },
+  {
+    "file": "cases/night-ok-row-error.txt",
+    "box": "night",
+    "expect": "OK",
+    "rowErrors": [
+      "pr-cloak"
+    ]
+  },
+  {
+    "file": "cases/night-ok-surrounded.txt",
+    "box": "night",
+    "expect": "OK",
+    "sameAs": "night-small"
+  },
+  {
+    "file": "cases/night-ok-unknown-fields.txt",
+    "box": "night",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/night-ok-wrapped.txt",
+    "box": "night",
+    "expect": "OK",
+    "sameAs": "night-small"
+  }
+]

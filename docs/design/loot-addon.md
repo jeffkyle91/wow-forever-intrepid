@@ -1,6 +1,6 @@
 # Loot addon: plan and findings from the Forever beta
 
-Status: research. Nothing here is built except the probe addon in `addon/IntrepidProbe/`. Written 2026-10-16 from tests in the WoW: Forever beta (client 1.60.1, build 70425, interface 16001). The beta ends soon, so this records what we learned and what is still unknown, so anyone can carry on.
+Status: researched in the WoW: Forever beta, 2026-10-16 to 22 (client 1.60.1, builds 70425 to 70450, interface 16001). Rechecking it on the live client is ADDON-001 (#193): the first check, with one player, was on 2026-11-12. The addon itself, Intrepid Manager (build 0.0.17), was built in a separate private repository during the beta, and moves into `addon/` with ADDON-002. Written 2026-10-16, updated 2026-11-12.
 
 ## Goal
 
@@ -44,13 +44,13 @@ From the guild's loot council practice and the leadership's answers (2026-10-16)
 
 Nothing is live: an addon cannot open a connection, and a web page cannot read the game.
 
-1. **Pasted text strings (first versions, decided).** App to game: a "Copy for addon" button builds a string with the locked roster (full names, main or alt, class, role) and the priorities for the night; the leader pastes it into the addon. Game to app: the addon shows a string of awards (recipient, item id, date, boss, response, votes, source id) that the leader pastes into the importer, which previews it first.
+1. **Pasted text strings (first versions, decided).** App to game: a "Copy for addon" button builds a string with the locked roster (full names, main or alt, class, role) and the priorities for the night; the leader pastes it into the addon. Game to app: the addon shows a string of awards (recipient, item id, date, boss, response, votes, source id) that the leader pastes into the importer, which previews it first. The format is [`docs/spec/exchange-v0.md`](../spec/exchange-v0.md) (ADDON-001), and the importer's design is [`award-import.md`](award-import.md) (LOOT-005).
 2. **A small desktop helper (later, only if pasting and the file-read idea below both annoy people).** It watches the addon's saved-variables file (the game writes it on `/reload` or logout), uploads awards, and writes data for the addon to load. No pasting, but every leader installs it.
 3. **Whisper or chat commands for votes** if the game turns out to block addon messages (see open questions). Voting stays in the game: the app holds priorities and the record, not the vote.
 
 ## What we learned about the Forever client
 
-Probe data from two clients in one party. Raw saved-variable files contain character names and are not published.
+Probe and addon data from the beta: two clients in a party, in a raid group and in a five-player dungeon. Raw saved-variable files contain character names and are not published. The live client's first check is [below](#live-client-first-check-2026-11-12).
 
 | Topic | Finding |
 | --- | --- |
@@ -58,23 +58,40 @@ Probe data from two clients in one party. Raw saved-variable files contain chara
 | API style | The modern namespaced one: `C_PartyInfo`, `C_Item`, `C_Container`, `C_ChatInfo`, `C_AddOns`, `C_Timer`. The old globals `GetLootMethod`, `SetLootMethod`, `GetItemInfo`, `GetContainerItemLink`, `SendAddonMessage`, `RegisterAddonMessagePrefix`, `GetNumAddOns`, `IsAddOnLoaded` do not exist. |
 | Loot functions | All exist: `GiveMasterLoot`, `GetMasterLootCandidate`, `GetNumLootItems`, `GetLootSlotInfo`, `GetLootSlotLink`, `GetLootSlotType`, `GetLootSourceInfo`, `LootSlot`, `RollOnLoot`, `GetLootRollItemInfo`, `InitiateTrade`, `ClickTradeButton`, `AcceptTrade`, `GetTradePlayerItemLink`, `GetRaidRosterInfo`. Missing: `AddTradeMoney`. |
 | Events | All exist: LOOT_OPENED, LOOT_READY, LOOT_CLOSED, LOOT_SLOT_CLEARED, OPEN_MASTER_LOOT_LIST, LOOT_BIND_CONFIRM, START_LOOT_ROLL, LOOT_ROLLS_COMPLETE, ENCOUNTER_START, ENCOUNTER_END, BOSS_KILL, ENCOUNTER_LOOT_RECEIVED, TRADE_*, CHAT_MSG_ADDON, GROUP_ROSTER_UPDATE, PARTY_LOOT_METHOD_CHANGED. Unknown: LOOT_HISTORY_FULL_UPDATE, LOOT_HISTORY_ROLL_CHANGED, LOOT_HISTORY_AUTO_SHOW. |
-| Loot methods | `Enum.LootMethod`: Freeforall 0, Roundrobin 1, Masterlooter 2, Group 3, Needbeforegreed 4, Personal 5. In a party the default is Group with threshold Uncommon. `C_PartyInfo.IsLootMethodAvailable` reports Group, Masterlooter, Roundrobin, Needbeforegreed and Freeforall as available, Personal as not. `C_PartyInfo.SetLootMethod` exists. A tester reports that a party can use Master Looter, but only for items of Uncommon (green) quality and above. |
+| Loot methods | `Enum.LootMethod`: Freeforall 0, Roundrobin 1, Masterlooter 2, Group 3, Needbeforegreed 4, Personal 5. In a party the default is Group with threshold Uncommon. `C_PartyInfo.IsLootMethodAvailable` reports Group, Masterlooter, Roundrobin, Needbeforegreed and Freeforall as available, Personal as not. `C_PartyInfo.SetLootMethod` exists. Master Looter works in a party and in a five-player dungeon. The game's menu offers thresholds from Uncommon up, but a leader's command lowered it to Common and to Poor, and Master Looter then offers white and gray items too. |
 | Loot windows | LOOT_READY, LOOT_OPENED, LOOT_READY, then per item LOOT_SLOT_CLEARED and `CHAT_MSG_LOOT` ("You receive loot: [link]"), then LOOT_CLOSED. Some events fire twice. Autoloot can empty the window before LOOT_OPENED, leaving no slots to read. Each slot gives item id, quality, slot type. Party members see "Name receives loot: [link]" lines, which carry the looter's player GUID. |
+| Master loot | `GiveMasterLoot(slot, number)` from an addon works, and hands out a bind-on-pickup item with no confirmation, so the addon asks first. `GetMasterLootCandidate` numbers the candidates in an order that changes between groups: find the number by full name each time. A hand-out to a player with full bags is silent for the loot master (only the recipient sees "Inventory is full."), so confirm it with `LOOT_SLOT_CLEARED` and the "receives loot" line. The recipient can trade a bind-on-pickup item for 4 hours to anyone who could have looted it. Request Roll only collects Need, Greed and Pass: nothing is awarded, and the item stays until the loot master gives it. |
 | Naming the boss | `GetLootSourceInfo(slot)` returns the corpse's GUID, `Creature-0-<server>-<instance>-<zone>-<npcId>-<spawn>`. The NPC id inside it can be looked up in a loot-table capture, so the addon can name the boss without any boss event. |
 | Item links | New color-code format (`|cnIQ0:|Hitem:7073::::::::6:1491:::::::::|h[Name]|h|r`). Read the item id with `item:(%d+)`. |
-| Trade | Observable: TRADE_SHOW, TRADE_ACCEPT_UPDATE (0,1) then (1,1), then the receiver gets `CHAT_MSG_LOOT` "You receive item: [link]" and TRADE_CLOSED twice. |
+| Trade | Observable: TRADE_SHOW, TRADE_ACCEPT_UPDATE (0,1) then (1,1), then the receiver gets `CHAT_MSG_LOOT` "You receive item: [link]" and TRADE_CLOSED twice. An addon can open the trade and place the item (`InitiateTrade`, `ClickTradeButton`); both players still press Trade. |
 | Names | Characters have a first name and a surname, for example "Jorren Ashvale". `UnitName("player")` is the first name, `GetUnitName("player", true)` is the full name, `GetRealmName()` is the realm. The second part of the full name is **not** a realm. Match winners to the roster on the full name (the roster has a surname field) or on the player GUID. Code written for `Name-Realm` breaks: RCLootCouncil, tested here, builds a wrong whisper target from a two-part name. |
-| Addon messages | `C_ChatInfo.RegisterAddonMessagePrefix`, `SendAddonMessage`, `SendAddonMessageLogged` exist. `AreOutgoingAddonChatMessagesRestricted()` returned true during probes. `ADDON_RESTRICTION_STATE_CHANGED` fires with (0, 1) at the start of a fight and (0, 0) 10 to 15 seconds later (type 0 is probably Combat). In the first party test, sends from both players returned 0 but **no player received a message**. Not explained yet. |
+| Addon messages | `C_ChatInfo.RegisterAddonMessagePrefix`, `SendAddonMessage` and `SendAddonMessageLogged` exist, and messages arrive in party, raid and whisper, also in ordinary combat. **During a boss encounter the game refuses them** (`AddOnMessageLockdown`, 11) from `ENCOUNTER_START` to `ENCOUNTER_END`; a loot window only opens after the kill. `AreOutgoingAddonChatMessagesRestricted()` reads true all the time, so test the send's result or the restriction events instead. Measured with two clients: 10 messages per prefix at once, then 1 per second; 255 bytes at most (longer is cut); party and raid messages arrive in order in about 0.25 seconds; whispers can arrive out of order. The first party test, where nothing arrived, stays unexplained; every later round worked. |
 | Classic addons | Hidden by the client if their TOC says `AllowLoadGameType: classic`. RCLootCouncil Classic 1.3.3 appears once that line is removed; it loads, `/rc` works, but its options throw Lua errors and its error handler fails. Our addon must not set that line. Other testers' clients run many Forever-ready addons (BigWigs, Auctionator, EllesmereUI and others). |
-| Encounter Journal | `C_EncounterJournal.GetLootInfo`, `GetLootInfoByIndex`, `GetEncountersOnMap`, `InstanceHasLoot` and `EJ_*` functions exist, but there is no `EJ_GetLootInfoByIndex`. A tester reports that the journal has loot, but only entries relevant to the character's level appear (about level 16 for the first dungeons), so `/ip ej` needs a character of that level. If it lists loot, an addon command could export boss loot tables, for raids too as soon as the game has them. |
+| Encounter Journal | `C_EncounterJournal.GetLootInfo`, `GetLootInfoByIndex`, `GetEncountersOnMap`, `InstanceHasLoot` and `EJ_*` functions exist, but there is no `EJ_GetLootInfoByIndex`. A tester reports that the journal has loot, but only entries relevant to the character's level appear (about level 16 for the first dungeons), so `/ip ej` needs a character of that level (at level 7 the calls run and return nothing). If it lists loot, an addon command could export boss loot tables, for raids too as soon as the game has them. |
+| Invites | An addon can invite a player by full name (`C_PartyInfo.InviteUnit`) and turn the party into a raid (`ConvertToRaid`). Master Looter and the threshold survive the conversion. |
+| Pasting | A 100,000-character string pasted into an edit box arrives intact, and survives `/reload` in the saved variables. |
+| Encoding helpers | `bit.bxor` (it returns unsigned numbers), `GetServerTime` and `C_EncodingUtil.DeserializeJSON` exist. Reading a 100-item night string takes about 10 ms. |
+
+### Live client, first check (2026-11-12)
+
+One player on Windows, probe 0.6.3 and Intrepid Manager 0.0.17, about six minutes in the open world:
+
+- **Client:** version 1.60.1, build 70888 (dated 2026-11-09), interface 16001 as in the beta, so the addons load without "out of date". Portal US, Lua 5.1, `WOW_PROJECT_ID` 18.
+- **Same as the beta:** every API and event the probe checks, and the loot methods (Master Looter available, Personal not).
+- **Addon messages:** our prefixes register. In about five minutes the client received some 270 guild addon messages from 11 other addons. Sending between two players isn't rechecked yet.
+- **Combat restriction:** on at a fight's start, off about 10 seconds later, as in the beta.
+- **Intrepid Manager's self-test:** 54 of 54 checks pass. Reading a 100-item night string takes about 11 ms and a 400-item one 35 ms, as in the beta, and `bit.bxor` still returns unsigned numbers.
+- **Loot lines:** the addon records the player's own "You receive loot" lines with their item ids.
+- **Encounter Journal at level 18:** no tiers, no instances, no items, with the journal's code loaded. So far it gives no loot tables.
 
 ## Open questions
 
-1. **Do addon messages reach other players?** Run probe 0.5 in a party (below). If receiving works at all, other addons' traffic (BigWigs) shows in `/ip show`. If the game blocks them, votes use whisper or chat commands that the loot master's addon reads (RCLootCouncil has whisper commands too).
-2. **Does Master Looter work in dungeons and raids, and what does the loot window give the loot master?** Set it in the party menu, kill something worth Uncommon or better, open the loot, and read `masterLootCandidates` in the log.
-3. **What does `/ip ej` dump on a character of level 16 or more?** Run it and compare with the dungeon loot lists.
-4. **May an addon invite players** (`C_PartyInfo.InviteUnit`, `ConvertToRaid`)? Not known; run `/ip invite First Surname`.
-5. **Are the beta's rules the launch rules?** Retest after launch.
+The beta answered the first ones asked here: addon messages reach other players, Master Looter works, an addon may invite and convert to a raid, and a long paste arrives intact. Still open:
+
+1. **Does the live client behave as the beta did?** With one player, yes (above). Still to recheck with two players: sending addon messages, master loot and trading.
+2. **Three or more players with the addon at once,** and a 40-player raid: delivery and throttling under real load.
+3. **Master Looter in a raid group:** a party was turned into a raid, but no loot was opened in it.
+4. **Does the Encounter Journal ever list loot?** It was empty at level 18 on the live client. Whether it fills once raids open is unknown.
 
 ## UI sketch
 
@@ -88,11 +105,10 @@ Left out: RCLootCouncil's many options, translations, version checks, council se
 
 ## How to run a test round
 
-See `addon/README.md`. In short: copy `addon/IntrepidProbe/` into the beta's `Interface/AddOns/`, restart the game, run the commands, `/reload`, and read the file the game writes under `WTF/Account/<account>/SavedVariables/IntrepidProbe.lua`. **That file contains character and guild names: do not commit it or paste it into an issue.** Share it privately, or post only the facts.
+See `addon/README.md`. In short: copy `addon/IntrepidProbe/` into the game's `Interface/AddOns/` (in the `_forever_` folder of the World of Warcraft install), restart the game, run the commands, `/reload`, and read the file the game writes under `WTF/Account/<account>/SavedVariables/IntrepidProbe.lua`. **That file contains character and guild names: do not commit it or paste it into an issue.** Share it privately, or post only the facts.
 
 ## How to help
 
-- Run the party test and report which of the open questions above it answers.
-- Run `/ip ej` on a character that has seen dungeons and report whether it lists loot.
-- Test master loot with two or three players.
-- Write the data format (the string the app copies in and the addon exports) as a short spec before any code: see "How the app and the addon exchange data".
+- Run the probe on the live client and report which findings above changed.
+- Run `/ip ej` on a character of level 16 or more and report whether it lists loot.
+- Test master loot and addon messages with two or three players.

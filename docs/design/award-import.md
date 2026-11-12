@@ -1,6 +1,6 @@
 # Design: importing awards (LOOT-005)
 
-Status: design for review, 2026-10-30. Nothing is built. The proposals in GitHub issue #165 were approved by the maintainer ("As proposed", 2026-10-27). The loot owner approved the spreadsheet columns on 2026-10-30; the maintainer's approval of them is pending. The importer itself is planned for 2026-12-22. This document doesn't change any code or rules: section 9 lists the rules changes a later importer needs.
+Status: design for review, 2026-10-30. Nothing is built. The proposals in GitHub issue #165 were approved by the maintainer ("As proposed", 2026-10-27). The loot owner approved the spreadsheet columns on 2026-10-30; the maintainer's approval of them is pending. The importer itself is planned for 2026-12-22. This document doesn't change any code or rules: section 9 lists the rules changes a later importer needs. Updated 2026-11-12 (#193): the addon's format moved into this repository, and a row that differs from an award already imported is a [Conflict](#conflicts) the uploader resolves, at the loot owner's request.
 
 ## Why
 
@@ -20,7 +20,7 @@ Status: design for review, 2026-10-30. Nothing is built. The proposals in GitHub
 | Order | Input | Status | How it arrives |
 | --- | --- | --- | --- |
 | 1 | **The guild's spreadsheet** | Columns agreed (section 2). This is the December 9 fallback and the only input the guild controls. | Paste the cells copied from the sheet, or pick a `.csv` file. |
-| 2 | **The addon's awards string** | The format is drafted (section 7); confirm after launch, when it can be tested in the game. | Paste only. |
+| 2 | **The addon's awards string** | The format is drafted (section 8); confirm after launch, when it can be tested in the game. | Paste only. |
 | 3 | **An RCLootCouncil-style CSV export** | Confirm after launch, and only if the guild uses that addon on Forever (section 8). | Pick a `.csv` file. |
 
 **Paste or file.** Every input can be pasted. A CSV can also be picked as a file. Either way the browser reads the text itself. Nothing is uploaded to Cloud Storage, and the text is never stored, only the awards that come out of it.
@@ -111,7 +111,7 @@ This differs from the addon draft (`exchange-v0` section 6.3), which fills the s
   - **The id:** `sheet-`, then the first 20 hex digits of the SHA-256 of `raid date|character|item|item id` (each normalized as in section 3), then `-`, then *n*.
   - ***n* counts copies:** it counts the identical keys up to and including this row in the same paste or file (1, 2, …). Two real copies to one person on one night, written as two rows, get `-1` and `-2`.
   - **The same sheet uploaded again** gives the same ids, so every row shows as already imported.
-  - **Note and Recorded by aren't in the key**, so editing them after an import doesn't make a new award. The preview says the note differs, and an import never changes a saved award. The rules allow a leader to edit a note (`awardEditFields`), but the app has no button for it yet.
+  - **Note, Decided by and Recorded by aren't in the key**, so editing them after an import doesn't make a new award. A changed note or Decided by shows as a Conflict, and the uploader picks which version to keep ([Conflicts](#conflicts)). Recorded by is shown, never compared.
   - **Uploading only part of a sheet** can give a second copy *n* = 1. It then shows "already imported", and the leader can choose "It's another copy", which saves it with the next free *n*.
 
 **The existing look-alike test** (`possibleDuplicate` in `manualAward.ts`) still runs on every row that has no id match: same character, same item name, raid dates within one day, not removed. It only warns, because two copies of an item can truly drop to one person on one night.
@@ -136,7 +136,11 @@ The roster has Mirelle Dunmore and Jorren Ashvale, both with surnames, and two e
 | 10. First name only | Nothing | `…, Mirelle, …` | Unmatched: never matched on a first name |
 | 11. Bad date | Nothing | `12/9/2026, Jorren Ashvale, …` | Error: "Write the raid date as 2026-12-09." |
 | 12. Disenchanted | Nothing | `…, Disenchant, Example Cloak, …` | Skipped |
-| 13. Note changed after import | Case 1 saved with no note | Case 1's row with a note | Duplicate, "the note differs" |
+| 13. Note changed after import | Case 1 saved with no note | Case 1's row with a note | Conflict: the note differs. Keep the app's, use the import's, or pick per field. |
+| 14. Moved in the app, then the sheet uploaded again | Case 1 saved, then moved to Mirelle Dunmore with Fix receipt | Case 1's row | Conflict: the character differs; the Log shows the move. No suggestion. |
+| 15. Removed in the addon after an import | An addon award imported at revision 1796866530 | The same `id` at a higher revision, `status: removed` | Conflict, suggested "use the import's" (only the addon changed it). |
+| 16. An older addon copy | The same award imported at a higher revision | The row at a lower revision | Stale: "an older copy of an award already imported". |
+| 17. The same copy after "Keep the app's" | Case 15 answered "Keep the app's" (the revision recorded) | The same row again | Duplicate: "already imported; changed in the app since". Not asked again. |
 
 ## 7. The preview and saving (#165 decisions 7 and 8)
 
@@ -153,6 +157,10 @@ Import awards                                         12 rows read from the past
   --- Skipped             Row 7  Disenchant            Example Cloak                not recorded in the app yet
   --- Error               Row 8  Jorren Ashvale        Example Boots     12/9/2026        Write the raid date as 2026-12-09.
   --- Duplicate           Row 9  Mirelle Dunmore       Example Gloves    2026-12-09        already imported
+  ( ) Conflict            Row 10 Jorren Ashvale        Example Bracers   2026-12-09  note: app "" / import "won the roll-off"
+                                 ( ) Keep the app's  ( ) Use the import's  ( ) Pick per field
+
+  1 conflict: [Keep the app's for all] [Use the import's for all]
 
                                                 [Cancel]  [Save 3 awards]
 ```
@@ -161,21 +169,42 @@ Import awards                                         12 rows read from the past
 - **What starts ticked:**
   - New rows start ticked.
   - Possible duplicate and Unmatched rows start unticked until a leader resolves them.
+  - Conflict rows start unanswered, and are saved only once answered ([Conflicts](#conflicts)).
   - Error, Skipped, Duplicate and Stale rows can't be ticked.
-- **The leader confirms once.** A dialog repeats the counts ("Save 3 awards; 5 rows will not be saved"), then the rows are saved one at a time.
+- **The leader confirms once.** A dialog repeats the counts ("Save 3 awards, change 1, keep the app's for 1; 5 rows will not be saved"), then the rows are saved one at a time.
 - **Each saved row is one batch:** the award plus its `award_<id>_1` Log entry. A row the rules refuse never sinks the others, and a retry is safe because the ids are fixed.
 - **The size is fine.** One award per batch is far inside the measured batch limits, and the entry's field list stays inside the rules' cap of 20 (section 9).
-- **The result lists** what was saved, skipped, already imported and refused, with the reason for each refusal.
+- **The result lists** what was saved, changed, kept, skipped, already imported and refused, with the reason for each refusal.
+
+### Conflicts
+
+A row **conflicts** when the app already has an award with its source id, and the row differs from it in something an award edit can change: the character, the raid date, Decided by, the note, or whether it's removed. The item and the phase never change: an award of the wrong item is removed and recorded again. A row equal to the saved award is a Duplicate.
+
+- **Where conflicts come from:**
+  - the addon changed the award after an earlier import (removed it, added a note, changed the decision);
+  - a leader changed the award in the app after the import (Fix receipt), and the row still has the old values;
+  - the spreadsheet's note or Decided by was edited after an upload.
+- **A copy the app has already answered isn't a conflict.** An imported addon award stores the revision of the addon's copy it last took, changed to or kept against (`sourceRev`). The spreadsheet has no revisions, so this is for addon rows only.
+  - **A lower revision** is **Stale**: "an older copy of an award already imported", never saved.
+  - **The same revision** is a Duplicate when the app has changed the award, or kept its version, since it took that revision: "already imported; changed in the app since". It's a conflict only when nobody touched the award in the app and the content still differs. Only a crash in the game makes two versions of one revision.
+- **Each conflict row** shows both versions of every field that differs, and what the Log knows: "changed in the app on 2026-12-10 by *name*", or "changed in the addon since it was imported". It offers three choices:
+  - **Keep the app's.** The award stays as it is.
+  - **Use the import's.** The award takes the row's values.
+  - **Pick per field.** One choice for each field that differs.
+- **All at once.** A bar above the list reads "2 conflicts: [Keep the app's for all] [Use the import's for all]". It answers every conflict row the same way. The uploader can still change single rows before saving.
+- **A hint, never a default.** When only the addon changed the award (a higher revision, and no change in the app since the import), the row says "Suggested: use the import's". When the app changed it, the row says so and suggests nothing. Rows start unanswered either way.
+- **What saving writes.** A change is the audited award edit Fix receipt writes (`validAwardEdit`): the award and its Log entry in one batch, with the reason "Changed by an import from the addon" (or "... from the spreadsheet"). A removal's reason is "Removed in the addon". An addon row's change also sets `sourceRev` to the row's revision.
+- **Keeping the app's version** of an addon row also sets `sourceRev`, in an audited edit with the reason "Kept the app's version over an import", so the same copy doesn't ask again (it is then the same revision, kept in the app). A spreadsheet row has no revision to record, so keeping writes nothing and the same sheet asks again.
 
 ## 8. Other inputs (confirm after launch)
 
 **The addon's awards string.**
-- **Its format is drafted in the addon sandbox's `exchange-v0` specification.** That covers the envelope, the checksum, the errors in plain words, the award rows, and the importer's preview categories: Error, Conflict, Duplicate, Stale, Changed, Possible duplicate, Unmatched, New.
-- **This importer takes it with two changes:**
-  - It follows section 5: no snapshots.
-  - Its pseudo recipients wait for section 10.
+- **Its format is [`docs/spec/exchange-v0.md`](../spec/exchange-v0.md)** (ADDON-001, #193): the envelope, the checksum, the errors in plain words and the award rows. It follows this document:
+  - no snapshots (section 5), and every award that isn't a pseudo award says how it was decided;
+  - pseudo recipients are Skipped until section 10 changes;
+  - an award imported before shows as Duplicate, Stale or Conflict ([Conflicts](#conflicts)).
 - **A sample** from the draft's test files is in [`award-import-samples/awards-string.txt`](award-import-samples/awards-string.txt). It's one line, and all its names are invented.
-- **Proposed for the backlog:** ADDON-001 owns the string's format, and the draft moves into this repository with the addon work. LOOT-005 owns the importer and this document.
+- **Who owns what:** ADDON-001 owns the string's format, LOOT-005 the importer and this document. `python3 addon/tools/exchange_fixtures.py build` keeps the sample below equal to the format's own sample.
 
 **An RCLootCouncil-style CSV.**
 - **The format is from memory and unverified:** one row per award, with player, date, time, item name and id, response, instance, boss and note.
@@ -186,13 +215,14 @@ Import awards                                         12 rows read from the past
 
 None of these are made here. Each needs its own commit and rules tests when the importer is built.
 
-1. **New award fields:** `sourceKind`, `sourceId`, `sourcePriority`, `recordedBy` and `itemId`, all optional for a manual award. When `sourceId` is present, the document id must equal it, and it starts with `sheet-` or `addon-`.
-2. **The Log entry's field list grows.** It lists the manual award's 8 fields plus the import fields it has, at most 13. That's inside the cap of 20 changed fields per entry (`validAuditEntry` in `firestore.rules`).
+1. **New award fields:** `sourceKind`, `sourceId`, `sourceRev` (addon awards only), `sourcePriority`, `recordedBy` and `itemId`, all optional for a manual award. When `sourceId` is present, the document id must equal it, and it starts with `sheet-` or `addon-`.
+2. **The Log entry's field list grows.** It lists the manual award's 8 fields plus the import fields it has, at most 14. That's inside the cap of 20 changed fields per entry (`validAuditEntry` in `firestore.rules`).
 3. **Expression headroom.** A request may use 1,000 expressions, and the widest award entry has about 60 to spare (the comment above the award fields in `firestore.rules`). The new fields must re-run the widest tests in `roster-ids.test.ts`, `loot-tables.test.ts` and `batch-budget.test.ts`.
 4. **Saving into a finished phase.** Today an award's `phaseNo` must be the current phase. The loot owner decided on 2026-10-19 that imports may go into a finished phase. Proposal: an award with a `sourceKind` may name any phase up to the current one, and its Log entry says it was imported.
 5. **A rules test pins that a second import of a row is refused.** That's an update to an existing document, not a create.
-6. **The Log and the award display show provenance** (section 4).
-7. **Later, not in the first importer:**
+6. **Conflict choices are award edits** ([Conflicts](#conflicts)). The award edit (`awardEditFields`) also lets `sourceRev` rise on an addon award, and never lets an edit add, remove or lower it.
+7. **The Log and the award display show provenance** (section 4).
+8. **Later, not in the first importer:**
    - pseudo recipients (`pseudo`, no `recipientId`) for disenchanted and banked items;
    - the addon's delivery fields;
    - "Copy for addon".
@@ -202,7 +232,7 @@ None of these are made here. Each needs its own commit and rules tests when the 
 - **Unknown characters.** A character the roster doesn't have stays Unmatched until a leader picks one. The import never creates a roster character.
 - **Disenchanted and banked items** stay manual until pseudo recipients exist.
 - **Items not yet received.** The addon tracks them, but the app doesn't yet.
-- **Correcting an imported award** uses Fix receipt (LOOT-004), like any other award: move it to someone else, or remove it with a reason.
+- **Correcting an imported award** uses Fix receipt (LOOT-004), like any other award: move it to someone else, or remove it with a reason. A later import offers its changes as conflicts ([Conflicts](#conflicts)).
 - **Skipped rows.** Any row the preview skipped, or a leader left unticked, can be recorded with Record loot.
 
 ## 11. Before December 9

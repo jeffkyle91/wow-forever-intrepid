@@ -1,0 +1,915 @@
+[
+ {
+  "name": "an award from a priority marks that person's first open line",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    true,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a second listing of the same person is marked by a second award",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr01",
+    "to": "Jorren Ashvale"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    true
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "more awards than listings mark nothing more",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr01",
+    "to": "Jorren Ashvale"
+   },
+   {
+    "id": "s-tpt2u0-q4tz-2",
+    "rev": 1796866502,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr01",
+    "to": "Jorren Ashvale"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    true
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "an award the app already holds (same rev in known) does not count again",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpg4mo-k3p9-1",
+    "rev": 1796262300,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "an award changed since the copy (higher rev than known) does not count, and is reported",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpg4mo-k3p9-2",
+    "rev": 1796866999,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": [
+   "s-tpg4mo-k3p9-2"
+  ]
+ },
+ {
+  "name": "a removed award does not count",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore",
+    "status": "removed"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "an award of another phase does not count",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 0,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "an award made with no night loaded does not count",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a pseudo award never marks a line",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "pseudo": "disenchant",
+    "to": "Disenchant"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "without a priority, the item name decides (trimmed, spaces collapsed, ASCII lowercase)",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "item": "  cloak of many  commas, semicolons; and 100% percent ",
+    "toId": "AbCdEfGhIjKlMnOpQr04",
+    "to": "Zoë Ærinwald",
+    "decision": "roll"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    true
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "without a toId, the unique roster full name decides",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-cloak",
+    "item": "Cloak of Many Commas, Semicolons; and 100% Percent",
+    "to": "zoë  Ærinwald"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    true
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "non-ASCII capitals are not folded, so no match",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-cloak",
+    "item": "Cloak of Many Commas, Semicolons; and 100% Percent",
+    "to": "ZOË ÆRINWALD"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "without a toId or a roster match, a name-only line decides",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-typed",
+    "item": "Item Typed by Hand",
+    "to": "garrick  VOLE",
+    "decision": "other"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    true
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a name-only line already awarded is not marked twice",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-cloak",
+    "item": "Cloak of Many Commas, Semicolons; and 100% Percent",
+    "to": "Garrick Vole"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "an alt's award does not mark the main's line",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr03",
+    "to": "Tobin Ashvale"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "the first name alone matches nobody",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "to": "Jorren"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a priority that is not in the night: nothing is marked, even if the item name matches",
+  "night": "night-small",
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-gone",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a blank surname is no surname, so the first name alone matches nobody",
+  "night": "night-small",
+  "edit": [
+   [
+    "set",
+    [
+     "roster",
+     5,
+     "surname"
+    ],
+    " "
+   ],
+   [
+    "append",
+    [
+     "priorities",
+     1,
+     "lines"
+    ],
+    {
+     "k": 5
+    }
+   ]
+  ],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "to": "Pell"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "two roster entries with one full name match nobody, so a name-only line would decide",
+  "night": "night-small",
+  "edit": [
+   [
+    "append",
+    [
+     "roster"
+    ],
+    {
+     "k": 7,
+     "id": "AbCdEfGhIjKlMnOpQr07",
+     "name": "Jorren",
+     "surname": "Ashvale"
+    }
+   ]
+  ],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "to": "Jorren Ashvale"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a toId that matches no roster entry marks nothing, whatever the name says",
+  "night": "night-small",
+  "edit": [],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr99",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "without a priority, every priority with that item name is marked",
+  "night": "night-small",
+  "edit": [
+   [
+    "append",
+    [
+     "priorities"
+    ],
+    {
+     "id": "pr-blade-2",
+     "item": "Blade of the Fixture",
+     "lines": [
+      {
+       "k": 2
+      }
+     ]
+    }
+   ]
+  ],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore",
+    "decision": "council"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    true,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ],
+   "pr-blade-2": [
+    true
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "an item name with a non-ASCII capital is not folded, so no match",
+  "night": "night-small",
+  "edit": [
+   [
+    "set",
+    [
+     "priorities",
+     3,
+     "item"
+    ],
+    "Æ Blade"
+   ],
+   [
+    "set",
+    [
+     "priorities",
+     3,
+     "lines"
+    ],
+    [
+     {
+      "k": 2
+     }
+    ]
+   ]
+  ],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "item": "æ blade",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore",
+    "decision": "council"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "a roster entry with no line on the priority marks nothing",
+  "night": "night-small",
+  "edit": [],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr05",
+    "to": "Pell"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "one award marks only the first of a person's open lines",
+  "night": "night-small",
+  "edit": [
+   [
+    "append",
+    [
+     "priorities",
+     1,
+     "lines"
+    ],
+    {
+     "k": 2
+    }
+   ]
+  ],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "priority": "pr-blade",
+    "item": "Blade of the Fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    true,
+    false,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ },
+ {
+  "name": "the item name of the priority is trimmed, collapsed and lowercased too",
+  "night": "night-small",
+  "edit": [
+   [
+    "set",
+    [
+     "priorities",
+     1,
+     "item"
+    ],
+    "  BLADE of   the Fixture "
+   ]
+  ],
+  "log": [
+   {
+    "id": "s-tpt2u0-q4tz-1",
+    "rev": 1796866501,
+    "phase": 1,
+    "item": "blade of the fixture",
+    "toId": "AbCdEfGhIjKlMnOpQr02",
+    "to": "Mirelle Dunmore",
+    "decision": "council"
+   }
+  ],
+  "expect": {
+   "pr-blade": [
+    true,
+    true,
+    false,
+    false
+   ],
+   "pr-cloak": [
+    true,
+    false,
+    false
+   ],
+   "pr-typed": [
+    false
+   ]
+  },
+  "changed": []
+ }
+]

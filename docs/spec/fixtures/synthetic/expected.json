@@ -1,33 +1,35 @@
 {
  "awards-edge.j.txt": {
-  "awards": 18,
+  "awards": 15,
   "preview": {
-   "Error": 5,
-   "New": 7,
-   "New (skipped)": 1,
+   "Error": 4,
+   "New": 4,
    "Possible duplicate": 1,
+   "Skipped": 2,
    "Unmatched": 4
   },
   "rowErrors": [
-   "s-tpt6ul-vfn9-15",
-   "s-tpt6ul-vfn9-16",
-   "s-tpt6ul-vfn9-17",
-   "s-tpt6ul-vfn9-18"
+   "s-tpt6ul-vfn9-12",
+   "s-tpt6ul-vfn9-13",
+   "s-tpt6ul-vfn9-14",
+   "s-tpt6ul-vfn9-15"
   ]
  },
  "awards-first.j.txt": {
   "awards": 12,
   "preview": {
-   "New": 12
+   "New": 10,
+   "Skipped": 2
   },
   "rowErrors": []
  },
  "awards-later.j.txt": {
   "awards": 15,
   "preview": {
-   "Changed": 5,
-   "Duplicate": 7,
-   "New": 3
+   "Conflict": 2,
+   "Duplicate": 8,
+   "New": 3,
+   "Skipped": 2
   },
   "rowErrors": []
  },

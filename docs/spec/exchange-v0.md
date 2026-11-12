@@ -1,8 +1,8 @@
 # Exchange strings, v0 (ADDON-001)
 
-Status: **draft 2, 2026-10-19.** It fixes the findings of the first review (three readers and a skeptic). The loot owner decided the encoding (JSON), pseudo recipients (a new award field), past-phase imports (allowed), items still owed (later) and award decisions (picked by the loot master).
+Status: **draft 3, 2026-11-11** (ADDON-001, #193). The spec moved here from the addon's own repository, with its fixtures and its reference tool ([addon/tools/](../../addon/tools/)). Draft 3 makes every award that is not a pseudo award say how it was decided ([section 6.1](#61-content)). Draft 2 (2026-10-19) fixed the findings of the first review (three readers and a skeptic). The loot owner decided the encoding (JSON), pseudo recipients (a new award field), past-phase imports (allowed), items still owed (later) and award decisions (picked by the loot master).
 
-Four small additions came from writing the Lua reader on the same day: the nesting limit (section 3), U+0000 in text (section 2), the E_KIND wording and E_MULTIPLE without reading the second string (section 1.1). The Lua checksum, JSON reader and writer, and envelope reader are built and pass all the fixtures. Nothing else is built yet.
+Four small additions came from writing the Lua reader on the same day: the nesting limit (section 3), U+0000 in text (section 2), the E_KIND wording and E_MULTIPLE without reading the second string (section 1.1). The addon's Lua code for both strings is built and passes all the fixtures; it moves here with the addon (ADDON-002). The app side (the importer and "Copy for addon") is not built.
 
 This spec covers the two strings that stage v0 needs, and nothing else:
 
@@ -13,7 +13,7 @@ This spec covers the two strings that stage v0 needs, and nothing else:
 
 Council messages, response buttons, timers, assignments, strategies and the list of items still owed from earlier nights get their own specs later. Readers ignore unknown fields ([section 9](#9-versioning)), so new fields never break an older reader.
 
-The [fixtures/](fixtures/) folder holds sample strings, the broken strings a reader must reject, test cases for the content checks (one edit to a good model each) and test cases for the awarded marks. [tools/exchange_fixtures.py](../../tools/exchange_fixtures.py) builds and checks them; it is the reference implementation of this spec. The Lua and TypeScript tests use the fixtures.
+The [fixtures/](fixtures/) folder holds sample strings, the broken strings a reader must reject, test cases for the content checks (one edit to a good model each) and test cases for the awarded marks. [addon/tools/exchange_fixtures.py](../../addon/tools/exchange_fixtures.py) builds and checks them; it is the reference implementation of this spec. The Lua and TypeScript tests use the fixtures.
 
 Several rules here need changes in the app (new award fields, Firestore rules). They are listed in [section 8](#8-app-work-this-spec-needs-loot-005) for LOOT-005.
 
@@ -287,7 +287,7 @@ An **award**, in canonical order:
 | `toId` | id | no | The roster id when the recipient matched a roster entry. |
 | `to` | text | yes | The recipient's full name as the game showed it, or the pseudo recipient's label. |
 | `pseudo` | `disenchant` or `guild-bank` | no | A pseudo recipient: `toId` is absent, and `to` is `Disenchant` or `Guild bank`. |
-| `decision` | `council`, `roll` or `other` | no | How the loot master says it was decided, picked in the game. Required for an award without a `priority` that is not a pseudo award. |
+| `decision` | `council`, `roll` or `other` | yes, except on a pseudo award | How it was decided, picked by the loot master in the game. An award made from a `priority` is `council`. The importer saves every award as a manual award, which needs this ([section 6.3](#63-what-the-apps-importer-does-with-it-loot-005)). |
 | `priority` | id | no | The priority the award was made from. |
 | `encounter` | text | no | The boss name, from the corpse's NPC id. |
 | `npcId`, `zoneId` | integer | no | From the corpse. |
@@ -295,7 +295,7 @@ An **award**, in canonical order:
 | `delivery` | object | yes | `state`: `assigned` or `received`. When received, `at` (time) and `how` (`master-loot`, `trade` or `manual`) are required; when assigned, they are ignored. |
 | `status` | `removed` | no | The loot master removed the award in the game. |
 
-An unknown `pseudo`, `decision`, `delivery.state`, `delivery.how` or `status` value is a row error. So are a `pseudo` with a `toId`, and an award with neither `priority` nor `pseudo` nor `decision`.
+An unknown `pseudo`, `decision`, `delivery.state`, `delivery.how` or `status` value is a row error. So are a `pseudo` with a `toId`, and an award with neither `pseudo` nor `decision` (draft 2 let a `priority` stand in for `decision`).
 
 **What a revision may change:** `delivery`, `note`, `decision`, and `status` (to `removed`).
 - **Recipient, item or priority.** To change any of these, the addon removes the award (a new `rev` with `status: removed`) and makes a new award with a new `id`. The app's award edit cannot change a priority award's priority or snapshots anyway.
@@ -325,22 +325,27 @@ IM1:awards:j:2025:{"schema":1,"id":"a-tpt9k0-8vbn","at":1796875200,"by":"Intrepi
 
 ### 6.3 What the app's importer does with it (LOOT-005)
 
-The importer previews every row before saving anything. It saves each confirmed row in its own batch (the award plus its audit entry), so a row the rules refuse never sinks other rows. The award's document id is `addon-` + `id`: a second import of the same row, in another tab or by another leader, fails on the existing document instead of making a copy.
+The importer is designed in [`docs/design/award-import.md`](../design/award-import.md), which wins wherever the two differ. What a producer can rely on:
+
+- **Nothing is saved before a preview.** Each confirmed row is saved in its own batch (the award plus its Log entry), so a row the rules refuse never sinks other rows.
+- **The document id is `addon-` + `id`.** A second import of the same row, in another tab or by another leader, meets the existing document instead of making a copy.
+- **Every import is a manual award** (award-import section 5): no `priorityId` and no snapshot. A snapshot is the candidate order at the moment of the decision, and an import later would freeze an order that didn't exist that night. `priority` is shown in the preview and kept as reference text (`sourcePriority`); it never marks a priority line. That is why every award that isn't a pseudo award carries `decision`.
+- **The app keeps `rev`** as `sourceRev`, so it can tell a later copy of an award from an older one.
 
 **Preview categories.** When a row fits more than one, the first one in this order wins:
 
 | Category | When | Saving does |
 | --- | --- | --- |
 | **Error** | A row error | Nothing; shows why. |
-| **Conflict** | The same `id` with the same `rev` but different content (a crash left two versions), or a higher `rev` for an award a leader has edited in the app since it was imported | Nothing until a leader picks a version for each differing field. A field edited in the app is never overwritten without that choice. |
-| **Duplicate** | The same `id`, same `rev`, same content | Nothing. Importing a string twice adds nothing. |
-| **Stale** | The same `id`, lower `rev` | Nothing (an older export pasted after a newer one). |
-| **Changed** | The same `id`, higher `rev`, not edited in the app since | Applies `delivery`, `note` (`awardNote`) and `decision`. A removal sets `status: removed` with the reason "Removed in the addon". |
-| **Possible duplicate** | No `id` match, but the app has an award with the same recipient, the same item (`itemId`, or the name when either has no id) and an `awardedAt` within one day | Waits for a leader: the same award (link it, which stores the source id on it), a new one, or skip. Catches awards typed into the app while the addon was down, and awards redone after a crash. |
-| **Unmatched** | No `toId`, not a pseudo award, and `to` matches no roster character (section 2) | Waits for a leader to pick the character. The pick is remembered for that `id`, so a later `rev` does not ask again. |
-| **New** | Anything else | Creates the award, as below. |
+| **Skipped** | A pseudo award (the app has no award without a recipient yet), or `status: removed` on an `id` the app never saw | Nothing. |
+| **Stale** | The app has this `id` at a higher `rev` | Nothing: an older copy. |
+| **Duplicate** | The app has this `id`, and nothing an award edit can change differs | Nothing: already imported. |
+| **Conflict** | The app has this `id`, and the character, the raid date, `decision`, `note` or the removal differs | What the uploader picks for the row: keep the app's, use the import's, or pick per field. One choice can answer every conflict at once ([award-import, Conflicts](../design/award-import.md#conflicts)). |
+| **Possible duplicate** | No `id` match, but the app has an award for the same character and item within a day (award-import section 6) | Waits for a leader: skip, or "it's another copy". |
+| **Unmatched** | No `toId`, not a pseudo award, and `to` matches no roster character (section 2) | Waits for a leader to pick the character. The pick is remembered for that `id`. |
+| **New** | Anything else | Creates a manual award, as below. |
 
-A New row with `status: removed` is skipped: it never reached the app, so there is nothing to remove.
+A changed `delivery` is never a conflict yet: the app doesn't store delivery (section 8).
 
 **How a new award is written:**
 
@@ -348,25 +353,12 @@ A New row with `status: removed` is skipped: it never reached the app, so there 
 | --- | --- |
 | `recipientId` | `toId` (or the leader's pick) |
 | `recipient` | **The roster entry's current `name`** (the app's rules require it), not `to`. `to` is shown in the preview. |
-| `item`, `encounter` | For a priority award, **copied from the app's priority** (the rules require it). Otherwise, `item` and `encounter` from the string. The game's names are shown in the preview. |
+| `item`, `encounter` | `item`, and `encounter` (the boss). The night's raid names the place when the app has it. |
 | `awardedAt` | The date of the raid `raid` names, when the app has it; else `date`. A raid past midnight keeps its own date. |
 | `phaseNo` | `phase`; when absent, the leader picks it (default: the current phase). |
-| `priorityId` and snapshots | `priority`. `prioritySnapshot`, `prioritySnapshotIds` and `councilNoteSnapshot` are filled from **the app's own** priority, never from the string. |
-| `decision` | `decision`, for an award without a priority. |
+| `decision` | `decision` |
 | `awardNote` | `note` |
-| new fields (section 8) | `sourceId` (= `id`), `sourceRev` (= `rev`), `pseudo`, `itemId`, `npcId`, `zoneId`, the delivery fields |
-
-**When the app's rules would refuse a priority award**, the preview says so and offers the fallback:
-
-| Case | Fallback |
-| --- | --- |
-| The priority no longer exists | Save as a manual award (needs `decision`; the leader picks when it is missing). |
-| The priority is hidden | Ask: unhide it first, save as a manual award, or skip. |
-| The recipient is not on the list, but the list has an open note | Record it through the note (`receiveThroughNote` in `candidates.ts`): the character takes the note's place. |
-| The recipient is not on the list and there is no open note | Save as a manual award, with a warning that the priority's marks will not show it. |
-| The award's `phase` differs from the priority's | Error row. The addon only offers priorities of the night's phase, so this means a broken string. |
-
-A **pseudo award** is always saved without a priority (section 8). Its `priority`, if any, is shown in the preview only, and it never marks a line.
+| import fields (award-import sections 4 and 9) | `sourceKind` `addon`, `sourceId` (= `id`), `sourceRev` (= `rev`), `sourcePriority` (= `priority`), `itemId` |
 
 ## 7. Awarded marks
 
@@ -401,18 +393,14 @@ The fixture [fixtures/marks-cases.json](fixtures/marks-cases.json) holds the cas
 
 ## 8. App work this spec needs (LOOT-005)
 
-These belong in LOOT-005 through the Raid Desk's own work process. They are listed here so that nothing is assumed silently.
+The importer's rules changes are listed in [award-import section 9](../design/award-import.md#9-rules-and-client-changes-the-importer-needs): the import fields, saving into a finished phase (the loot owner, 2026-10-19: allowed), and conflict choices as audited award edits.
 
-1. **New award fields:**
-   - `sourceId` and `sourceRev`. The app's own `rev` is the audit revision and stays separate.
-   - `itemId`, `npcId`, `zoneId`.
-   - Delivery: `deliveryState`, `deliveredAt`, `deliveredHow`.
-   - `pseudo`.
-2. **Pseudo recipients** (the loot owner, 2026-10-19: a new field). The rules accept an award with `pseudo` in `disenchant` or `guild-bank`, `recipient` `Disenchant` or `Guild bank`, and no `recipientId`. Pseudo awards count toward nobody's marks.
-3. **Importing into a past phase** (the loot owner, 2026-10-19: allowed). Today a create needs `phaseNo` equal to the current phase. An import may write an award into a finished phase, audited as an import.
-4. **The `addon-<sourceId>` document id** for imported awards. Linking a Possible duplicate stores `sourceId` on an existing award.
-5. **"Copy for addon"** builds the night string as in section 5.1, including `known`. It needs the source ids of every addon-made award of the phase.
-6. **Items still owed** (the loot owner, 2026-10-19: later). Once the delivery fields exist, a later night schema can carry the awards not yet received.
+This format carries more than the first importer stores. `session`, `npcId` and `zoneId` are read and not kept; `raid` only finds the raid date. Later work:
+
+1. **Pseudo recipients** (the loot owner, 2026-10-19: a new field). The rules accept an award with `pseudo` in `disenchant` or `guild-bank`, `recipient` `Disenchant` or `Guild bank`, and no `recipientId`. Pseudo awards count toward nobody's marks. Until then they are Skipped.
+2. **Delivery:** `deliveryState`, `deliveredAt`, `deliveredHow`. Once stored, a changed `delivery` becomes a conflict like the other fields.
+3. **"Copy for addon"** builds the night string as in section 5.1, including `known`: the source id and `sourceRev` of every addon-made award of the phase.
+4. **Items still owed** (the loot owner, 2026-10-19: later). Once the delivery fields exist, a later night schema can carry the awards not yet received.
 
 ## 9. Versioning
 
@@ -435,7 +423,7 @@ These belong in LOOT-005 through the Raid Desk's own work process. They are list
 
 ## 11. Measurements
 
-Measured with `python3 tools/exchange_fixtures.py measure` on synthetic data shaped like a real night. The data has 60 roster entries with 20-character ids, 8 lines per item, a council note on one item in three, 15 bosses, and 20 known awards.
+Measured with `python3 addon/tools/exchange_fixtures.py measure` on synthetic data shaped like a real night. The data has 60 roster entries with 20-character ids, 8 lines per item, a council note on one item in three, 15 bosses, and 20 known awards.
 
 | Items in the night string | Characters |
 | --- | --- |
@@ -466,8 +454,8 @@ Measured with `python3 tools/exchange_fixtures.py measure` on synthetic data sha
 - **Content checks:** every case in [fixtures/content-cases.json](fixtures/content-cases.json) names a good model (`night-small` or `awards-small`, from its `.model.json`), a list of edits and the answer. Apply the edits, then run the content checks of step 9: the answer is `E_PAYLOAD` (a top-level field is wrong) or `OK` with the sorted `rowErrors` (none when the key is missing). An edit is `["set", path, value]`, `["delete", path]` or `["append", path, value]`; a path is a list of keys and 1-based list positions, so `["roster", 3, "name"]` is the name of the third roster entry, the one the row error `roster:3` names. The cases are built from data in the tool, so a TypeScript importer reads the same file.
 - **Marks:** every case in [fixtures/marks-cases.json](fixtures/marks-cases.json) gives its expected marks and warnings.
 - **CRC-32:** [fixtures/crc32-vectors.json](fixtures/crc32-vectors.json).
-- **Synthetic nights and awards:** [tools/synthetic.py](../../tools/synthetic.py) makes larger, varied strings (an invented roster with awkward names, a series of awards strings for every row category of section 6.3) with the same reference writer; a few are in [fixtures/synthetic/](fixtures/synthetic/) and the Lua tests read them. Its preview is a reference for section 6.3, not the app.
-- **Fixtures up to date:** `python3 tools/exchange_fixtures.py check` fails when a fixture no longer matches its model, or when the reference reader, the reference content checks or the reference marks disagree with a case. Edit a `.model.json` or the cases in the tool, then run `python3 tools/exchange_fixtures.py build`.
+- **Synthetic nights and awards:** [addon/tools/synthetic.py](../../addon/tools/synthetic.py) makes larger, varied strings (an invented roster with awkward names, a series of awards strings for every row category of section 6.3) with the same reference writer; a few are in [fixtures/synthetic/](fixtures/synthetic/) and the Lua tests read them. Its preview is a reference for section 6.3, not the app.
+- **Fixtures up to date:** `python3 addon/tools/exchange_fixtures.py check` fails when a fixture no longer matches its model, or when the reference reader, the reference content checks or the reference marks disagree with a case. Edit a `.model.json` or the cases in the tool, then run `python3 addon/tools/exchange_fixtures.py build`.
 
 ## 13. Still open
 

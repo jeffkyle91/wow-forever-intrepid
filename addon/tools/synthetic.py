@@ -2,29 +2,30 @@
 """Synthetic raid nights and awards strings, to rehearse the Raid Desk import (LOOT-005) before it exists.
 
 Everything here is invented: the players, items and bosses are made up, and every id is made up. The strings follow
-docs/spec/exchange-v0.md and are written with the reference writer of tools/exchange_fixtures.py, so any reader that
+docs/spec/exchange-v0.md and are written with the reference writer of addon/tools/exchange_fixtures.py, so any reader that
 follows the spec can read them.
 
-  python3 tools/synthetic.py night   [--seed N] [--players 24] [--items 24] [--date YYYY-MM-DD] [--size 20]
+  python3 addon/tools/synthetic.py night   [--seed N] [--players 24] [--items 24] [--date YYYY-MM-DD] [--size 20]
                                      [--phase 1] [--at SECONDS] [--item-ids FILE] [--roster-json FILE] [--emulator]
                                      [--plain] [--out FILE]
         a night string (what "Copy for addon" would make), to paste into the addon's import box
-  python3 tools/synthetic.py awards  --night FILE [--seed N] [--count 12] [--out FILE]
+  python3 addon/tools/synthetic.py awards  --night FILE [--seed N] [--count 12] [--out FILE]
         an awards string for that night (what the addon's export window would make)
-  python3 tools/synthetic.py pack    [--seed N] [--dir DIR] [options of night]
+  python3 addon/tools/synthetic.py pack    [--seed N] [--dir DIR] [options of night]
         a whole rehearsal folder: the night, a series of awards strings that walk through every row category of the
         importer preview, broken strings that must be refused, the expected results, and a README
-  python3 tools/synthetic.py check   [FILE | -] [--clipboard] [--expect night|awards] [--night FILE] [--state FILE]
+  python3 addon/tools/synthetic.py check   [FILE | -] [--clipboard] [--expect night|awards] [--night FILE] [--state FILE]
         read a pasted string (a night, or awards from the addon) with the reference reader, say what it holds, and with
         --state say what the importer's preview would show for each award
-  python3 tools/synthetic.py selftest
+  python3 addon/tools/synthetic.py selftest
         make a pack and check everything it says against the reference reader and the reference preview, and that the
         fixtures in docs/spec/fixtures/synthetic/ are up to date
-  python3 tools/synthetic.py fixtures [--write]
+  python3 addon/tools/synthetic.py fixtures [--write]
         the few synthetic strings the Lua tests read (a night, three awards strings, expected.json)
 
-The preview here (`preview`) is a reference for spec section 6.3, not the app: the app's importer is LOOT-005. It models
-what the app holds as a small JSON (the roster, the priorities and the awards imported or typed so far).
+The preview here (`preview`) is a reference for spec section 6.3 and docs/design/award-import.md, not the app: the app's
+importer is LOOT-005. It models what the app holds as a small JSON (the roster, the priorities and the awards imported or
+typed so far).
 
 Standard library only. This file is plain ASCII.
 """
@@ -61,7 +62,7 @@ CLASSES = {
     "Priest": ["Healer", "Ranged"], "Shaman": ["Healer", "Melee", "Ranged"], "Mage": ["Ranged"], "Warlock": ["Ranged"],
     "Druid": ["Tank", "Healer", "Melee", "Ranged"],
 }
-CATEGORIES = ["Error", "Conflict", "Duplicate", "Stale", "Changed", "Possible duplicate", "Unmatched", "New"]
+CATEGORIES = ["Error", "Skipped", "Stale", "Duplicate", "Conflict", "Possible duplicate", "Unmatched", "New"]
 MESSAGES = {
     "E_NOT_IM": "This is not an Intrepid Manager string.",
     "E_VERSION": "This string was made by a newer version. Update the addon (or reload the Raid Desk) and try again.",
@@ -195,6 +196,8 @@ def make_award(session, number, at, item_id, item, who=None, pseudo=None, decisi
         award["to"] = "Disenchant" if pseudo == "disenchant" else "Guild bank"
     else:
         award["toId"], award["to"] = who["id"], full_name(who)
+    if not decision and priority and not pseudo:
+        decision = "council"  # spec draft 3: an award made from a priority says council
     if decision:
         award["decision"] = decision
     if priority:
@@ -362,32 +365,46 @@ def same_item(entry, award):
     return ef.name_key(entry.get("item", "")) == ef.name_key(award.get("item", ""))
 
 
-def what_changed(old, new):
+def differences(old, new):
+    """What an award edit could change between the award the app imported (`old`) and a row (`new`): the character,
+    the raid date, the decision, the note and the removal (spec section 6.3). Delivery is not stored by the app yet."""
+    def who(a):
+        return ("id", a.get("toId")) if a.get("toId") else ("name", ef.name_key(a.get("to", "")))
     parts = []
-    if old.get("delivery") != new.get("delivery"):
-        parts.append(f"delivery {old.get('delivery', {}).get('state')} -> {new.get('delivery', {}).get('state')}")
-    if old.get("note") != new.get("note"):
-        parts.append("note " + ("added" if "note" not in old else "changed"))
+    if who(old) != who(new):
+        parts.append("character")
+    if old.get("date") != new.get("date") or old.get("raid") != new.get("raid"):
+        parts.append("raid date")
     if old.get("decision") != new.get("decision"):
-        parts.append("decision changed")
-    if new.get("status") == "removed" and old.get("status") != "removed":
-        parts.append("removed in the addon")
-    return ", ".join(parts) or "revision only"
+        parts.append("decision")
+    if old.get("note") != new.get("note"):
+        parts.append("note")
+    if (old.get("status") == "removed") != (new.get("status") == "removed"):
+        parts.append("removed in the addon" if new.get("status") == "removed" else "restored in the addon")
+    return parts
 
 
 def classify(award, state, names, by_id, by_source):
-    """(category, detail) for one award that has no row error."""
+    """(category, detail) for one award that has no row error, in the order of spec section 6.3."""
     existing = by_source.get(award["id"])
+    if award.get("pseudo"):
+        return "Skipped", f"pseudo award ({award['pseudo']}): not recorded in the app until pseudo recipients exist"
+    if existing is None and award.get("status") == "removed":
+        return "Skipped", "removed in the addon before it reached the app"
     if existing:
-        if existing["sourceRev"] == award["rev"]:
-            if existing["content"] != award:
-                return "Conflict", "same id and revision, different content"
-            return "Duplicate", "the app has this version"
         if award["rev"] < existing["sourceRev"]:
-            return "Stale", "the app has a newer version"
+            return "Stale", "an older copy of an award already imported"
+        diff = differences(existing["content"], award)
+        if not diff:
+            if award["rev"] > existing["sourceRev"]:
+                return "Duplicate", "already imported; only the delivery changed, which the app does not store yet"
+            return "Duplicate", "already imported"
+        what = "differs: " + ", ".join(diff)
         if existing.get("editedInApp"):
-            return "Conflict", "changed in the addon and edited in the app since: a leader picks a version for each field"
-        return "Changed", what_changed(existing["content"], award)
+            return "Conflict", what + "; changed in the app since the import, no suggestion"
+        if award["rev"] == existing["sourceRev"]:
+            return "Conflict", what + "; the same revision with other content, no suggestion"
+        return "Conflict", what + "; changed in the addon since the import, suggested: use the import's"
     recipient = None
     if not award.get("pseudo"):
         recipient = by_id.get(award["toId"]) if award.get("toId") else None
@@ -400,25 +417,11 @@ def classify(award, state, names, by_id, by_source):
                         and abs(entry["awardedAt"] - award["at"]) <= DAY):
                     return "Possible duplicate", "the app has an award for this recipient and item within a day: same, new or skip"
         if not award.get("toId") and recipient is None:
-            return "Unmatched", "no roster character has this full name: a leader picks the character"
-    if award.get("status") == "removed":
-        return "New", "skipped: removed in the addon before it reached the app"
-    if award.get("pseudo"):
-        return "New", f"pseudo award ({award['pseudo']}): saved without a priority" + (", its priority is shown only" if award.get("priority") else "")
+            many = len(names.get(ef.name_key(award["to"]), [])) > 1
+            return "Unmatched", ("two roster characters have this full name" if many else "no roster character has this full name") + ": a leader picks the character"
     if "priority" in award:
-        priority = next((p for p in state["priorities"] if p["id"] == award["priority"]), None)
-        if priority is None:
-            return "New", "the priority no longer exists: saved as a manual award" + ("" if award.get("decision") else " (a leader picks the decision)")
-        if priority["hidden"]:
-            return "New", "the priority is hidden: unhide it, save as a manual award, or skip"
-        if award.get("phase") is not None and award["phase"] != priority["phase"]:
-            return "Error", "the award's phase differs from the priority's phase"
-        if recipient is not None and recipient["id"] not in priority["recipientIds"]:
-            if priority["openNote"]:
-                return "New", "not on the list: recorded through the list's open note"
-            return "New", "not on the list and no open note: saved as a manual award, the priority's marks will not show it"
-        return "New", "priority award"
-    return "New", f"award without a priority (decision {award.get('decision')})"
+        return "New", f"manual award (decision {award['decision']}); priority {award['priority']} kept for reference only"
+    return "New", f"manual award (decision {award.get('decision')})"
 
 
 def preview(text, state):
@@ -442,10 +445,9 @@ def preview(text, state):
                 row.update(category="Error", detail="a field is missing or wrong (" + (explain_award(award) or "see the spec") + ")", skip=True)
             else:
                 category, detail = classify(award, state, names, by_id, by_source)
-                row.update(category=category, detail=detail, skip=(category != "New" and category != "Changed") or detail.startswith("skipped"))
-                # New rows that wait for a leader (a priority that is hidden) are not saved by the default policy either
-                if category == "New" and detail.startswith("the priority is hidden"):
-                    row["skip"] = True
+                # The rehearsal's leader saves the New rows and takes every suggestion; other conflicts stay unanswered.
+                row.update(category=category, detail=detail,
+                           skip=not (category == "New" or (category == "Conflict" and "suggested: use the import's" in detail)))
             row["award"] = award
             rows.append(row)
     return rows
@@ -466,7 +468,7 @@ def explain_award(a):
         (not (a.get("pseudo") and "toId" in a), "a pseudo award cannot have a toId"),
         (a.get("pseudo") in (None, "disenchant", "guild-bank"), "pseudo is not disenchant or guild-bank"),
         (a.get("decision") in (None, "council", "roll", "other"), "decision is not council, roll or other"),
-        ("priority" in a or "pseudo" in a or "decision" in a, "an award needs a priority, a pseudo recipient or a decision"),
+        ("pseudo" in a or "decision" in a, "an award that is not a pseudo award needs a decision"),
         (isinstance(d, dict) and (d.get("state") == "assigned" or (d.get("state") == "received" and ef.is_int(d.get("at"))
                                                                   and d.get("how") in ("master-loot", "trade", "manual"))),
          "delivery is missing or wrong"),
@@ -479,7 +481,7 @@ def explain_award(a):
 
 
 def apply_rows(state, rows):
-    """The state after the leader confirms what the preview offers by default: the New and Changed rows."""
+    """The state after the leader saves the New rows and the conflicts with a suggestion ("use the import's")."""
     state = copy.deepcopy(state)
     names = roster_names(state["roster"])
     by_source = {e["sourceId"]: e for e in state["awards"] if e.get("sourceId")}
@@ -487,7 +489,7 @@ def apply_rows(state, rows):
         if row["skip"]:
             continue
         award = row["award"]
-        if row["category"] == "Changed":
+        if row["category"] == "Conflict":
             by_source[award["id"]].update(sourceRev=award["rev"], content=copy.deepcopy(award))
         elif row["category"] == "New":
             entry = state_award(award)
@@ -503,8 +505,7 @@ def apply_rows(state, rows):
 def counts(rows):
     result = {}
     for row in rows:
-        key = row["category"] + (" (skipped)" if row["category"] == "New" and row["detail"].startswith("skipped") else "")
-        result[key] = result.get(key, 0) + 1
+        result[row["category"]] = result.get(row["category"], 0) + 1
     return result
 
 
@@ -548,9 +549,9 @@ def rehearsal(world, seed=1):
         return one_line(awards_model(awards, at or export_at, rng=random.Random(export_at), ident=ident), "awards")
 
     add("awards-01-first-export.txt", "The first export of the night", text_of(base),
-        note="Every award is new. Confirm them all.")
+        note="Every award is new except the two pseudo awards (Disenchant, Guild bank), which are Skipped until pseudo recipients exist.")
     add("awards-02-same-again.txt", "The same export again", text_of(base),
-        note="Importing a string twice adds nothing: every row is a duplicate.")
+        note="Importing a string twice adds nothing: every saved row is a duplicate, and the pseudo awards are still Skipped.")
 
     # A later export: three deliveries, a note, a removal, three new awards.
     later = copy.deepcopy(base)
@@ -564,10 +565,11 @@ def rehearsal(world, seed=1):
     assert len(changed) == 3 and len(plain) >= 2 and len(session2) == 3, "the world is too small for the rehearsal"
     later_text = text_of(later + session2, export_at + 1500)
     add("awards-03-later-export.txt", "A later export: changes, a removal and new awards", later_text,
-        note="Five awards changed (three deliveries, a note, a removal), three are new, the rest are duplicates.")
+        note=("Five awards changed in the addon. The note and the removal are conflicts with the suggestion \"use the import's\"; "
+              "the three deliveries are duplicates, because the app does not store delivery yet. Three are new."))
 
     add("awards-04-older-export.txt", "The first export pasted again after the later one", text_of(base),
-        note="An older export pasted after a newer one: the five changed awards are stale, the rest are duplicates.")
+        note="An older export pasted after a newer one: the two awards changed by the conflicts taken in the step before are stale, the rest are duplicates.")
 
     # Conflicts: the same id and revision with different content.
     twin = [a for a in later if a.get("toId") and a["id"] not in {later[i]["id"] for i in changed}][:2]
@@ -579,7 +581,7 @@ def rehearsal(world, seed=1):
         conflicting.append(c)
     steady = [a for a in later[:4] if a not in twin][:2]
     add("awards-05-conflict.txt", "The same id and revision with different content", text_of(conflicting + steady, export_at + 1600),
-        note="Two awards carry another recipient than the app has for the same revision: conflicts. The others are duplicates.")
+        note="Two awards carry another recipient than the app has for the same revision: conflicts with no suggestion. The others are duplicates.")
 
     edited = next(a for a in later if "priority" in a and a["id"] not in {x["id"] for x in conflicting} and a.get("status") != "removed")
     edited_new = bump(edited, export_at + 1800, note="Addon note after the leader edited this award.")
@@ -592,7 +594,7 @@ def rehearsal(world, seed=1):
     add("awards-05b-conflict-edited-in-app.txt", "A newer revision of an award a leader edited in the app",
         text_of([edited_new], export_at + 1900), before=edit_in_app,
         manual=f"First edit the note of the award for \"{edited['item']}\" in the app (any change), then paste.",
-        note="A higher revision for an award that was edited in the app since it was imported: a conflict, never overwritten silently.")
+        note="A higher revision for an award that was edited in the app since it was imported: a conflict with no suggestion, never overwritten silently.")
 
     # The edge rows.
     rows_in = []
@@ -604,7 +606,6 @@ def rehearsal(world, seed=1):
     plain_prio = next((p for p in prios if not any("text" in x for x in p["lines"]) and p is not open_note), prios[-1])
     world["used"].update(p["itemId"] for p in (open_note, plain_prio) if p)
     off_list = next(p for p in regular if all(p["k"] != line.get("k") for line in plain_prio["lines"]))
-    off_list_note = next((p for p in regular if open_note and all(p["k"] != line.get("k") for line in open_note["lines"])), off_list)
     edge_at = export_at + 3000
 
     def edge(label, **kw):
@@ -629,12 +630,9 @@ def rehearsal(world, seed=1):
     loud.pop("toId")
     loud["to"] = "  " + jorren["name"].upper() + "    " + jorren["surname"].lower() + " "
     gone = {"id": "pr-deleted-after-copy", "encounter": "Grimtooth the Test Boss", "npcId": 990001, "zoneId": 991}
-    edge("a priority that no longer exists", who=regular[1], decision="council", priority=gone)
-    edge("a priority hidden after the night was copied", who=regular[2], priority={"id": "pr-hidden-after-copy"})
-    if open_note:
-        edge("a recipient who is not on the list, but the list has an open note", who=off_list_note, priority=open_note,
-             item_id=open_note["itemId"], item=open_note["item"])
-    edge("a recipient who is not on the list, and no open note", who=off_list, priority=plain_prio,
+    edge("a priority that no longer exists: a manual award, the priority kept for reference", who=regular[1], decision="council",
+         priority=gone)
+    edge("a recipient who is not on the priority's list: a manual award like any other", who=off_list, priority=plain_prio,
          item_id=plain_prio["itemId"], item=plain_prio["item"])
     edge("a pseudo award that names a priority", pseudo="guild-bank", decision="other", priority=plain_prio)
     removed = edge("an award removed before the app ever saw it", who=regular[3], decision="roll")
@@ -642,9 +640,6 @@ def rehearsal(world, seed=1):
     removed["rev"] += 5
     dupe_target = regular[4]
     edge("typed into the app by hand while the addon was away", who=dupe_target, decision="roll", item_id=900777, item="Typed By Hand Trinket")
-    wrong_phase = edge("a phase that differs from the priority's", who=regular[5], priority=plain_prio, item_id=plain_prio["itemId"],
-                       item=plain_prio["item"])
-    wrong_phase["phase"] = phase + 1
     # Rows with an error of their own
     one = edge("an award without an item name", who=regular[6], decision="roll")
     one.pop("item")
@@ -654,21 +649,16 @@ def rehearsal(world, seed=1):
     four = edge("a pseudo award with a toId", pseudo="disenchant")
     four["toId"] = regular[9]["id"]
     edge_awards = [award for _, award in rows_in]
-    # The hidden priority is not in the night (the night never has hidden ones): the app holds it.
-    hidden = {"id": "pr-hidden-after-copy", "phase": phase, "hidden": True, "item": "Hidden Item", "itemId": 900901,
-              "recipientIds": [], "openNote": False}
     manual = {"sourceId": None, "sourceRev": None, "content": None, "editedInApp": False, "recipientId": dupe_target["id"],
               "itemId": 900777, "item": "Typed By Hand Trinket", "awardedAt": edge_at + 100 - 3600}
 
     def edge_state(st):
-        st["priorities"].append(hidden)
         st["awards"].append(manual)
 
     edge_text = text_of(edge_awards, edge_at + 400)
     add("awards-06-edge-rows.txt", "One row of every unusual kind", edge_text, before=edge_state,
         manual=(f"The app must hold one award typed by hand: {full_name(dupe_target)} got \"Typed By Hand Trinket\" on the night "
-                f"(any decision), and a hidden priority \"Hidden Item\" with the id pr-hidden-after-copy. Both are in "
-                f"states/awards-06-edge-rows.json."),
+                f"(any decision). It is in states/awards-06-edge-rows.json."),
         note="Each row shows its own category; the labels of the rows are in README.md.")
     steps[-1]["edge_labels"] = [label for label, _ in rows_in]
 
@@ -739,7 +729,7 @@ def write_pack(directory, seed, options):
 
 
 def regenerate_command(seed, options):
-    parts = ["python3 tools/synthetic.py pack", f"--seed {seed}", f"--players {options['players']}", f"--items {options['items']}",
+    parts = ["python3 addon/tools/synthetic.py pack", f"--seed {seed}", f"--players {options['players']}", f"--items {options['items']}",
              f"--date {options['date']}", f"--size {options['size']}", f"--phase {options['phase']}", f"--at {options['at']}"]
     if options.get("ids") == "emulator":
         parts.append("--emulator")
@@ -767,13 +757,13 @@ def readme(world, steps, seed, options, broken):
         "(`/im window import` shows the window today). It should read, and say how many players and priorities it holds.", "",
         "## 2. The Raid Desk importer (addon to app)", "",
         "The importer is LOOT-005 and is not built yet. These files are what it has to handle. Paste them **in this order**; "
-        "after each paste confirm what the preview offers by default (the New and Changed rows). The folder `states/` has, for "
+        "after each paste save the New rows and take every suggested conflict choice (\"use the import's\"). The folder `states/` has, for "
         "each file, the state the expected results assume just before that paste: the roster and priorities of the night, "
         "and the awards imported so far. `expected.json` lists the rows each paste must give.", "",
         "The awards carry the roster ids and priority ids of **this** invented night. A real app only knows them if it was "
         "filled from the same data (a test guild seeded from `states/awards-01-first-export.json`, or an importer unit test "
         "that is given that state). Against a real guild, make a night with its own \"Copy for addon\" string and run "
-        "`python3 tools/synthetic.py awards --night <that string's file>` to get awards that fit it.", "",
+        "`python3 addon/tools/synthetic.py awards --night <that string's file>` to get awards that fit it.", "",
         "| File | What it is | Expected preview |", "| --- | --- | --- |",
     ]
     for step in steps:
@@ -786,9 +776,8 @@ def readme(world, steps, seed, options, broken):
     for index, (label, row) in enumerate(zip(edge["edge_labels"], edge["rows"]), 1):
         lines.append(f"| {index} | {label} | {row['category']} | {row['detail']} |")
     lines += [
-        "", "Rows 7 and 8 depend on a priority that was deleted or hidden after the night was copied, and row 13 on an award typed by "
-        "hand: a real database can only be put into that state by hand. `states/awards-06-edge-rows.json` is the state the "
-        "reference preview assumed.", "",
+        "", "One row depends on an award typed by hand: a real database can only be put into that state by hand. "
+        "`states/awards-06-edge-rows.json` is the state the reference preview assumed.", "",
         "## 3. Strings that must be refused", "",
         "| File | Must give |", "| --- | --- |",
     ]
@@ -797,7 +786,7 @@ def readme(world, steps, seed, options, broken):
         lines.append(f"| `{name}` | {code}: {message} |")
     lines += ["| `good-wrapped-by-chat.txt` | Reads normally: line breaks are removed before anything else. |", "",
               "## 4. Check what the addon exported", "",
-              "Copy the awards string from the addon's export window and run `python3 tools/synthetic.py check --clipboard` "
+              "Copy the awards string from the addon's export window and run `python3 addon/tools/synthetic.py check --clipboard` "
               "(`--night night.txt --state states/awards-01-first-export.json` adds the preview).", ""]
     return "\n".join(lines)
 
@@ -1010,16 +999,16 @@ def selftest():
                 expect(all(not errors for _, errors in envelopes), f"{step['file']} has row errors")
         # the counts the README promises
         by_file = {s["file"]: s["counts"] for s in steps}
-        expect(by_file["awards-01-first-export.txt"] == {"New": 12}, f"01: {by_file['awards-01-first-export.txt']}")
-        expect(by_file["awards-02-same-again.txt"] == {"Duplicate": 12}, f"02: {by_file['awards-02-same-again.txt']}")
-        expect(by_file["awards-03-later-export.txt"] == {"Changed": 5, "Duplicate": 7, "New": 3}, f"03: {by_file['awards-03-later-export.txt']}")
-        expect(by_file["awards-04-older-export.txt"] == {"Stale": 5, "Duplicate": 7}, f"04: {by_file['awards-04-older-export.txt']}")
+        expect(by_file["awards-01-first-export.txt"] == {"New": 10, "Skipped": 2}, f"01: {by_file['awards-01-first-export.txt']}")
+        expect(by_file["awards-02-same-again.txt"] == {"Duplicate": 10, "Skipped": 2}, f"02: {by_file['awards-02-same-again.txt']}")
+        expect(by_file["awards-03-later-export.txt"] == {"Conflict": 2, "Duplicate": 8, "Skipped": 2, "New": 3}, f"03: {by_file['awards-03-later-export.txt']}")
+        expect(by_file["awards-04-older-export.txt"] == {"Stale": 2, "Duplicate": 8, "Skipped": 2}, f"04: {by_file['awards-04-older-export.txt']}")
         expect(by_file["awards-05-conflict.txt"] == {"Conflict": 2, "Duplicate": 2}, f"05: {by_file['awards-05-conflict.txt']}")
         expect(by_file["awards-05b-conflict-edited-in-app.txt"] == {"Conflict": 1}, f"05b: {by_file['awards-05b-conflict-edited-in-app.txt']}")
         expect(by_file["awards-07-two-loot-masters.txt"] == {"New": 6}, f"07: {by_file['awards-07-two-loot-masters.txt']}")
         edge = next(s for s in steps if s["file"] == "awards-06-edge-rows.txt")
         categories = {c for c in (r["category"] for r in edge["rows"])}
-        expect({"Unmatched", "Possible duplicate", "New", "Error"} <= categories, f"06 categories: {categories}")
+        expect({"Unmatched", "Possible duplicate", "New", "Skipped", "Error"} <= categories, f"06 categories: {categories}")
         # the broken strings give the codes they promise
         for name, (text, code) in broken_strings(steps[0]["text"], one_line(world["night"], "night")).items():
             try:
@@ -1054,7 +1043,7 @@ def selftest():
                 failures.append(f"seed {seed} {players}x{items}: {type(error).__name__} {error}")
     stale = fixtures(write=False)
     if stale:
-        failures.append("out of date (run: python3 tools/synthetic.py fixtures --write): " + ", ".join(stale))
+        failures.append("out of date (run: python3 addon/tools/synthetic.py fixtures --write): " + ", ".join(stale))
     if failures:
         print("synthetic selftest FAILED:\n  " + "\n  ".join(failures))
         sys.exit(1)

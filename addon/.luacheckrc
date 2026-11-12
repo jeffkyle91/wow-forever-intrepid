@@ -28,6 +28,7 @@ globals = {
 read_globals = {
   "bit",
   "C_AddOns",
+  "ForeverDungeonJournal_NS", -- the optional addon DungeonJournal (game/DungeonJournal.lua)
   "C_ChatInfo",
   "C_Container",
   "C_Item",

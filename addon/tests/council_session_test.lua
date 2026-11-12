@@ -40,7 +40,7 @@ local function client(world, name, extra)
   mine.ns = ns
   mine.council = ns.Game.CouncilSession.new({
     out = function(text) mine.said[#mine.said + 1] = text end, db = mine.db, version = "0.0.10", sid = name == "Jorren Ashvale" and "ml" or "rd",
-    exchange = name == "Jorren Ashvale" and mine.exchange or nil,
+    exchange = name == "Jorren Ashvale" and mine.exchange or nil, sourceOf = name == "Jorren Ashvale" and world.sourceOf or nil,
   })
   for _, hook in ipairs({ "onOffer", "onOfferChanged", "onResponse", "onEnd", "onSessionStarted", "onHello", "onQueueChanged", "onOffersClosed", "onAwarded", "onGiven" }) do
     mine.council.hooks[hook] = function(...) mine.events[#mine.events + 1] = { hook, ... } end
@@ -54,6 +54,7 @@ local function pair(options)
   options = options or {}
   local world = FakeChat.new(options.world)
   world.exchange = options.exchange
+  world.sourceOf = options.sourceOf
   local scene = { world = world }
   scene.master = client(world, "Jorren Ashvale", options.masterEnv)
   scene.raider = client(world, "Mirelle Dunmore")
@@ -841,4 +842,28 @@ test("a session knows whether it is running, for the import window", function()
   eq(scene.master.council.sessionOpen(), true)
   scene.master.council.command("end")
   eq(scene.master.council.sessionOpen(), false)
+end)
+
+test("the loot master's window says where each item drops when that is known, and a failing lookup says nothing", function()
+  local asked = {}
+  local scene = pair({ sourceOf = function(id)
+    asked[#asked + 1] = id
+    if id == 101 then return "Warden of Fixtures, Hollow Test Keep" end
+    if id == 102 then error("journal trouble") end
+    if id == 103 then return "" end
+    return nil
+  end })
+  queue(scene, 101, 102, 103, 104)
+  local items = scene.master.council.masterModel().items
+  eq(items[1].source, "Warden of Fixtures, Hollow Test Keep")
+  eq(items[2].source, nil)
+  eq(items[3].source, nil)
+  eq(items[4].source, nil)
+  deep_eq(asked, { 101, 102, 103, 104 })
+end)
+
+test("without a source lookup the window's items have no source", function()
+  local scene = pair()
+  queue(scene, 101)
+  eq(scene.master.council.masterModel().items[1].source, nil)
 end)

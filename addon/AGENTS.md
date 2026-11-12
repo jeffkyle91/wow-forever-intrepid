@@ -4,7 +4,7 @@ The guild's WoW: Forever addons (Lua 5.1, interface 16001), working with the Rai
 
 ## Rules that must not be broken
 
-- **Licensing.** Do not copy code from RCLootCouncil (GPL-3.0) or Gargul (All Rights Reserved). Read them to understand an idea, write the requirement in your own words, then write your own code. Ace3 and similar libraries may be embedded with their licenses kept.
+- **Licensing.** Do not copy code from RCLootCouncil (GPL-3.0), Gargul (All Rights Reserved) or DungeonJournal (All Rights Reserved; `game/DungeonJournal.lua` only reads it at run time, and its tests use an invented journal), and never copy DungeonJournal's data. Read them to understand an idea, write the requirement in your own words, then write your own code. Ace3 and similar libraries may be embedded with their licenses kept.
 - **TOC.** Never set `AllowLoadGameType: classic`. Interface number is `16001`. TOC file names must match the real case exactly (CI is case-sensitive).
 - **Lua 5.1 only.** No `goto`, no integer division, no bitwise operators, no `//`. Check with `luacheck`.
 - **Names.** Characters have a first name and a surname ("Jorren Ashvale"); the second word is not a realm. Match on the roster's full name or the player GUID, never on the first name alone. Code written for `Name-Realm` is wrong here.

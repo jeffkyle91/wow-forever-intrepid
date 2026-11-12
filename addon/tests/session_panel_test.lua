@@ -408,3 +408,24 @@ test("the Import night and Export awards buttons ask for their windows in every 
     deep_eq(scene.calls, { { "importNight" }, { "exportAwards" } })
   end
 end)
+
+test("the line above the answers says where the picked item drops, before the start and next to the counts after it", function()
+  local SessionPanel
+  local scene = setup({ model = model("building", 2) })
+  SessionPanel = scene.ns.UI.SessionPanel
+  scene.model.items[1].source = "Warden, Test Keep"
+  scene.panel.show()
+  eq(text(scene, scene.parts.countsLine), "From Warden, Test Keep")
+  local running = model("running", 2, { responders = 1, hellos = 1, group = 2 })
+  running.items[1].source = "Warden, Test Keep"
+  running.items[1].counts = { b = 1, u = 0, o = 0, p = 0, total = 1 }
+  scene.model = running
+  scene.panel.update(running)
+  eq(text(scene, scene.parts.countsLine), "BiS 1   Upgrade 0   Off-spec 0   Pass 0   From Warden, Test Keep")
+  press(scene, scene.parts.leftRows[2].frame)
+  eq(text(scene, scene.parts.countsLine), "BiS 0   Upgrade 0   Off-spec 0   Pass 0")
+  eq(SessionPanel.detailText(nil, nil), "")
+  eq(SessionPanel.detailText(nil, ""), "")
+  eq(SessionPanel.detailText({ b = 2 }, nil), "BiS 2   Upgrade 0   Off-spec 0   Pass 0")
+  eq(#scene.errors, 0)
+end)

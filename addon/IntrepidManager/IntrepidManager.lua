@@ -103,12 +103,54 @@ local function importModel()
   return { current = getExchange().nightText(), sessionOpen = council ~= nil and council.sessionOpen() }
 end
 
+-- The optional addon DungeonJournal (game/DungeonJournal.lua): read only, and only when the player has it. It tells the loot master's
+-- window where an item drops, and /im dj checks what it holds.
+local journal
+local function getJournal()
+  if not journal then journal = ns.Game.DungeonJournal.new() end
+  return journal
+end
+local function journalSource(itemId)
+  local source = getJournal().sourceOf(itemId)
+  return source and (source.boss .. ", " .. source.dungeon) or nil
+end
+
+-- /im dj [list]: what DungeonJournal holds. The check is kept in IntrepidManagerDB.dj (counts and true or false only) and reaches the
+-- disk at the next /reload; "list" prints its dungeons.
+local function runJournal(argument)
+  local word = string.lower(string.match(argument or "", "^%s*(.-)%s*$"))
+  local dj = getJournal()
+  if word == "list" then
+    local list = dj.dungeons()
+    if #list == 0 then out("DungeonJournal isn't installed or isn't loaded.") return end
+    for i, entry in ipairs(list) do
+      out(i .. ". " .. entry.name .. ": " .. entry.bosses .. " bosses, " .. entry.items .. " items" .. (entry.partial and " (its list is incomplete)" or ""))
+    end
+    return
+  end
+  local result = dj.check(debugprofilestop)
+  result.ranAt = time and time() or nil
+  result.addonVersion = addonVersion()
+  IntrepidManagerDB = IntrepidManagerDB or {}
+  IntrepidManagerDB.dj = result
+  if not result.present then
+    out("DungeonJournal isn't installed or isn't loaded." .. (result.version and (" (version " .. result.version .. " is installed)") or ""))
+  else
+    out("DungeonJournal " .. (result.version or "?") .. ": " .. result.dungeons .. " dungeons, " .. result.bosses .. " bosses, " .. result.items
+      .. " items (" .. result.partial .. " dungeons with an incomplete list). Read in " .. string.format("%.1f", result.ms or 0) .. " ms.")
+    out("/im dj list shows them.")
+  end
+  out("Type /reload to save the check to a file.")
+end
+
 -- /im session [add, bags, bag, list, remove, start, results, end], /im respond <item> <bis, up, os or pass> [note], /im offers: the council
 -- session (game/CouncilSession.lua). Every client listens for offers from the moment the addon loads (see ADDON_LOADED below).
 local function getCouncil()
   if not council then
     IntrepidManagerDB = IntrepidManagerDB or {}
-    council = ns.Game.CouncilSession.new({ out = out, db = IntrepidManagerDB, version = addonVersion(), exchange = getExchange() })
+    council = ns.Game.CouncilSession.new({
+      out = out, db = IntrepidManagerDB, version = addonVersion(), exchange = getExchange(), sourceOf = journalSource,
+    })
   end
   return council
 end
@@ -296,13 +338,15 @@ local function handle(input)
     getCouncil().awardCommand(argument)
   elseif command == "trade" then
     getCouncil().tradeCommand(argument)
+  elseif command == "dj" then
+    runJournal(argument)
   elseif command == "offers" then
     getCouncil().offers()
     local windows = getCouncilWindows()
     windows.offers.update(getCouncil().offerModel())
     windows.offers.show()
   else
-    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export")
+    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list]")
   end
 end
 

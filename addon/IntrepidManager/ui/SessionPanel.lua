@@ -11,7 +11,8 @@
 --   model = {
 --     state = "none" | "building" | "running" | "closed", timer = 60, remaining = 42 (running only), responders = 3,
 --     hellos = 5, group = 8, pending = 2 (awarded and not given yet), notice = "a warning for the status line" (or nil),
---     items = { { n, item, name, quality, icon, counts = { b, u, o, p, total }, winner = "who it was awarded to", given = true }, ... },
+--     items = { { n, item, name, quality, icon, counts = { b, u, o, p, total }, winner = "who it was awarded to", given = true,
+--                 source = "where it drops: Boss, Dungeon" (or nil) }, ... },
 --   }
 --
 -- The callbacks (each in pcall):
@@ -29,7 +30,9 @@
 --   importNight()         the Import night button: open the window that takes the night string of the Raid Desk
 --   exportAwards()        the Export awards button: open the window with the awards string for the Raid Desk
 --
--- SessionPanel.statusText(model) and SessionPanel.countsText(counts) are the sentences, for the tests.
+-- Above the answers, one line says how the picked item was answered once the session runs, and where it drops when that is known.
+--
+-- SessionPanel.statusText(model), SessionPanel.countsText(counts) and SessionPanel.detailText(counts, source) are the sentences, for the tests.
 
 local _, ns = ...
 
@@ -65,6 +68,15 @@ end
 function SessionPanel.countsText(counts)
   counts = counts or {}
   return "BiS " .. (counts.b or 0) .. "   Upgrade " .. (counts.u or 0) .. "   Off-spec " .. (counts.o or 0) .. "   Pass " .. (counts.p or 0)
+end
+
+-- The line above the answers: the counts (or nothing before the start), then where the item drops.
+function SessionPanel.detailText(counts, source)
+  local text = counts and SessionPanel.countsText(counts) or ""
+  if type(source) == "string" and source ~= "" then
+    text = (text ~= "" and (text .. "   ") or "") .. "From " .. source
+  end
+  return text
 end
 
 function SessionPanel.new(kit, callbacks)
@@ -291,7 +303,8 @@ function SessionPanel.new(kit, callbacks)
     local rows = data and call("rows", data.n) or {}
     hint:SetShown(#current.items == 0)
     answersHead:SetText(data and ("ANSWERS - " .. kit.fit(data.name or "?", answersHeadWidth - 70)) or "ANSWERS")
-    countsLine:SetText(data and current.state ~= "none" and current.state ~= "building" and SessionPanel.countsText(data.counts) or "")
+    local started = current.state ~= "none" and current.state ~= "building"
+    countsLine:SetText(data and kit.fit(SessionPanel.detailText(started and (data.counts or {}) or nil, data.source), rightWidth) or "")
     local tradable = current.state == "running" or current.state == "closed"
     local itemGiven = data ~= nil and data.given
     for i, answer in ipairs(rows) do

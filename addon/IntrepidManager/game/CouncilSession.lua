@@ -41,6 +41,8 @@ function CouncilSession.new(context)
   local out = context.out or print
   local db = context.db or {}
   local version = context.version or "unknown"
+  -- Where an item drops ("Boss, Dungeon"), for the loot master's window; nil when nobody knows. Optional (game/DungeonJournal today).
+  local sourceOf = context.sourceOf
   local Council, Wire, Outbox, Bags = ns.Council, ns.Net.CouncilWire, ns.Net.Outbox, ns.Game.Bags
   local self = { hooks = {} }
 
@@ -1035,6 +1037,14 @@ function CouncilSession.new(context)
   end
 
   -- The loot master's window: the queue or the running session. state is "none", "building", "running" or "closed".
+  -- The source text of an item, or nil. A failing lookup never reaches the window.
+  local function sourceText(item)
+    if not sourceOf then return nil end
+    local ok, text = pcall(sourceOf, Council.itemId(item))
+    if ok and type(text) == "string" and text ~= "" then return text end
+    return nil
+  end
+
   function self.masterModel()
     local model = {
       state = session and session.state or "none", timer = session and session.timer or Council.DEFAULT_TIMER, items = {},
@@ -1045,6 +1055,7 @@ function CouncilSession.new(context)
         model.items[#model.items + 1] = {
           n = entry.n, item = entry.item, name = entry.name or ("item " .. tostring(Council.itemId(entry.item))), quality = entry.quality or 1,
           icon = iconOf(entry.item), counts = session.counts(entry.n), winner = entry.winner, given = entry.given,
+          source = sourceText(entry.item),
         }
       end
       model.remaining = session.remaining()

@@ -1478,6 +1478,7 @@
   "frame_types": {},
   "globals": {
    "C_ChallengeMode": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
+   "ForeverDungeonJournal_NS": "Set by the optional addon DungeonJournal (folder ForeverDungeonJournal, Core/Bootstrap.lua) when the player has it installed; read on the loot owner's copy, 2026-11-12. /im dj records whether it is there. Read only, every read guarded.",
    "GetAddOnMetadata": "ForeverLoot only reaches it as a fallback after C_AddOns.GetAddOnMetadata. The probe saw C_AddOns.GetAddOnMetadata and found the old AddOn globals missing (GetAddOnInfo, GetNumAddOns, IsAddOnLoaded), so this one is probably missing too. Harmless as a fallback; remove it or test it.",
    "GetMouseButtonClicked": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "GetNumClasses": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",

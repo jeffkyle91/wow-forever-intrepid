@@ -4,7 +4,7 @@ This folder holds the guild's in-game addons for **WoW: Forever** (Lua 5.1, inte
 
 | Path | What |
 | --- | --- |
-| `IntrepidManager/` | **Intrepid Manager**, the loot addon, build 0.0.17 (TOC, entry point, `core/` pure logic, `game/` the loot window, the bags, the trade and the council session, `net/` messages between players, `ui/` windows) |
+| `IntrepidManager/` | **Intrepid Manager**, the loot addon, build 0.0.18 (TOC, entry point, `core/` pure logic, `game/` the loot window, the bags, the trade and the council session, `net/` messages between players, `ui/` windows) |
 | `IntrepidProbe/` | **IntrepidProbe** 0.6.3, a developer tool that records what the client offers. Not for players. See `IntrepidProbe/README.md`. |
 | `tests/` | Lua 5.1 tests, their stand-ins for the game, and the window storyboards |
 | `tools/` | Python tools: the exchange-string fixtures, invented test data, the API-name list and its check. See `tools/README.md`. |
@@ -13,7 +13,7 @@ This folder holds the guild's in-game addons for **WoW: Forever** (Lua 5.1, inte
 
 The app holds the roster, the priority lists and the permanent record; the addon runs the loot council in the game and carries the result back as a pasted string.
 
-- **Built:** import the night from the Raid Desk ("Copy for addon"), a council session (items offered, raiders answer within a countdown, with a note), award then trade (several items per trade, only what was won), a version check, the awards log and its export, a loot test and a message test.
+- **Built:** import the night from the Raid Desk ("Copy for addon"), a council session (items offered, raiders answer within a countdown, with a note), award then trade (several items per trade, only what was won), a version check, the awards log and its export, a loot test and a message test. When the player has the community addon DungeonJournal (an optional dependency, read only), the session window says where an item drops and `/im dj` checks what the journal holds.
 - **Not built yet:** council voting, priorities and marks in the council windows, resending after a reconnect, autopass, settings, a debug log.
 - **Checked in the game:** the self-test passes on the live client (2026-11-12, Windows, build 70888). Award then trade, the version window, the import and export windows with a real paste and a session on the live client have not run yet; they need two players.
 
@@ -58,4 +58,4 @@ The game writes `WTF/Account/<account>/SavedVariables/IntrepidManager.lua` at `/
 
 ## License
 
-MIT, like the repository. The code is our own. Do not copy code from RCLootCouncil (GPL-3.0) or Gargul (All Rights Reserved); reading how they work to understand an idea is fine. Embedded libraries keep their own licenses.
+MIT, like the repository. The code is our own. Do not copy code from RCLootCouncil (GPL-3.0), Gargul (All Rights Reserved) or DungeonJournal (All Rights Reserved), nor DungeonJournal's data; reading how they work to understand an idea is fine. Embedded libraries keep their own licenses.

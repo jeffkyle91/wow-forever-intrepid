@@ -23,7 +23,7 @@ A React + TypeScript + Vite guild-operations app on Firebase Authentication and 
 
 ## Layout
 
-- `addon/` holds the in-game Lua addons (Intrepid Manager and the IntrepidProbe developer tool). It is not part of the web build; before changing it, read `addon/AGENTS.md`, whose checks run from `addon/` and must pass. The plan is `docs/design/loot-addon.md`. Never copy code from RCLootCouncil (GPL-3.0) or Gargul (All Rights Reserved) into it.
+- `addon/` holds the in-game Lua addons (Intrepid Manager and the IntrepidProbe developer tool). It is not part of the web build; before changing it, read `addon/AGENTS.md`, whose checks run from `addon/` and must pass. The plan is `docs/design/loot-addon.md`. Never copy code from RCLootCouncil (GPL-3.0), Gargul (All Rights Reserved) or DungeonJournal (All Rights Reserved), or DungeonJournal's data, into it.
 - `src/shell/` is the frame (sidebar, top bar, dialog host, and the tab registry in `tabs.ts`). `src/shared/` holds what features share. `src/features/<name>/` holds one feature each.
 - A feature is a `tab.tsx` exporting a `TabDefinition` (written `as const satisfies TabDefinition`, never annotated), a content component, and any dialogs. Register it with one import and one line in `src/shell/tabs.ts`. Do not add feature code to `src/App.tsx`.
 - Imports go one way: `core and shared <- features <- shell <- App`. A feature never imports another feature or the shell; shared never imports a feature or the shell.

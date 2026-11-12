@@ -401,6 +401,9 @@ def classify(award, state, names, by_id, by_source):
             return "Duplicate", "already imported"
         what = "differs: " + ", ".join(diff)
         if existing.get("editedInApp"):
+            if award["rev"] == existing["sourceRev"]:
+                # The app changed it, or kept its version against this very copy: already answered.
+                return "Duplicate", "already imported; changed in the app since"
             return "Conflict", what + "; changed in the app since the import, no suggestion"
         if award["rev"] == existing["sourceRev"]:
             return "Conflict", what + "; the same revision with other content, no suggestion"

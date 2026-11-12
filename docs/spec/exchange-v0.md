@@ -339,8 +339,8 @@ The importer is designed in [`docs/design/award-import.md`](../design/award-impo
 | **Error** | A row error | Nothing; shows why. |
 | **Skipped** | A pseudo award (the app has no award without a recipient yet), or `status: removed` on an `id` the app never saw | Nothing. |
 | **Stale** | The app has this `id` at a higher `rev` | Nothing: an older copy. |
-| **Duplicate** | The app has this `id`, and nothing an award edit can change differs | Nothing: already imported. |
-| **Conflict** | The app has this `id`, and the character, the raid date, `decision`, `note` or the removal differs | What the uploader picks for the row: keep the app's, use the import's, or pick per field. One choice can answer every conflict at once ([award-import, Conflicts](../design/award-import.md#conflicts)). |
+| **Duplicate** | The app has this `id`, and nothing an award edit can change differs; or the same `rev`, and the app has changed the award or kept its version since it took that `rev` | Nothing: already imported. |
+| **Conflict** | The app has this `id`, and the character, the raid date, `decision`, `note` or the removal differs (at the same `rev`, only when nobody touched the award in the app since: a crash in the game) | What the uploader picks for the row: keep the app's, use the import's, or pick per field. One choice can answer every conflict at once ([award-import, Conflicts](../design/award-import.md#conflicts)). |
 | **Possible duplicate** | No `id` match, but the app has an award for the same character and item within a day (award-import section 6) | Waits for a leader: skip, or "it's another copy". |
 | **Unmatched** | No `toId`, not a pseudo award, and `to` matches no roster character (section 2) | Waits for a leader to pick the character. The pick is remembered for that `id`. |
 | **New** | Anything else | Creates a manual award, as below. |

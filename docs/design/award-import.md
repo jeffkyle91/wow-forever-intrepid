@@ -140,6 +140,7 @@ The roster has Mirelle Dunmore and Jorren Ashvale, both with surnames, and two e
 | 14. Moved in the app, then the sheet uploaded again | Case 1 saved, then moved to Mirelle Dunmore with Fix receipt | Case 1's row | Conflict: the character differs; the Log shows the move. No suggestion. |
 | 15. Removed in the addon after an import | An addon award imported at revision 1796866530 | The same `id` at a higher revision, `status: removed` | Conflict, suggested "use the import's" (only the addon changed it). |
 | 16. An older addon copy | The same award imported at a higher revision | The row at a lower revision | Stale: "an older copy of an award already imported". |
+| 17. The same copy after "Keep the app's" | Case 15 answered "Keep the app's" (the revision recorded) | The same row again | Duplicate: "already imported; changed in the app since". Not asked again. |
 
 ## 7. The preview and saving (#165 decisions 7 and 8)
 
@@ -183,7 +184,9 @@ A row **conflicts** when the app already has an award with its source id, and th
   - the addon changed the award after an earlier import (removed it, added a note, changed the decision);
   - a leader changed the award in the app after the import (Fix receipt), and the row still has the old values;
   - the spreadsheet's note or Decided by was edited after an upload.
-- **An older addon copy isn't a conflict.** An imported addon award stores the revision it was saved from (`sourceRev`). A row with a lower revision is **Stale**: "an older copy of an award already imported", never saved. The spreadsheet has no revisions, so this is for addon rows only.
+- **A copy the app has already answered isn't a conflict.** An imported addon award stores the revision of the addon's copy it last took, changed to or kept against (`sourceRev`). The spreadsheet has no revisions, so this is for addon rows only.
+  - **A lower revision** is **Stale**: "an older copy of an award already imported", never saved.
+  - **The same revision** is a Duplicate when the app has changed the award, or kept its version, since it took that revision: "already imported; changed in the app since". It's a conflict only when nobody touched the award in the app and the content still differs. Only a crash in the game makes two versions of one revision.
 - **Each conflict row** shows both versions of every field that differs, and what the Log knows: "changed in the app on 2026-12-10 by *name*", or "changed in the addon since it was imported". It offers three choices:
   - **Keep the app's.** The award stays as it is.
   - **Use the import's.** The award takes the row's values.
@@ -191,7 +194,7 @@ A row **conflicts** when the app already has an award with its source id, and th
 - **All at once.** A bar above the list reads "2 conflicts: [Keep the app's for all] [Use the import's for all]". It answers every conflict row the same way. The uploader can still change single rows before saving.
 - **A hint, never a default.** When only the addon changed the award (a higher revision, and no change in the app since the import), the row says "Suggested: use the import's". When the app changed it, the row says so and suggests nothing. Rows start unanswered either way.
 - **What saving writes.** A change is the audited award edit Fix receipt writes (`validAwardEdit`): the award and its Log entry in one batch, with the reason "Changed by an import from the addon" (or "... from the spreadsheet"). A removal's reason is "Removed in the addon". An addon row's change also sets `sourceRev` to the row's revision.
-- **Keeping the app's version** of an addon row also sets `sourceRev`, in an audited edit with the reason "Kept the app's version over an import", so the same copy doesn't ask again. A spreadsheet row has no revision to record, so keeping writes nothing and the same sheet asks again.
+- **Keeping the app's version** of an addon row also sets `sourceRev`, in an audited edit with the reason "Kept the app's version over an import", so the same copy doesn't ask again (it is then the same revision, kept in the app). A spreadsheet row has no revision to record, so keeping writes nothing and the same sheet asks again.
 
 ## 8. Other inputs (confirm after launch)
 

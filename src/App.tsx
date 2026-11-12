@@ -111,7 +111,7 @@ function App() {
         <div className="page-wrap">
           <PageHeading tab={tab} ctx={ctx} />
 
-          <StatStrip roster={roster.length} priorities={priorities.length} awards={awards.filter((award) => !isRemovedAward(award)).length} councilStatus={data.settings.councilStatus} />
+          {tab.id === 'dashboard' && <StatStrip roster={roster.length} priorities={priorities.length} awards={awards.filter((award) => !isRemovedAward(award)).length} councilStatus={data.settings.councilStatus} />}
 
           <ErrorBoundary kind="panel" resetKey={tab.id}><WorkspacePanel tab={tab} ctx={ctx} setQuery={setQuery} error={mutationError || dataError} notice={notice} unreadable={effectiveRole === 'Guild Leader' ? data.unreadable : 0} /></ErrorBoundary>
           <p className="preview-note"><Shield size={14} /> Guild data is shared with authorized guild accounts and protected by Firestore rules.</p>

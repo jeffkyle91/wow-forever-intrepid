@@ -2,7 +2,7 @@
 local ns = load_core({}, "Json")
 local Json = ns.Json
 
-local FIXTURES = "docs/spec/fixtures/"
+local FIXTURES = SPEC .. "fixtures/"
 
 local function decode(text)
   local ok, value = Json.decode(text)

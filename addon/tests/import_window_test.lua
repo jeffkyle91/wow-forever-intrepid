@@ -7,7 +7,7 @@ local Intact = dofile("tests/support/intact.lua")
 local Metrics = dofile("tests/support/metrics.lua")
 
 local FILES = { "core/Crc32", "core/Json", "core/Envelope", "core/Ids", "core/Check", "core/Night", "ui/Kit", "ui/ImportWindow" }
-local FIXTURES = "docs/spec/fixtures/"
+local FIXTURES = SPEC .. "fixtures/"
 local AT = 1796862600      -- when the fixture night was copied
 local TODAY = "2026-12-09" -- the fixture night's raid date
 local GOOD = read_file(FIXTURES .. "night-small.j.txt")

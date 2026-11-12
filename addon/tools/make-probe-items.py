@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Writes probe/IntrepidProbe/Items.lua from the Raid Desk's loot tables: the item ids that /ip bundle asks the game about.
+"""Writes IntrepidProbe/Items.lua from the Raid Desk's loot tables: the item ids that /ip bundle asks the game about.
 
   python3 tools/make-probe-items.py [loot-folder]
 
-The default loot folder is data/loot in the intrepid-raid-desk repository next to this one. Only item ids are used (no
+The default loot folder is data/loot of this repository. Only item ids are used (no
 names: the game supplies those, which is the point of the check). Standard library only.
 """
 
@@ -13,8 +13,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-DEFAULT_LOOT = ROOT.parent / "intrepid-raid-desk" / "data" / "loot"
-OUT = ROOT / "probe" / "IntrepidProbe" / "Items.lua"
+DEFAULT_LOOT = ROOT.parent / "data" / "loot"  # ROOT is addon/
+OUT = ROOT / "IntrepidProbe" / "Items.lua"
 
 
 def main():

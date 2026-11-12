@@ -1,4 +1,4 @@
--- Plain Lua 5.1 test runner. Run from the repository root:  lua5.1 tests/run.lua
+-- Plain Lua 5.1 test runner. Run from addon/ in the Raid Desk repository:  lua5.1 tests/run.lua
 -- Picks up every tests/*_test.lua. Test files use these helpers:
 --   test(name, fn)         one test; a failing test is reported and the run goes on
 --   eq(actual, expected)   same value (tables by identity)
@@ -7,6 +7,9 @@
 --   read_file(path)        a whole file, byte for byte (so CR LF stays as written)
 --   apply_edit(model, edit) one edit of docs/spec/fixtures/content-cases.json or marks-cases.json on a decoded model
 --   load_core(ns, ...)     load IntrepidManager/core/<Name>.lua files into ns, in the order given
+
+-- The exchange spec and its shared fixtures live at the repository root (docs/spec/), one folder up from addon/.
+SPEC = "../docs/spec/"
 
 local passed, failed = 0, 0
 

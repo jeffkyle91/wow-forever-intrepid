@@ -1,4 +1,4 @@
--- The probe's /ip bundle (probe/IntrepidProbe/Bundle.lua) against stand-ins for the game: a full client, ones that
+-- The probe's /ip bundle (IntrepidProbe/Bundle.lua) against stand-ins for the game: a full client, ones that
 -- block or break things, and one that has almost nothing. A helper runs the bundle once on their own computer, so it has
 -- to finish and save whatever the client does. Invented names only. See AGENTS.md.
 
@@ -325,7 +325,7 @@ local function newGame(options)
   env.IntrepidProbeDB = options.savedDb -- what the client loaded from the saved file, if there was one
   local ns = {}
   for _, name in ipairs(FILES) do
-    local chunk = assert(loadfile("probe/IntrepidProbe/" .. name .. ".lua"))
+    local chunk = assert(loadfile("IntrepidProbe/" .. name .. ".lua"))
     setfenv(chunk, env)
     chunk("IntrepidProbe", ns)
   end
@@ -386,7 +386,7 @@ local STEP_NAMES = { "client and group", "names and screen", "guild", "window te
 -- The item ids the bundle asks about.
 local function itemIds()
   local ns = {}
-  assert(loadfile("probe/IntrepidProbe/Items.lua"))("IntrepidProbe", ns)
+  assert(loadfile("IntrepidProbe/Items.lua"))("IntrepidProbe", ns)
   return ns.ITEM_IDS
 end
 

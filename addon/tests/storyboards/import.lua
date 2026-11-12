@@ -4,7 +4,7 @@
 -- a stand-in, and the strings are the shared fixtures of docs/spec/fixtures. Invented names only.
 
 local FILES = { "core/Crc32", "core/Json", "core/Envelope", "core/Ids", "core/Check", "core/Night", "ui/Kit", "ui/ImportWindow" }
-local FIXTURES = "docs/spec/fixtures/"
+local FIXTURES = SPEC .. "fixtures/"
 local AT = 1796862600 -- when the fixture night was copied
 local LAST_WEEK = "Night of 2026-12-02, copied 7 days ago: 58 players, 87 priorities."
 

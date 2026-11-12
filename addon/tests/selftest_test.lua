@@ -2,7 +2,7 @@
 local ns = load_core({}, "Crc32", "Json", "Envelope", "Names", "Ids", "Check", "Night", "Marks", "Awards", "SelfTestSamples", "SelfTest")
 local Crc32, SelfTest = ns.Crc32, ns.SelfTest
 
-local FIXTURES = "docs/spec/fixtures/"
+local FIXTURES = SPEC .. "fixtures/"
 
 -- A bit library like the client's, as far as the checksum cares: results are signed 32-bit numbers.
 local function signedBit()

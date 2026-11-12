@@ -4,7 +4,7 @@
 local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards")
 local Json, Envelope, Night, Awards = ns.Json, ns.Envelope, ns.Night, ns.Awards
 
-local DIR = "docs/spec/fixtures/synthetic/"
+local DIR = SPEC .. "fixtures/synthetic/"
 
 local function decode(text)
   local ok, value = Json.decode(text)
@@ -87,9 +87,20 @@ test("what an export holds against the synthetic night: the first export is all 
   for _, award in ipairs(first) do known[#known + 1] = { id = award.id, rev = award.rev } end
   local copied = { model = nightResult.model, known = known }
   selected = Awards.select(later, copied, now, false)
-  eq(selected.count, expected["awards-later.j.txt"].preview.Changed + expected["awards-later.j.txt"].preview.New)
-  eq(selected.changed, expected["awards-later.j.txt"].preview.Changed)
-  eq(selected.new, expected["awards-later.j.txt"].preview.New)
+  -- What the later export should hold, counted from the two strings themselves (draft 3's preview has no "Changed" category:
+  -- a later revision is a Conflict there, and pseudo awards are Skipped, but the addon still exports both): an award the
+  -- first export had at an older revision is changed, one it did not have is new, and one at the same revision is left out.
+  local firstRev = {}
+  for _, award in ipairs(first) do firstRev[award.id] = award.rev end
+  local changed, new = 0, 0
+  for _, award in ipairs(later) do
+    if firstRev[award.id] == nil then new = new + 1
+    elseif award.rev > firstRev[award.id] then changed = changed + 1 end
+  end
+  is_true(changed > 0 and new > 0) -- the fixture still walks through both
+  eq(selected.count, changed + new)
+  eq(selected.changed, changed)
+  eq(selected.new, new)
   -- everything, whatever the night knows
   eq(Awards.select(later, copied, now, true).count, #later)
 end)

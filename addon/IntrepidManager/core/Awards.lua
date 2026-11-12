@@ -70,7 +70,7 @@ local function awardProblem(a)
   if a.pseudo ~= nil and not PSEUDO[a.pseudo] then return "pseudo is not disenchant or guild-bank" end
   if a.pseudo ~= nil and a.toId ~= nil then return "a pseudo award has no toId" end
   if a.decision ~= nil and not DECISIONS[a.decision] then return "decision is not council, roll or other" end
-  if a.priority == nil and a.pseudo == nil and a.decision == nil then return "needs a priority, a pseudo or a decision" end
+  if a.pseudo == nil and a.decision == nil then return "an award that is not a pseudo award needs a decision" end
   if a.priority ~= nil and not Ids.isId(a.priority) then return "priority is not a valid id" end
   if not isText(a.encounter, 120, false) then return "encounter is too long" end
   if a.npcId ~= nil and not isGameId(a.npcId) then return "npcId is not a valid id" end

@@ -12,7 +12,7 @@ std = "wow"
 max_line_length = false
 
 exclude_files = {
-  "probe/**", -- the research probe reads many client globals; not linted
+  "IntrepidProbe/**", -- the research probe reads many client globals; not linted
 }
 
 -- Globals this addon defines.
@@ -79,5 +79,5 @@ read_globals = {
 -- Test files define their own helpers (see tests/run.lua).
 files["tests/**"] = {
   std = "lua51",
-  globals = { "test", "eq", "is_true", "deep_eq", "read_file", "apply_edit", "load_addon_file", "load_core" },
+  globals = { "SPEC", "test", "eq", "is_true", "deep_eq", "read_file", "apply_edit", "load_addon_file", "load_core" },
 }

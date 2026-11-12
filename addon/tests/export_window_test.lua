@@ -6,7 +6,7 @@ local StockTemplates = dofile("tests/support/stock_templates.lua")
 local Intact = dofile("tests/support/intact.lua")
 
 local FILES = { "ui/Kit", "ui/ExportWindow" }
-local AWARDS = read_file("docs/spec/fixtures/awards-small.j.txt")
+local AWARDS = read_file(SPEC .. "fixtures/awards-small.j.txt")
 
 -- A window in a fresh game. Callbacks are recorded in scene.calls. options: density, chrome, known, setTextFires.
 local function setup(options)
@@ -220,7 +220,9 @@ test("a long awards string is kept whole in the box", function()
   local long = AWARDS .. string.rep("x", 100000)
   scene.window.open(vm({ text = long }))
   eq(#scene.parts.edit:GetText(), #long)
-  eq(text(scene, scene.parts.count), "102,052 characters")
+  -- (the length follows the shared fixture: it is over 100,000 characters, written with a thousands comma)
+  is_true(#long > 100000 and #long < 1000000)
+  eq(text(scene, scene.parts.count), string.format("%d,%03d characters", math.floor(#long / 1000), #long % 1000))
 end)
 
 test("nothing sticks out and no two controls overlap: compact, roomy, flat, in every state the window has", function()

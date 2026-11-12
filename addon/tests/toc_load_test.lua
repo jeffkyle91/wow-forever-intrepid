@@ -332,7 +332,7 @@ local function findBelow(game, widget, test)
 end
 
 test("on the whole addon the night from the Raid Desk is imported in its window, the awards of a session are exported, and the string reads", function()
-  local nightText = read_file("docs/spec/fixtures/synthetic/night.j.txt")
+  local nightText = read_file(SPEC .. "fixtures/synthetic/night.j.txt")
   local reader = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "Night")
   local member = reader.Night.read(nightText).roster[1] -- somebody of the night's roster is in the group
   local world = FakeChat.new()

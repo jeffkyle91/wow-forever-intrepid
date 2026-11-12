@@ -5,7 +5,7 @@ local ns = load_core({}, "Crc32", "Json", "Envelope", "Names", "Council", "Ids",
 load_addon_file("IntrepidManager/game/Exchange.lua", ns)
 local Awards, Envelope, Night = ns.Awards, ns.Envelope, ns.Night
 
-local DIR = "docs/spec/fixtures/synthetic/"
+local DIR = SPEC .. "fixtures/synthetic/"
 local NIGHT_TEXT = read_file(DIR .. "night.j.txt")
 
 -- An engine on a fake clock and fake random numbers. Each call makes "another load" when given another `seed`.

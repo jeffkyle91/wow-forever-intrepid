@@ -5,7 +5,7 @@ Usage: tools/make-paste-tests.py [output-dir]      (default: paste-tests/, also 
 
 Each file is ONE line, no trailing newline: IPASTE:<n>:<n characters>:END
 The characters repeat a fixed 64-character pattern; the probe regenerates it and reports the first damaged position.
-Pattern rule (must match probe/IntrepidProbe/IntrepidProbe.lua): for position p (1-based) let i = ((p-1) % 64) + 1,
+Pattern rule (must match IntrepidProbe/IntrepidProbe.lua): for position p (1-based) let i = ((p-1) % 64) + 1,
 character = ALPHABET[(i*7 + 3) % 64].
 """
 import os

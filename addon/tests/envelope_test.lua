@@ -3,7 +3,7 @@
 local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards")
 local Envelope, Json, Night, Awards = ns.Envelope, ns.Json, ns.Night, ns.Awards
 
-local FIXTURES = "docs/spec/fixtures/"
+local FIXTURES = SPEC .. "fixtures/"
 
 local function decode(text)
   local ok, value = Json.decode(text)

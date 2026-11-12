@@ -3,7 +3,7 @@
 local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards")
 local Json, Envelope, Awards, Night = ns.Json, ns.Envelope, ns.Awards, ns.Night
 
-local FIXTURES = "docs/spec/fixtures/"
+local FIXTURES = SPEC .. "fixtures/"
 
 local function decode(text)
   local ok, value = Json.decode(text)
@@ -126,7 +126,9 @@ test("the reasons name what is wrong", function()
   eq(reasonFor(function(m) m.awards[1].date = "soon" end), "date is missing or not YYYY-MM-DD")
   eq(reasonFor(function(m) m.awards[1].itemId = 0 end), "itemId is missing or not a valid id")
   eq(reasonFor(function(m) m.awards[2].toId = "AbCdEfGhIjKlMnOpQr02" end), "a pseudo award has no toId")
-  eq(reasonFor(function(m) m.awards[4].decision = nil end), "needs a priority, a pseudo or a decision")
+  eq(reasonFor(function(m) m.awards[4].decision = nil end), "an award that is not a pseudo award needs a decision")
+  -- (a priority no longer stands in for the decision: spec draft 3)
+  eq(reasonFor(function(m) m.awards[1].decision = nil end), "an award that is not a pseudo award needs a decision")
   eq(reasonFor(function(m) m.awards[1].delivery = nil end), "delivery is missing")
   eq(reasonFor(function(m) m.awards[3].delivery.state = "lost" end), "delivery.state is not assigned or received")
   eq(reasonFor(function(m) m.awards[1].delivery.at = nil end), "a received award needs delivery.at")

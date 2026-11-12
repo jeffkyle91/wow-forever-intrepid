@@ -131,7 +131,7 @@ local function syntheticAwards(count)
     awards[n] = {
       id = format("s-tpt2u0-q4tz-%d", n), rev = 1796866260 + n * 60, session = "s-tpt2u0-q4tz", at = 1796866200 + n * 60,
       date = "2026-12-09", phase = 1, raid = "raid-1209", itemId = 200000 + n,
-      item = format("Generated Item of the Night %d", n), toId = fakeId(n), to = "Jorren Ashvale",
+      item = format("Generated Item of the Night %d", n), toId = fakeId(n), to = "Jorren Ashvale", decision = "council",
       priority = fakeId(n + 1000), encounter = "Boss Number 3", npcId = 10003, zoneId = 2000,
       delivery = { state = "received", at = 1796866260 + n * 60, how = "master-loot" },
     }

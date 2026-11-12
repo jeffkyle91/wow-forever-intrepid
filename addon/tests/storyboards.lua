@@ -1,10 +1,13 @@
 -- Draws the storyboards into build/pictures (not kept in git): one page per picture, index.html with all of them, and
--- artifact.html, the same page without the document around it, for the Artifact tool. Run it from the repository root:
+-- artifact.html, the same page without the document around it, for the Artifact tool. Run it from addon/:
 --
 --   lua5.1 tests/storyboards.lua            every storyboard in tests/storyboards/
 --   lua5.1 tests/storyboards.lua demo       the named ones
 --
 -- It exits with an error if a storyboard raises one, which is also how it checks that the windows still build.
+
+-- The exchange spec and its shared fixtures, as in tests/run.lua.
+SPEC = "../docs/spec/"
 
 local Storyboard = dofile("tests/support/storyboard.lua")
 local Pictures = dofile("tests/support/pictures.lua")

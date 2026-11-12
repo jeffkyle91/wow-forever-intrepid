@@ -5,7 +5,7 @@
 local FILES = { "ui/Kit", "ui/ExportWindow" }
 
 local function fixture(path)
-  local handle = assert(io.open("docs/spec/fixtures/" .. path, "rb"))
+  local handle = assert(io.open(SPEC .. "fixtures/" .. path, "rb"))
   local text = handle:read("*a")
   handle:close()
   return text

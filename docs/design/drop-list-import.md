@@ -445,9 +445,9 @@ The DungeonJournal part is built in the addon's private repository at the loot o
 
 - **D1.** May a Guild Leader make a new zone from the import, as an explicit choice that's never the default? Proposed: yes. This amends the ROADMAP decision that zones are kept in Settings.
 - **D2.** Store the game's instance id on a guild zone, so later imports match it even when its name differs from the game's? Proposed: yes. The December 9 raids are made in Settings with names the leaders chose. It's a rules change with tests.
-- **D3.** Trash items start unticked, and only items from 2 or more trash creatures are offered for the zone-wide list. Proposed: yes.
+- **D3.** Trash items start unticked, and only items from 2 or more trash creatures are offered for the zone-wide list. **Decided (the loot owner, 2026-11-12): yes.**
 - **D4.** The backlog mapping in section 12. The maintainer's call.
 - **D5.** Should the night string carry the app's zones, so the addon can put `zoneId` in the string? Proposed: when "Copy for addon" is built, not before.
 - **D6.** May items from DungeonJournal (All Rights Reserved) be saved in the guild's drop lists at all, one creature at a time, with their own Log reason? Or should they stay information in the preview? The maintainer's call for this public repository. Proposed: information only, until decided.
 - **D7.** An item Wowhead doesn't know yet can be saved to a drop list, but Browse drops can't make a priority for it, because a priority stores the item's name. Proposed options: wait for Wowhead, or store the game's name as a fallback (a rules and data change).
-- **D8.** Which loot masters run the drop log on December 9, and how they get the build before the production addon (ADDON-002, target December 22)? The loot owner's call.
+- **D8.** Which loot masters run the drop log on December 9, and how they get the build before the production addon (ADDON-002, target December 22)? **Decided (the loot owner, 2026-11-12): every team's loot master, from a zip with install steps the loot owner hands out before November 30.**

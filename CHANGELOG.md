@@ -6,8 +6,14 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+## 2026-11-11 - 6c261bc
+
+Refresh open tabs to load the update.
+
 - The guild overview appears on My dashboard instead of every page.
 - Guild Roster shows each linked account's Casual or Raider selection, including on its alts.
+
+Verified production deployment. Source PR: #191. Both Hosting domains served the built assets and sign-in rendered; authenticated production behavior was not exercised.
 
 ## 2026-11-08 - 635f8bf
 

@@ -6,6 +6,9 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- The guild overview appears on My dashboard instead of every page.
+- Guild Roster shows each linked account's Casual or Raider selection, including on its alts.
+
 ## 2026-11-08 - 635f8bf
 
 Refresh open tabs to load the update.

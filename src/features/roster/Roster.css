@@ -1,5 +1,14 @@
 .segment.roster-view-toggle { align-items: center; justify-content: center; }
 .roster-comments-toggle { order: -1; }
+.roster-table:not(.roster-with-comments) { min-width: 900px; }
+.roster-table:not(.roster-with-comments) .roster-col-character { width: 23%; }
+.roster-table:not(.roster-with-comments) .roster-col-class { width: 11%; }
+.roster-table:not(.roster-with-comments) .roster-col-spec { width: 14%; }
+.roster-table:not(.roster-with-comments) .roster-col-role { width: 10%; }
+.roster-table:not(.roster-with-comments) .roster-col-team { width: 13%; }
+.roster-table:not(.roster-with-comments) .roster-col-type { width: 11%; }
+.roster-table:not(.roster-with-comments) .roster-col-access { width: 11%; }
+.roster-table:not(.roster-with-comments) .roster-col-actions { width: 7%; }
 .roster-table.roster-with-comments { min-width: 640px; }
 .roster-with-comments .roster-col-character { width: 26%; }
 .roster-with-comments .roster-col-comment { width: auto; }

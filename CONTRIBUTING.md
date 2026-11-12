@@ -19,6 +19,25 @@ Awards and raids cannot be deleted from the app (unavailable dates can only be r
 
 ## Before you open a pull request
 
+### First-raid rehearsal (OPS-002)
+
+Preparation is not a completed rehearsal. Record the date, tested commit, environment, role, results and any failure or follow-up without real character names or credentials in the public repository. The maintainer prefers to defer the remaining Firebase checks and observe actual production use rather than set up a separate test project. This accepts the risk that deployed scheduler delivery and a populated capture remain unverified until observed; it does not mark them passed. Do not seed, create test raids, submit responses, record loot or induce failures in the production guild for testing. Any active production rehearsal needs a separately agreed safe plan.
+
+**Local results, 2026-11-11:** at application commit `635f8bf` in isolated `demo-intrepid` emulators with invented data:
+
+- **Passed:** 77 snapshot worker and Firestore rules tests covering timing, publication, failure and access. These invoke the worker directly, not Cloud Scheduler.
+- **Passed:** an actual Member account signed up an alt and saw read-only scheduled groups; a Raid Leader assigned that alt to the 10-player bench. The saved response, separate 20-player lineup and standing assignment were checked. A Member's direct placement call and a started-raid sign-up were denied.
+- **Passed:** an unavailable date forced Absent, cleared the member's scheduled positions and blocked Accept; removing the date left Absent intact.
+- **Passed:** a Guild Leader recorded a manual award without a priority list and moved it to another recipient. The create and edit audit entries existed, and no priority snapshots were fabricated.
+- **Not run:** actual Cloud Scheduler delivery, a populated timed capture in the UI, the complete role/failure matrix and a spreadsheet-recovery exercise. No production data was changed.
+
+1. **Preflight:** for any further isolated test, verify the chosen project is not production and note its project ID and time zone. Use actual Guild Leader, Raid Leader and Member test accounts, not VIEW AS as a substitute for authorization checks. For a separate cloud test, confirm that project's scheduler and required indexes are ready. Keep OPS-001's billing-alert and one-time absence-sync checks separate and unverified until the maintainer confirms them.
+2. **Before start:** create a scheduled raid in the test project with a future Eastern start time, at least one configured zone and a working roster. Make representative main/alt sign-ups, an unavailable date and a leader placement or bench change. Compare the saved member responses and independent size-specific working lineups; confirm unauthorized roles cannot edit them. Do not change the raid's date or time after it starts: the existing rules still permit this and it can invalidate the capture; proposed issue #183 is not yet a deployed fix.
+3. **At start:** observe Cloud Scheduler during an actual raid when the maintainer chooses, and record the scheduled start, scheduler invocation and actual publication time without publishing private details. Check Raid History > Audit Info for a **Complete** immutable snapshot of the expected raid, lineups, benches, invitations, responses and character details. The current five-minute sweep normally captures two to seven minutes after start, not exactly at the start; investigate missing, delayed or failed capture rather than inventing a snapshot. Post-start sign-up/placement refusal and snapshot immutability remain separate checks; do not make test changes to production data. The local emulator does not emulate Cloud Scheduler, so worker tests alone cannot establish actual scheduled delivery.
+4. **Failure and permissions:** in the disposable test environment, check cancelled and missing/invalid-working-roster cases, the visible **Failed** or **In progress** state, and that members can read the permitted status but cannot write snapshot records. A terminal failed capture has no leader retry action today; do not remove or edit production snapshot data. Capture logs privately and distinguish a worker test from an observed scheduler run.
+5. **Loot fallback:** rehearse deployed Record loot without a priority list and its audited correction in the test project. If the app cannot be used on raid night, record awards in a private spreadsheet with the original Eastern raid date, recipient, item and decision. The proposed columns and invented sample are in [the import design](docs/design/award-import.md); the maintainer has not approved the proposed columns and the importer is not built, so do not claim upload/recovery is available or fabricate priority snapshots. Validate the recovery upload separately when it exists.
+6. **Results:** note pass/fail/not run for every role, test case and environment, including scheduler delivery, real-role authorization, capture timing and failure visibility. Record unresolved blockers for the first raid; do not mark OPS-002 complete from a checklist or emulator tests alone.
+
 ### Scheduled-raid local review (RAID-011)
 
 Run `npm run dev:emulator` with JDK 21 and existing root/Functions dependencies. It starts only the `demo-intrepid` emulators and Vite at localhost:5173, then seeds invented data. Never run the seeder against a cloud project or a review instance already containing changes; it refuses non-review emulator hosts and does not clear existing data. Stop the previous review instance before starting a fresh one. Unit/rules tests must use their own emulator ports, not the review Firestore at 18080.
@@ -115,7 +134,7 @@ The tests are in `tests/rules/`, written in TypeScript and run by Node's built-i
 
 ### First-main requests (MEMBER-009)
 
-The local implementation is not deployed. Use `firstmain@example.test` and `leader@example.test` in the emulator to verify the full transition with invented data:
+The implementation was deployed in `635f8bf`; authenticated production submission and approval have not been exercised end to end. Use `firstmain@example.test` and `leader@example.test` in the emulator to verify the full transition with invented data:
 
 - An active account without a linked main can submit one first-main request from My dashboard. Capture the normal character identity fields (first name, optional surname, class and specialization) and an optional requester note; apply the existing specialization-based role default.
 - Submission creates only a private request; it does not write the roster or account-to-character link. Repeated and concurrent submissions cannot create more than one pending first-main request per account. The owner can withdraw before resubmitting.

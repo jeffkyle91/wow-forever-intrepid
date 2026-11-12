@@ -8,9 +8,9 @@ A developer tool, version 0.5. It only reads and records what the client offers 
 
 ### Install
 
-1. Copy the `IntrepidProbe` folder into the beta's addons folder:
-   - Mac: `/Applications/World of Warcraft/_classic_beta_/Interface/AddOns/`
-   - Windows: `C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns\`
+1. Copy the `IntrepidProbe` folder into the live game's addons folder, in the `_forever_` folder of the World of Warcraft install (create `Interface\AddOns` if it is missing). The usual places:
+   - Mac: `/Applications/World of Warcraft/_forever_/Interface/AddOns/`
+   - Windows: `C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns\`
 2. Restart the game. On the character screen open **AddOns** and tick **Intrepid Probe**.
 3. In game, type `/console scriptErrors 1` so Lua errors show in a popup.
 

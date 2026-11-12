@@ -1472,7 +1472,9 @@
   "events": {
    "ADDON_ACTION_BLOCKED": "the probe registered it for /ip give but nothing was ever blocked, so it was never seen to fire; the trade code listens for it to tell a refused call from a quiet failure",
    "ADDON_ACTION_FORBIDDEN": "the probe registered it for /ip give but nothing was ever blocked, so it was never seen to fire; the trade code listens for it to tell a refused call from a quiet failure",
-   "INSPECT_READY": "Blizzard's inspect event (it comes after NotifyInspect); not in any probe or self-test result, so it is used only by /im inspect, a test build"
+   "INSPECT_READY": "Blizzard's inspect event (it comes after NotifyInspect); not in any probe or self-test result, so it is used only by /im inspect, a test build",
+   "PLAYER_TARGET_CHANGED": "The drop log (game/DropWatch.lua) reads the targeted creature's name and classification. A Blizzard event; not in any probe or self-test result yet.",
+   "UPDATE_MOUSEOVER_UNIT": "The drop log (game/DropWatch.lua) reads the creature under the mouse: its name and classification. A Blizzard event; not in any probe or self-test result yet."
   },
   "fonts": {},
   "frame_types": {},
@@ -1486,7 +1488,8 @@
    "GuildControlGetNumRanks": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "ITEM_QUALITY_COLORS": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "LOCALIZED_CLASS_NAMES_MALE": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
-   "TradeFrame": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it."
+   "TradeFrame": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
+   "UnitClassification": "The drop log (game/DropWatch.lua) asks it whether a creature under the mouse or targeted is rare (rare, rareelite). Not in any probe or self-test result yet: a dungeon run with the drop log answers it (stats.raresSeen)."
   },
   "methods": {
    "SetInventoryItem": "Blizzard's GameTooltip method for an equipped item; not in any result yet. /im facts calls it on the tooltip and records what the tooltip then holds, so the next run settles it"

@@ -1,0 +1,41 @@
+{
+ "awards-edge.j.txt": {
+  "awards": 18,
+  "preview": {
+   "Error": 5,
+   "New": 7,
+   "New (skipped)": 1,
+   "Possible duplicate": 1,
+   "Unmatched": 4
+  },
+  "rowErrors": [
+   "s-tpt6ul-vfn9-15",
+   "s-tpt6ul-vfn9-16",
+   "s-tpt6ul-vfn9-17",
+   "s-tpt6ul-vfn9-18"
+  ]
+ },
+ "awards-first.j.txt": {
+  "awards": 12,
+  "preview": {
+   "New": 12
+  },
+  "rowErrors": []
+ },
+ "awards-later.j.txt": {
+  "awards": 15,
+  "preview": {
+   "Changed": 5,
+   "Duplicate": 7,
+   "New": 3
+  },
+  "rowErrors": []
+ },
+ "night": {
+  "known": 4,
+  "phase": 1,
+  "priorities": 24,
+  "roster": 29,
+  "rowErrors": []
+ }
+}

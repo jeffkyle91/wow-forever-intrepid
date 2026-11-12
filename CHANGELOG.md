@@ -6,6 +6,9 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- Guild Roster column headers sort the list in either direction, while keeping alts under their mains.
+- The Guild Roster header shows separate totals for mains and alts.
+
 ## 2026-11-11 - 6c261bc
 
 Refresh open tabs to load the update.

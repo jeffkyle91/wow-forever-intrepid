@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { filterRoster, groupAlts } from '../../src/features/roster/filter.ts'
+import { filterRoster, groupAlts, rosterCounts } from '../../src/features/roster/filter.ts'
 import { sortRoster } from '../../src/features/roster/sort.ts'
 
 // Every name here is invented: this repository is public.
@@ -13,6 +13,15 @@ const finn = player('f', 'Finn', 'Mage', 'a')
 const garrick = player('g', 'Garrick', 'Hunter', 'b')
 const roster = [aldric, brienne, corvin, elowen, finn, garrick]
 const layout = (rows: ReturnType<typeof groupAlts>['rows']) => rows.map(({ player, isAlt }) => `${isAlt ? '  ' : ''}${player.name}`)
+
+describe('rosterCounts', () => {
+  it('counts valid direct alts and all other characters as mains', () => {
+    assert.deepEqual(rosterCounts([]), { mains: 0, alts: 0 })
+    assert.deepEqual(rosterCounts(roster), { mains: 3, alts: 3 })
+    const invalid = [aldric, elowen, player('x', 'Xena', 'Mage', 'missing'), player('y', 'Yara', 'Mage', 'y'), player('z', 'Zed', 'Mage', 'e')]
+    assert.deepEqual(rosterCounts(invalid), { mains: 4, alts: 1 })
+  })
+})
 
 describe('groupAlts', () => {
   it('puts each alt under its main by default', () => {

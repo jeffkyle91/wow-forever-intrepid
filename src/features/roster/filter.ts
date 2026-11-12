@@ -10,6 +10,11 @@ export function mainNameByPlayer(roster: Player[]) {
   }))
 }
 
+export function rosterCounts(roster: Player[]) {
+  const alts = mainNameByPlayer(roster).size
+  return { mains: roster.length - alts, alts }
+}
+
 export type RosterRow<T> = { player: T; isAlt: boolean; altCount: number }
 
 // Puts each visible alt right under its visible main. altCount counts every alt of a main (shown or not); the

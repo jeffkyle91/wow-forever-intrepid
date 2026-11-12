@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { sortRoster } from '../../src/features/roster/sort.ts'
+import { groupAlts } from '../../src/features/roster/filter.ts'
 
 // Every name here is invented: this repository is public.
 const roster = [
@@ -35,14 +36,14 @@ describe('sortRoster', () => {
     assert.deepEqual(sort('class', 'desc', twins), ['Abe', 'Zed'])
   })
 
-  it('sorts by role in raid order: Tank, Healer, Melee, Ranged', () => {
-    assert.deepEqual(sort('role'), ['Rorik', 'Isolde', 'Maelis', 'Corvin', 'Brannoc', 'tamsin'])
-    assert.deepEqual(sort('role', 'desc'), ['Brannoc', 'tamsin', 'Corvin', 'Isolde', 'Maelis', 'Rorik'])
+  it('sorts roles alphabetically in both directions', () => {
+    assert.deepEqual(sort('role'), ['Isolde', 'Maelis', 'Corvin', 'Brannoc', 'tamsin', 'Rorik'])
+    assert.deepEqual(sort('role', 'desc'), ['Rorik', 'Brannoc', 'tamsin', 'Corvin', 'Isolde', 'Maelis'])
   })
 
-  it('sorts by team in team order with characters that have no team last, ties by name', () => {
-    assert.deepEqual(sort('team'), ['Corvin', 'Isolde', 'Rorik', 'Maelis', 'Brannoc', 'tamsin'])
-    assert.deepEqual(sort('team', 'desc'), ['Brannoc', 'tamsin', 'Maelis', 'Rorik', 'Corvin', 'Isolde'])
+  it('sorts teams alphabetically with unassigned characters last in both directions', () => {
+    assert.deepEqual(sort('team'), ['Corvin', 'Isolde', 'Maelis', 'Rorik', 'Brannoc', 'tamsin'])
+    assert.deepEqual(sort('team', 'desc'), ['Rorik', 'Maelis', 'Corvin', 'Isolde', 'Brannoc', 'tamsin'])
   })
 
   it('sorts a team the roster does not know about with the unassigned, after every known team', () => {
@@ -53,7 +54,40 @@ describe('sortRoster', () => {
   it('breaks a tie on name by surname, and a tie on both by id, whatever the input order', () => {
     const bySurname = [{ id: 'a', name: 'Ann', surname: 'Wood', className: 'Mage', role: 'Ranged' }, { id: 'b', name: 'Ann', surname: 'Ash', className: 'Mage', role: 'Ranged' }]
     assert.deepEqual(sortRoster(bySurname, 'name', 'asc', () => undefined, teamOrder).map((player) => player.id), ['b', 'a'])
+    assert.deepEqual(sortRoster(bySurname, 'name', 'desc', () => undefined, teamOrder).map((player) => player.id), ['a', 'b'])
     const byId = [{ id: 'z', name: 'Ann', surname: 'Ash', className: 'Mage', role: 'Ranged' }, { id: 'y', name: 'Ann', surname: 'Ash', className: 'Mage', role: 'Ranged' }]
     assert.deepEqual(sortRoster(byId, 'name', 'asc', () => undefined, teamOrder).map((player) => player.id), ['y', 'z'])
+  })
+
+  it('sorts supplied displayed values, leaving missing values last in either direction', () => {
+    const values: Record<string, string> = { p1: 'Raider', p2: 'Casual', p3: 'Raider' }
+    const byValue = (direction: 'asc' | 'desc') => sortRoster(roster, 'raiderType', direction, () => undefined, [], (player) => values[player.id]).map((player) => player.name)
+    assert.deepEqual(byValue('asc'), ['Isolde', 'Rorik', 'tamsin', 'Brannoc', 'Corvin', 'Maelis'])
+    assert.deepEqual(byValue('desc'), ['Rorik', 'tamsin', 'Isolde', 'Brannoc', 'Corvin', 'Maelis'])
+  })
+
+  it('sorts specialization and access using the displayed values', () => {
+    const players = [
+      { ...roster[0], specialization: 'Protection', linkedUid: 'one' },
+      { ...roster[1], specialization: 'Holy' },
+      { ...roster[2], specialization: '' },
+    ]
+    assert.deepEqual(sortRoster(players, 'specialization', 'asc', () => undefined, []).map((p) => p.name), ['Isolde', 'Rorik', 'tamsin'])
+    assert.deepEqual(sortRoster(players, 'access', 'desc', () => undefined, []).map((p) => p.name), ['Isolde', 'tamsin', 'Rorik'])
+  })
+
+  it('keeps alts directly under their main when sorting by a different class', () => {
+    const players = [
+      { id: 'm1', name: 'Aldric', className: 'Warrior', role: 'Tank' },
+      { id: 'a1', name: 'Elowen', className: 'Mage', role: 'Ranged', mainId: 'm1' },
+      { id: 'm2', name: 'Bryn', className: 'Priest', role: 'Healer' },
+    ]
+    for (const direction of ['asc', 'desc'] as const) {
+      const sorted = sortRoster(players, 'class', direction, () => undefined, [])
+      const rows = groupAlts(sorted, players, new Set()).rows
+      const mainIndex = rows.findIndex((row) => row.player.id === 'm1')
+      assert.equal(rows[mainIndex + 1].player.id, 'a1')
+      assert.equal(rows[mainIndex + 1].isAlt, true)
+    }
   })
 })

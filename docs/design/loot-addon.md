@@ -1,6 +1,6 @@
 # Loot addon: plan and findings from the Forever beta
 
-Status: researched in the WoW: Forever beta, 2026-10-16 to 22 (client 1.60.1, builds 70425 to 70450, interface 16001). Rechecking it on the live client is ADDON-001 (#193). The addon itself, Intrepid Manager (build 0.0.17), was built in a separate private repository during the beta, and moves into `addon/` with ADDON-002. Written 2026-10-16, updated 2026-11-12.
+Status: researched in the WoW: Forever beta, 2026-10-16 to 22 (client 1.60.1, builds 70425 to 70450, interface 16001). Rechecking it on the live client is ADDON-001 (#193): the first check, with one player, was on 2026-11-12. The addon itself, Intrepid Manager (build 0.0.17), was built in a separate private repository during the beta, and moves into `addon/` with ADDON-002. Written 2026-10-16, updated 2026-11-12.
 
 ## Goal
 
@@ -50,7 +50,7 @@ Nothing is live: an addon cannot open a connection, and a web page cannot read t
 
 ## What we learned about the Forever client
 
-Probe and addon data from the beta: two clients in a party, in a raid group and in a five-player dungeon. Raw saved-variable files contain character names and are not published. The live client (build 70634 on 2026-11-11) is rechecked under ADDON-001.
+Probe and addon data from the beta: two clients in a party, in a raid group and in a five-player dungeon. Raw saved-variable files contain character names and are not published. The live client's first check is [below](#live-client-first-check-2026-11-12).
 
 | Topic | Finding |
 | --- | --- |
@@ -72,14 +72,26 @@ Probe and addon data from the beta: two clients in a party, in a raid group and 
 | Pasting | A 100,000-character string pasted into an edit box arrives intact, and survives `/reload` in the saved variables. |
 | Encoding helpers | `bit.bxor` (it returns unsigned numbers), `GetServerTime` and `C_EncodingUtil.DeserializeJSON` exist. Reading a 100-item night string takes about 10 ms. |
 
+### Live client, first check (2026-11-12)
+
+One player on Windows, probe 0.6.3 and Intrepid Manager 0.0.17, about six minutes in the open world:
+
+- **Client:** version 1.60.1, build 70888 (dated 2026-11-09), interface 16001 as in the beta, so the addons load without "out of date". Portal US, Lua 5.1, `WOW_PROJECT_ID` 18.
+- **Same as the beta:** every API and event the probe checks, and the loot methods (Master Looter available, Personal not).
+- **Addon messages:** our prefixes register. In about five minutes the client received some 270 guild addon messages from 11 other addons. Sending between two players isn't rechecked yet.
+- **Combat restriction:** on at a fight's start, off about 10 seconds later, as in the beta.
+- **Intrepid Manager's self-test:** 54 of 54 checks pass. Reading a 100-item night string takes about 11 ms and a 400-item one 35 ms, as in the beta, and `bit.bxor` still returns unsigned numbers.
+- **Loot lines:** the addon records the player's own "You receive loot" lines with their item ids.
+- **Encounter Journal at level 18:** no tiers, no instances, no items, with the journal's code loaded. So far it gives no loot tables.
+
 ## Open questions
 
 The beta answered the first ones asked here: addon messages reach other players, Master Looter works, an addon may invite and convert to a raid, and a long paste arrives intact. Still open:
 
-1. **Does the live client behave as the beta did?** Recheck the findings above on the live client (ADDON-001, #193).
+1. **Does the live client behave as the beta did?** With one player, yes (above). Still to recheck with two players: sending addon messages, master loot and trading.
 2. **Three or more players with the addon at once,** and a 40-player raid: delivery and throttling under real load.
 3. **Master Looter in a raid group:** a party was turned into a raid, but no loot was opened in it.
-4. **What does `/ip ej` dump on a character of level 16 or more?** Raid loot only once raids open.
+4. **Does the Encounter Journal ever list loot?** It was empty at level 18 on the live client. Whether it fills once raids open is unknown.
 
 ## UI sketch
 

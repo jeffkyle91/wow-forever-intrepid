@@ -199,12 +199,19 @@ test("a chest counts for the master looter within 5 minutes of a win, under that
   win(log, RAID, 4002, "The Council of Ids", { BOSS, BOSS2 }, T0)
   log.window(RAID, window({ slot(900401, 4, object(CHEST)) }, { masterLooter = true }), T0 + 45)
   local zone = zoneOf(db, RAID)
-  -- the encounter had two boss units: its chest goes to the first of them, named after its unit
-  local first = zone.sources["n" .. BOSS]
-  eq(first.kind, "boss")
-  eq(first.name, "Unit " .. BOSS)
-  eq(first.items[900401].n, 1)
+  -- the encounter had two boss units: nobody knows whose the chest's items were, so they stay under the encounter
+  eq(zone.sources["n" .. BOSS], nil)
+  local loose = zone.sources["e4002"]
+  eq(loose.kind, "boss")
+  eq(loose.npcId, nil)
+  eq(loose.name, "The Council of Ids")
+  eq(loose.items[900401].n, 1)
   eq(db.drops.stats.chests, 1)
+  -- one boss: its chest goes to it
+  local log2, db2 = fresh()
+  win(log2, RAID, 4003, "The Lone Fixture", { BOSS }, T0)
+  log2.window(RAID, window({ slot(900404, 4, object(CHEST, "DD")) }, { masterLooter = true }), T0 + 45)
+  eq(sourceOf(db2, RAID, "n" .. BOSS).items[900404].n, 1)
   -- a chest (or ore, or a herb) opened by someone else, or too late, is ignored
   log.window(RAID, window({ slot(900402, 4, object(CHEST, "BB")) }), T0 + 50)
   log.window(RAID, window({ slot(900403, 4, object(CHEST, "CC")) }, { masterLooter = true }), T0 + DropLog.WINDOW + 10)
@@ -329,9 +336,13 @@ test("caps: a full creature keeps the items seen most, a full log drops the zone
     eq(db.drops.zoneCount, 2)
     eq(zoneOf(db, DUNGEON), nil)
     eq(db.drops.itemCount, 2)
-    -- the total: three more items fit, then nothing more is added
+    -- the total: a full log drops the zone seen longest ago, never the one being added to; with no other zone, nothing is added
     log.window(third, window({ slot(900903, 3, creature(TRASH + 1, "05")), slot(900904, 3, creature(TRASH + 1, "05")) }), T0 + 301)
     log.window(third, window({ slot(900905, 3, creature(TRASH + 2, "06")), slot(900906, 3, creature(TRASH + 2, "06")) }), T0 + 302)
+    eq(db.drops.itemCount, 5)
+    eq(zoneOf(db, RAID), nil)
+    eq(db.drops.zoneCount, 1)
+    log.window(third, window({ slot(900907, 3, creature(TRASH + 3, "07")) }), T0 + 303)
     eq(db.drops.itemCount, 5)
     is_true(db.drops.stats.full >= 1)
     -- the corpse ring keeps only the last three
@@ -364,7 +375,7 @@ end)
 -- What the saved data may hold: these keys, and no others. A player's name or GUID has nowhere to go.
 local ALLOWED = {
   store = { schema = true, zones = true, zoneCount = true, itemCount = true, corpses = true, cursor = true, stats = true, last = true },
-  zone = { instanceId = true, difficultyId = true, name = true, kind = true, players = true, first = true, last = true, sources = true, count = true, bosses = true, guesses = true, methods = true },
+  zone = { instanceId = true, difficultyId = true, name = true, kind = true, players = true, first = true, last = true, sources = true, count = true, bosses = true, guesses = true, methods = true, wins = true },
   source = { npcId = true, encounterId = true, name = true, kind = true, guessed = true, kills = true, first = true, last = true, items = true, count = true, k = true },
   item = { n = true, last = true, via = true, name = true, quality = true, boe = true, quest = true, k = true },
   last = { id = true, name = true, at = true, zone = true, npcs = true, names = true, claimed = true },
@@ -416,4 +427,106 @@ test("an old or broken store is started again", function()
   log.window(DUNGEON, window({ slot(900202, 3, creature(TRASH)) }), T0)
   eq(db.drops.schema, 1)
   eq(db.drops.zoneCount, 1)
+end)
+
+-- One test per finding of the bounded review (2026-11-12).
+
+test("an encounter with two bosses: its rolls stay under the encounter, and one boss's corpse does not take them", function()
+  local log, db = fresh()
+  win(log, RAID, 4002, "The Council of Ids", { BOSS, BOSS2 }, T0)
+  log.roll(RAID, { itemId = 900401, quality = 4 }, 4002, T0 + 10)
+  eq(sourceOf(db, RAID, "n" .. BOSS), nil)
+  eq(sourceOf(db, RAID, "e4002").items[900401].n, 1)
+  -- the second boss's corpse holds the item: it is filed under that boss, and the encounter keeps its roll
+  log.window(RAID, window({ slot(900401, 4, creature(BOSS2)) }), T0 + 30)
+  eq(sourceOf(db, RAID, "n" .. BOSS2).items[900401].n, 1)
+  eq(sourceOf(db, RAID, "e4002").items[900401].n, 1)
+  eq(sourceOf(db, RAID, "n" .. BOSS), nil)
+end)
+
+test("a known boss opened after a later win still belongs to its own encounter's win: the roll and the window count once", function()
+  local log, db = fresh()
+  win(log, DUNGEON, 3001, "The Fixture Warden", { BOSS }, T0)
+  log.roll(DUNGEON, { itemId = 900102, quality = 3 }, 3001, T0 + 10)
+  win(log, DUNGEON, 3002, "The Second Fixture", { BOSS2 }, T0 + 600)
+  log.window(DUNGEON, window({ slot(900102, 3, creature(BOSS)) }), T0 + 700)
+  local boss = sourceOf(db, DUNGEON, "n" .. BOSS)
+  eq(boss.kills, 1)
+  eq(boss.items[900102].n, 1)
+  -- long after its win (another night, the end of the encounter missed), the corpse counts on its own
+  log.window(DUNGEON, window({ slot(900102, 3, creature(BOSS, "LATER")) }), T0 + DropLog.BOSS_WIN_LIMIT + 1000)
+  eq(sourceOf(db, DUNGEON, "n" .. BOSS).kills, 2)
+  eq(sourceOf(db, DUNGEON, "n" .. BOSS).items[900102].n, 2)
+end)
+
+test("area loot: a known boss of the win in the window means no guess; otherwise the guess is the corpse with the best item", function()
+  local log, db = fresh()
+  win(log, RAID, 4001, "Ipsum the Unready", { BOSS2 }, T0)
+  log.window(RAID, window({ slot(900311, 3, creature(ADD, "A1")), slot(900312, 4, creature(BOSS2, "B1")) }, { masterLooter = true }), T0 + 30)
+  eq(sourceOf(db, RAID, "n" .. ADD).kind, "trash") -- the add's blue is kept, as trash, and it is not guessed
+  eq(sourceOf(db, RAID, "n" .. BOSS2).guessed, nil)
+
+  local log2, db2 = fresh()
+  win(log2, RAID, 4001, "Ipsum the Unready", {}, T0)
+  log2.window(RAID, window({ slot(900311, 2, creature(ADD, "A1")), slot(900312, 4, creature(BOSS2, "B1")), slot(900313, 2, creature(BOSS2, "B1")) }, { masterLooter = true }), T0 + 30)
+  local guessed = sourceOf(db2, RAID, "n" .. BOSS2)
+  eq(guessed.guessed, true)
+  eq(guessed.items[900313].n, 1) -- the boss's green kept at the boss floor
+  eq(sourceOf(db2, RAID, "n" .. ADD), nil) -- the add's green is below the trash floor
+end)
+
+test("a chest claims its encounter's win: the master looter's next corpse is not guessed as the boss", function()
+  local log, db = fresh()
+  win(log, RAID, 4100, "The Hall of Chests", {}, T0)
+  log.window(RAID, window({ slot(900420, 4, object(CHEST)) }, { masterLooter = true }), T0 + 30)
+  log.window(RAID, window({ slot(900421, 3, creature(ADD, "A2")) }, { masterLooter = true }), T0 + 90)
+  eq(sourceOf(db, RAID, "n" .. ADD).kind, "trash")
+  eq(db.drops.stats.guessed, nil)
+end)
+
+test("a creature kept as a rare keeps the rare floor after a /reload, when its unit was not seen again", function()
+  local log, db = fresh()
+  log.unit(RARE, "Lord Lorem", "rareelite")
+  log.window(DUNGEON, window({ slot(900103, 2, creature(RARE, "R1")) }), T0)
+  local after = DropLog.new(db)
+  after.window(DUNGEON, window({ slot(900110, 2, creature(RARE, "R2")) }), T0 + 7 * 86400)
+  local rare = sourceOf(db, DUNGEON, "n" .. RARE)
+  eq(rare.kind, "rare")
+  eq(rare.kills, 2)
+  eq(rare.items[900110].n, 1)
+end)
+
+test("a full creature never drops an item seen more than once, nor one of the same kill, for a new one", function()
+  local saved = DropLog.MAX_ITEMS_PER_SOURCE
+  local ok, problem = pcall(function()
+    DropLog.MAX_ITEMS_PER_SOURCE = 3
+    local log, db = fresh()
+    for night = 1, 3 do
+      win(log, DUNGEON, 3001, "The Fixture Warden", { BOSS }, T0 + night * 86400)
+      log.window(DUNGEON, window({ slot(901, 3, creature(BOSS, "N" .. night)), slot(902, 3, creature(BOSS, "N" .. night)), slot(903, 3, creature(BOSS, "N" .. night)) }), T0 + night * 86400 + 10)
+    end
+    win(log, DUNGEON, 3001, "The Fixture Warden", { BOSS }, T0 + 4 * 86400)
+    log.window(DUNGEON, window({ slot(904, 3, creature(BOSS, "N4")), slot(905, 3, creature(BOSS, "N4")), slot(901, 3, creature(BOSS, "N4")) }), T0 + 4 * 86400 + 10)
+    local boss = sourceOf(db, DUNGEON, "n" .. BOSS)
+    eq(boss.items[902].n, 3)
+    eq(boss.items[903].n, 3)
+    eq(boss.items[901].n, 4)
+    eq(boss.items[904], nil)
+    eq(boss.items[905], nil)
+    eq(db.drops.stats.itemsDropped, 2)
+  end)
+  DropLog.MAX_ITEMS_PER_SOURCE = saved
+  if not ok then error(problem, 0) end
+end)
+
+test("where an item drops is remembered until the log changes", function()
+  local log, db = fresh()
+  win(log, DUNGEON, 3001, "The Fixture Warden", { BOSS }, T0)
+  log.window(DUNGEON, window({ slot(900101, 3, creature(BOSS)) }), T0 + 5)
+  eq(log.sourceOf(900101), "The Fixture Warden, Hollow Test Keep")
+  eq(log.sourceOf(900555), nil)
+  db.drops.zones["9100:1"].sources["n" .. BOSS].name = "Renamed Behind Its Back"
+  eq(log.sourceOf(900101), "The Fixture Warden, Hollow Test Keep") -- the remembered answer
+  log.window(DUNGEON, window({ slot(900555, 4, creature(RARE)) }), T0 + 6)
+  eq(log.sourceOf(900101), "Renamed Behind Its Back, Hollow Test Keep")
 end)

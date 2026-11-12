@@ -77,10 +77,12 @@ read_globals = {
   "UnitName",
   -- the drop log (game/DropWatch.lua)
   "C_LootHistory",
+  "C_Spell",
   "GetInstanceInfo",
   "GetLootRollItemInfo",
   "GetLootRollItemLink",
   "GetLootSourceInfo",
+  "GetSpellInfo",
   "IsInInstance",
   "UnitClassification",
   "UnitGUID",

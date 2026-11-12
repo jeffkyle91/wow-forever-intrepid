@@ -275,3 +275,46 @@ test("size: a raid zone after a night with 8 bosses and 30 trash creatures is a 
   local text = Drops.encode((build(db)))
   is_true(#text > 2000 and #text < 12000)
 end)
+
+test("two journal entries for one creature add to its evidence, never replace it; the string stays clean", function()
+  local _, db = sampleLog()
+  local model = build(db, { journal = { version = "2.0.3", zoneFor = function(name)
+    if name == "Hollow Test Keep" then
+      return { name = name, sources = {
+        { npcId = BOSS, name = "The Fixture Warden", kind = "boss", itemIds = { 900105, 900106 } },
+        { name = "The Fixture Warden", kind = "boss", itemIds = { 900107 } },             -- no npc id: matched by name
+        { npcId = 990077, name = "Second Placeholder", kind = "boss", itemIds = { 900120 } },
+        { npcId = 990077, name = "Second Placeholder", kind = "boss", itemIds = { 900121 } }, -- the same unseen boss twice
+      } }
+    end
+  end } })
+  local dungeon = model.zones[2]
+  deep_eq(dungeon.sources[1].journal, { 900105, 900106, 900107 })
+  local placeholders = 0
+  for _, source in ipairs(dungeon.sources) do
+    if source.npcId == 990077 then
+      placeholders = placeholders + 1
+      deep_eq(source.itemIds, { 900120, 900121 })
+    end
+  end
+  eq(placeholders, 1)
+  local checked = Drops.check((readBack(model)))
+  is_true(checked.ok)
+  deep_eq(checked.rowErrors, {})
+end)
+
+test("a journal boss with another npc id is another creature, even with the same name", function()
+  local _, db = sampleLog()
+  local model = build(db, { journal = { version = "2.0.3", zoneFor = function(name)
+    if name == "The Lorem Vaults" then
+      return { name = name, sources = { { npcId = 990011, name = "Ipsum the Unready", kind = "boss", itemIds = { 900301, 900302 } } } }
+    end
+  end } })
+  local raid = model.zones[1]
+  eq(#raid.sources, 2)
+  eq(raid.sources[1].npcId, BOSS2)
+  eq(raid.sources[1].guessed, true)
+  eq(raid.sources[1].journal, nil)
+  eq(raid.sources[2].npcId, 990011)
+  deep_eq(raid.sources[2].journal, { 900301, 900302 })
+end)

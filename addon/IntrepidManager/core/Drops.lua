@@ -88,19 +88,26 @@ local function addJournal(model, ids)
   if #ids == 0 then return 0 end
   local listed = {}
   for _, id in ipairs(model.itemIds) do listed[id] = true end
-  local journal, added = {}, 0
+  -- (two journal entries can name one creature: the second adds to the first's evidence, never replaces it)
+  local journal = model.journal or {}
+  local inJournal = {}
+  for _, id in ipairs(journal) do inJournal[id] = true end
+  local carried = 0
   for _, id in ipairs(ids) do
-    if listed[id] then
-      journal[#journal + 1] = id
-    elseif #model.itemIds < Drops.MAX_ITEMS then
-      model.itemIds[#model.itemIds + 1] = id
-      listed[id] = true
-      journal[#journal + 1] = id
-      added = added + 1
+    if not inJournal[id] then
+      if not listed[id] and #model.itemIds < Drops.MAX_ITEMS then
+        model.itemIds[#model.itemIds + 1] = id
+        listed[id] = true
+      end
+      if listed[id] then
+        journal[#journal + 1] = id
+        inJournal[id] = true
+        carried = carried + 1
+      end
     end
   end
   if #journal > 0 then model.journal = journal end
-  return #journal
+  return carried
 end
 
 -- The journal's lists put onto a zone of the string: a creature of the log takes the journal's items of the same creature (same
@@ -113,7 +120,12 @@ local function mergeJournal(zone, journalZone)
     byName[nameKey(source.name)] = byName[nameKey(source.name)] or source
   end
   for _, entry in ipairs(journalZone.sources or {}) do
-    local target = (entry.npcId and byNpc[entry.npcId]) or byName[nameKey(entry.name)]
+    local target = entry.npcId and byNpc[entry.npcId]
+    if not target then
+      -- by name only when one side has no npc id: two different npc ids are two different creatures
+      local named = byName[nameKey(entry.name)]
+      if named and (entry.npcId == nil or named.npcId == nil) then target = named end
+    end
     if target then
       -- the journal names the same creature as a boss: a guessed boss is sure
       if target.guessed and entry.npcId and target.npcId == entry.npcId and entry.kind == "boss" then target.guessed = nil end
@@ -122,6 +134,8 @@ local function mergeJournal(zone, journalZone)
       local model = { npcId = entry.npcId, name = entry.name, kind = entry.kind, itemIds = {} }
       carried = carried + addJournal(model, entry.itemIds)
       zone.sources[#zone.sources + 1] = model
+      if model.npcId then byNpc[model.npcId] = model end
+      byName[nameKey(model.name)] = byName[nameKey(model.name)] or model
     end
   end
   if journalZone.partial then zone.journalPartial = true end

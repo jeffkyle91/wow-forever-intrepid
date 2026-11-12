@@ -18,7 +18,12 @@ local function setup(options)
   local world = {
     inside = true, kind = options.kind or "party", name = options.name or "Hollow Test Keep", difficulty = 1, size = 5, instance = 9100,
     units = {}, names = {}, classes = {}, secret = {}, rolls = {}, history = {}, boe = {},
+    spells = { [8613] = "Skinning", [921] = "Pick Pocket", [2575] = "Mining", [133] = "Fireball" }, spellLookups = 0,
   }
+  env.C_Spell = { GetSpellName = function(spellId)
+    world.spellLookups = world.spellLookups + 1
+    return world.spells[spellId]
+  end }
   env.IsInInstance = function() return world.inside, world.inside and world.kind or "none" end
   env.GetInstanceInfo = function()
     return world.name, world.kind, world.difficulty, "Normal", world.size, 0, false, world.instance
@@ -80,7 +85,7 @@ local function source(scene, key)
   return zone and zone.sources[key]
 end
 
-test("it listens to the nine events of the drop log, each registered on its own", function()
+test("it listens to the ten events of the drop log, each registered on its own", function()
   local scene = setup()
   local found
   for _, frame in ipairs(scene.game.frames) do
@@ -89,7 +94,7 @@ test("it listens to the nine events of the drop log, each registered on its own"
   end
   is_true(found ~= nil)
   for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "ENCOUNTER_START", "INSTANCE_ENCOUNTER_ENGAGE_UNIT", "ENCOUNTER_END",
-      "LOOT_READY", "START_LOOT_ROLL", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT" }) do
+      "LOOT_READY", "START_LOOT_ROLL", "PLAYER_TARGET_CHANGED", "UPDATE_MOUSEOVER_UNIT", "UNIT_SPELLCAST_SUCCEEDED" }) do
     is_true(found[event] == true)
   end
 end)
@@ -237,4 +242,47 @@ test("a raid is a raid zone of its size", function()
   local zone = scene.db.drops.zones["9200:9"]
   eq(zone.kind, "raid")
   eq(zone.players, 40)
+end)
+
+test("a skinning window on a client that never looted the corpse is not a drop; the next window counts again", function()
+  local scene = setup()
+  killBoss(scene, 3001, "The Fixture Warden", creature(BOSS))
+  -- this client skins the boss the loot master already emptied: the window holds the hide, from the boss's corpse
+  scene.game.send("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 8613)
+  scene.game.advance(0.5)
+  scene.loot.open({ item(900801, 2, creature(BOSS)) })
+  scene.game.send("LOOT_READY", false)
+  eq(scene.db.drops.stats.gatherWindows, 1)
+  eq(source(scene, "n" .. BOSS), nil)
+  -- a later window (another corpse) counts as usual
+  scene.game.advance(10)
+  scene.loot.open({ item(900802, 3, creature(TRASH, "09")) })
+  scene.game.send("LOOT_READY", false)
+  eq(source(scene, "n" .. TRASH).items[900802].n, 1)
+end)
+
+test("pick-pocketing comes before the kill: its window is left out and the corpse's own loot counts afterwards", function()
+  local scene = setup()
+  scene.game.send("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-2", 921)
+  scene.loot.open({ item(900901, 3, creature(TRASH, "P1")) })
+  scene.game.send("LOOT_READY", false)
+  eq(scene.db.drops.stats.gatherWindows, 1)
+  scene.game.advance(20)
+  scene.loot.open({ item(900902, 3, creature(TRASH, "P1")) })
+  scene.game.send("LOOT_READY", false)
+  eq(source(scene, "n" .. TRASH).items[900902].n, 1)
+  eq(scene.db.drops.stats.repeats, nil)
+end)
+
+test("other spells change nothing, a cast long before the window changes nothing, and a spell name is looked up once", function()
+  local scene = setup()
+  for _ = 1, 5 do scene.game.send("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3", 133) end
+  scene.game.send("UNIT_SPELLCAST_SUCCEEDED", "party1", "Cast-4", 8613) -- (registered for the player only; ignored anyway)
+  eq(scene.world.spellLookups, 1)
+  scene.game.send("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-5", 2575)
+  scene.game.advance(5)
+  scene.loot.open({ item(900903, 3, creature(TRASH, "Q1")) })
+  scene.game.send("LOOT_READY", false)
+  eq(scene.db.drops.stats.gatherWindows, nil)
+  eq(source(scene, "n" .. TRASH).items[900903].n, 1)
 end)

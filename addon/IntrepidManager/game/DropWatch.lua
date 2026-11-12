@@ -23,10 +23,20 @@ local BIND_ON_EQUIP = 2 -- the bindType that C_Item.GetItemInfo returns for an i
 local HISTORY_RETRIES = { 2, 10 } -- seconds after a roll starts to look in the loot history again
 local MAX_CANDIDATE_CHECK = 40
 
--- context: log (core/DropLog), now (server time), after(seconds, fn) (C_Timer.After)
+-- Loot windows that are not drops: what the player skins, mines or gathers from a corpse or a node, or picks from a living
+-- creature's pocket. On a client that never looted the corpse, skinning is the first window of it; pick-pocketing always comes
+-- before the kill. A window within GATHER_SECONDS of the player's own cast of one of these spells (the US English names of the
+-- game's spells) is left out, and its corpse is not marked as counted.
+DropWatch.GATHER = { ["Skinning"] = true, ["Mining"] = true, ["Herb Gathering"] = true, ["Pick Pocket"] = true }
+local GATHER_SECONDS = 3
+
+-- context: log (core/DropLog), now (server time), clock (seconds, GetTime), after(seconds, fn) (C_Timer.After)
 function DropWatch.new(context)
   local log = context.log
   local now = context.now or function() return GetServerTime() end
+  local clock = context.clock or function() return GetTime() end
+  local spellKinds = {} -- spell id -> true for a gathering spell, false otherwise (looked up once per spell)
+  local lastGather -- the clock when the player last cast a gathering spell
   local after = context.after or function(seconds, fn) C_Timer.After(seconds, fn) end
   local self = {}
   local frame
@@ -165,12 +175,36 @@ function DropWatch.new(context)
     end
   end
 
+  local function spellName(spellId)
+    if C_Spell and C_Spell.GetSpellName then
+      local ok, name = pcall(C_Spell.GetSpellName, spellId)
+      if ok and type(name) == "string" then return name end
+    end
+    if GetSpellInfo then
+      local ok, name = pcall(GetSpellInfo, spellId)
+      if ok and type(name) == "string" then return name end
+    end
+    return nil
+  end
+
   local function inside()
     local ok, isInside, kind = pcall(IsInInstance)
     return ok and isInside and (kind == "party" or kind == "raid")
   end
 
   local function onEvent(event, ...)
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
+      -- (every spell the player casts: only a table lookup after the first time)
+      local unit, _, spellId = ...
+      if unit ~= "player" or type(spellId) ~= "number" or secret(spellId) then return end
+      local gathering = spellKinds[spellId]
+      if gathering == nil then
+        gathering = DropWatch.GATHER[spellName(spellId) or ""] == true
+        spellKinds[spellId] = gathering
+      end
+      if gathering then lastGather = clock() end
+      return
+    end
     if event == "PLAYER_TARGET_CHANGED" or event == "UPDATE_MOUSEOVER_UNIT" then
       -- (these fire all the time: only the cheap check here)
       if not inside() then return end
@@ -198,6 +232,12 @@ function DropWatch.new(context)
     local zone = instance()
     if not zone then return end
     if event == "LOOT_READY" then
+      if lastGather and clock() - lastGather >= 0 and clock() - lastGather <= GATHER_SECONDS then
+        -- skinned, mined, gathered or picked from a pocket: not a drop (the next window counts again)
+        lastGather = nil
+        count("gatherWindows")
+        return
+      end
       local window = readWindow()
       if window then log.window(zone, window, now()) end
     elseif event == "ENCOUNTER_START" then
@@ -243,6 +283,7 @@ function DropWatch.new(context)
     try(function() frame:RegisterEvent("START_LOOT_ROLL") end)
     try(function() frame:RegisterEvent("PLAYER_TARGET_CHANGED") end)
     try(function() frame:RegisterEvent("UPDATE_MOUSEOVER_UNIT") end)
+    try(function() frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player") end)
     frame:SetScript("OnEvent", function(_, event, ...)
       -- Never let an error here reach the player mid-raid: keep it in the log's stats.
       local ok, problem = pcall(onEvent, event, ...)

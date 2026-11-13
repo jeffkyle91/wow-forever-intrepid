@@ -93,6 +93,14 @@ function DropLog.new(db, options)
     return data
   end
 
+  -- The corpses waiting for their rolls, in the saved data so that a /reload does not lose one: { key, npcId, h, slots, at,
+  -- killKey, encounterId } (no names: item ids and the game's item names only).
+  local function heldList()
+    local data = store()
+    if type(data.held) ~= "table" then data.held = {} end
+    return data.held
+  end
+
   local function count(name, by)
     local stats = store().stats
     stats[name] = (stats[name] or 0) + (by or 1)
@@ -104,7 +112,6 @@ function DropLog.new(db, options)
   local units, unitCount = {}, 0
   local fight
   local corpseSet
-  local held = {} -- corpses waiting for their rolls: { key, npcId, h, slots, at, killKey, encounterId, threshold } (lost at a /reload)
   local sourceCache = {} -- itemId -> "Boss, Zone" or false; emptied whenever the log changes
 
   ---------------------------------------------------------------------------------------------------------------
@@ -288,7 +295,8 @@ function DropLog.new(db, options)
     for id, item in pairs(loose.items) do
       local mine = into.items[id]
       if mine then
-        if item.n > mine.n then mine.n = item.n end
+        -- (the larger count comes with the kill it last counted, so the same kill is not counted again)
+        if item.n > mine.n then mine.n, mine.k = item.n, item.k end
         if (item.last or 0) > (mine.last or 0) then mine.last = item.last end
         if item.via == "window" then mine.via = "window" end
         if item.rk and (mine.rk == nil or (item.last or 0) >= (mine.last or 0)) then mine.rk = item.rk end
@@ -306,13 +314,51 @@ function DropLog.new(db, options)
     removeSource(zone, key)
   end
 
-  local function bossSource(zone, npcId, encounterId, last, guessed)
+  -- Was this creature a boss unit of the last win? (Then it is known for sure in this kill, whatever matched before.)
+  local function unitOfLast(npcId, encounterId, last)
+    if not (last and last.id == encounterId) then return false end
+    for _, id in ipairs(last.npcs or {}) do
+      if id == npcId then return true end
+    end
+    return false
+  end
+
+  -- A boss learned by a roll match takes from the encounter's loose source only what its own corpse held in this kill: the
+  -- encounter may have more bosses, whose rolls are filed there too. Each item moves for this kill only (its count there goes
+  -- down by one), and the window then counts it under the boss.
+  local function claimLoose(zone, encounterId, slots, killKey)
+    local key = "e" .. string.format("%.0f", encounterId)
+    local loose = zone.sources[key]
+    if not loose then return end
+    local data = store()
+    for _, slot in ipairs(slots or {}) do
+      local item = gameId(slot.itemId) and loose.items[slot.itemId]
+      if item and item.k == killKey then
+        item.n, item.k = item.n - 1, nil
+        if item.n <= 0 then
+          loose.items[slot.itemId] = nil
+          loose.count = loose.count - 1
+          data.itemCount = data.itemCount - 1
+        end
+      end
+    end
+    if loose.count <= 0 then removeSource(zone, key) end
+  end
+
+  -- matched: the boss was learned by a roll match (now, or in an earlier kill); claim: { slots, killKey } of its corpse's window.
+  local function bossSource(zone, npcId, encounterId, last, guessed, matched, claim)
     local source = sourceOf(zone, "n" .. string.format("%.0f", npcId), {
       npcId = npcId, encounterId = encounterId, name = bossName(npcId, encounterId, last), kind = "boss", guessed = guessed or nil,
     })
     if not source then return nil end
     source.kind, source.encounterId = "boss", encounterId
     if not guessed then source.guessed = nil end
+    if matched then source.matched = true end
+    if unitOfLast(npcId, encounterId, last) then source.matched = nil end
+    if source.matched then
+      if claim then claimLoose(zone, encounterId, claim.slots, claim.killKey) end
+      return source
+    end
     -- the encounter's loose items join this creature only when it is the encounter's one boss: with several, nobody knows
     -- whose they were, and they stay under the encounter (design 2.2, step 7)
     local bosses = bossesOf(zone, encounterId, last)
@@ -320,10 +366,15 @@ function DropLog.new(db, options)
     return source
   end
 
-  -- The source for something filed under an encounter: its boss creature when the zone knows it, else the encounter itself.
+  -- The source for something filed under an encounter: its boss creature when the zone knows it for sure (a boss unit, or a guess
+  -- confirmed by kills), else the encounter itself. A boss known only by a roll match may share the encounter with bosses not
+  -- matched yet, so a roll is not filed under it unless its corpse held the item in this kill (see self.roll).
   local function encounterSource(zone, last)
     local bosses = bossesOf(zone, last.id, last)
-    if #bosses == 1 then return bossSource(zone, bosses[1], last.id, last) end
+    if #bosses == 1 then
+      local known = zone.sources["n" .. string.format("%.0f", bosses[1])]
+      if not (known and known.matched and not unitOfLast(bosses[1], last.id, last)) then return bossSource(zone, bosses[1], last.id, last) end
+    end
     return sourceOf(zone, "e" .. string.format("%.0f", last.id), { encounterId = last.id, name = cleanName(last.name) or ("Encounter " .. string.format("%.0f", last.id)), kind = "boss" })
   end
 
@@ -494,7 +545,7 @@ function DropLog.new(db, options)
       local won = store().last
       local ofLast = won ~= nil and won.zone == entry.key and won.id == entry.encounterId and killKeyOf(won) == entry.killKey
       if ofLast then won.claimed = true end
-      local source = bossSource(zone, entry.npcId, entry.encounterId, ofLast and won or nil)
+      local source = bossSource(zone, entry.npcId, entry.encounterId, ofLast and won or nil, nil, true, { slots = entry.slots, killKey = entry.killKey })
       if not source then return end
       kill(source, entry.killKey, entry.at)
       fileSlots(entry.key, source, entry.slots, DropLog.FLOOR.boss, entry.killKey, entry.at)
@@ -511,6 +562,7 @@ function DropLog.new(db, options)
 
   -- File, as creatures on their own, the held corpses whose rolls did not come within HOLD seconds (all of them with `all`).
   function self.settle(now, all)
+    local held = heldList()
     local i = 1
     while i <= #held do
       local entry = held[i]
@@ -523,7 +575,7 @@ function DropLog.new(db, options)
     end
   end
 
-  function self.holding() return #held end
+  function self.holding() return #heldList() end
 
   -- The first LOOT_READY of a loot window. Slots of several corpses (area loot) are told apart by their source.
   function self.window(zoneFact, window, now)
@@ -555,6 +607,7 @@ function DropLog.new(db, options)
 
     -- First: a corpse holding an item the loot history filed under this win's rolls is the encounter's boss (sure: the game named
     -- the encounter, and the item was on this corpse). This works with any loot method.
+    local matchedNow = {}
     if last then
       local rolled = rolledIn(zone, last.id, killKeyOf(last))
       if rolled then
@@ -568,6 +621,7 @@ function DropLog.new(db, options)
               for _, slot in ipairs(groups[guid]) do
                 if rolled[slot.itemId] then
                   zone.bosses[npcId] = last.id
+                  matchedNow[npcId] = true
                   count("matchedAtOnce")
                   break
                 end
@@ -625,7 +679,7 @@ function DropLog.new(db, options)
             local won = store().last
             local ofLast = winAt ~= nil and won ~= nil and won.zone == key and won.id == encounterId and won.at == winAt
             if ofLast then won.claimed = true end
-            source = bossSource(zone, npcId, encounterId, ofLast and won or nil)
+            source = bossSource(zone, npcId, encounterId, ofLast and won or nil, nil, matchedNow[npcId], { slots = slots, killKey = killKey })
             floor = DropLog.FLOOR.boss
           elseif guid == guessGuid then
             -- a guessed boss: one guess never decides; the same creature on CONFIRM_KILLS kills of the encounter does
@@ -649,10 +703,12 @@ function DropLog.new(db, options)
           else
             local unit = units[npcId]
             local rare = unit and (unit.class == "rare" or unit.class == "rareelite")
-            local kept = known and (known.kind == "boss" or known.kind == "rare")
+            -- (a guessed boss is no sure boss: its corpse may still be matched to the rolls)
+            local kept = known and (known.kind == "rare" or (known.kind == "boss" and not known.guessed))
             -- Without a master looter, a corpse opened within 5 minutes of a win with something a roll could be for may be the boss
             -- whose rolls the loot history has not filed yet: it waits for them (HOLD seconds), then counts as a creature.
             if last and not window.masterLooter and not rare and not kept and bestQuality(slots, math.max(threshold, DropLog.FLOOR.boss)) then
+              local held = heldList()
               if #held >= DropLog.MAX_HELD then resolve(table.remove(held, 1), false) end
               local copy = {}
               for i, slot in ipairs(slots) do
@@ -690,9 +746,15 @@ function DropLog.new(db, options)
       count("rollsUnfiled")
       return
     end
-    local source = encounterSource(zone, last)
-    if not source then return end
     local killKey = killKeyOf(last)
+    -- the boss whose corpse held this item in this kill (its window came first) takes the roll: the same drop counts once
+    local source
+    for _, other in pairs(zone.sources) do
+      local seen = other.kind == "boss" and other.npcId and other.encounterId == last.id and other.items[item.itemId]
+      if seen and seen.k == killKey then source = other end
+    end
+    source = source or encounterSource(zone, last)
+    if not source then return end
     kill(source, killKey, now)
     if type(item.quality) == "number" and item.quality >= DropLog.FLOOR.boss then
       addItem(key, source, item, killKey, "roll", now)
@@ -703,6 +765,7 @@ function DropLog.new(db, options)
       count("belowFloor")
     end
     -- a held corpse with this item is the boss of this kill (its rolls came after its window)
+    local held = heldList()
     local i = 1
     while i <= #held do
       local entry = held[i]

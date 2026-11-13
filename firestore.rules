@@ -848,6 +848,18 @@ service cloud.firestore {
       }
 
       match /characterReadiness/{playerId} {
+        function validChecklist() {
+          let checks = request.resource.data.checklist;
+          let fields = ['level60', 'raidRequirements', 'gear', 'enchants', 'professions',
+            'talentsAndAbilities', 'rotation', 'consumables', 'raidKnowledge'];
+          return checks is map && checks.keys().hasOnly(fields) && checks.keys().hasAll(fields)
+            && checks.level60 is bool && checks.raidRequirements is bool && checks.gear is bool
+            && checks.enchants is bool && checks.professions is bool && checks.talentsAndAbilities is bool
+            && checks.rotation is bool && checks.consumables is bool && checks.raidKnowledge is bool
+            && request.resource.data.ready == (checks.level60 && checks.raidRequirements && checks.gear
+              && checks.enchants && checks.professions && checks.talentsAndAbilities
+              && checks.rotation && checks.consumables && checks.raidKnowledge);
+        }
         function ownsCharacter() {
           let member = get(memberPath(guildId, request.auth.uid)).data;
           let mainId = member.get('playerId', '');
@@ -862,9 +874,11 @@ service cloud.firestore {
         allow create, update: if hasGuildRole(guildId, ['Guild Leader', 'Raid Leader', 'Member'])
           && exists(/databases/$(database)/documents/guilds/$(guildId)/roster/$(playerId))
           && (isGuildLeader(guildId) || ownsCharacter())
-          && request.resource.data.keys().hasOnly(['ready', 'updatedBy', 'updatedAt'])
-          && request.resource.data.keys().hasAll(['ready', 'updatedBy', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['schemaVersion', 'checklist', 'ready', 'updatedBy', 'updatedAt'])
+          && request.resource.data.keys().hasAll(['schemaVersion', 'checklist', 'ready', 'updatedBy', 'updatedAt'])
+          && request.resource.data.schemaVersion == 1
           && request.resource.data.ready is bool
+          && validChecklist()
           && request.resource.data.updatedBy == request.auth.uid
           && request.resource.data.updatedAt == request.time;
         allow delete: if false;

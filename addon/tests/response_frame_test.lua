@@ -25,7 +25,7 @@ end
 local function setup(options)
   options = options or {}
   local game = StockTemplates.install(UI.new())
-  local scene = { game = game, answers = {}, tips = {}, errors = {}, modelCalls = 0, model = options.model or model(3) }
+  local scene = { game = game, answers = {}, notes = {}, tips = {}, errors = {}, modelCalls = 0, model = options.model or model(3) }
   game.env.GameTooltip = {
     SetOwner = function(_, owner, anchor) scene.tips[#scene.tips + 1] = { "owner", owner, anchor } end,
     SetHyperlink = function(_, link) scene.tips[#scene.tips + 1] = { "link", link } end,
@@ -44,6 +44,7 @@ local function setup(options)
       return scene.model
     end,
     answer = function(sid, n, code, note) scene.answers[#scene.answers + 1] = { sid, n, code, note } end,
+    note = function(sid, n, text) scene.notes[#scene.notes + 1] = { sid, n, text } end,
   })
   scene.parts = scene.frame.parts
   return scene
@@ -111,22 +112,17 @@ test("your own offer, an empty frame, and rows that go away", function()
   eq(scene.parts.rows[3].data, nil)
 end)
 
-test("a button sends the answer with the note, clears the note, and the row shows what was answered", function()
+test("a button sends the answer (the item's own note goes with it in the session), and the row shows what was answered", function()
   local scene = setup()
   scene.frame.show()
   local rows = scene.parts.rows
-  scene.parts.note:SetText("my first one")
-  scene.game.fire(scene.parts.note, "OnTextChanged", true)
-  eq(scene.game.visible(scene.parts.hint), false)
   press(scene, rows[2].buttons[2])
-  deep_eq(scene.answers, { { "k3f9", 2, "u", "my first one" } })
-  eq(scene.parts.note:GetText(), "")
-  eq(scene.game.visible(scene.parts.hint), true)
+  deep_eq(scene.answers, { { "k3f9", 2, "u" } })
   -- the model now says it was answered
   scene.model = model(3)
   scene.model.rows[2].state, scene.model.rows[2].myCode, scene.model.rows[2].myLabel = "answered", "u", "Upgrade"
   press(scene, rows[1].buttons[4])
-  deep_eq(scene.answers[2], { "k3f9", 1, "p", "" })
+  deep_eq(scene.answers[2], { "k3f9", 1, "p" })
   eq(text(scene, rows[2].status), "42 s - you answered: Upgrade")
   eq(enabled(scene, rows[2].buttons[2]), false) -- the answer given is the dimmed button
   eq(enabled(scene, rows[2].buttons[1]), true)
@@ -250,4 +246,94 @@ test("the frame is as tall as its rows, one row at least and five at most, and o
   -- the note box follows the list, whatever its height
   scene.frame.update(model(2))
   deep_eq(Intact.problems(scene.game, scene.frame.frame), {})
+end)
+
+test("Add note opens the box for that item: Save or Enter keeps the note, Cancel or Escape leaves it, and nothing is answered", function()
+  local scene = setup()
+  scene.frame.show()
+  local rows, parts = scene.parts.rows, scene.parts
+  eq(text(scene, rows[2].noteButton), "Add note")
+  eq(text(scene, rows[2].note), "")
+  eq(scene.game.visible(parts.popup.frame), false)
+  press(scene, rows[2].noteButton)
+  eq(scene.game.visible(parts.popup.frame), true)
+  eq(text(scene, parts.popupItem), "2. Thing 2")
+  eq(text(scene, parts.popupHint), "The note goes with your answer.")
+  eq(parts.noteBox:GetText(), "")
+  deep_eq(scene.frame.editing(), { sid = "k3f9", n = 2 })
+  parts.noteBox:SetText("for my off-spec")
+  press(scene, parts.save)
+  deep_eq(scene.notes, { { "k3f9", 2, "for my off-spec" } })
+  eq(scene.game.visible(parts.popup.frame), false)
+  eq(#scene.answers, 0)
+  -- Cancel and Escape change nothing
+  press(scene, rows[3].noteButton)
+  parts.noteBox:SetText("never mind")
+  press(scene, parts.cancel)
+  eq(#scene.notes, 1)
+  eq(scene.game.visible(parts.popup.frame), false)
+  press(scene, rows[3].noteButton)
+  parts.noteBox:SetText("never mind")
+  scene.game.fire(parts.noteBox, "OnEscapePressed")
+  eq(#scene.notes, 1)
+  eq(scene.game.visible(parts.popup.frame), false)
+  -- Enter saves
+  press(scene, rows[1].noteButton)
+  parts.noteBox:SetText("quick one")
+  scene.game.fire(parts.noteBox, "OnEnterPressed")
+  deep_eq(scene.notes[2], { "k3f9", 1, "quick one" })
+  eq(scene.game.visible(parts.popup.frame), false)
+end)
+
+test("a row with a note says Edit note and shows it; the box opens with it; after the answer it says it goes again", function()
+  local scene = setup()
+  scene.model.rows[1].note = "for my off-spec" -- written, not answered yet
+  scene.model.rows[2].note, scene.model.rows[2].myCode, scene.model.rows[2].myLabel, scene.model.rows[2].state = "lol", "b", "Best in slot", "answered"
+  scene.frame.update(scene.model)
+  scene.frame.show()
+  local rows, parts = scene.parts.rows, scene.parts
+  eq(text(scene, rows[1].noteButton), "Edit note")
+  eq(text(scene, rows[1].note), "Note: for my off-spec (goes with your answer)")
+  eq(text(scene, rows[2].note), "Note: lol")
+  eq(text(scene, rows[3].noteButton), "Add note")
+  press(scene, rows[2].noteButton)
+  eq(parts.noteBox:GetText(), "lol")
+  eq(text(scene, parts.popupHint), "Saving sends your answer again with this note.")
+  parts.noteBox:SetText("")
+  press(scene, parts.save)
+  deep_eq(scene.notes, { { "k3f9", 2, "" } }) -- an empty note takes it out
+end)
+
+test("the note box closes when its item's time is up or the answer window closes, and a closed item has no note button", function()
+  local scene = setup()
+  scene.frame.show()
+  local rows, parts = scene.parts.rows, scene.parts
+  press(scene, rows[1].noteButton)
+  eq(scene.game.visible(parts.popup.frame), true)
+  scene.model = model(3, { state = "closed", remaining = 0 })
+  scene.frame.update(scene.model)
+  eq(scene.game.visible(parts.popup.frame), false)
+  eq(scene.frame.editing(), nil)
+  eq(enabled(scene, rows[1].noteButton), false)
+  scene.model = model(3)
+  scene.frame.update(scene.model)
+  press(scene, rows[2].noteButton)
+  eq(scene.game.visible(parts.popup.frame), true)
+  scene.frame.hide()
+  eq(scene.game.visible(parts.popup.frame), false)
+  eq(#scene.notes, 0)
+end)
+
+test("the note box and rows with long notes hold together (compact and roomy)", function()
+  for _, density in ipairs({ "compact", "roomy" }) do
+    local scene = setup({ density = density, model = model(3, { name = "Crown of the Fallen Ones" }) })
+    scene.model.rows[1].note = string.rep("a long note ", 7)
+    scene.model.rows[2].note, scene.model.rows[2].myCode, scene.model.rows[2].myLabel = string.rep("x", 80), "u", "Upgrade"
+    scene.frame.update(scene.model)
+    scene.frame.show()
+    deep_eq(Intact.problems(scene.game, scene.frame.frame), {})
+    scene.game.fire(scene.parts.rows[1].noteButton, "OnClick", "LeftButton")
+    deep_eq(Intact.problems(scene.game, scene.parts.popup.frame), {})
+    scene.frame.hide()
+  end
 end)

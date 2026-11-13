@@ -12,8 +12,9 @@
 --     state = "none" | "building" | "running" | "closed", timer = 60, remaining = 42 (running only), responders = 3,
 --     hellos = 5, group = 8, pending = 2 (awarded and not given yet), notice = "a warning for the status line" (or nil),
 --     practice = true (a practice session, started outside a group: nothing was sent, and its awards are not logged) or nil,
---     items = { { n, item, name, quality, icon, counts = { b, u, o, p, total }, winner = "who it was awarded to", given = true,
---                 source = "where it drops: Boss, Dungeon" (or nil) }, ... },
+--     answers = 7, expected = 9 (once started: answers so far, and raiders asked times items),
+--     items = { { n, item, name, quality, icon, counts = { b, u, o, p, total }, asked = 3 (once started), winner = "who it was
+--                 awarded to", given = true, source = "where it drops: Boss, Dungeon" (or nil) }, ... },
 --   }
 --
 -- The callbacks (each in pcall):
@@ -47,12 +48,21 @@ local HINT = "Add the items you want to hand out with Add from bags, then press 
   .. "with a timer and answer in their own window; their answers show here."
 local CLAIM_SHADES = { b = "gold", u = "good", o = "warn", p = "muted" }
 
--- "Running - 42 s left - 3 answered - 5 of 8 have the addon"; a practice session (started outside a group) begins with "Practice - ".
+-- "7/9 responses logged": every raider's answer to every item counts one; a model without the count says how many answered.
+function SessionPanel.loggedText(model)
+  if type(model.expected) == "number" and model.expected > 0 then
+    return (model.answers or 0) .. "/" .. model.expected .. " responses logged"
+  end
+  return (model.responders or 0) .. " answered"
+end
+
+-- "Running - 42 s left - 7/24 responses logged - 5 of 8 have the addon"; a practice session (started outside a group) begins with
+-- "Practice - ".
 function SessionPanel.statusText(model)
   local items = #(model.items or {})
   local practice = model.practice and "Practice - " or ""
   if model.state == "running" then
-    local text = practice .. "Running - " .. string.format("%.0f", model.remaining or 0) .. " s left - " .. (model.responders or 0) .. " answered"
+    local text = practice .. "Running - " .. string.format("%.0f", model.remaining or 0) .. " s left - " .. SessionPanel.loggedText(model)
     if not model.practice and model.group and model.group > 0 then
       text = text .. " - " .. (model.hellos or 0) .. " of " .. model.group .. " have the addon"
     end
@@ -60,12 +70,21 @@ function SessionPanel.statusText(model)
     return text
   end
   if model.state == "closed" then
-    local text = practice .. "Over - " .. (model.responders or 0) .. " answered"
+    local text = practice .. "Over - " .. SessionPanel.loggedText(model)
     if (model.pending or 0) > 0 then text = text .. " - " .. model.pending .. " to trade" end
     return text
   end
   if items == 0 then return "Nothing queued yet." end
   return items .. (items == 1 and " item" or " items") .. " queued. The timer is " .. (model.timer or 60) .. " seconds."
+end
+
+-- The count at the right of an item in the list: its answers out of the raiders asked ("2/5"), "won" or "given".
+function SessionPanel.itemCount(data)
+  if data.given then return "given" end
+  if data.winner then return "won" end
+  local total = (data.counts and data.counts.total) or 0
+  if type(data.asked) == "number" and data.asked > 0 then return total .. "/" .. data.asked end
+  return tostring(total)
 end
 
 -- "BiS 1   Upgrade 2   Off-spec 0   Pass 1".
@@ -107,7 +126,7 @@ function SessionPanel.new(kit, callbacks)
   local leftRowWidth = leftWidth - m.bar - 2
   local iconSize = itemRow - 4
   local removeSize = itemRow - 4
-  local countWidth = 36
+  local countWidth = 44
   local nameWidth = leftRowWidth - iconSize - removeSize - countWidth - gap * 4
   local countsTop = listTop
   local headsTop = countsTop + header + gap
@@ -153,6 +172,11 @@ function SessionPanel.new(kit, callbacks)
   headClaim:SetPoint("TOPLEFT", rightX + gap + whoWidth + gap, -headsTop)
   local headNote = kit.label(body, "NOTE", { color = colors.muted, width = noteWidth })
   headNote:SetPoint("TOPLEFT", rightX + gap + whoWidth + gap + claimWidth + gap, -headsTop)
+  -- "Hide no response", at the right of the column heads: the raiders who have not answered the item are listed unless it is ticked
+  -- (it stays as it is for the login)
+  local hideWidth = 122
+  local hideMissing = kit.check(body, "Hide no response")
+  hideMissing:SetPoint("TOPLEFT", rightX + rightWidth - hideWidth, -headsTop + 1)
   local rightList = kit.scrollList(body, rightWidth, tableHeight)
   rightList.frame:SetPoint("TOPLEFT", rightX, -tableTop)
   local hint = kit.label(body, HINT, { wrap = true, width = rightWidth - gap * 2, color = colors.muted })
@@ -284,9 +308,7 @@ function SessionPanel.new(kit, callbacks)
       local color = ns.UI.Kit.qualityColor(data.quality or 1)
       row.name:SetText(kit.fit(data.n .. ". " .. (data.name or "?"), nameWidth))
       row.name:SetTextColor(color[1], color[2], color[3])
-      local word = tostring((data.counts and data.counts.total) or 0)
-      if data.given then word = "given" elseif data.winner then word = "won" end
-      row.count:SetText(building and "" or word)
+      row.count:SetText(building and "" or SessionPanel.itemCount(data))
       local shade = data.given and colors.good or (data.winner and colors.gold or colors.muted)
       row.count:SetTextColor(shade[1], shade[2], shade[3])
       row.remove:SetShown(building)
@@ -309,6 +331,16 @@ function SessionPanel.new(kit, callbacks)
     answersHead:SetText(data and ("ANSWERS - " .. kit.fit(data.name or "?", answersHeadWidth - 70)) or "ANSWERS")
     local started = current.state ~= "none" and current.state ~= "building"
     countsLine:SetText(data and kit.fit(SessionPanel.detailText(started and (data.counts or {}) or nil, data.source), rightWidth) or "")
+    hideMissing:SetShown(started)
+    hideMissing.label:SetShown(started)
+    -- with the box ticked, the rows of raiders who have not answered are left out (never the winner's)
+    if hideMissing:GetChecked() == true then
+      local shown = {}
+      for _, answer in ipairs(rows) do
+        if not answer.missing or answer.winner then shown[#shown + 1] = answer end
+      end
+      rows = shown
+    end
     local tradable = current.state == "running" or current.state == "closed"
     local itemGiven = data ~= nil and data.given
     for i, answer in ipairs(rows) do
@@ -328,7 +360,7 @@ function SessionPanel.new(kit, callbacks)
       row.classIcon:SetShown(file ~= nil)
       row.who:SetTextColor(color[1], color[2], color[3])
       row.claim:SetText(answer.label)
-      local shade = colors[CLAIM_SHADES[answer.code] or "text"]
+      local shade = colors[answer.missing and "muted" or (CLAIM_SHADES[answer.code] or "text")]
       row.claim:SetTextColor(shade[1], shade[2], shade[3])
       row.note:SetText(kit.fit(answer.note or "", noteWidth))
     end
@@ -363,6 +395,7 @@ function SessionPanel.new(kit, callbacks)
 
   addButton:SetScript("OnClick", kit.safe(function() call("bags") end))
   versionsButton:SetScript("OnClick", kit.safe(function() call("versions") end))
+  hideMissing:SetScript("OnClick", kit.safe(function() self.paintRight() end))
   importButton:SetScript("OnClick", kit.safe(function() call("importNight") end))
   exportButton:SetScript("OnClick", kit.safe(function() call("exportAwards") end))
   startButton:SetScript("OnClick", kit.safe(function()
@@ -410,7 +443,7 @@ function SessionPanel.new(kit, callbacks)
   function self.selected() return selected end
   self.frame = window.frame
   self.parts = {
-    window = window, itemsHead = itemsHead, answersHead = answersHead, status = status, countsLine = countsLine, hint = hint,
+    window = window, itemsHead = itemsHead, answersHead = answersHead, status = status, countsLine = countsLine, hint = hint, hideMissing = hideMissing,
     add = addButton, versions = versionsButton, importNight = importButton, exportAwards = exportButton, start = startButton, finish = endButton, new = newButton, timer = timerBox, leftList = leftList,
     rightList = rightList, leftRows = leftRows, rightRows = rightRows,
   }

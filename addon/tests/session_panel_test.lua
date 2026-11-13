@@ -432,3 +432,67 @@ test("the line above the answers says where the picked item drops, before the st
   eq(SessionPanel.detailText({ b = 2 }, nil), "BiS 2   Upgrade 0   Off-spec 0   Pass 0")
   eq(#scene.errors, 0)
 end)
+
+test("the counter: responses logged out of raiders asked times items, and each item's answers out of the raiders asked", function()
+  local SessionPanel = setup().ns.UI.SessionPanel
+  eq(SessionPanel.statusText(model("running", 3, { answers = 7, expected = 24, hellos = 5, group = 8 })), "Running - 42 s left - 7/24 responses logged - 5 of 8 have the addon")
+  eq(SessionPanel.statusText(model("running", 3, { practice = true, answers = 1, expected = 3, group = 0 })), "Practice - Running - 42 s left - 1/3 responses logged")
+  eq(SessionPanel.statusText(model("closed", 3, { answers = 24, expected = 24 })), "Over - 24/24 responses logged")
+  eq(SessionPanel.statusText(model("closed", 3, { responders = 2, expected = 0 })), "Over - 2 answered") -- no count: the old words
+  eq(SessionPanel.itemCount(item(1, { counts = { total = 2 }, asked = 5 })), "2/5")
+  eq(SessionPanel.itemCount(item(1, { counts = { total = 2 } })), "2")
+  eq(SessionPanel.itemCount(item(1, { asked = 5, winner = "Mirelle Dunmore" })), "won")
+  eq(SessionPanel.itemCount(item(1, { asked = 5, winner = "Mirelle Dunmore", given = true })), "given")
+end)
+
+test("raiders who did not answer are listed (Waiting, then No response) unless Hide no response is ticked; a winner always shows", function()
+  local answers = { [1] = {
+    answer("Mirelle Dunmore", "b", "Best in slot", "lol"),
+    { who = "Tavian Holt", label = "No response", note = "", missing = true },
+    { who = "(you)", label = "No response", note = "", missing = true, winner = true },
+  } }
+  local data = model("closed", 1, { answers = 1, expected = 3 })
+  data.items[1].asked, data.items[1].counts = 3, { b = 1, u = 0, o = 0, p = 0, total = 1 }
+  local scene = setup({ model = data, answers = answers })
+  scene.panel.update(data)
+  scene.panel.show()
+  local rows, parts = scene.parts.rightRows, scene.parts
+  eq(text(scene, parts.status), "Over - 1/3 responses logged")
+  eq(text(scene, scene.parts.leftRows[1].count), "1/3")
+  eq(shown(scene, parts.hideMissing), true)
+  eq(shown(scene, rows[2].frame), true)
+  eq(text(scene, rows[2].claim), "No response")
+  eq(enabled(scene, rows[2].award), true)
+  eq(shown(scene, rows[2].award), true) -- a raider who did not answer can still be awarded the item
+  -- ticked: the row of the raider who did not answer goes, the winner's stays
+  parts.hideMissing:SetChecked(true)
+  press(scene, parts.hideMissing)
+  eq(shown(scene, rows[1].frame), true)
+  eq(text(scene, rows[1].who), "Mirelle Dunmore")
+  eq(text(scene, rows[2].who), "(you)")
+  eq(shown(scene, rows[3].frame), false)
+  -- the next repaint keeps it hidden; unticked, it comes back
+  scene.panel.update(data)
+  eq(shown(scene, rows[3].frame), false)
+  parts.hideMissing:SetChecked(false)
+  press(scene, parts.hideMissing)
+  eq(shown(scene, rows[3].frame), true)
+  eq(#scene.errors, 0)
+end)
+
+test("Hide no response is not shown before the start, and a full window of waiting raiders holds together (compact and roomy)", function()
+  local scene = setup({ model = model("building", 2) })
+  scene.panel.update(scene.model)
+  scene.panel.show()
+  eq(shown(scene, scene.parts.hideMissing), false)
+  for _, density in ipairs({ "compact", "roomy" }) do
+    local answers = { [1] = {} }
+    for i = 1, 25 do answers[1][i] = { who = "Raider Number " .. i, label = "Waiting", note = "", missing = true } end
+    local data = model("running", 14, { practice = true, answers = 312, expected = 350, hellos = 24, group = 25, pending = 3 })
+    for _, entry in ipairs(data.items) do entry.asked, entry.name = 25, "A Rather Long Item Name Indeed" end
+    local big = setup({ density = density, model = data, answers = answers })
+    big.panel.update(data)
+    big.panel.show()
+    deep_eq(Intact.problems(big.game, big.panel.frame), {})
+  end
+end)

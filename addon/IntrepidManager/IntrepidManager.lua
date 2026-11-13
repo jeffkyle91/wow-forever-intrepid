@@ -234,7 +234,8 @@ local function getCouncilWindows()
   })
   windows.offers = ns.UI.ResponseFrame.new(kit, {
     model = session.offerModel,
-    answer = function(sid, n, code, note) session.answer(n, code, note, sid) end,
+    answer = function(sid, n, code) session.answer(n, code, nil, sid) end,
+    note = function(sid, n, text) session.setNote(sid, n, text) end,
   })
   councilWindows = windows
   return windows

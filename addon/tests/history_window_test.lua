@@ -16,6 +16,11 @@ local function setup(options)
   game.env.GameTooltip = {
     SetOwner = function(_, owner, anchor) scene.tips[#scene.tips + 1] = { "owner", owner, anchor } end,
     SetHyperlink = function(_, link) scene.tips[#scene.tips + 1] = { "link", link } end,
+    SetText = function(_, words, r, g, b) scene.tips[#scene.tips + 1] = { "title", words, r, g, b } end,
+    AddLine = function(_, words, r, g, b, wrap) scene.tips[#scene.tips + 1] = { "line", words, r, g, b, wrap } end,
+    AddDoubleLine = function(_, left, right, lr, lg, lb, rr, rg, rb)
+      scene.tips[#scene.tips + 1] = { "pair", left, right, { lr, lg, lb }, { rr, rg, rb } }
+    end,
     Show = function() scene.tips[#scene.tips + 1] = { "show" } end,
     Hide = function() scene.tips[#scene.tips + 1] = { "hide" } end,
   }
@@ -221,15 +226,109 @@ test("an empty history says how awards get there", function()
   eq(text(scene, scene.parts.status), "Nothing kept yet (the history keeps up to 10,000 awards).")
 end)
 
-test("hovering an award shows the item's tooltip; leaving hides it", function()
+-- The tooltip's calls without the colors: "link item:1", "title Cloak", "pair Winner: Jorren", "line  ", "show".
+local function tipWords(scene)
+  local words = {}
+  for _, call in ipairs(scene.tips) do
+    if call[1] == "link" or call[1] == "title" or call[1] == "line" then
+      words[#words + 1] = call[1] .. " " .. call[2]
+    elseif call[1] == "pair" then
+      words[#words + 1] = "pair " .. call[2] .. ": " .. call[3]
+    elseif call[1] ~= "owner" then
+      words[#words + 1] = call[1]
+    end
+  end
+  return words
+end
+
+local function findCall(scene, kind, first)
+  for _, call in ipairs(scene.tips) do
+    if call[1] == kind and call[2] == first then return call end
+  end
+  return nil
+end
+
+test("hovering an award the game knows: the item's tooltip, then the award in full; leaving hides it", function()
   local scene = setup()
   scene.window.open(vm(scene, twoRaids()))
   local line = scene.parts.awardList.lines[1]
   scene.game.fire(line.frame, "OnEnter")
-  deep_eq(scene.tips[2], { "link", "item:900005" })
-  eq(scene.tips[3][1], "show")
+  eq(scene.tips[1][1], "owner")
+  eq(scene.tips[1][2], line.frame)
+  deep_eq(tipWords(scene), {
+    "link item:900005", "line  ",
+    "pair Winner: Jorren Ashvale",
+    "pair When: Wed, Dec 16, 2026, 9:05 PM",
+    "pair Raid: Onyx Test Lair - Wed, Dec 16, 2026, 8:05 PM",
+    "pair Decided by: Council",
+    "pair State: Awarded, not given yet",
+    "show",
+  })
   scene.game.fire(line.frame, "OnLeave")
-  eq(scene.tips[4][1], "hide")
+  eq(scene.tips[#scene.tips][1], "hide")
+  deep_eq(scene.errors, {})
+end)
+
+test("hovering an award of an item the game doesn't know: the item's name as the title, in gold", function()
+  local scene = setup()
+  scene.game.env.C_Item = { GetItemInfoInstant = function(id) return id < 900000 and id or nil end }
+  scene.window.open(vm(scene, twoRaids()))
+  scene.game.fire(scene.parts.awardList.lines[1].frame, "OnEnter")
+  local title = scene.tips[2]
+  eq(title[1], "title")
+  eq(title[2], "Ring of Stand-ins")
+  deep_eq({ title[3], title[4], title[5] }, { 1, 0.82, 0 })
+  is_true(findCall(scene, "link", "item:900005") == nil)
+  eq(tipWords(scene)[2], "pair Winner: Jorren Ashvale")
+  deep_eq(scene.errors, {})
+end)
+
+test("the tooltip's state: given (green) with how and when, taken back (red)", function()
+  local scene = setup()
+  local log = twoRaids()
+  log[1].delivery = { state = "received", at = WED + 60 + 5 * 60, how = "trade" }
+  scene.window.open(vm(scene, log))
+  local lines = scene.parts.awardList.lines
+  scene.game.fire(lines[5].frame, "OnEnter") -- award 1, the oldest
+  local state = findCall(scene, "pair", "State")
+  eq(state[3], "Given in a trade, 8:11 PM")
+  deep_eq(state[5], { scene.kit.colors.good[1], scene.kit.colors.good[2], scene.kit.colors.good[3] })
+  scene.tips = {}
+  scene.game.fire(lines[4].frame, "OnEnter") -- award 2, taken back
+  state = findCall(scene, "pair", "State")
+  eq(state[3], "Taken back")
+  deep_eq(state[5], { scene.kit.colors.bad[1], scene.kit.colors.bad[2], scene.kit.colors.bad[3] })
+  deep_eq(scene.errors, {})
+end)
+
+test("the award's lines: the boss when there is one, no decision on a pseudo award, the note last", function()
+  local scene = setup()
+  local HistoryWindow, History = scene.ns.UI.HistoryWindow, scene.ns.History
+  local log = {
+    award(1, { item = "Cloak of Fixtures" }),
+    award(2, { to = "Disenchant" }),
+  }
+  log[1].encounter, log[1].note = "Test Lord of Embers", "Promised to the tanks first."
+  log[2].pseudo, log[2].decision = "disenchant", nil
+  log[2].delivery = { state = "received", at = WED + 2 * DAY, how = "manual" }
+  local rows = History.build(log, clock).rows
+  local lines, note = HistoryWindow.details(rows[2])
+  deep_eq(lines, {
+    { "Winner", "Jorren Ashvale" }, { "When", "Wed, Dec 9, 2026, 8:06 PM" }, { "Raid", "Molten Test Core - Wed, Dec 9, 2026, 8:06 PM" },
+    { "Boss", "Test Lord of Embers" }, { "Decided by", "Council" }, { "State", "Awarded, not given yet" },
+  })
+  eq(note, "Promised to the tanks first.")
+  lines, note = HistoryWindow.details(rows[1])
+  deep_eq(lines, {
+    { "Winner", "Disenchant" }, { "When", "Wed, Dec 9, 2026, 8:07 PM" }, { "Raid", "Molten Test Core - Wed, Dec 9, 2026, 8:06 PM" },
+    { "State", "Given by hand, Fri, Dec 11, 2026, 8:05 PM" },
+  })
+  eq(note, nil)
+  -- the note goes last, wrapped
+  scene.window.open(vm(scene, log))
+  scene.game.fire(scene.parts.awardList.lines[2].frame, "OnEnter")
+  local last = scene.tips[#scene.tips - 1]
+  deep_eq({ last[1], last[2], last[6] }, { "line", "Promised to the tanks first.", true })
   deep_eq(scene.errors, {})
 end)
 

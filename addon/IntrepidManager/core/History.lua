@@ -28,6 +28,7 @@ local DAYS = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" }
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
 
 local DECISIONS = { council = "Council", roll = "Roll", other = "Other" }
+local GIVEN = { ["master-loot"] = "by master loot", trade = "in a trade", manual = "by hand" }
 
 -- The day of the week (1 Sunday to 7 Saturday) of a date, without the client's clock (Zeller's rule).
 function History.weekday(year, month, day)
@@ -86,12 +87,18 @@ local function haystack(parts)
   return " " .. table.concat(words, " ")
 end
 
+local function filled(text)
+  if type(text) == "string" and text ~= "" then return text end
+  return nil
+end
+
 -- The row of one award of the log. `clock(at)` is the local time as date("*t", at) gives it.
 local function rowOf(award, clock)
+  local delivery = type(award.delivery) == "table" and award.delivery or {}
   local row = {
     id = award.id, at = award.at, date = award.date, item = award.item or "?", itemId = award.itemId, to = award.to or "?",
-    pseudo = award.pseudo, place = award.place, removed = award.status == "removed",
-    received = type(award.delivery) == "table" and award.delivery.state == "received",
+    pseudo = award.pseudo, place = award.place, removed = award.status == "removed", received = delivery.state == "received",
+    encounter = filled(award.encounter), note = filled(award.note),
   }
   row.placeText = row.place or History.NO_PLACE
   row.how = DECISIONS[award.decision] or ""
@@ -104,6 +111,15 @@ local function rowOf(award, clock)
     if d then
       row.day = History.dayText(d)
       row.year, row.month, row.mday = d.year, d.month, d.day
+    end
+  end
+  row.when = row.day and (row.day .. (row.time and (", " .. row.time) or ""))
+  if row.received then
+    row.givenHow = GIVEN[delivery.how]
+    local given = type(delivery.at) == "number" and clock and clock(delivery.at) or nil
+    if given then -- the time alone on the day of the award, else the day too
+      local sameDay = given.year == row.year and given.month == row.month and given.day == row.mday
+      row.givenWhen = sameDay and History.timeText(given) or History.whenText(given)
     end
   end
   if row.removed then

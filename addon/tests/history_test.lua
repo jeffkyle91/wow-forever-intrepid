@@ -84,6 +84,33 @@ test("a row says when, what, who, where and whether it was given or taken back",
   eq(rows[3].how, "Council")
 end)
 
+test("a row keeps the boss, the note, and how and when the item was given (the time alone on the award's day)", function()
+  local given = award(1, { place = "Molten Test Core" })
+  given.delivery = { state = "received", at = WED + 30 * 60, how = "master-loot" }
+  given.encounter, given.note = "Test Lord of Embers", "For the off-tank."
+  local later = award(2, { at = WED + 600 })
+  later.delivery = { state = "received", at = WED + DAY, how = "trade" }
+  local undated = award(3, { at = false, date = "2026-12-10" })
+  undated.encounter, undated.note = "", ""
+  local rows = History.build({ given, later, undated }, clock).rows
+  local byId = {}
+  for _, row in ipairs(rows) do byId[row.id] = row end
+  local row = byId["s-tpt2u0-q4tz-1"]
+  eq(row.when, "Wed, Dec 9, 2026, 8:05 PM")
+  eq(row.givenHow, "by master loot")
+  eq(row.givenWhen, "8:35 PM")
+  eq(row.encounter, "Test Lord of Embers")
+  eq(row.note, "For the off-tank.")
+  row = byId["s-tpt2u0-q4tz-2"]
+  eq(row.givenHow, "in a trade")
+  eq(row.givenWhen, "Thu, Dec 10, 2026, 8:05 PM")
+  row = byId["s-tpt2u0-q4tz-3"]
+  eq(row.when, "Thu, Dec 10, 2026")
+  eq(row.givenHow, nil)
+  eq(row.encounter, nil)
+  eq(row.note, nil)
+end)
+
 test("a raid is one place, each award within 6 hours of the one before; the raids come newest first", function()
   local log = {
     award(1, { place = "Molten Test Core", at = WED }),

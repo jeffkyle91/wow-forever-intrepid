@@ -2,8 +2,8 @@
 -- history it was given (core/History.lua builds it from the awards log) and searches it as the loot master types.
 --
 -- Left, the raids, newest first: the dungeon or raid of the game and when it started. "All raids" is first. Right, the awards of the
--- raid picked (all of them under "All raids"), newest first: when, the item (hover for its tooltip), the winner, the raid, and
--- whether it was given or taken back. The search box above takes a player, an item, a dungeon or raid, or a date; the raids on the
+-- raid picked (all of them under "All raids"), newest first: when, the item, the winner, the raid, and whether it was given or taken
+-- back. Hovering an award shows the item's tooltip and the award in full (winner, time, raid, boss, how decided, how given). The search box above takes a player, an item, a dungeon or raid, or a date; the raids on the
 -- left are then only those with an award that matches.
 --
 -- Both lists draw only the lines on screen, so ten thousand awards cost no more frames than twenty.
@@ -58,6 +58,61 @@ end
 -- The second line of a raid in the raid list: "Molten Core, 8:05 PM".
 function HistoryWindow.raidLine(raid)
   return raid.placeText .. (raid.time and (", " .. raid.time) or "")
+end
+
+-- Where an award stands, in full: "Given in a trade, 9:47 PM", "Awarded, not given yet" or "Taken back".
+function HistoryWindow.stateText(row)
+  if row.removed then return "Taken back" end
+  if not row.received then return "Awarded, not given yet" end
+  local text = "Given"
+  if row.givenHow then text = text .. " " .. row.givenHow end
+  if row.givenWhen then text = text .. ", " .. row.givenWhen end
+  return text
+end
+
+-- The lines of an award's tooltip under the item: { label, value } pairs, then the note (nil when there is none).
+function HistoryWindow.details(row)
+  local lines = {}
+  local function add(label, value)
+    if value and value ~= "" then lines[#lines + 1] = { label, value } end
+  end
+  add("Winner", row.to)
+  add("When", row.when)
+  add("Raid", row.raid and row.raid.label or row.placeText)
+  add("Boss", row.encounter)
+  add("Decided by", row.how)
+  add("State", HistoryWindow.stateText(row))
+  return lines, row.note
+end
+
+-- Does the game know the item? An item it doesn't know (the demo's invented ones, an id the game never had) gets the award's own
+-- title instead of the game's item tooltip, which would be empty.
+function HistoryWindow.knownItem(itemId)
+  if type(itemId) ~= "number" then return false end
+  local instant = C_Item and C_Item.GetItemInfoInstant -- the probe saw it answer on this client
+  if not instant then return true end -- no way to ask: try the item's link
+  return instant(itemId) ~= nil
+end
+
+-- The tooltip of one award: the game's tooltip of the item when it knows the item (else the item's name), then the award.
+function HistoryWindow.showTooltip(tip, owner, row, colors)
+  tip:SetOwner(owner, "ANCHOR_RIGHT")
+  if HistoryWindow.knownItem(row.itemId) then
+    tip:SetHyperlink("item:" .. string.format("%.0f", row.itemId))
+    tip:AddLine(" ")
+  else
+    local gold = colors.gold
+    tip:SetText(row.item, gold[1], gold[2], gold[3])
+  end
+  local lines, note = HistoryWindow.details(row)
+  local label, value = colors.muted, colors.text
+  for _, pair in ipairs(lines) do
+    local right = value
+    if pair[1] == "State" then right = row.removed and colors.bad or (row.received and colors.good or colors.muted) end
+    tip:AddDoubleLine(pair[1], pair[2], label[1], label[2], label[3], right[1], right[2], right[3])
+  end
+  if note then tip:AddLine(note, value[1], value[2], value[3], true) end
+  tip:Show()
 end
 
 function HistoryWindow.new(kit)
@@ -240,11 +295,7 @@ function HistoryWindow.new(kit)
     line.raid = cell(raidWidth)
     line.state = cell(stateWidth)
     frame:SetScript("OnEnter", kit.safe(function(self_)
-      local row = line.row
-      if not (row and row.itemId) then return end
-      GameTooltip:SetOwner(self_, "ANCHOR_RIGHT")
-      GameTooltip:SetHyperlink("item:" .. string.format("%.0f", row.itemId))
-      GameTooltip:Show()
+      if line.row then HistoryWindow.showTooltip(GameTooltip, self_, line.row, colors) end
     end))
     frame:SetScript("OnLeave", kit.safe(function() GameTooltip:Hide() end))
     line.frame = frame

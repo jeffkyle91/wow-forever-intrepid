@@ -212,6 +212,20 @@ function Demo.new(context)
     }
   end
 
+  local function makeExport(request)
+    if not export then
+      export = ns.UI.ExportWindow.new(kit, {
+        everything = function(on)
+          exportEverything = on
+          export.update(exportVm(request))
+          out("Demo: the export would hold " .. (on and "everything" or "what is new") .. ".")
+        end,
+        done = function() out("Demo: Done. After a real export the addon would suggest a /reload, never force one.") end,
+      })
+    end
+    return export
+  end
+
   local function showExport(request, together)
     kitFor(request)
     if not together then
@@ -224,16 +238,7 @@ function Demo.new(context)
       if icons then icons.hide() end
     end
     exportEverything = false
-    if not export then
-      export = ns.UI.ExportWindow.new(kit, {
-        everything = function(on)
-          exportEverything = on
-          export.update(exportVm(request))
-          out("Demo: the export would hold " .. (on and "everything" or "what is new") .. ".")
-        end,
-        done = function() out("Demo: Done. After a real export the addon would suggest a /reload, never force one.") end,
-      })
-    end
+    makeExport(request)
     export.open(exportVm(request))
     return export
   end
@@ -258,13 +263,44 @@ function Demo.new(context)
   -----------------------------------------------------------------------------------------------------------
   -- The loot history window: four weeks of invented raids (ui/Sample.lua), in the player's local time
   -----------------------------------------------------------------------------------------------------------
+  local function clock(at) return date("*t", at) end
+
+  -- Export in the demo's history: the export window with every award of the night or raid picked, written for real from the
+  -- invented log (without `place`, which never leaves the addon), so the string reads back like a real one.
+  local function exportPicked(request, log, pick)
+    local ids, awards = ns.History.idsOf(ns.History.build(log, clock), pick.kind, pick.key), {}
+    for _, award in ipairs(log) do
+      if ids[award.id] then
+        local copy = {}
+        for key, value in pairs(award) do
+          if key ~= "place" then copy[key] = value end
+        end
+        awards[#awards + 1] = copy
+      end
+    end
+    local now = GetServerTime and GetServerTime() or 1796866200
+    local text = #awards > 0 and ns.Awards.encode({
+      schema = 1, id = ns.Ids.exportId(now, function() return 1 end), at = now, by = "IntrepidManager/demo", awards = awards,
+    }) or nil
+    kitFor(request)
+    makeExport(request)
+    export.open({ text = text, count = #awards, new = #awards, changed = 0, hasNight = false, session = pick.label })
+    out("Demo: the export window holds the " .. #awards .. " invented awards of " .. pick.label .. ".")
+  end
+
+  local shownLog, shownRequest -- what the history window shows now, for its Export
   local function showHistory(request)
     kitFor(request)
-    if not history then history = ns.UI.HistoryWindow.new(kit) end
     local now = GetServerTime and GetServerTime() or 1796866200
+    local log = ns.UI.Sample.historyLog(now)
+    shownLog, shownRequest = log, request
+    if not history then
+      history = ns.UI.HistoryWindow.new(kit, { export = function(pick) exportPicked(shownRequest, shownLog, pick) end })
+    end
+    local today = date("*t", now)
     history.open({
-      history = ns.History.build(ns.UI.Sample.historyLog(now), function(at) return date("*t", at) end),
-      year = tonumber(date("%Y", now)), limit = 10000, search = "",
+      history = ns.History.build(log, clock), year = today.year, today = ns.History.dayNumber(today.year, today.month, today.day),
+      limit = 10000, search = "",
     })
     return history
   end

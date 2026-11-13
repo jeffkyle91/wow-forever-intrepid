@@ -248,6 +248,8 @@ test("nothing sticks out and no two controls overlap: compact, roomy, flat, in e
     check("a very long string")
     scene.window.update(vm({ everything = true, count = 240, left = 9760, sessionOpen = true }))
     check("more than one string holds")
+    scene.window.update(vm({ session = "The Temple of a Very Long Test Name Indeed - Wed, Dec 9, 2026, 8:05 PM", count = 3 }))
+    check("a night of the loot history")
   end
 end)
 
@@ -258,4 +260,17 @@ test("awards that did not fit are said first, in orange: this string is not all 
   isColor(scene, scene.parts.warning, "warn")
   eq(scene.ns.UI.ExportWindow.warning({ left = 0, sessionOpen = true }), "A loot session is open: awards given from now on are not in this string.")
   eq(scene.ns.UI.ExportWindow.warning({}), "")
+end)
+
+test("a night or raid of the loot history: the sentence names it, and the box Everything is gone (it is all of its awards)", function()
+  local scene = setup()
+  scene.window.open(vm({ session = "Molten Test Core - Wed, Dec 9, 2026, 8:05 PM", count = 12, new = 12, changed = 0 }))
+  eq(text(scene, scene.parts.summary), "12 awards of Molten Test Core - Wed, Dec 9, 2026, 8:05 PM.")
+  eq(scene.game.state(scene.parts.everything).shown, false)
+  eq(enabled(scene, scene.parts.selectButton), true)
+  -- the usual export again: the box is back
+  scene.window.update(vm())
+  is_true(scene.game.state(scene.parts.everything).shown ~= false)
+  eq(scene.ns.UI.ExportWindow.summary({ session = "Hollow Test Keep - Sat, Dec 12, 2026", count = 1, text = "x" }),
+    "1 award of Hollow Test Keep - Sat, Dec 12, 2026.")
 end)

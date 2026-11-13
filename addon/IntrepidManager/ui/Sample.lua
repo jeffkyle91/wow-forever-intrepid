@@ -92,15 +92,21 @@ local HISTORY_ITEMS = {
   "Leggings of the Placeholder", "Belt of Invented Names", "Gauntlets of the Dry Run",
 }
 
+local HISTORY_BOSSES = { "Lord Fixture", "The Mock Hound", "Baron Placeholder" }
+
 function Sample.historyLog(now)
   local roster = Sample.roster(12)
   local log, n = {}, 0
   local function add(at, place, to, pseudo)
     n = n + 1
+    local given = n % 4 ~= 0
     log[#log + 1] = {
-      id = "s-demo00-hist-" .. n, rev = 1, at = at, date = date("%Y-%m-%d", at), itemId = 900000 + n,
-      item = HISTORY_ITEMS[(n % #HISTORY_ITEMS) + 1], to = to or roster[(n % #roster) + 1].name, pseudo = pseudo, decision = "council",
-      delivery = { state = (n % 4 == 0) and "assigned" or "received" }, status = (n % 11 == 0) and "removed" or nil, place = place,
+      id = "s-demo00-hist-" .. n, rev = 1, session = "s-demo00", at = at, date = date("%Y-%m-%d", at), itemId = 900000 + n,
+      item = HISTORY_ITEMS[(n % #HISTORY_ITEMS) + 1], to = to or roster[(n % #roster) + 1].name, pseudo = pseudo,
+      decision = not pseudo and "council" or nil,
+      encounter = place == "Molten Test Core" and HISTORY_BOSSES[(n % #HISTORY_BOSSES) + 1] or nil,
+      delivery = given and { state = "received", at = at + 300, how = "trade" } or { state = "assigned" },
+      status = (n % 11 == 0) and "removed" or nil, place = place,
     }
   end
   local day, hour = 86400, 3600

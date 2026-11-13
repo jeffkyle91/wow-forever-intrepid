@@ -6,8 +6,9 @@ local FILES = { "core/History", "ui/Kit", "ui/HistoryWindow" }
 
 return function(story)
   story.describe("Loot history",
-    "Every award made as loot master on this account, across all dates. Left, the raids (the game's dungeon or raid and when it "
-    .. "started); right, the awards of the raid picked. The search takes a player, an item, a dungeon or raid, or a date.")
+    "Every award made as loot master on this account, across all dates. Left, the nights (an evening of loot, wherever it was) "
+    .. "with their raids under them; right, the awards of the night or raid picked. The search takes a player, an item, a dungeon "
+    .. "or raid, or a date; the Raider and Dates dropdowns narrow it further; Export copies one night or raid for the Raid Desk.")
 
   local WED = 1796846700 -- 2026-12-09 20:05 UTC, a Wednesday
   local DAY, HOUR = 86400, 3600
@@ -27,12 +28,12 @@ return function(story)
         id = "s-tpt2u0-q4tz-" .. n, rev = 1, at = at, date = os.date("!%Y-%m-%d", at), itemId = 900000 + n,
         item = ITEMS[(n % #ITEMS) + 1], to = options.to or PLAYERS[(n % #PLAYERS) + 1], decision = "council",
         delivery = { state = (n % 4 == 0) and "assigned" or "received" }, place = place,
-        status = (n % 11 == 0) and "removed" or nil, pseudo = options.pseudo,
+        status = (n % 11 == 0) and "removed" or nil, pseudo = options.pseudo, encounter = options.encounter,
       }
     end
     for week = 0, 3 do
       local start = WED + week * 7 * DAY
-      for k = 0, 7 do add(start + k * 15 * 60, "Molten Test Core") end
+      for k = 0, 7 do add(start + k * 15 * 60, "Molten Test Core", { encounter = "Lord Fixture" }) end
       add(start + 2 * HOUR + 30 * 60, "Molten Test Core", { to = "Disenchant", pseudo = "disenchant" })
       for k = 0, 2 do add(start + 3 * HOUR + k * 10 * 60, "Onyx Test Lair") end
       add(start + 3 * DAY + 2 * HOUR, "Hollow Test Keep")
@@ -48,7 +49,10 @@ return function(story)
     for _, file in ipairs(FILES) do game.load("IntrepidManager/" .. file .. ".lua", ns) end
     local kit = ns.UI.Kit.new({ density = options and options.density, chrome = options and options.chrome })
     local window = ns.UI.HistoryWindow.new(kit)
-    window.open({ history = ns.History.build(log, clock), year = 2026, limit = 10000, search = search })
+    window.open({
+      history = ns.History.build(log, clock), year = 2026, limit = 10000, search = search,
+      today = ns.History.dayNumber(2027, 1, 2),
+    })
     return window, game
   end
 
@@ -59,8 +63,29 @@ return function(story)
   story.snap("Four weeks of raids: every award, newest first, and the raids on the left")
 
   local window, game = open(nil, sampleLog())
+  game.fire(window.parts.raidList.lines[3].frame, "OnClick", "LeftButton")
+  story.snap("A night of two raids picked: all of its awards, and Export night")
+
+  window, game = open(nil, sampleLog())
   game.fire(window.parts.raidList.lines[5].frame, "OnClick", "LeftButton")
-  story.snap("One raid picked: its awards only")
+  story.snap("One raid of that night picked: its awards only, and Export raid")
+
+  window, game = open(nil, sampleLog())
+  game.fire(window.parts.raiderButton, "OnClick", "LeftButton")
+  story.snap("The Raider dropdown: every winner with a count, and a find box")
+
+  game.state(window.parts.raiderFind).text = "jor"
+  game.fire(window.parts.raiderFind, "OnTextChanged", true)
+  story.snap("The Raider dropdown narrowed by its find box")
+
+  for _, line in ipairs(window.parts.raiderList.lines) do
+    if game.state(line.text).text == "Jorren Ashvale" then game.fire(line.frame, "OnClick", "LeftButton") end
+  end
+  story.snap("One raider picked: their awards, and only the nights they won something in")
+
+  window, game = open(nil, sampleLog())
+  game.fire(window.parts.datesButton, "OnClick", "LeftButton")
+  story.snap("The Dates dropdown: the last days, or a month")
 
   open(nil, sampleLog(), "cloak")
   story.snap("A search for an item: the raids on the left are those with a match, with how many")

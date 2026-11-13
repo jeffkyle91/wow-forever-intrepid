@@ -15,6 +15,7 @@
 --     everything  = false,                -- "Everything, not only what is new" is ticked
 --     sessionOpen = false,                -- a loot session is open: awards given from now on are not in the string
 --     left        = 0,                    -- awards that did not fit in this string (100,000 characters): the next export has them
+--     session     = "Molten Core - ...",   -- optional: the string holds this night or raid of the loot history, all its awards
 --   }
 --
 -- The callbacks (each in pcall):
@@ -55,6 +56,7 @@ function ExportWindow.summary(vm)
   local count = vm.count or 0
   if count == 0 or not vm.text or vm.text == "" then return EMPTY, false end
   local awards = awardsText(count)
+  if vm.session then return awards .. " of " .. vm.session .. ".", true end
   if vm.everything then return awards .. " (everything, not only what is new).", true end
   if not vm.hasNight then return awards .. " from the last 14 days (no night is loaded).", true end
   local new, changed = vm.new or 0, vm.changed or 0
@@ -151,6 +153,7 @@ function ExportWindow.new(kit, callbacks)
     scroll:SetVerticalScroll(0)
     count:SetText(shown ~= "" and kit.characters(#shown) or "")
     everything:SetChecked(vm.everything == true)
+    everything:SetShown(not vm.session) -- a night or raid of the history is all of its awards
     warning:SetText(ExportWindow.warning(vm))
     if any then selectButton:Enable() else selectButton:Disable() end
   end

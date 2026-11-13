@@ -89,6 +89,7 @@ local function random(n) return (math.floor(math.random() * n + (GetTime() % 1) 
 local council
 local exchange
 local exportEverything = false
+local exportPick -- nil: the usual export; else the night or raid picked in the loot history, { kind, key, label }
 local function getExchange()
   if not exchange then
     IntrepidManagerDB = IntrepidManagerDB or {}
@@ -107,10 +108,19 @@ end
 
 -- The view-model of the loot history window (ui/HistoryWindow): every award of the log, in the loot master's local time.
 local function historyModel(search)
+  local now = date("*t")
   return {
     history = ns.History.build(getExchange().log(), function(at) return date("*t", at) end),
-    year = tonumber(date("%Y")), limit = ns.Game.Exchange.MAX_LOG, search = search,
+    year = now.year, today = ns.History.dayNumber(now.year, now.month, now.day), limit = ns.Game.Exchange.MAX_LOG, search = search,
   }
+end
+
+-- The view-model of the export window: the usual export (what is new, or everything), or every award of the night or raid picked
+-- in the loot history (found again by its key, so an award made since is in it).
+local function exportModel()
+  if not exportPick then return getExchange().exportModel(exportEverything) end
+  local ids = ns.History.idsOf(historyModel().history, exportPick.kind, exportPick.key)
+  return getExchange().exportModel(false, { ids = ids, label = exportPick.label })
 end
 
 -- The optional addon DungeonJournal (game/DungeonJournal.lua): read only, and only when the player has it. It tells the loot master's
@@ -213,7 +223,10 @@ local function getCouncilWindows()
     finish = session.finish, reset = session.reset, award = session.award, unaward = session.unaward, trade = session.trade,
     versions = session.versions,
     importNight = function() windows.import.open(importModel()) end,
-    exportAwards = function() windows.export.open(getExchange().exportModel(exportEverything)) end,
+    exportAwards = function()
+      exportPick = nil
+      windows.export.open(exportModel())
+    end,
     history = function() windows.history.open(historyModel()) end,
   })
   windows.versions = ns.UI.VersionWindow.new(kit, { model = session.versionsModel, check = session.checkVersions })
@@ -227,15 +240,20 @@ local function getCouncilWindows()
   })
   windows.export = ns.UI.ExportWindow.new(kit, {
     everything = function(on)
-      exportEverything = on
-      windows.export.update(getExchange().exportModel(on))
+      exportEverything, exportPick = on, nil
+      windows.export.update(exportModel())
     end,
     done = function()
       out(InCombatLockdown and InCombatLockdown() and "Type /reload when the fight is over, so the game writes your awards to its file."
         or "Type /reload so the game writes your awards to its file.")
     end,
   })
-  windows.history = ns.UI.HistoryWindow.new(kit)
+  windows.history = ns.UI.HistoryWindow.new(kit, {
+    export = function(pick)
+      exportPick = pick
+      windows.export.open(exportModel())
+    end,
+  })
   windows.drops = ns.UI.DropsWindow.new(kit, {
     journal = function(on)
       dropsChoice.includeJournal = on
@@ -273,7 +291,7 @@ local function wireCouncilWindows()
   hooks.onHello = repaintPanel
   -- An award or a delivery changes the awards string: the export window, when it is on screen, shows the new one.
   local function repaintExport()
-    if councilWindows and councilWindows.export.isShown() then councilWindows.export.update(getExchange().exportModel(exportEverything)) end
+    if councilWindows and councilWindows.export.isShown() then councilWindows.export.update(exportModel()) end
     if councilWindows and councilWindows.history.isShown() then councilWindows.history.update(historyModel()) end
   end
   hooks.onAwarded = function()
@@ -506,7 +524,8 @@ local function handle(input)
   elseif command == "import" then
     getCouncilWindows().import.open(importModel())
   elseif command == "export" then
-    local vm = getExchange().exportModel(exportEverything)
+    exportPick = nil
+    local vm = exportModel()
     out(vm.count == 0 and "No awards to export yet." or (vm.count .. (vm.count == 1 and " award" or " awards") .. " to export."))
     getCouncilWindows().export.open(vm)
   elseif command == "award" then

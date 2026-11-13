@@ -134,10 +134,11 @@ local DEFAULT_DAYS = 14
 --     has it already: the same id with the same rev, or a higher one (the app has that version, or a newer).
 --   * With no night: every award of the last 14 days.
 --   * `all` set: every award.
+--   * `only` set (award id -> true): those awards, whatever else (a night or a raid exported from the loot history).
 -- Returns { awards = {...} in log order, count, new = awards the night does not know, changed = awards the night knows
 -- in an older revision, kinds = "new", "changed" or false for each award, in the same order }. "Changed" is what the window shows
 -- as "4 changed since the night was copied".
-function Awards.select(log, night, now, all)
+function Awards.select(log, night, now, all, only)
   local result = { awards = {}, count = 0, new = 0, changed = 0, kinds = {} }
   local known, phase = {}, nil
   if night then
@@ -147,7 +148,9 @@ function Awards.select(log, night, now, all)
   for _, award in ipairs(log) do
     local knownRev = known[award.id]
     local keep
-    if all then
+    if only then
+      keep = only[award.id] == true
+    elseif all then
       keep = true
     elseif night then
       keep = (award.phase == nil or award.phase == phase) and not (knownRev ~= nil and knownRev >= award.rev)

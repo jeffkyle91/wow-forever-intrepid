@@ -1,20 +1,28 @@
 -- Intrepid Manager: the loot history window (/im history, and History in the loot session window). Frames only: it shows the
--- history it was given (core/History.lua builds it from the awards log) and searches it as the loot master types.
+-- history it was given (core/History.lua builds it from the awards log), filters it as the loot master types and picks, and calls
+-- the callbacks it was given.
 --
--- Left, the raids, newest first: the dungeon or raid of the game and when it started. "All raids" is first. Right, the awards of the
--- raid picked (all of them under "All raids"), newest first: when, the item, the winner, the raid, and whether it was given or taken
--- back. Hovering an award shows the item's tooltip and the award in full (winner, time, raid, boss, how decided, how given). The search box above takes a player, an item, a dungeon or raid, or a date; the raids on the
--- left are then only those with an award that matches.
+-- Top: the search box (a player, an item, a dungeon or raid, or a date), the Raider dropdown (one winner, with a find box) and the
+-- Dates dropdown (the last 7, 30 or 90 days, or one month). Left, the nights, newest first: an evening of loot wherever it was, with
+-- its raids under it when it had more than one (Molten Core, then Onyxia's Lair). "All raids" is first; with a filter, only the
+-- nights and raids with an award that passes it are listed. Right, the awards of the night or raid picked, newest first: when, the
+-- item, the winner, the raid, and whether it was given or taken back. Hovering an award shows the item's tooltip and the award in
+-- full (winner, time, raid, boss, how decided, how given). Export, bottom right, asks the engine for the awards string of the night
+-- or raid picked: all of its awards, whatever the filters, for the Raid Desk.
 --
 -- Both lists draw only the lines on screen, so ten thousand awards cost no more frames than twenty.
 --
 -- The view-model (read only; the engine builds it):
 --   vm = {
---     history = History.build(log, clock),   -- the rows and the raids
+--     history = History.build(log, clock),   -- the rows, the raids and the nights
 --     year    = 2026,                        -- this year: older rows show their year instead of the time
+--     today   = 20796,                       -- History.dayNumber of today, for "the last 7 days"
 --     limit   = 10000,                       -- how many awards the log keeps
 --     search  = "dec 9",                     -- optional: put in the search box when the window opens
 --   }
+--
+-- The callbacks (each in kit.safe):
+--   export(pick)   Export was pressed; pick = { kind = "night" or "raid", key = its key, label = its label }
 
 local _, ns = ...
 
@@ -23,8 +31,9 @@ ns.UI = ns.UI or {}
 ns.UI.HistoryWindow = HistoryWindow
 
 local NAME = "IntrepidManagerHistory"
-local VISIBLE = 20 -- award lines on screen; the raid list shows half as many, two lines each
-local HINT = "Only awards made on this account. Search a player, an item, a dungeon or raid, or a date such as Dec 9 or 2026-12-09."
+local VISIBLE = 20 -- award lines on screen; the night list shows half as many, two lines each
+local CHOICES = 12 -- lines of a dropdown's list
+local HINT = "Only this account's awards. Pick a night or a raid on the left, then Export to copy just that one for the Raid Desk."
 local EMPTY = "No awards yet. The awards you make as loot master are kept here; practice awards never are."
 local NOTHING = "Nothing matches."
 
@@ -115,10 +124,62 @@ function HistoryWindow.showTooltip(tip, owner, row, colors)
   tip:Show()
 end
 
-function HistoryWindow.new(kit)
+-- The second line of a raid under its night, or of a night: "8:05 PM to 10:40 PM", "8:05 PM" for a single time, "" with no time.
+function HistoryWindow.raidSpan(raid)
+  if not raid.time then return "" end
+  if raid.lastTime and raid.lastTime ~= raid.time then return raid.time .. " to " .. raid.lastTime end
+  return raid.time
+end
+
+-- The second line of a night in the list: its raid ("Molten Core, 8:05 PM"), or, as its raids are listed under it, how many and
+-- when ("2 raids, 8:05 PM to 11:40 PM").
+function HistoryWindow.nightLine(night)
+  local raids = night.raids or {}
+  if #raids == 1 then return HistoryWindow.raidLine(raids[1]) end
+  local span = HistoryWindow.raidSpan(night)
+  return string.format("%.0f", #raids) .. " raids" .. (span ~= "" and (", " .. span) or "")
+end
+
+-- The list on the left: All raids, then every night with an award in `counts` (or picked) and, under a night of more than one
+-- raid, those of its raids with an award in `counts` (or picked). Each entry is { all = true }, { night = n } or { raid = r },
+-- with its count. `counts` is History.raidCounts of the awards that pass the filters, `total` their number.
+function HistoryWindow.entries(history, counts, total, selected)
+  local list = { { all = true, count = total } }
+  for _, night in ipairs(history.nights or {}) do
+    local n = counts[night] or 0
+    local picked = selected ~= nil and (selected == night or selected.night == night)
+    if n > 0 or picked then
+      list[#list + 1] = { night = night, count = n }
+      if #night.raids > 1 then
+        for _, raid in ipairs(night.raids) do
+          local count = counts[raid] or 0
+          if count > 0 or raid == selected then list[#list + 1] = { raid = raid, count = count } end
+        end
+      end
+    end
+  end
+  return list
+end
+
+-- Does every word start a word of `text`? (The dropdown's find box: "jor" finds Jorren Ashvale, "ash" too.)
+function HistoryWindow.startsWords(text, words)
+  local hay = " " .. table.concat(ns.History.words(text), " ")
+  for _, word in ipairs(words) do
+    if not string.find(hay, " " .. word, 1, true) then return false end
+  end
+  return true
+end
+
+function HistoryWindow.new(kit, callbacks)
+  callbacks = callbacks or {}
   local m, colors = kit.m, kit.colors
   local History = ns.History
   local self = {}
+
+  local function call(name, ...)
+    local callback = callbacks[name]
+    if callback then return callback(...) end
+  end
 
   -- the numbers everything else is placed by
   local scale = m.name == "roomy" and 1.2 or 1
@@ -131,32 +192,28 @@ function HistoryWindow.new(kit)
   local rowHeight = m.row
   local listHeight = rowHeight * VISIBLE
   local searchTop = pad
-  local headsTop = searchTop + m.input + gap * 2
+  local headsTop = searchTop + math.max(m.input, m.button) + gap * 2
   local listTop = headsTop + header
   local statusTop = listTop + listHeight + gap
-  local hintTop = statusTop + header
+  local statusHeight = math.max(header, m.button)
+  local hintTop = statusTop + statusHeight + gap
   local height = hintTop + header + pad + 28
   local rowWidth = rightWidth - m.bar - 2
   local leftRowWidth = leftWidth - m.bar - 2
   local whenWidth, whoWidth, raidWidth, stateWidth = math.floor(104 * scale), math.floor(110 * scale), math.floor(120 * scale), math.floor(66 * scale)
   local itemWidth = rowWidth - whenWidth - whoWidth - raidWidth - stateWidth - gap * 6
   local countWidth = 44
+  local indent = gap * 3 -- a raid under its night
+  local dayWidth = leftRowWidth - countWidth - gap * 3
+  local placeWidth = leftRowWidth - gap * 2
+  local searchWidth, raiderWidth, datesWidth = math.floor(190 * scale), math.floor(170 * scale), math.floor(150 * scale)
+  local exportWidth = math.floor(110 * scale)
 
   local window = kit.window({ name = NAME, title = "Loot history", width = width, height = height })
   local body = window.body
 
-  -- top: the search
-  local searchLabel = kit.label(body, "Search", { width = 46 })
-  searchLabel:SetPoint("TOPLEFT", pad, -searchTop - 1)
-  local searchBox = kit.input(body, { width = math.floor(280 * scale), maxLetters = 60 })
-  searchBox:SetPoint("TOPLEFT", pad + 46 + gap * 2, -searchTop)
-  local clearButton = kit.button(body, "Clear", { width = 56 })
-  clearButton:SetPoint("TOPLEFT", searchBox, "TOPRIGHT", gap * 2, 1)
-  local count = kit.label(body, "", { width = 220, justify = "RIGHT", color = colors.muted })
-  count:SetPoint("TOPRIGHT", -pad, -searchTop - 1)
-
   -- the heads
-  local raidsHead = kit.label(body, "RAIDS", { font = "gold", width = leftWidth })
+  local raidsHead = kit.label(body, "NIGHTS AND RAIDS", { font = "gold", width = leftWidth })
   raidsHead:SetPoint("TOPLEFT", pad, -headsTop)
   local heads = {}
   local x = rightX + gap
@@ -167,16 +224,18 @@ function HistoryWindow.new(kit)
     x = x + column[2] + gap
   end
 
-  local status = kit.label(body, "", { width = inner })
-  status:SetPoint("TOPLEFT", pad, -statusTop)
+  local status = kit.label(body, "", { width = inner - exportWidth - gap * 2 })
+  status:SetPoint("TOPLEFT", pad, -statusTop - math.floor((statusHeight - header) / 2))
+  local exportButton = kit.button(body, "Export", { width = exportWidth })
+  exportButton:SetPoint("TOPRIGHT", -pad, -statusTop)
   local hint = kit.label(body, HINT, { width = inner, color = colors.muted })
   hint:SetPoint("TOPLEFT", pad, -hintTop)
 
   -- A list that draws only the lines on screen: `lines` frames, filled by paint(frame, index) with index nil for a line past the end.
   -- The mouse wheel moves it three lines at a time; a thin bar shows where it is.
-  local function pagedList(listWidth, lineHeight, lines, make, paint)
+  local function pagedList(parent, listWidth, lineHeight, lines, make, paint)
     local list = { offset = 0, total = 0, lines = {} }
-    local frame = CreateFrame("Frame", nil, body)
+    local frame = CreateFrame("Frame", nil, parent)
     frame:SetSize(listWidth, lineHeight * lines)
     frame:EnableMouseWheel(true)
     local track = frame:CreateTexture(nil, "BORDER")
@@ -224,13 +283,154 @@ function HistoryWindow.new(kit)
   end
 
   local shownRows, shownRaids = {}, {} -- what the lists show now
-  local current = { history = { rows = {}, raids = {} }, year = 0, limit = 0 }
-  local selected -- the raid picked, or nil for all of them
+  local current = { history = { rows = {}, raids = {}, nights = {} }, year = 0, limit = 0 }
+  local selected -- the night or the raid picked, or nil for all of them
+  local raider, period -- the filters picked: a winner as the rows write it, a choice of History.periods; nil for all
   local paintAll
 
-  -- the raid list (left): "All raids", then each raid on two lines
+  -- A dropdown: a button that says what is picked and, under it, a list to pick from, with a find box when `spec.find`. One is open
+  -- at a time; picking, its button again, Clear, and opening the window close it.
+  -- spec = { title, width, popupWidth, find, choices() -> { { text, count, value, current, always } }, pick(choice) }
+  local dropdowns = {}
+  local function dropdown(spec)
+    local dd = {}
+    local button = kit.button(body, spec.title, { width = spec.width })
+    local popupWidth = spec.popupWidth
+    local listWidth = popupWidth - gap * 2
+    local lineWidth = listWidth - m.bar - 2
+    local textWidth = lineWidth - countWidth - gap * 3
+    local findHeight = spec.find and (m.input + gap * 2) or 0
+    local popup = CreateFrame("Frame", nil, window.frame)
+    popup:SetFrameStrata("FULLSCREEN_DIALOG")
+    popup:SetSize(popupWidth, findHeight + CHOICES * rowHeight + gap * 2)
+    popup:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -2)
+    popup:EnableMouse(true) -- a click on it never reaches the window under it
+    kit.fill(popup, colors.thumb)
+    local inside = popup:CreateTexture(nil, "BORDER")
+    inside:SetPoint("TOPLEFT", 1, -1)
+    inside:SetPoint("BOTTOMRIGHT", -1, 1)
+    inside:SetColorTexture(colors.window[1], colors.window[2], colors.window[3], 1)
+
+    local find
+    if spec.find then
+      local findLabel = kit.label(popup, "Find", { width = 30, color = colors.muted })
+      findLabel:SetPoint("TOPLEFT", gap * 2, -gap - 2)
+      find = kit.input(popup, { width = popupWidth - 30 - gap * 7, maxLetters = 40 })
+      find:SetPoint("TOPLEFT", gap * 3 + 30, -gap)
+    end
+
+    local shown = {}
+    local list = pagedList(popup, listWidth, rowHeight, CHOICES, function(parent, index)
+      local line = {}
+      local frame = CreateFrame("Button", nil, parent)
+      frame:SetSize(lineWidth, rowHeight)
+      frame:SetPoint("TOPLEFT", 0, -(index - 1) * rowHeight)
+      kit.fill(frame, index % 2 == 1 and colors.panel or colors.panelAlt)
+      line.selected = frame:CreateTexture(nil, "ARTWORK")
+      line.selected:SetAllPoints()
+      line.selected:SetColorTexture(colors.selected[1], colors.selected[2], colors.selected[3], 1)
+      line.text = kit.label(frame, "", { width = textWidth })
+      line.text:SetPoint("LEFT", gap, 0)
+      line.count = kit.label(frame, "", { width = countWidth, justify = "RIGHT", color = colors.muted })
+      line.count:SetPoint("RIGHT", -gap, 0)
+      frame:SetScript("OnClick", kit.safe(function()
+        local choice = line.choice
+        if not choice then return end
+        dd.close()
+        spec.pick(choice)
+      end))
+      line.frame = frame
+      return line
+    end, function(line, index)
+      local choice = index and shown[index]
+      line.choice = choice
+      line.frame:SetShown(choice ~= nil)
+      if not choice then return end
+      line.text:SetText(kit.fit(choice.text, textWidth))
+      line.count:SetText(choice.count and number(choice.count) or "")
+      line.selected:SetShown(choice.current == true)
+    end)
+    list.frame:SetPoint("TOPLEFT", gap, -(gap + findHeight))
+
+    local function refresh()
+      local words = History.words(find and find:GetText() or "")
+      shown = {}
+      for _, choice in ipairs(spec.choices()) do
+        if choice.always or HistoryWindow.startsWords(choice.text, words) then shown[#shown + 1] = choice end
+      end
+      -- as tall as its choices, up to CHOICES lines (then it scrolls)
+      local lines = math.max(1, math.min(CHOICES, #shown))
+      list.frame:SetHeight(lines * rowHeight)
+      popup:SetHeight(findHeight + lines * rowHeight + gap * 2)
+      list.set(#shown)
+    end
+
+    function dd.close() popup:Hide() end
+    function dd.open()
+      for _, other in ipairs(dropdowns) do
+        if other ~= dd then other.close() end
+      end
+      if find then find:SetText("") end
+      refresh()
+      popup:Show()
+      if find then find:SetFocus() end
+    end
+    function dd.isOpen() return popup:IsShown() end
+    function dd.say(text) button:SetText(kit.fit(spec.title .. ": " .. text, spec.width - 14)) end
+    button:SetScript("OnClick", kit.safe(function()
+      if popup:IsShown() then dd.close() else dd.open() end
+    end))
+    if find then find:SetScript("OnTextChanged", kit.safe(function() refresh() end)) end
+    popup:Hide()
+    dd.button, dd.popup, dd.find, dd.list = button, popup, find, list
+    dropdowns[#dropdowns + 1] = dd
+    return dd
+  end
+
+  -- top: the search and the filters
+  local searchLabel = kit.label(body, "Search", { width = 46 })
+  searchLabel:SetPoint("TOPLEFT", pad, -searchTop - 1)
+  local searchBox = kit.input(body, { width = searchWidth, maxLetters = 60 })
+  searchBox:SetPoint("TOPLEFT", pad + 46 + gap * 2, -searchTop)
+  local raiderDrop = dropdown({
+    title = "Raider", width = raiderWidth, popupWidth = math.floor(240 * scale), find = true,
+    choices = function()
+      local list = { { text = "All raiders", count = #current.history.rows, always = true, current = raider == nil } }
+      for _, winner in ipairs(History.winners(current.history)) do
+        list[#list + 1] = { text = winner.name, value = winner.name, count = winner.count, current = winner.name == raider }
+      end
+      return list
+    end,
+    pick = function(choice)
+      raider = choice.value
+      paintAll()
+    end,
+  })
+  raiderDrop.button:SetPoint("TOPLEFT", searchBox, "TOPRIGHT", gap * 3, 1)
+  local datesDrop = dropdown({
+    title = "Dates", width = datesWidth, popupWidth = math.floor(180 * scale),
+    choices = function()
+      local list, now = {}, period and period.label or "Any date"
+      for _, choice in ipairs(History.periods(current.history)) do
+        list[#list + 1] = { text = choice.label, value = (choice.days or choice.year) and choice or nil, current = choice.label == now }
+      end
+      return list
+    end,
+    pick = function(choice)
+      period = choice.value
+      paintAll()
+    end,
+  })
+  datesDrop.button:SetPoint("TOPLEFT", raiderDrop.button, "TOPRIGHT", gap * 2, 0)
+  local clearButton = kit.button(body, "Clear", { width = 56 })
+  clearButton:SetPoint("TOPLEFT", datesDrop.button, "TOPRIGHT", gap * 2, 0)
+  local count = kit.label(body, "", { width = 180, justify = "RIGHT", color = colors.muted })
+  count:SetPoint("TOPRIGHT", -pad, -searchTop - 1)
+
+  -- the list on the left: "All raids", then each night (and the raids of a night of more than one) on two lines
+  local function setColor(label, color) label:SetTextColor(color[1], color[2], color[3]) end
   local raidLines = math.floor(VISIBLE / 2)
-  local raidList = pagedList(leftWidth, rowHeight * 2, raidLines, function(parent, index)
+  local raidList = pagedList(body, leftWidth, rowHeight * 2, raidLines, function(parent, index)
     local line = {}
     local frame = CreateFrame("Button", nil, parent)
     frame:SetSize(leftRowWidth, rowHeight * 2)
@@ -239,44 +439,60 @@ function HistoryWindow.new(kit)
     line.selected = frame:CreateTexture(nil, "ARTWORK")
     line.selected:SetAllPoints()
     line.selected:SetColorTexture(colors.selected[1], colors.selected[2], colors.selected[3], 1)
-    line.day = kit.label(frame, "", { font = "gold", width = leftRowWidth - countWidth - gap * 3 })
+    line.day = kit.label(frame, "", { font = "gold", width = dayWidth })
     line.day:SetPoint("TOPLEFT", gap, -1)
     line.count = kit.label(frame, "", { width = countWidth, justify = "RIGHT", color = colors.muted })
     line.count:SetPoint("TOPRIGHT", -gap, -1)
-    line.place = kit.label(frame, "", { width = leftRowWidth - gap * 2 })
+    line.place = kit.label(frame, "", { width = placeWidth })
     line.place:SetPoint("TOPLEFT", gap, -rowHeight + 1)
     frame:SetScript("OnClick", kit.safe(function()
-      if line.raid == nil and not line.all then return end
-      selected = line.raid
-      paintAll()
+      local entry = line.entry
+      if not entry then return end
+      for _, each in ipairs(dropdowns) do each.close() end
+      selected = entry.night or entry.raid -- nil for All raids
+      paintAll(false, true)
     end))
     line.frame = frame
     return line
   end, function(line, index)
     local entry = index and shownRaids[index]
+    line.entry = entry
     line.frame:SetShown(entry ~= nil)
-    if not entry then
-      line.raid, line.all = nil, false
-      return
-    end
-    line.all = entry.all == true
-    line.raid = entry.raid
-    line.selected:SetShown(entry.raid == selected)
+    if not entry then return end
+    local shift = entry.raid and indent or 0
+    line.day:ClearAllPoints()
+    line.day:SetPoint("TOPLEFT", gap + shift, -1)
+    line.day:SetWidth(dayWidth - shift)
+    line.place:ClearAllPoints()
+    line.place:SetPoint("TOPLEFT", gap + shift, -rowHeight + 1)
+    line.place:SetWidth(placeWidth - shift)
     if entry.all then
+      line.selected:SetShown(selected == nil)
       line.day:SetText("All raids")
-      line.place:SetText(kit.fit(awards(entry.count), leftRowWidth - gap * 2))
+      line.place:SetText(kit.fit(awards(entry.count), placeWidth))
       line.count:SetText("")
-    else
-      line.day:SetText(kit.fit(entry.raid.day, leftRowWidth - countWidth - gap * 3))
-      line.place:SetText(kit.fit(HistoryWindow.raidLine(entry.raid), leftRowWidth - gap * 2))
+      setColor(line.day, colors.gold)
+      setColor(line.place, colors.text)
+    elseif entry.night then
+      line.selected:SetShown(entry.night == selected)
+      line.day:SetText(kit.fit(entry.night.day, dayWidth))
+      line.place:SetText(kit.fit(HistoryWindow.nightLine(entry.night), placeWidth))
       line.count:SetText(number(entry.count))
+      setColor(line.day, colors.gold)
+      setColor(line.place, colors.text)
+    else
+      line.selected:SetShown(entry.raid == selected)
+      line.day:SetText(kit.fit(entry.raid.placeText, dayWidth - shift))
+      line.place:SetText(kit.fit(HistoryWindow.raidSpan(entry.raid), placeWidth - shift))
+      line.count:SetText(number(entry.count))
+      setColor(line.day, colors.text)
+      setColor(line.place, colors.muted)
     end
   end)
   raidList.frame:SetPoint("TOPLEFT", pad, -listTop)
 
   -- the award list (right)
-  local function setColor(label, color) label:SetTextColor(color[1], color[2], color[3]) end
-  local awardList = pagedList(rightWidth, rowHeight, VISIBLE, function(parent, index)
+  local awardList = pagedList(body, rightWidth, rowHeight, VISIBLE, function(parent, index)
     local line = {}
     local frame = CreateFrame("Button", nil, parent)
     frame:SetSize(rowWidth, rowHeight)
@@ -322,22 +538,32 @@ function HistoryWindow.new(kit)
   local emptyLine = kit.label(body, "", { width = rightWidth - gap * 2, color = colors.muted })
   emptyLine:SetPoint("TOPLEFT", rightX + gap, -listTop - 2)
 
-  -- Search, pick the raids that have a match, and paint both lists. `keepPlace`: a repaint, not a new search (the lists stay
-  -- where they were scrolled to).
-  paintAll = function(keepPlace)
+  -- Filter, list the nights and raids that have a match, and paint both lists. `keepPlace`: a repaint, not a new filter (both
+  -- lists stay where they were scrolled to); `keepLeft`: a night or raid was picked (the list on the left stays where it was).
+  paintAll = function(keepPlace, keepLeft)
     local history = current.history
-    local text = searchBox:GetText() or ""
-    local all = History.search(history, text, nil)
-    shownRows = selected and History.search(history, text, selected) or all
-    local counts = History.raidCounts(all)
-    shownRaids = { { all = true, count = #all } }
-    for _, raid in ipairs(history.raids) do
-      local n = counts[raid] or 0
-      if n > 0 or raid == selected then shownRaids[#shownRaids + 1] = { raid = raid, count = n } end
+    local filter = { text = searchBox:GetText() or "", to = raider, period = period, today = current.today }
+    local all = History.filter(history, filter)
+    if selected then
+      filter.raid = selected.kind == "raid" and selected or nil
+      filter.night = selected.kind == "night" and selected or nil
+      shownRows = History.filter(history, filter)
+    else
+      shownRows = all
     end
-    raidList.set(#shownRaids, keepPlace)
+    shownRaids = HistoryWindow.entries(history, History.raidCounts(all), #all, selected)
+    raidList.set(#shownRaids, keepPlace or keepLeft)
     awardList.set(#shownRows, keepPlace)
     count:SetText(HistoryWindow.countText(#shownRows, #history.rows))
+    raiderDrop.say(raider or "All")
+    datesDrop.say(period and period.label or "Any")
+    if selected then
+      exportButton:SetText(selected.kind == "night" and "Export night" or "Export raid")
+      exportButton:Enable()
+    else
+      exportButton:SetText("Export")
+      exportButton:Disable()
+    end
     if #history.rows == 0 then
       emptyLine:SetText(EMPTY)
     elseif #shownRows == 0 then
@@ -347,33 +573,46 @@ function HistoryWindow.new(kit)
     end
   end
 
+  local function closeDropdowns()
+    for _, each in ipairs(dropdowns) do each.close() end
+  end
+
   searchBox:SetScript("OnTextChanged", kit.safe(function() paintAll() end))
   clearButton:SetScript("OnClick", kit.safe(function()
-    selected = nil
+    selected, raider, period = nil, nil, nil
+    closeDropdowns()
     searchBox:SetText("")
     searchBox:ClearFocus()
     paintAll()
   end))
+  exportButton:SetScript("OnClick", kit.safe(function()
+    if not selected then return end
+    closeDropdowns()
+    call("export", { kind = selected.kind, key = selected.key, label = selected.label })
+  end))
 
-  -- Show this history. The search text stays, and so does the raid picked when the new history still has it.
+  -- Show this history. The search text and the filters stay, and so does the night or raid picked when the new history still has it.
   function self.update(vm)
     vm = vm or {}
-    current = { history = vm.history or { rows = {}, raids = {} }, year = vm.year or 0, limit = vm.limit or 0 }
+    current = {
+      history = vm.history or { rows = {}, raids = {}, nights = {} }, year = vm.year or 0, limit = vm.limit or 0, today = vm.today,
+    }
     if selected then
-      local key = selected.key
+      local kind, key = selected.kind, selected.key
       selected = nil
-      for _, raid in ipairs(current.history.raids) do
-        if raid.key == key then selected = raid end
+      for _, entry in ipairs((kind == "night" and current.history.nights or current.history.raids) or {}) do
+        if entry.key == key then selected = entry end
       end
     end
     status:SetText(HistoryWindow.status(current))
     paintAll(true)
   end
 
-  -- Open with this history: a search given in the view-model replaces the one in the box, and the raid picked is forgotten.
+  -- Open with this history: a search given in the view-model replaces the one in the box, and the night or raid picked is forgotten.
   function self.open(vm)
     vm = vm or {}
     selected = nil
+    closeDropdowns()
     if vm.search ~= nil then searchBox:SetText(vm.search) end
     self.update(vm)
     raidList.set(#shownRaids)
@@ -381,8 +620,9 @@ function HistoryWindow.new(kit)
     window.show()
   end
 
-  -- What the lists show (for the tests and the pictures): the rows, the raids, and the raid picked.
-  function self.shown() return shownRows, shownRaids, selected end
+  -- What the lists show (for the tests and the pictures): the rows, the entries on the left, the night or raid picked, and the
+  -- filters (the raider's name, the period).
+  function self.shown() return shownRows, shownRaids, selected, raider, period end
 
   function self.show() window.show() end
   function self.hide() window.hide() end
@@ -391,7 +631,9 @@ function HistoryWindow.new(kit)
   self.window = window
   self.parts = {
     searchLabel = searchLabel, searchBox = searchBox, clearButton = clearButton, count = count, raidsHead = raidsHead, heads = heads,
-    status = status, hint = hint, raidList = raidList, awardList = awardList, emptyLine = emptyLine,
+    status = status, hint = hint, raidList = raidList, awardList = awardList, emptyLine = emptyLine, exportButton = exportButton,
+    raiderButton = raiderDrop.button, raiderPopup = raiderDrop.popup, raiderFind = raiderDrop.find, raiderList = raiderDrop.list,
+    datesButton = datesDrop.button, datesPopup = datesDrop.popup, datesList = datesDrop.list,
   }
 
   self.update({})

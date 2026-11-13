@@ -392,3 +392,22 @@ test("an export of many awards stays within 100,000 characters and says how many
   small.awarded("c1", entry(1, 900001, "Cloak"), "Tavian Marrow")
   eq(small.exportModel(false).left, 0)
 end)
+
+test("an export of one night or raid of the loot history: those awards only, whatever the night knows, with its name", function()
+  local exchange = engine()
+  local a = exchange.awarded("c1", entry(1, 900001, "Cloak of Fixtures"), "Tavian Marrow")
+  exchange.awarded("c1", entry(2, 900002, "Helm of Samples"), "Tavian Marrow")
+  local c = exchange.awarded("c1", entry(3, 900003, "Ring of Stand-ins"), "Tavian Marrow")
+  local vm = exchange.exportModel(true, { ids = { [a.id] = true, [c.id] = true }, label = "Molten Test Core - Wed, Dec 9, 2026, 8:05 PM" })
+  eq(vm.count, 2)
+  eq(vm.everything, false)
+  eq(vm.session, "Molten Test Core - Wed, Dec 9, 2026, 8:05 PM")
+  eq(exchange.verify(vm.text), 2)
+  is_true(string.find(vm.text, "Helm of Samples", 1, true) == nil)
+  -- nothing picked: nothing to export
+  vm = exchange.exportModel(false, { ids = {}, label = "Gone" })
+  eq(vm.count, 0)
+  eq(vm.text, nil)
+  -- the usual export has no name
+  eq(exchange.exportModel(true).session, nil)
+end)

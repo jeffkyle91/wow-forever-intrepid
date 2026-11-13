@@ -259,11 +259,13 @@ function Exchange.new(context)
   ---------------------------------------------------------------------------------------------------------------
 
   -- The view-model of the export window (ui/ExportWindow): which awards the string holds is decided by Awards.select (spec 6.1),
-  -- and the string never passes Awards.LIMIT: what does not fit waits for the next export (`left`).
-  function self.exportModel(everything)
+  -- and the string never passes Awards.LIMIT: what does not fit waits for the next export (`left`). `only` = { ids = award id ->
+  -- true, label = "Molten Core - Wed, Dec 9, 2026, 8:05 PM" }: those awards only, a night or a raid of the loot history.
+  function self.exportModel(everything, only)
     local at = now()
     local night = db.night and { model = { phase = db.night.phase }, known = db.night.known or {} } or nil
-    local selected = Awards.select(log(), night, at, everything)
+    everything = everything and not only
+    local selected = Awards.select(log(), night, at, everything, only and only.ids)
     local plain = {}
     for index, award in ipairs(selected.awards) do plain[index] = forExport(award) end
     selected.awards = plain
@@ -271,6 +273,7 @@ function Exchange.new(context)
     local vm = {
       count = selected.count, new = selected.new, changed = selected.changed, left = selected.left, hasNight = night ~= nil,
       everything = everything and true or false, sessionOpen = context.sessionOpen and context.sessionOpen() or false,
+      session = only and only.label or nil,
     }
     if selected.count > 0 then
       vm.text = Awards.encode({

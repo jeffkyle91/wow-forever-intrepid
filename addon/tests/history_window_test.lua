@@ -30,7 +30,8 @@ local function setup(options)
   scene.kit = ns.UI.Kit.new({
     density = options.density, chrome = options.chrome, onError = function(err) scene.errors[#scene.errors + 1] = tostring(err) end,
   })
-  scene.window = ns.UI.HistoryWindow.new(scene.kit)
+  scene.calls = {}
+  scene.window = ns.UI.HistoryWindow.new(scene.kit, { export = function(pick) scene.calls[#scene.calls + 1] = pick end })
   scene.parts = scene.window.parts
   return scene
 end
@@ -365,7 +366,8 @@ test("a new award while the window is open: the raid picked, the search and the 
   scene.window.update(vm(scene, log))
   local rows, _, picked = scene.window.shown()
   eq(#rows, 4)
-  eq(picked.placeText, "Molten Test Core")
+  eq(picked.kind, "night") -- a night of one raid is listed as the night
+  eq(picked.raids[1].placeText, "Molten Test Core")
   eq(text(scene, scene.parts.awardList.lines[1].item), "Late Test Bracers")
 end)
 
@@ -385,8 +387,219 @@ test("the window holds together: compact and roomy, stock and flat, empty and fu
         local problems = Intact.problems(scene.game, scene.window.window.frame)
         if #problems > 0 then print(density, chrome, count, table.concat(problems, "\n")) end
         deep_eq(problems, {})
+        for _, button in ipairs({ scene.parts.raiderButton, scene.parts.datesButton }) do
+          scene.game.fire(button, "OnClick", "LeftButton")
+          problems = Intact.problems(scene.game, scene.window.window.frame)
+          if #problems > 0 then print(density, chrome, count, "a dropdown open", table.concat(problems, "\n")) end
+          deep_eq(problems, {})
+        end
+        if count > 0 then
+          scene.game.fire(scene.parts.raidList.lines[2].frame, "OnClick", "LeftButton")
+          deep_eq(Intact.problems(scene.game, scene.window.window.frame), {})
+        end
         deep_eq(scene.errors, {})
       end
     end
   end
+end)
+
+-- Molten Test Core then Onyx Test Lair on Dec 9 (one night, two raids), Hollow Test Keep alone on Dec 16.
+local function nightsLog()
+  return {
+    award(1, { to = "Jorren Ashvale", item = "Cloak of Fixtures", received = true }),
+    award(2, { to = "Mirabel Quint", item = "Test Blade of Ages" }),
+    award(3, { to = "Jorren Ashvale", item = "Helm of Samples" }),
+    award(4, { place = "Onyx Test Lair", at = WED + 2 * HOUR, to = "Bram Tollet", item = "Ring of Stand-ins" }),
+    award(5, { place = "Hollow Test Keep", at = WED + 7 * DAY, to = "Mirabel Quint", item = "Mantle of Mock Data" }),
+  }
+end
+
+local function dec16(scene) return scene.ns.History.dayNumber(2026, 12, 16) end
+
+-- The lines of a dropdown's list on screen: "text count", with " *" for the one picked now.
+local function choiceLines(scene, list)
+  local lines = {}
+  for _, line in ipairs(list.lines) do
+    if shown(scene, line.frame) then
+      local picked = scene.game.state(line.selected).shown ~= false
+      lines[#lines + 1] = text(scene, line.text) .. " " .. text(scene, line.count) .. (picked and " *" or "")
+    end
+  end
+  return lines
+end
+
+local function pressChoice(scene, list, words)
+  for _, line in ipairs(list.lines) do
+    if shown(scene, line.frame) and text(scene, line.text) == words then return press(scene, line.frame) end
+  end
+  error("no choice " .. words)
+end
+
+test("a night of two raids is listed with its raids under it; a night of one raid as that raid", function()
+  local scene = setup()
+  scene.window.open(vm(scene, nightsLog()))
+  deep_eq(raidLines(scene), {
+    "All raids / 5 awards / ",
+    "Wed, Dec 16, 2026 / Hollow Test Keep, 8:05 PM / 1",
+    "Wed, Dec 9, 2026 / 2 raids, 8:06 PM to 10:05 PM / 4",
+    "Molten Test Core / 8:06 PM to 8:08 PM / 3",
+    "Onyx Test Lair / 10:05 PM / 1",
+  })
+  local W = scene.ns.UI.HistoryWindow
+  eq(W.raidSpan({ time = "8:05 PM", lastTime = "8:05 PM" }), "8:05 PM")
+  eq(W.raidSpan({}), "")
+  eq(text(scene, scene.parts.raidsHead), "NIGHTS AND RAIDS")
+  deep_eq(scene.errors, {})
+end)
+
+test("Export: off under All raids, Export night or Export raid once one is picked, and the engine is told which", function()
+  local scene = setup()
+  scene.window.open(vm(scene, nightsLog()))
+  local export = scene.parts.exportButton
+  eq(text(scene, export), "Export")
+  eq(scene.game.state(export).enabled, false)
+  press(scene, export)
+  deep_eq(scene.calls, {})
+  press(scene, scene.parts.raidList.lines[3].frame) -- the night of Dec 9
+  eq(#awardLines(scene), 4)
+  eq(text(scene, scene.parts.count), "4 of 5 awards")
+  eq(text(scene, export), "Export night")
+  eq(scene.game.state(export).enabled, true)
+  press(scene, export)
+  eq(scene.calls[1].kind, "night")
+  eq(scene.calls[1].label, "Wed, Dec 9, 2026: Molten Test Core, Onyx Test Lair")
+  local _, _, picked = scene.window.shown()
+  eq(scene.calls[1].key, picked.key)
+  press(scene, scene.parts.raidList.lines[4].frame) -- Molten Test Core of that night
+  eq(#awardLines(scene), 3)
+  eq(text(scene, export), "Export raid")
+  press(scene, export)
+  deep_eq({ scene.calls[2].kind, scene.calls[2].label }, { "raid", "Molten Test Core - Wed, Dec 9, 2026, 8:06 PM" })
+  is_true(scene.game.state(scene.parts.raidList.lines[4].selected).shown ~= false)
+  eq(scene.game.state(scene.parts.raidList.lines[3].selected).shown, false)
+  press(scene, scene.parts.raidList.lines[2].frame) -- a night of one raid: exported as a night
+  eq(text(scene, export), "Export night")
+  press(scene, scene.parts.raidList.lines[1].frame)
+  eq(scene.game.state(export).enabled, false)
+  deep_eq(scene.errors, {})
+end)
+
+test("the Raider dropdown: every winner with a count, a find box, and the pick narrows both lists", function()
+  local scene = setup()
+  scene.window.open(vm(scene, nightsLog()))
+  eq(text(scene, scene.parts.raiderButton), "Raider: All")
+  eq(shown(scene, scene.parts.raiderPopup), false)
+  press(scene, scene.parts.raiderButton)
+  eq(shown(scene, scene.parts.raiderPopup), true)
+  deep_eq(choiceLines(scene, scene.parts.raiderList), { "All raiders 5 *", "Bram Tollet 1", "Jorren Ashvale 2", "Mirabel Quint 2" })
+  scene.game.state(scene.parts.raiderFind).text = "mir"
+  scene.game.fire(scene.parts.raiderFind, "OnTextChanged", true)
+  deep_eq(choiceLines(scene, scene.parts.raiderList), { "All raiders 5 *", "Mirabel Quint 2" })
+  scene.game.state(scene.parts.raiderFind).text = "quint mir"
+  scene.game.fire(scene.parts.raiderFind, "OnTextChanged", true)
+  deep_eq(choiceLines(scene, scene.parts.raiderList), { "All raiders 5 *", "Mirabel Quint 2" })
+  pressChoice(scene, scene.parts.raiderList, "Mirabel Quint")
+  eq(shown(scene, scene.parts.raiderPopup), false)
+  eq(text(scene, scene.parts.raiderButton), "Raider: Mirabel Quint")
+  deep_eq(awardLines(scene), {
+    "Dec 16, 8:05 PM | Mantle of Mock Data | Mirabel Quint | Hollow Test Keep | Awarded",
+    "Dec 9, 8:07 PM | Test Blade of Ages | Mirabel Quint | Molten Test Core | Awarded",
+  })
+  deep_eq(raidLines(scene), {
+    "All raids / 2 awards / ",
+    "Wed, Dec 16, 2026 / Hollow Test Keep, 8:05 PM / 1",
+    "Wed, Dec 9, 2026 / 2 raids, 8:06 PM to 10:05 PM / 1",
+    "Molten Test Core / 8:06 PM to 8:08 PM / 1",
+  })
+  eq(text(scene, scene.parts.count), "2 of 5 awards")
+  -- opened again: the find box is empty and the pick is marked
+  press(scene, scene.parts.raiderButton)
+  eq(text(scene, scene.parts.raiderFind), "")
+  eq(choiceLines(scene, scene.parts.raiderList)[4], "Mirabel Quint 2 *")
+  -- its button again closes it, and so does picking a night
+  press(scene, scene.parts.raiderButton)
+  eq(shown(scene, scene.parts.raiderPopup), false)
+  press(scene, scene.parts.raiderButton)
+  press(scene, scene.parts.raidList.lines[2].frame)
+  eq(shown(scene, scene.parts.raiderPopup), false)
+  deep_eq(scene.errors, {})
+end)
+
+test("the Dates dropdown: the last days count back from today, a month is that month; one dropdown open at a time", function()
+  local scene = setup()
+  scene.window.open(vm(scene, nightsLog(), { today = dec16(scene) }))
+  press(scene, scene.parts.raiderButton)
+  press(scene, scene.parts.datesButton)
+  eq(shown(scene, scene.parts.raiderPopup), false)
+  eq(shown(scene, scene.parts.datesPopup), true)
+  deep_eq(choiceLines(scene, scene.parts.datesList), {
+    "Any date  *", "Last 7 days ", "Last 30 days ", "Last 90 days ", "December 2026 ",
+  })
+  pressChoice(scene, scene.parts.datesList, "Last 7 days")
+  eq(text(scene, scene.parts.datesButton), "Dates: Last 7 days")
+  deep_eq(awardLines(scene), { "Dec 16, 8:05 PM | Mantle of Mock Data | Mirabel Quint | Hollow Test Keep | Awarded" })
+  press(scene, scene.parts.datesButton)
+  pressChoice(scene, scene.parts.datesList, "December 2026")
+  eq(#awardLines(scene), 5)
+  press(scene, scene.parts.datesButton)
+  pressChoice(scene, scene.parts.datesList, "Any date")
+  eq(text(scene, scene.parts.datesButton), "Dates: Any")
+  local _, _, _, _, period = scene.window.shown()
+  eq(period, nil)
+  deep_eq(scene.errors, {})
+end)
+
+both("Clear forgets the words, the raider, the dates and the pick; opening again closes a dropdown", function(options)
+  local scene = setup(options)
+  scene.window.open(vm(scene, nightsLog(), { today = dec16(scene) }))
+  press(scene, scene.parts.raidList.lines[3].frame)
+  press(scene, scene.parts.raiderButton)
+  pressChoice(scene, scene.parts.raiderList, "Jorren Ashvale")
+  press(scene, scene.parts.datesButton)
+  pressChoice(scene, scene.parts.datesList, "Last 30 days")
+  typeSearch(scene, "helm")
+  eq(#awardLines(scene), 1)
+  press(scene, scene.parts.raiderButton)
+  press(scene, scene.parts.clearButton)
+  eq(shown(scene, scene.parts.raiderPopup), false)
+  eq(#awardLines(scene), 5)
+  eq(text(scene, scene.parts.raiderButton), "Raider: All")
+  eq(text(scene, scene.parts.datesButton), "Dates: Any")
+  eq(text(scene, scene.parts.searchBox), "")
+  local _, _, picked, raider, period = scene.window.shown()
+  deep_eq({ picked, raider, period }, { nil, nil, nil })
+  press(scene, scene.parts.datesButton)
+  scene.window.open(vm(scene, nightsLog()))
+  eq(shown(scene, scene.parts.datesPopup), false)
+end)
+
+test("picking a night far down the list keeps the list where it was scrolled to", function()
+  local log = {}
+  for n = 1, 30 do log[n] = award(n, { at = WED + n * DAY }) end
+  local scene = setup()
+  scene.window.open(vm(scene, log))
+  for _ = 1, 3 do scene.game.fire(scene.parts.raidList.frame, "OnMouseWheel", -1) end
+  local offset = scene.parts.raidList.offset
+  is_true(offset > 0)
+  local line = scene.parts.raidList.lines[5]
+  local day = text(scene, line.day)
+  press(scene, line.frame)
+  eq(scene.parts.raidList.offset, offset)
+  eq(text(scene, line.day), day)
+  is_true(scene.game.state(line.selected).shown ~= false)
+  eq(#awardLines(scene), 1)
+end)
+
+test("a new award while a night is picked: it stays picked, and a night that grows to two raids lists both", function()
+  local scene = setup()
+  local log = nightsLog()
+  scene.window.open(vm(scene, log))
+  press(scene, scene.parts.raidList.lines[2].frame) -- Hollow Test Keep, a night of one raid
+  log[#log + 1] = award(6, { place = "Onyx Test Lair", at = WED + 7 * DAY + HOUR, item = "Belt of Invented Names" })
+  scene.window.update(vm(scene, log))
+  local _, _, picked = scene.window.shown()
+  eq(picked.kind, "night")
+  eq(#picked.raids, 2)
+  eq(#awardLines(scene), 2)
+  eq(raidLines(scene)[3], "Hollow Test Keep / 8:05 PM / 1")
 end)

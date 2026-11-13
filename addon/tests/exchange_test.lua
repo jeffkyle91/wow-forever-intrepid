@@ -18,6 +18,7 @@ local function engine(options)
     db = db, version = "0.0.17", now = function() return clock.t end, dateOf = function() return "2026-12-09" end,
     random = function(n) counter = counter + 7 return (counter % n) + 1 end,
     sessionOpen = function() return options.open end,
+    place = options.place,
   })
   return exchange, db, clock
 end
@@ -321,4 +322,73 @@ test("the export reads back through the addon's reader and through the reference
     os.remove(path)
     eq(status, 0) -- the reference reader of the tools finds no row error either
   end
+end)
+
+test("each award keeps the dungeon or raid it was made in, for the history; the export leaves it out", function()
+  local where = { name = "Molten Test Core" }
+  local exchange = engine({ place = function() return where.name end })
+  local a = exchange.awarded("c1", entry(1, 900001, "Cloak of Fixtures"), "Tavian Marrow")
+  eq(a.place, "Molten Test Core")
+  where.name = nil
+  local b = exchange.awarded("c1", entry(2, 900002, "Helm of Samples"), "Tavian Marrow")
+  eq(b.place, nil)
+  where.name = string.rep("x", 200)
+  eq(#exchange.awarded("c1", entry(3, 900003, "Ring"), "Tavian Marrow").place, 120)
+  local vm = exchange.exportModel(true)
+  eq(vm.count, 3)
+  is_true(string.find(vm.text, "place", 1, true) == nil)
+  is_true(string.find(vm.text, "Molten Test Core", 1, true) == nil)
+  eq(exchange.verify(vm.text), 3)
+  -- the log keeps it
+  eq(exchange.log()[1].place, "Molten Test Core")
+end)
+
+test("the place comes from the game: a dungeon or raid by its name, nothing outside one or when the call fails", function()
+  -- Exchange.lua loaded again with a game of its own, where GetInstanceInfo is what the test says
+  local function placeWith(getInstanceInfo)
+    local chunk = assert(loadfile("IntrepidManager/game/Exchange.lua"))
+    setfenv(chunk, setmetatable({ GetInstanceInfo = getInstanceInfo }, { __index = _G }))
+    local own = {}
+    chunk("IntrepidManager", own)
+    return own.Game.Exchange.currentPlace()
+  end
+  eq(placeWith(function() return "Molten Test Core", "raid" end), "Molten Test Core")
+  eq(placeWith(function() return "Hollow Test Keep", "party" end), "Hollow Test Keep")
+  eq(placeWith(function() return "Eastern Test Kingdoms", "none" end), nil)
+  eq(placeWith(function() return "", "raid" end), nil)
+  eq(placeWith(function() error("no such call") end), nil)
+  eq(placeWith(nil), nil)
+end)
+
+test("the log keeps the last 10,000 awards: the oldest drop off after that", function()
+  eq(ns.Game.Exchange.MAX_LOG, 10000)
+  local db = { awards = { schema = 1, log = {} } }
+  for n = 1, 10000 do db.awards.log[n] = { id = "s-old-" .. n, rev = 1, at = 1, date = "2026-12-09" } end
+  local exchange = engine({ db = db })
+  exchange.awarded("c1", entry(1, 900001, "Cloak"), "Tavian Marrow")
+  local log = exchange.log()
+  eq(#log, 10000)
+  eq(log[1].id, "s-old-2")
+  eq(log[10000].item, "Cloak")
+end)
+
+test("an export of many awards stays within 100,000 characters and says how many wait for the next one", function()
+  local exchange, _, clock = engine()
+  for n = 1, 600 do
+    clock.t = clock.t + 1
+    exchange.awarded("c1", entry(n, 900000 + n, "A Fairly Long Test Item Name Number " .. n), "Tavian Marrow")
+  end
+  local vm = exchange.exportModel(true)
+  is_true(#vm.text <= 100000)
+  is_true(vm.left > 0)
+  eq(vm.count + vm.left, 600)
+  eq(vm.new, vm.count)
+  eq(exchange.verify(vm.text), vm.count)
+  -- the oldest come first
+  local read = Envelope.read(vm.text, "awards")
+  eq(read.model.awards[1].item, "A Fairly Long Test Item Name Number 1")
+  -- a small export says nothing waits
+  local small = engine()
+  small.awarded("c1", entry(1, 900001, "Cloak"), "Tavian Marrow")
+  eq(small.exportModel(false).left, 0)
 end)

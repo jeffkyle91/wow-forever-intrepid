@@ -14,6 +14,7 @@
 --     hasNight    = true,                 -- a night is loaded (without one, an export holds the awards of the last 14 days)
 --     everything  = false,                -- "Everything, not only what is new" is ticked
 --     sessionOpen = false,                -- a loot session is open: awards given from now on are not in the string
+--     left        = 0,                    -- awards that did not fit in this string (100,000 characters): the next export has them
 --   }
 --
 -- The callbacks (each in pcall):
@@ -34,6 +35,15 @@ local HINT = "Click in the box and press Ctrl+C (Cmd+C on a Mac). The same award
   .. "it already has. When the fight is over, type /reload so the game writes the file."
 local EMPTY = "Nothing to export yet."
 local SESSION_OPEN = "A loot session is open: awards given from now on are not in this string."
+
+-- The warning line: the awards that did not fit come first, as this string is not all of them.
+function ExportWindow.warning(vm)
+  local left = vm.left or 0
+  if left > 0 then
+    return string.format("%.0f more didn't fit: import this one, copy a new night, then export again.", left)
+  end
+  return vm.sessionOpen and SESSION_OPEN or ""
+end
 
 local function awardsText(count)
   return count == 1 and "1 award" or (string.format("%.0f", count) .. " awards")
@@ -141,7 +151,7 @@ function ExportWindow.new(kit, callbacks)
     scroll:SetVerticalScroll(0)
     count:SetText(shown ~= "" and kit.characters(#shown) or "")
     everything:SetChecked(vm.everything == true)
-    warning:SetText(vm.sessionOpen and SESSION_OPEN or "")
+    warning:SetText(ExportWindow.warning(vm))
     if any then selectButton:Enable() else selectButton:Disable() end
   end
 

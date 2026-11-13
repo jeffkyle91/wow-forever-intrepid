@@ -3,6 +3,7 @@
 -- Awards.encode(model)                    the string for an export (the field order of the spec and the envelope)
 -- Awards.check(model)                     the content checks on a decoded awards payload
 -- Awards.select(log, night, now, all)     which awards an export holds (section 6.1, "Which awards an export holds")
+-- Awards.fit(selection, limit)            the first awards of a selection whose string stays within `limit` characters
 --
 -- A check never raises for bad input and never changes the payload. It returns
 --   { ok = false, code = "E_PAYLOAD", message = "..." }   a top-level field is wrong
@@ -32,6 +33,10 @@ local AWARD = Json.object({
 }, { delivery = DELIVERY })
 
 Awards.SHAPE = Json.object({ "schema", "id", "at", "by", "awards" }, { awards = Json.listOf(AWARD) })
+Awards.AWARD = AWARD
+
+-- The longest awards string an export makes: 100,000 characters pasted whole into the game and the Raid Desk (spec section 11).
+Awards.LIMIT = 100000
 
 -- The awards string for `model`: a table with schema, id, at, by and awards (a list of award tables), as in the spec.
 -- A field the spec does not have raises an error (a bug in the caller), so nothing is dropped quietly.
@@ -130,9 +135,10 @@ local DEFAULT_DAYS = 14
 --   * With no night: every award of the last 14 days.
 --   * `all` set: every award.
 -- Returns { awards = {...} in log order, count, new = awards the night does not know, changed = awards the night knows
--- in an older revision }. "Changed" is what the window shows as "4 changed since the night was copied".
+-- in an older revision, kinds = "new", "changed" or false for each award, in the same order }. "Changed" is what the window shows
+-- as "4 changed since the night was copied".
 function Awards.select(log, night, now, all)
-  local result = { awards = {}, count = 0, new = 0, changed = 0 }
+  local result = { awards = {}, count = 0, new = 0, changed = 0, kinds = {} }
   local known, phase = {}, nil
   if night then
     phase = night.model.phase
@@ -150,13 +156,44 @@ function Awards.select(log, night, now, all)
     end
     if keep then
       result.awards[#result.awards + 1] = award
+      local kind = false
       if knownRev == nil then
         result.new = result.new + 1
+        kind = "new"
       elseif knownRev < award.rev then
         result.changed = result.changed + 1
+        kind = "changed"
       end
+      result.kinds[#result.awards] = kind
     end
   end
   result.count = #result.awards
   return result
+end
+
+-- What fits in one string ---------------------------------------------------------------------------------------------
+
+local HEAD_ROOM = 400 -- the envelope, the top-level fields and the brackets, with room to spare
+
+-- The first awards of `selection` (what Awards.select gave) whose awards string stays within `limit` characters (Awards.LIMIT by
+-- default), as a selection of the same shape with `left` = how many awards did not fit. The oldest come first, so that after the
+-- Raid Desk imports them and a new night is copied, the next export holds the rest. Each award is written once to measure it,
+-- and only until the limit is reached, so a long log costs no more than one string's worth.
+function Awards.fit(selection, limit)
+  limit = (limit or Awards.LIMIT) - HEAD_ROOM
+  local kept = { awards = {}, count = 0, new = 0, changed = 0, kinds = {}, left = 0 }
+  local size = 0
+  for index, award in ipairs(selection.awards) do
+    size = size + #Json.encode(award, AWARD) + 1
+    if size > limit and index > 1 then
+      kept.left = #selection.awards - index + 1
+      break
+    end
+    kept.awards[index] = award
+    local kind = selection.kinds and selection.kinds[index]
+    kept.kinds[index] = kind or false
+    if kind == "new" then kept.new = kept.new + 1 elseif kind == "changed" then kept.changed = kept.changed + 1 end
+  end
+  kept.count = #kept.awards
+  return kept
 end

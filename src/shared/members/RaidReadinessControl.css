@@ -1,0 +1,32 @@
+.raid-readiness-control { display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-height: 44px; max-width: 180px; padding: 6px 8px; margin: 6px 0; border: 1px solid #bdcddd; border-radius: 6px; background: transparent; color: inherit; font: 400 12px/1.5 var(--sans); text-align: center; cursor: pointer; }
+.raid-readiness-control:disabled { opacity: 0.6; cursor: default; }
+.raid-readiness-control:focus-visible, .raid-readiness-check:has(input:focus-visible) { outline: 2px solid #2877b9; outline-offset: 3px; }
+.raid-readiness-control small { font-size: 11px; }
+.raid-readiness-track { display: block; height: 5px; min-width: 72px; border-radius: 3px; background: #dce5ed; overflow: hidden; }
+.raid-readiness-track > span { display: block; height: 100%; }
+html:has(.raid-readiness-form), body:has(.raid-readiness-form) { overflow: hidden; }
+.modal:has(> .raid-readiness-form) { overscroll-behavior: contain; }
+.raid-readiness-form { color: #526578; font: 400 13px/1.6 var(--sans); }
+.raid-readiness-form > p { margin: 12px 0; }
+.raid-readiness-progress { display: grid; gap: 5px; padding: 12px; border-radius: 6px; background: #edf4fa; }
+.raid-readiness-progress label { font-weight: 600; }
+.raid-readiness-progress progress { --readiness-track: #dce5ed; appearance: none; display: block; width: 100%; height: 14px; border: 0; border-radius: 7px; overflow: hidden; background: var(--readiness-track); }
+.raid-readiness-progress progress::-webkit-progress-bar { background: var(--readiness-track); border-radius: 7px; }
+.raid-readiness-progress progress::-webkit-progress-value { background: currentColor; border-radius: 7px; }
+.raid-readiness-progress progress::-moz-progress-bar { background: currentColor; border-radius: 7px; }
+.raid-readiness-checks { border: 1px solid #cbd6e0; border-radius: 6px; background: #f0f3f6; padding: 8px 12px; margin: 10px 0; min-width: 0; }
+.raid-readiness-checks > legend { padding: 0 4px; font-weight: 600; }
+.raid-readiness-check { display: flex; align-items: center; gap: 7px; box-sizing: border-box; min-height: 26px; padding: 2px 0; line-height: 1.25; cursor: pointer; }
+.raid-readiness-check input { flex-shrink: 0; width: 18px; height: 18px; margin: 0; accent-color: #2877b9; }
+.raid-readiness-preparation { margin: 2px 0; padding: 0; min-width: 0; border: 0; }
+.raid-readiness-preparation legend { max-width: 100%; padding: 2px 0; font-weight: 600; line-height: 1.25; }
+.raid-readiness-preparation .raid-readiness-check { margin-left: 14px; }
+.raid-readiness-note, .raid-readiness-transition { font-size: 12px; }
+:root[data-theme='dark'] .raid-readiness-form { color: #b4c3d2; }
+:root[data-theme='dark'] .raid-readiness-progress { background: #1d3043; }
+:root[data-theme='dark'] .raid-readiness-progress progress { --readiness-track: #34495c; }
+:root[data-theme='dark'] .raid-readiness-track { background: #34495c; }
+:root[data-theme='dark'] .raid-readiness-control { border-color: #486078; }
+:root[data-theme='dark'] .raid-readiness-control > span:first-child,
+:root[data-theme='dark'] .raid-readiness-control > small { color: #b4c3d2 !important; }
+:root[data-theme='dark'] .raid-readiness-checks { border-color: #3a4b61; background: #172435; }

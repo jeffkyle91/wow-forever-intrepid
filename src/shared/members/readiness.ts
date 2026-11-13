@@ -1,8 +1,42 @@
 import { Timestamp } from 'firebase/firestore'
 
-export type CharacterReadiness = { id: string; ready: boolean; updatedBy: string; updatedAt: Timestamp }
+export const readinessChecks = [
+  { key: 'level60', label: 'Reached level 60' },
+  { key: 'raidRequirements', label: 'Completed the required raid keys and attunements' },
+  { key: 'gear', label: 'Have pre-raid best-in-slot gear, or have spent serious time (multiple hours) working to gear', preparation: true },
+  { key: 'enchants', label: 'Gear is enchanted with mostly the best available options', preparation: true },
+  { key: 'professions', label: 'Made progress in professions that advance this character (300 is not required)', preparation: true },
+  { key: 'talentsAndAbilities', label: 'Appropriately talented and have all abilities trained to maximum ranks', preparation: true },
+  { key: 'rotation', label: 'Understand my rotation and am comfortable with all abilities in my toolkit', preparation: true },
+  { key: 'consumables', label: 'Understand my consumables and have most of them ready' },
+  { key: 'raidKnowledge', label: 'Understand the current raids and have made an effort to learn the fights and zones' },
+] as const
+
+export type ReadinessCheck = typeof readinessChecks[number]['key']
+export type ReadinessChecklist = Record<ReadinessCheck, boolean>
+export type CharacterReadiness = { id: string; ready: boolean; checklist: ReadinessChecklist | null; updatedBy: string; updatedAt: Timestamp }
+
+export function emptyReadinessChecklist(): ReadinessChecklist {
+  return { level60: false, raidRequirements: false, gear: false, enchants: false, professions: false, talentsAndAbilities: false, rotation: false, consumables: false, raidKnowledge: false }
+}
+
+export function isReadinessChecklist(value: unknown): value is ReadinessChecklist {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.keys(value).length === readinessChecks.length
+    && readinessChecks.every(({ key }) => key in value && typeof Reflect.get(value, key) === 'boolean')
+}
+
+export function readinessProgress(checklist: ReadinessChecklist) {
+  const completed = readinessChecks.filter(({ key }) => checklist[key]).length
+  const total = readinessChecks.length
+  return { completed, total, percent: Math.round(completed / total * 100), ready: completed === total }
+}
 
 export function normalizeReadiness(id: string, data: Record<string, unknown>): CharacterReadiness | null {
   if (typeof data.ready !== 'boolean' || typeof data.updatedBy !== 'string' || !data.updatedBy || !(data.updatedAt instanceof Timestamp)) return null
-  return { id, ready: data.ready, updatedBy: data.updatedBy, updatedAt: data.updatedAt }
+  if (data.schemaVersion === undefined && data.checklist === undefined) {
+    return { id, ready: false, checklist: null, updatedBy: data.updatedBy, updatedAt: data.updatedAt }
+  }
+  if (data.schemaVersion !== 1 || !isReadinessChecklist(data.checklist) || data.ready !== readinessProgress(data.checklist).ready) return null
+  return { id, ready: data.ready, checklist: data.checklist, updatedBy: data.updatedBy, updatedAt: data.updatedAt }
 }

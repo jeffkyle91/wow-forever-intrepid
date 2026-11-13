@@ -146,7 +146,7 @@ test("the help lines have no pipe characters either", function()
   for _, line in ipairs(game.printed) do
     eq((line:gsub("^|cff66ccffIntrepid Manager:|r ", "")):find("|", 1, true), nil)
   end
-  is_true(game.output():find("/im window [session, import, export, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect", 1, true) ~= nil)
+  is_true(game.output():find("/im window [session, import, export, history, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect", 1, true) ~= nil)
 end)
 
 test("/im window hands the words to the demo windows, which are made once, with the saved variables and the chat", function()

@@ -525,7 +525,7 @@ local function handle(input)
     windows.offers.update(getCouncil().offerModel())
     windows.offers.show()
   else
-    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list], /im drops [list, all, <numbers> or dj <dungeon>], /im history [words or stats]")
+    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, history, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list], /im drops [list, all, <numbers> or dj <dungeon>], /im history [words or stats]")
   end
 end
 

@@ -5,7 +5,8 @@ local StockTemplates = dofile("tests/support/stock_templates.lua")
 
 local FILES = {
   "core/Crc32", "core/Json", "core/Envelope", "core/Names", "core/Ids", "core/Check", "core/Night", "core/SelfTestSamples",
-  "ui/Kit", "ui/Sample", "ui/Confirm", "ui/Picker", "ui/SessionWindow", "ui/ImportWindow", "ui/ExportWindow", "ui/IconWindow", "ui/Demo",
+  "core/History", "ui/Kit", "ui/Sample", "ui/Confirm", "ui/Picker", "ui/SessionWindow", "ui/ImportWindow", "ui/ExportWindow", "ui/IconWindow",
+  "ui/HistoryWindow", "ui/Demo",
 }
 
 -- A game with the demo in it. Everything it says goes to scene.said; the saved variables are scene.db.
@@ -69,7 +70,7 @@ test("a word the demo does not know gets the help line and opens nothing", funct
   scene.demo.open("sideways")
   eq(#scene.game.frames, 1)
   eq(#scene.said, 1)
-  is_true(string.find(scene.said[1], "I do not know 'sideways'. /im window [session, import, export, icons, picker or confirm]", 1, true) == 1)
+  is_true(string.find(scene.said[1], "I do not know 'sideways'. /im window [session, import, export, history, icons, picker or confirm]", 1, true) == 1)
   eq(string.find(scene.said[1], "|", 1, true), nil) -- the game would read a pipe in the chat as the start of a color or a link
   eq(scene.demo.windows().session, nil)
 end)
@@ -345,4 +346,22 @@ test("the icon test window opens on its own word, one main window at a time, and
   scene.demo.hideAll()
   eq(scene.demo.windows().icons.isShown(), false)
   deep_eq(scene.game.audit(), {})
+end)
+
+test("/im window history shows four weeks of invented raids in the loot history, and gives nothing", function()
+  local scene = setup()
+  scene.demo.open("history")
+  local window = scene.demo.windows().history
+  eq(window.isShown(), true)
+  local rows, raids = window.shown()
+  eq(#rows, 51) -- 4 nights of 12 awards and 3 dungeon runs
+  eq(#raids, 1 + 4 + 4 + 3) -- All raids, then each raid
+  eq(rows[#rows].place, "Molten Test Core")
+  is_true(said(scene, "Showing the history window"))
+  -- another density makes new windows, and the old one is hidden
+  scene.demo.open("history roomy")
+  eq(window.isShown(), false)
+  eq(scene.demo.windows().history.isShown(), true)
+  scene.demo.hideAll()
+  eq(scene.demo.windows().history.isShown(), false)
 end)

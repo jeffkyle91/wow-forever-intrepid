@@ -146,13 +146,43 @@ test("a boss unit the game keeps secret is counted, not read; the master looter'
   eq(boss.name, "Ipsum the Unready")
 end)
 
-test("not the master looter: the same corpse is only trash", function()
+test("not the master looter: the same corpse waits for a roll, and with none it is trash when the wait is over", function()
   local scene = setup({ notMasterLooter = true })
   scene.world.secret["secret boss guid"] = true
   killBoss(scene, 4001, "Ipsum the Unready", "secret boss guid")
   scene.loot.open({ item(900301, 4, creature(BOSS2)) })
   scene.game.send("LOOT_READY", false)
+  eq(source(scene, "n" .. BOSS2), nil)
+  eq(scene.log.holding(), 1)
+  scene.game.advance(scene.ns.DropLog.HOLD + 1)
+  eq(scene.log.holding(), 0)
   eq(source(scene, "n" .. BOSS2).kind, "trash")
+end)
+
+test("group loot in the game: no boss unit, the corpse opened first, the roll filed from the loot history makes it the boss", function()
+  local scene = setup({ notMasterLooter = true })
+  -- the boss units give nothing (as in the live client's dungeons)
+  scene.game.send("ENCOUNTER_START", 4001, "Ipsum the Unready", 1, 5)
+  scene.game.send("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+  scene.game.send("ENCOUNTER_END", 4001, "Ipsum the Unready", 1, 5, 1)
+  scene.loot.open({ item(900301, 4, creature(BOSS2)), item(900302, 2, creature(BOSS2)) })
+  scene.game.send("LOOT_READY", false)
+  eq(scene.log.holding(), 1)
+  -- the roll starts; the loot history has it 2 seconds later
+  scene.world.rolls[11] = { itemId = 900301, quality = 4 }
+  scene.game.send("START_LOOT_ROLL", 11, 60000)
+  scene.world.history[4001] = { { itemHyperlink = link(900301) } }
+  scene.game.advance(3)
+  eq(scene.log.holding(), 0)
+  local boss = source(scene, "n" .. BOSS2)
+  eq(boss.kind, "boss")
+  eq(boss.name, "Ipsum the Unready")
+  eq(boss.items[900301].n, 1)
+  eq(boss.items[900302].n, 1)
+  eq(scene.db.drops.stats.bossUnits, nil)
+  -- nothing more happens when the settle timer comes
+  scene.game.advance(scene.ns.DropLog.HOLD)
+  eq(boss.items[900301].n, 1)
 end)
 
 test("a creature under the mouse that the game calls rare elite: its corpse is a rare, with its name", function()

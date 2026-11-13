@@ -325,6 +325,7 @@ function dropsModel()
     options.journal = journalOptions(dj)
     if not dropsChoice.includeJournal then options.journal.zoneFor = nil end
   end
+  pcall(getDropLog().settle, at) -- the corpses held for their rolls longer than the wait count as creatures now
   local model, counts = ns.Drops.build(getDropLog().store(), options)
   local vm = {
     zones = counts.zones, sources = counts.sources, seen = counts.seen, journal = counts.journal, scope = dropsChoice.scope,

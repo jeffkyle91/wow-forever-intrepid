@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write paste-size test strings for the probe's /ip paste command.
 
-Usage: tools/make-paste-tests.py [output-dir]      (default: paste-tests/, also copied to the share's wow-addon/paste-tests/)
+Usage: tools/make-paste-tests.py [output-dir]      (default: paste-tests/)
 
 Each file is ONE line, no trailing newline: IPASTE:<n>:<n characters>:END
 The characters repeat a fixed 64-character pattern; the probe regenerates it and reports the first damaged position.
@@ -9,7 +9,6 @@ Pattern rule (must match IntrepidProbe/IntrepidProbe.lua): for position p (1-bas
 character = ALPHABET[(i*7 + 3) % 64].
 """
 import os
-import shutil
 import sys
 
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -29,11 +28,6 @@ def main():
         with open(os.path.join(out, "paste-%d.txt" % n), "w", newline="") as f:
             f.write(make(n))
     print("Wrote %d files to %s" % (len(SIZES), out))
-    share = os.environ.get("INTREPID_SHARE", "/Volumes/transfer")
-    dest = os.path.join(share, "wow-addon", "paste-tests")
-    if os.path.isdir(share):
-        shutil.copytree(out, dest, dirs_exist_ok=True)
-        print("Copied to", dest)
 
 
 if __name__ == "__main__":

@@ -108,16 +108,12 @@ test("shift-clicked links are queued in order with numbers, a bad line says what
   eq(master.events[1][1], "onQueueChanged")
 end)
 
-test("starting needs items, a group, no boss fight, and an unused queue", function()
+test("starting needs items, no boss fight, and an unused queue", function()
   local scene = pair()
   local master = scene.master
   master.council.command("start")
   is_true(said(master, "queue items first"))
   queue(scene, 101)
-  master.joined.inGroup = false
-  master.council.command("start")
-  is_true(said(master, "join a group first"))
-  master.joined.inGroup = true
   master.joined.encounter = true
   master.council.command("start")
   is_true(said(master, "a boss fight is on: the game blocks addon messages until it ends"))
@@ -132,6 +128,97 @@ test("starting needs items, a group, no boss fight, and an unused queue", functi
   is_true(said(master, "a session is running already"))
   master.council.command("add " .. link(555, "Thing 555"))
   is_true(said(master, "a session is running. Type /im session end first."))
+end)
+
+-- A loot master alone: nobody is in a group (the raider's client exists, but is not in the loot master's group).
+local function alone(options)
+  local scene = pair(options)
+  scene.master.joined.inGroup = false
+  scene.raider.joined.inGroup = false
+  return scene
+end
+
+test("outside a group a session is a practice: only the loot master is asked, nothing is sent, and its awards never reach the awards log", function()
+  local scene = alone({ exchange = true })
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101, 102, 103)
+  local sends = scene.world.sends
+  master.council.command("start 30")
+  is_true(said(master, "practice (you are not in a group): 3 items, 30 seconds. Only you are asked and nothing is sent; its awards stay out of the awards log and the export."))
+  eq(said(master, "started:"), false)
+  eq(master.council.session().state, "running")
+  eq(master.council.masterModel().practice, true)
+  -- the loot master's own answer frame has the items; nobody else was offered anything
+  eq(#master.council.offerModel().rows, 3)
+  eq(master.council.offerModel().master, "you")
+  scene.world.advance(6)
+  eq(said(raider, "offers 3 items"), false)
+  eq(said(master, "answered the hello"), false)
+  -- the loot master answers, changes an answer, and sees it as the rows of the item
+  master.council.respond("1 up first try")
+  master.council.respond("1 bis changed my mind")
+  is_true(said(master, "item 1: Best in slot - changed my mind"))
+  master.council.respond("2 pass")
+  eq(master.council.session().responders(), 1)
+  eq(master.council.session().counts(1).b, 1)
+  eq(master.council.rowsModel(1)[1].who, "(you)")
+  -- awards: to themself and to the guild bank; a player who is not there cannot win anything
+  master.council.award(1, "Jorren Ashvale")
+  master.council.award(2, "guild bank")
+  master.council.award(3, "Mirelle Dunmore")
+  is_true(said(master, "Mirelle Dunmore is not in your group and has not answered: there is nobody to award item 3 to."))
+  eq(master.council.session().items()[1].winner, "(you)")
+  eq(master.council.session().items()[2].winner, "Guild bank")
+  eq(master.council.masterModel().pending, 2)
+  master.council.trade("(you)")
+  master.council.trade("guild bank")
+  is_true(said(master, "1 item stays with you: marked as given."))
+  is_true(said(master, "1 item is marked as given to Guild bank: you hand it over yourself."))
+  eq(master.council.masterModel().pending, 0)
+  -- a take-back and a new award change nothing in the log either
+  master.council.award(3, "disenchant")
+  master.council.unaward(3)
+  eq(#master.exchange.log(), 0)
+  eq(master.exchange.exportModel(true).count, 0)
+  eq(master.exchange.exportModel(true).text, nil)
+  -- the end: the results say it was a practice, and the record marks it
+  master.council.command("end")
+  is_true(said(master, "over (you ended it): 1 raider answered."))
+  is_true(said(master, "a practice session: only you were asked, and its awards stay out of the awards log."))
+  eq(said(master, "said hello"), false)
+  eq(master.db.council.sessions[1].practice, true)
+  eq(master.db.council.exchangeErrors, nil)
+  scene.world.advance(5)
+  eq(scene.world.sends, sends)
+  eq(#raider.said, 0)
+end)
+
+test("a practice ends by its timer, and the next session in a group is a real one that is sent and logged", function()
+  local scene = alone({ exchange = true })
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101)
+  master.council.command("start 10")
+  master.council.award(1, "Jorren Ashvale")
+  scene.world.advance(20)
+  is_true(said(master, "over (time is up): 0 raiders answered."))
+  eq(master.council.masterModel().practice, true)
+  eq(#master.exchange.log(), 0)
+  -- the group forms: New session, a new queue, and this one is offered to the raider and recorded
+  master.council.command("new") -- the practice's award was not given: the first press warns
+  master.council.command("new")
+  eq(master.council.session(), nil)
+  master.joined.inGroup = true
+  raider.joined.inGroup = true
+  queue(scene, 102)
+  master.council.command("start 30")
+  is_true(said(master, "started: 1 item, 30 seconds."))
+  eq(master.council.masterModel().practice, nil)
+  scene.world.advance(1)
+  is_true(said(raider, "Jorren Ashvale offers 1 item, 30 seconds to answer."))
+  master.council.award(1, "Mirelle Dunmore")
+  eq(#master.exchange.log(), 1)
+  eq(master.exchange.log()[1].to, "Mirelle Dunmore")
+  eq(master.db.council.sessions[1].practice, true)
 end)
 
 test("a session reaches the raider, who answers, and the loot master sees it, then the time runs out and both sides close", function()
@@ -353,7 +440,7 @@ test("respond and offers say what to do when the words are wrong or nothing is o
   raider.council.offers()
   is_true(said(raider, "nothing is on offer."))
   raider.council.command("whatever")
-  is_true(said(raider, "no session. Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds], results [n], end, new. Then /im award <n> <name> and /im trade <name>."))
+  is_true(said(raider, "no session. Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds] (outside a group: a practice just for you), results [n], end, new. Then /im award <n> <name> and /im trade <name>."))
 end)
 
 test("the windows hear about the queue, the offers, the answers and the end through their hooks", function()

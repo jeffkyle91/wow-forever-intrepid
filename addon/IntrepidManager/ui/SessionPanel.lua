@@ -11,6 +11,7 @@
 --   model = {
 --     state = "none" | "building" | "running" | "closed", timer = 60, remaining = 42 (running only), responders = 3,
 --     hellos = 5, group = 8, pending = 2 (awarded and not given yet), notice = "a warning for the status line" (or nil),
+--     practice = true (a practice session, started outside a group: nothing was sent, and its awards are not logged) or nil,
 --     items = { { n, item, name, quality, icon, counts = { b, u, o, p, total }, winner = "who it was awarded to", given = true,
 --                 source = "where it drops: Boss, Dungeon" (or nil) }, ... },
 --   }
@@ -46,17 +47,20 @@ local HINT = "Add the items you want to hand out with Add from bags, then press 
   .. "with a timer and answer in their own window; their answers show here."
 local CLAIM_SHADES = { b = "gold", u = "good", o = "warn", p = "muted" }
 
--- "Running - 42 s left - 3 answered - 5 of 8 have the addon".
+-- "Running - 42 s left - 3 answered - 5 of 8 have the addon"; a practice session (started outside a group) begins with "Practice - ".
 function SessionPanel.statusText(model)
   local items = #(model.items or {})
+  local practice = model.practice and "Practice - " or ""
   if model.state == "running" then
-    local text = "Running - " .. string.format("%.0f", model.remaining or 0) .. " s left - " .. (model.responders or 0) .. " answered"
-    if model.group and model.group > 0 then text = text .. " - " .. (model.hellos or 0) .. " of " .. model.group .. " have the addon" end
+    local text = practice .. "Running - " .. string.format("%.0f", model.remaining or 0) .. " s left - " .. (model.responders or 0) .. " answered"
+    if not model.practice and model.group and model.group > 0 then
+      text = text .. " - " .. (model.hellos or 0) .. " of " .. model.group .. " have the addon"
+    end
     if (model.pending or 0) > 0 then text = text .. " - " .. model.pending .. " awarded" end
     return text
   end
   if model.state == "closed" then
-    local text = "Over - " .. (model.responders or 0) .. " answered"
+    local text = practice .. "Over - " .. (model.responders or 0) .. " answered"
     if (model.pending or 0) > 0 then text = text .. " - " .. model.pending .. " to trade" end
     return text
   end

@@ -6,7 +6,9 @@
 --
 --   Loot master:  /im session add [item] [item]     queue the shift-clicked items
 --                 /im session bags                  list the items in your bags that can be traded; /im session bag 1 3 queues them
---                 /im session start [seconds]       offer the queue to the group; the default timer is 60 seconds
+--                 /im session start [seconds]       offer the queue to the group; the default timer is 60 seconds. Outside a
+--                                                   group it is a practice session: only the loot master is asked, nothing is
+--                                                   sent, and its awards never reach the awards log or the export
 --                 /im session results [item]        who answered what;  /im session end  ends it now
 --                 /im award <item> <name>           award an item to a raider (or the Award button next to their answer)
 --                 /im trade <name>                  trade a raider everything that is awarded to them (or the Trade button)
@@ -67,6 +69,7 @@ function CouncilSession.new(context)
   local answersPrinted = 0
   local bagRows = {}
   local lastSid -- the session whose offers came last
+  local practiceIds = {} -- the practice sessions of this load (started outside a group): id -> true
 
   local function say(text) out("Session: " .. text) end
 
@@ -91,10 +94,11 @@ function CouncilSession.new(context)
     log[#log + 1] = { t = math.floor(GetTime() * 100 + 0.5) / 100, e = kind, n = n, c = extra }
   end
 
-  -- Tell the exchange (the awards for the Raid Desk) of something; a failure there never reaches the loot master's session.
-  local function exchange(method, ...)
-    if not context.exchange then return end
-    local ok, problem = pcall(context.exchange[method], ...)
+  -- Tell the exchange (the awards for the Raid Desk) of something about session `key`; a failure there never reaches the loot master's
+  -- session. Nothing of a practice session is told: its awards never reach the awards log or the export.
+  local function exchange(method, key, ...)
+    if not context.exchange or practiceIds[key] then return end
+    local ok, problem = pcall(context.exchange[method], key, ...)
     if not ok then
       local saved = store()
       saved.exchangeErrors = (saved.exchangeErrors or 0) + 1
@@ -641,6 +645,7 @@ function CouncilSession.new(context)
         end
       end
     end
+    if practiceIds[session.id] then return say("a practice session: only you were asked, and its awards stay out of the awards log.") end
     local acksCount = 0
     for _ in pairs(acks) do acksCount = acksCount + 1 end
     say(acksCount .. plural(acksCount, " raider", " raiders") .. " said hello" .. (GetNumGroupMembers and (" of " .. GetNumGroupMembers() .. " in the group") or "") .. ".")
@@ -654,6 +659,7 @@ function CouncilSession.new(context)
     local saved = store()
     saved.sessions[#saved.sessions + 1] = {
       id = session.id, items = ids, timer = session.timer, raiders = session.responders(), hellos = acksCount, how = how,
+      practice = practiceIds[session.id],
     }
   end
 
@@ -663,7 +669,7 @@ function CouncilSession.new(context)
     offers.endSession(session.id)
     if #offers.open() == 0 then fire("onOffersClosed") end
     local chat = groupChat()
-    if chat then ensureOutbox().push(Wire.finish(session.id), chat) end
+    if chat and not practiceIds[session.id] then ensureOutbox().push(Wire.finish(session.id), chat) end
     recordSession(how)
     trace("end", nil, session.responders())
     say("over (" .. how .. "): " .. session.responders() .. plural(session.responders(), " raider", " raiders") .. " answered.")
@@ -709,19 +715,24 @@ function CouncilSession.new(context)
     if not session or session.count() == 0 or session.state ~= "building" then
       return say("queue items first: /im session add [item] or /im session bags.")
     end
+    -- Outside a group nobody else could be asked: the session is a practice, for the loot master alone (the windows, the answers, the
+    -- awards and the countdown), and nothing is sent.
     local chat = groupChat()
-    if not chat then return say("join a group first. The offers go to the group chat.") end
-    -- Ordinary combat is no obstacle (messages go out in it, and the windows are not secure frames); during a boss fight the game blocks
-    -- addon messages, so nobody would get the offer while the timer ran.
-    if IsEncounterInProgress() then
-      return say("a boss fight is on: the game blocks addon messages until it ends, so nobody would get the offer. Start the session after the fight.")
+    local practice = chat == nil
+    if not practice then
+      -- Ordinary combat is no obstacle (messages go out in it, and the windows are not secure frames); during a boss fight the game
+      -- blocks addon messages, so nobody would get the offer while the timer ran.
+      if IsEncounterInProgress() then
+        return say("a boss fight is on: the game blocks addon messages until it ends, so nobody would get the offer. Start the session after the fight.")
+      end
+      if not frame then self.listen() end
+      if not registered then return say("the game would not register the message prefix, so nothing can be sent.") end
     end
-    if not frame then self.listen() end
-    if not registered then return say("the game would not register the message prefix, so nothing can be sent.") end
     local seconds = tonumber(string.match(argument or "", "%d+"))
     local started, why = session.start(seconds)
     if not started then return say(why) end
     local current = session
+    if practice then practiceIds[current.id] = true end
     exchange("beginSession", current.id)
     answersPrinted = 0
     -- Our own offers are known here at once; the group's copy of them is ignored when it comes back.
@@ -730,11 +741,16 @@ function CouncilSession.new(context)
       offer.mine = true
       lastSid = current.id
     end
-    trace("start", current.count(), current.timer)
-    for _, entry in ipairs(current.items()) do
-      ensureOutbox().push(Wire.item(current.id, entry.n, current.count(), current.timer, entry.item, entry.quality, entry.name), chat)
+    trace(practice and "practice" or "start", current.count(), current.timer)
+    if practice then
+      say("practice (you are not in a group): " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer
+        .. " seconds. Only you are asked and nothing is sent; its awards stay out of the awards log and the export. Answer in the window or with /im respond.")
+    else
+      for _, entry in ipairs(current.items()) do
+        ensureOutbox().push(Wire.item(current.id, entry.n, current.count(), current.timer, entry.item, entry.quality, entry.name), chat)
+      end
+      say("started: " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer .. " seconds. Raiders with the addon are asked; answer yourself with /im respond.")
     end
-    say("started: " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer .. " seconds. Raiders with the addon are asked; answer yourself with /im respond.")
     for _, offer in ipairs(offers.list()) do
       if offer.sid == current.id then fire("onOffer", offer) end
     end
@@ -743,7 +759,7 @@ function CouncilSession.new(context)
       if session == current then finishSession("time is up") end
     end)
     C_Timer.After(5, function()
-      if session ~= current then return end
+      if session ~= current or practice then return end
       local count = 0
       for _ in pairs(acks) do count = count + 1 end
       say(count .. plural(count, " raider", " raiders") .. " answered the hello" .. (GetNumGroupMembers and (" of " .. GetNumGroupMembers() .. " in the group") or "") .. ".")
@@ -990,7 +1006,7 @@ function CouncilSession.new(context)
     else
       text = "no session"
     end
-    say(text .. ". Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds], results [n], end, new. Then /im award <n> <name> and /im trade <name>. Raiders: /im offers, /im respond <n> <bis, up, os or pass> [note].")
+    say(text .. ". Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds] (outside a group: a practice just for you), results [n], end, new. Then /im award <n> <name> and /im trade <name>. Raiders: /im offers, /im respond <n> <bis, up, os or pass> [note].")
   end
 
   -- What follows /im session.
@@ -1062,6 +1078,7 @@ function CouncilSession.new(context)
       model.responders = session.responders()
       model.pending = session.pending()
       model.notice = resetNotice()
+      model.practice = practiceIds[session.id]
     end
     return model
   end

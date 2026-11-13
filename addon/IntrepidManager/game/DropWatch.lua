@@ -210,6 +210,7 @@ function DropWatch.new(context)
       if not inside() then return end
       local unit = event == "PLAYER_TARGET_CHANGED" and "target" or "mouseover"
       local npcId, name = creatureOf(unit)
+      if name == "secret" then count("unitsSecret") end
       if npcId then
         local ok, classification = pcall(UnitClassification, unit)
         if ok and not secret(classification) then
@@ -239,7 +240,19 @@ function DropWatch.new(context)
         return
       end
       local window = readWindow()
-      if window then log.window(zone, window, now()) end
+      if window then
+        log.window(zone, window, now())
+        -- a corpse held for its rolls is filed on its own once its time is up, even when nothing else happens
+        if log.holding() > 0 then
+          after(ns.DropLog.HOLD + 1, function()
+            local fine, problem = pcall(log.settle, now())
+            if not fine then
+              count("errors")
+              log.store().stats.lastError = string.sub(tostring(problem), 1, 120)
+            end
+          end)
+        end
+      end
     elseif event == "ENCOUNTER_START" then
       local id, name = ...
       if not secret(id) then

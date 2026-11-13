@@ -148,8 +148,11 @@ test("a guessed boss: only the master looter, only within 5 minutes, only loot a
   local log, db = fresh()
   -- the boss units could not be read (no bossUnit): the encounter is known, its creature is not
   win(log, RAID, 4001, "Ipsum the Unready", {}, T0)
-  -- not the master looter: trash
+  -- not the master looter: no guess; the corpse waits for rolls that never come, then it is trash
   log.window(RAID, window({ slot(900301, 3, creature(BOSS2, "01")) }), T0 + 30)
+  eq(sourceOf(db, RAID, "n" .. BOSS2), nil)
+  eq(log.holding(), 1)
+  log.settle(T0 + 30 + DropLog.HOLD)
   eq(sourceOf(db, RAID, "n" .. BOSS2).kind, "trash")
 
   local log2, db2 = fresh()
@@ -377,7 +380,7 @@ local ALLOWED = {
   store = { schema = true, zones = true, zoneCount = true, itemCount = true, corpses = true, cursor = true, stats = true, last = true },
   zone = { instanceId = true, difficultyId = true, name = true, kind = true, players = true, first = true, last = true, sources = true, count = true, bosses = true, guesses = true, methods = true, wins = true },
   source = { npcId = true, encounterId = true, name = true, kind = true, guessed = true, kills = true, first = true, last = true, items = true, count = true, k = true },
-  item = { n = true, last = true, via = true, name = true, quality = true, boe = true, quest = true, k = true },
+  item = { n = true, last = true, via = true, name = true, quality = true, boe = true, quest = true, k = true, rk = true },
   last = { id = true, name = true, at = true, zone = true, npcs = true, names = true, claimed = true },
 }
 
@@ -529,4 +532,145 @@ test("where an item drops is remembered until the log changes", function()
   eq(log.sourceOf(900101), "The Fixture Warden, Hollow Test Keep") -- the remembered answer
   log.window(DUNGEON, window({ slot(900555, 4, creature(RARE)) }), T0 + 6)
   eq(log.sourceOf(900101), "Renamed Behind Its Back, Hollow Test Keep")
+end)
+
+-- Group loot (the live client, 2026-11-12): no boss units in a dungeon, so the boss is the corpse that held what the loot history
+-- filed under the win's rolls. The rolls come before the window when another player opened the corpse first, after it otherwise.
+local GROUP = { instanceId = 9100, difficultyId = 1, name = "Hollow Test Keep", instanceType = "party", maxPlayers = 5, method = 3 }
+
+test("group loot, rolls first: the corpse holding a rolled item is the boss at once, named after the encounter, each item counted once", function()
+  local log, db = fresh()
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0)
+  log.roll(GROUP, { itemId = 900101, name = "Item 900101", quality = 3 }, 3001, T0 + 5)
+  log.roll(GROUP, { itemId = 900102, name = "Item 900102", quality = 2 }, 3001, T0 + 5)
+  eq(sourceOf(db, GROUP, "e3001").count, 2)
+  log.window(GROUP, window({ slot(900101, 3, creature(BOSS)), slot(900102, 2, creature(BOSS)), slot(900103, 1, creature(BOSS)) }), T0 + 20)
+  eq(log.holding(), 0)
+  local boss = sourceOf(db, GROUP, "n" .. BOSS)
+  eq(boss.kind, "boss")
+  eq(boss.name, "The Fixture Warden")
+  eq(boss.encounterId, 3001)
+  eq(boss.guessed, nil)
+  eq(boss.kills, 1)
+  eq(boss.items[900101].n, 1) -- the roll and the window are one drop
+  eq(boss.items[900102].n, 1)
+  eq(boss.items[900101].via, "window")
+  eq(boss.items[900103], nil) -- below the boss floor
+  eq(sourceOf(db, GROUP, "e3001"), nil) -- the encounter's loose items joined the boss
+  eq(zoneOf(db, GROUP).bosses[BOSS], 3001)
+  eq(db.drops.stats.matchedAtOnce, 1)
+  -- the next run: the boss is known, its corpse is the boss again with no roll needed, and it counts a second kill
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0 + 4000)
+  log.window(GROUP, window({ slot(900101, 3, creature(BOSS, "02")) }), T0 + 4020)
+  eq(sourceOf(db, GROUP, "n" .. BOSS).kills, 2)
+  eq(sourceOf(db, GROUP, "n" .. BOSS).items[900101].n, 2)
+end)
+
+test("group loot, window first: the corpse waits, the late roll makes it the boss, and its other items come with it", function()
+  local log, db = fresh()
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0)
+  log.window(GROUP, window({ slot(900101, 3, creature(BOSS)), slot(900104, 4, creature(BOSS), { boe = true }) }), T0 + 10)
+  eq(log.holding(), 1)
+  eq(sourceOf(db, GROUP, "n" .. BOSS), nil)
+  eq(db.drops.stats.held, 1)
+  -- the loot history files the roll 2 seconds after it started
+  log.roll(GROUP, { itemId = 900101, name = "Item 900101", quality = 3 }, 3001, T0 + 12)
+  eq(log.holding(), 0)
+  local boss = sourceOf(db, GROUP, "n" .. BOSS)
+  eq(boss.kind, "boss")
+  eq(boss.name, "The Fixture Warden")
+  eq(boss.kills, 1)
+  eq(boss.items[900101].n, 1)
+  eq(boss.items[900104].n, 1)
+  eq(boss.items[900104].boe, true)
+  eq(sourceOf(db, GROUP, "e3001"), nil)
+  eq(db.drops.stats.matched, 1)
+  -- the same corpse opened again counts nothing more
+  log.window(GROUP, window({ slot(900101, 3, creature(BOSS)) }), T0 + 30)
+  eq(sourceOf(db, GROUP, "n" .. BOSS).items[900101].n, 1)
+end)
+
+test("group loot: a corpse whose items were never rolled is trash after the wait, and one with nothing a roll could be for never waits", function()
+  local log, db = fresh()
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0)
+  log.roll(GROUP, { itemId = 900101, name = "Item 900101", quality = 3 }, 3001, T0 + 5)
+  -- trash with a Rare item that was not the boss's roll: it waits, then it is trash (Rare is the trash floor)
+  log.window(GROUP, window({ slot(900201, 3, creature(TRASH, "01")) }), T0 + 40)
+  eq(log.holding(), 1)
+  log.settle(T0 + 40 + DropLog.HOLD - 1)
+  eq(log.holding(), 1)
+  log.settle(T0 + 40 + DropLog.HOLD)
+  eq(log.holding(), 0)
+  local trash = sourceOf(db, GROUP, "n" .. TRASH)
+  eq(trash.kind, "trash")
+  eq(trash.items[900201].n, 1)
+  eq(db.drops.stats.heldTrash, 1)
+  -- trash with only white items does not wait, and keeps nothing
+  log.window(GROUP, window({ slot(900202, 1, creature(TRASH, "02")) }), T0 + 50)
+  eq(log.holding(), 0)
+  -- more than 5 minutes after the win nothing waits: trash at once
+  log.window(GROUP, window({ slot(900203, 3, creature(TRASH, "03")) }), T0 + DropLog.WINDOW + 1)
+  eq(log.holding(), 0)
+  eq(sourceOf(db, GROUP, "n" .. TRASH).items[900203].n, 1)
+  -- the boss corpse opened late (after 5 minutes) is trash: the win is too old to match
+  eq(zoneOf(db, GROUP).bosses[TRASH], nil)
+end)
+
+test("group loot: the next window settles the corpses whose wait is over, and a full hold files the oldest", function()
+  local log, db = fresh()
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0)
+  log.window(GROUP, window({ slot(900201, 3, creature(TRASH, "01")) }), T0 + 10)
+  eq(log.holding(), 1)
+  log.window(GROUP, window({ slot(900202, 3, creature(TRASH, "02")) }), T0 + 10 + DropLog.HOLD)
+  eq(log.holding(), 1) -- the first was filed, the second waits
+  eq(sourceOf(db, GROUP, "n" .. TRASH).items[900201].n, 1)
+  local saved = DropLog.MAX_HELD
+  DropLog.MAX_HELD = 2
+  local ok, problem = pcall(function()
+    log.window(GROUP, window({ slot(900203, 3, creature(TRASH, "03")) }), T0 + 30)
+    log.window(GROUP, window({ slot(900204, 3, creature(TRASH, "04")) }), T0 + 31)
+    eq(log.holding(), 2)
+    eq(sourceOf(db, GROUP, "n" .. TRASH).items[900202].n, 1)
+  end)
+  DropLog.MAX_HELD = saved
+  if not ok then error(problem, 0) end
+end)
+
+test("group loot: an encounter with two bosses marks both corpses, and its rolls stay under the encounter", function()
+  local log, db = fresh()
+  win(log, GROUP, 3002, "The Twin Fixtures", {}, T0)
+  log.roll(GROUP, { itemId = 900301, name = "Item 900301", quality = 3 }, 3002, T0 + 3)
+  log.roll(GROUP, { itemId = 900302, name = "Item 900302", quality = 3 }, 3002, T0 + 3)
+  log.window(GROUP, window({ slot(900301, 3, creature(BOSS, "01")) }), T0 + 10)
+  log.window(GROUP, window({ slot(900302, 3, creature(BOSS2, "01")) }), T0 + 12)
+  eq(zoneOf(db, GROUP).bosses[BOSS], 3002)
+  eq(zoneOf(db, GROUP).bosses[BOSS2], 3002)
+  eq(sourceOf(db, GROUP, "n" .. BOSS).kind, "boss")
+  eq(sourceOf(db, GROUP, "n" .. BOSS2).kind, "boss")
+  eq(sourceOf(db, GROUP, "n" .. BOSS2).items[900302].n, 1)
+end)
+
+test("group loot: a creature kept as trash before (a log from build 0.0.19) becomes the boss when its corpse matches", function()
+  local log, db = fresh()
+  -- the old log: the boss corpse was filed as trash after a won encounter more than 5 minutes ago
+  log.window(GROUP, window({ slot(900101, 3, creature(BOSS, "01")) }), T0 - 1000)
+  eq(sourceOf(db, GROUP, "n" .. BOSS).kind, "trash")
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0)
+  log.roll(GROUP, { itemId = 900101, name = "Item 900101", quality = 3 }, 3001, T0 + 4)
+  log.window(GROUP, window({ slot(900101, 3, creature(BOSS, "02")) }), T0 + 20)
+  local boss = sourceOf(db, GROUP, "n" .. BOSS)
+  eq(boss.kind, "boss")
+  eq(boss.encounterId, 3001)
+  eq(boss.items[900101].n, 2)
+end)
+
+test("a rare is never taken for a boss, even when its corpse holds an item rolled for the win", function()
+  local log, db = fresh()
+  log.unit(RARE, "Lord Lorem", "rare")
+  win(log, GROUP, 3001, "The Fixture Warden", {}, T0)
+  log.roll(GROUP, { itemId = 900103, name = "Item 900103", quality = 3 }, 3001, T0 + 4)
+  log.window(GROUP, window({ slot(900103, 3, creature(RARE)) }), T0 + 20)
+  eq(log.holding(), 0)
+  eq(sourceOf(db, GROUP, "n" .. RARE).kind, "rare")
+  eq(zoneOf(db, GROUP).bosses[RARE], nil)
 end)

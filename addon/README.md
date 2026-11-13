@@ -4,7 +4,7 @@ This folder holds the guild's in-game addons for **WoW: Forever** (Lua 5.1, inte
 
 | Path | What |
 | --- | --- |
-| `IntrepidManager/` | **Intrepid Manager**, the loot addon, build 0.0.21 (TOC, entry point, `core/` pure logic, `game/` the loot window, the bags, the trade and the council session, `net/` messages between players, `ui/` windows) |
+| `IntrepidManager/` | **Intrepid Manager**, the loot addon, build 0.0.22 (TOC, entry point, `core/` pure logic, `game/` the loot window, the bags, the trade and the council session, `net/` messages between players, `ui/` windows) |
 | `IntrepidProbe/` | **IntrepidProbe** 0.6.3, a developer tool that records what the client offers. Not for players. See `IntrepidProbe/README.md`. |
 | `tests/` | Lua 5.1 tests, their stand-ins for the game, and the window storyboards |
 | `tools/` | Python tools: the exchange-string fixtures, invented test data, the API-name list and its check. See `tools/README.md`. |

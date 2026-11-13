@@ -2,7 +2,7 @@
 ## Title: Intrepid Manager
 ## Notes: Loot manager for the Intrepid guild. Works with the Raid Desk web app.
 ## Author: Intrepid
-## Version: 0.0.21
+## Version: 0.0.22
 ## SavedVariables: IntrepidManagerDB
 ## OptionalDeps: ForeverDungeonJournal
 

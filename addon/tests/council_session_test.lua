@@ -1056,3 +1056,40 @@ test("the loot master's own note in a practice: written, answered, changed", fun
   eq(master.council.session().rows(1)[1].note, "not lol")
   eq(master.council.session().rows(1)[1].code, "b")
 end)
+
+test("a note saved as it was sends nothing, and a repeated answer is not told as a changed note", function()
+  local scene = pair()
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101)
+  master.council.command("start 60")
+  scene.world.advance(1)
+  local sid = raider.council.offerList().list()[1].sid
+  raider.council.setNote(sid, 1, "for my off-spec")
+  raider.council.answer(1, "o", nil, sid)
+  scene.world.advance(1)
+  local sends = scene.world.sends
+  is_true(raider.council.setNote(sid, 1, "for my off-spec"))
+  is_true(raider.council.setNote(sid, 1, "  for my off-spec  ")) -- the same once cleaned
+  eq(scene.world.sends, sends)
+  -- the same answer arriving twice (a resend) is not a change
+  raider.council.respond("1 os for my off-spec")
+  scene.world.advance(1)
+  eq(count(master, "changed the note"), 0)
+  eq(count(master, "changed to"), 0)
+end)
+
+test("an item awarded to Disenchant or the guild bank shows Awarded, never a missing answer", function()
+  local scene = alone()
+  local master = scene.master
+  queue(scene, 101, 102)
+  master.council.command("start 30")
+  master.council.award(1, "disenchant")
+  master.council.award(2, "guild bank")
+  for n, label in ipairs({ "Disenchant", "Guild bank" }) do
+    local rows = master.council.rowsModel(n)
+    local last = rows[#rows]
+    deep_eq({ last.who, last.label, last.winner, last.missing }, { label, "Awarded", true, nil })
+  end
+  scene.world.advance(40)
+  eq(master.council.rowsModel(1)[#master.council.rowsModel(1)].label, "Awarded")
+end)

@@ -205,7 +205,8 @@ function CouncilSession.new(context)
     local ok, replaced, previous = session.respond(head.n, sender, head.code, head.note)
     if not ok then return end
     trace("got", head.n, head.code)
-    if answersPrinted < MAX_PRINTED_ANSWERS then
+    local repeated = previous ~= nil and previous.code == head.code and (previous.note or "") == (head.note or "")
+    if answersPrinted < MAX_PRINTED_ANSWERS and not repeated then
       answersPrinted = answersPrinted + 1
       if previous and previous.code == head.code then
         say(sender .. " changed the note on item " .. head.n .. (head.note ~= "" and (": " .. head.note) or " (no note now)"))
@@ -1016,7 +1017,10 @@ function CouncilSession.new(context)
       return false
     end
     local cleaned = Wire.cleanNote(text)
-    if offer.myCode then return self.answer(n, offer.myCode, cleaned, sid) end
+    if offer.myCode then
+      if cleaned == (offer.myNote or "") then return true end -- saved as it was: nothing to send
+      return self.answer(n, offer.myCode, cleaned, sid)
+    end
     offer.draftNote = cleaned ~= "" and cleaned or nil
     fire("onOfferChanged", offer)
     return true
@@ -1192,8 +1196,13 @@ function CouncilSession.new(context)
         end
       end
       if winnerKey and not found then
-        local ack = acks[ns.Names.key(entry.winner)]
-        rows[#rows + 1] = { who = entry.winner, label = label, note = "", class = ack and ack.class, winner = true, given = entry.given, missing = true }
+        if PSEUDO_LABEL[ns.Names.key(entry.winner) or ""] then
+          -- Disenchant or Guild bank: nobody was asked, so it is no missing answer
+          rows[#rows + 1] = { who = entry.winner, label = "Awarded", note = "", winner = true, given = entry.given }
+        else
+          local ack = acks[ns.Names.key(entry.winner)]
+          rows[#rows + 1] = { who = entry.winner, label = label, note = "", class = ack and ack.class, winner = true, given = entry.given, missing = true }
+        end
       end
     end
     return rows

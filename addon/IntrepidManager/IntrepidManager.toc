@@ -1,0 +1,46 @@
+## Interface: 16001
+## Title: Intrepid Manager
+## Notes: Loot manager for the Intrepid guild. Works with the Raid Desk web app.
+## Author: Intrepid
+## Version: 0.0.18
+## SavedVariables: IntrepidManagerDB
+## OptionalDeps: ForeverDungeonJournal
+
+core\Crc32.lua
+core\Json.lua
+core\Envelope.lua
+core\Names.lua
+core\Ids.lua
+core\Check.lua
+core\Night.lua
+core\Marks.lua
+core\Awards.lua
+core\Council.lua
+core\Version.lua
+core\SelfTestSamples.lua
+core\SelfTest.lua
+game\LootWindow.lua
+net\CouncilWire.lua
+net\Outbox.lua
+net\MsgTest.lua
+game\Bags.lua
+game\Trade.lua
+game\Exchange.lua
+game\DungeonJournal.lua
+game\CouncilSession.lua
+ui\Kit.lua
+ui\Sample.lua
+ui\Confirm.lua
+ui\Picker.lua
+ui\SessionWindow.lua
+ui\ImportWindow.lua
+ui\ExportWindow.lua
+ui\ResponseFrame.lua
+ui\BagPicker.lua
+ui\SessionPanel.lua
+ui\VersionWindow.lua
+ui\IconWindow.lua
+ui\Inspect.lua
+ui\Demo.lua
+ui\Facts.lua
+IntrepidManager.lua

@@ -105,6 +105,14 @@ local function importModel()
   return { current = getExchange().nightText(), sessionOpen = council ~= nil and council.sessionOpen() }
 end
 
+-- The view-model of the loot history window (ui/HistoryWindow): every award of the log, in the loot master's local time.
+local function historyModel(search)
+  return {
+    history = ns.History.build(getExchange().log(), function(at) return date("*t", at) end),
+    year = tonumber(date("%Y")), limit = ns.Game.Exchange.MAX_LOG, search = search,
+  }
+end
+
 -- The optional addon DungeonJournal (game/DungeonJournal.lua): read only, and only when the player has it. It tells the loot master's
 -- window where an item drops, and /im dj checks what it holds.
 local journal
@@ -206,6 +214,7 @@ local function getCouncilWindows()
     versions = session.versions,
     importNight = function() windows.import.open(importModel()) end,
     exportAwards = function() windows.export.open(getExchange().exportModel(exportEverything)) end,
+    history = function() windows.history.open(historyModel()) end,
   })
   windows.versions = ns.UI.VersionWindow.new(kit, { model = session.versionsModel, check = session.checkVersions })
   -- The night from the Raid Desk, and the awards back to it (docs/spec/exchange-v0.md). The import window shows the new night at once.
@@ -226,6 +235,7 @@ local function getCouncilWindows()
         or "Type /reload so the game writes your awards to its file.")
     end,
   })
+  windows.history = ns.UI.HistoryWindow.new(kit)
   windows.drops = ns.UI.DropsWindow.new(kit, {
     journal = function(on)
       dropsChoice.includeJournal = on
@@ -264,6 +274,7 @@ local function wireCouncilWindows()
   -- An award or a delivery changes the awards string: the export window, when it is on screen, shows the new one.
   local function repaintExport()
     if councilWindows and councilWindows.export.isShown() then councilWindows.export.update(getExchange().exportModel(exportEverything)) end
+    if councilWindows and councilWindows.history.isShown() then councilWindows.history.update(historyModel()) end
   end
   hooks.onAwarded = function()
     repaintPanel()
@@ -396,6 +407,41 @@ local function runDrops(argument)
   out(ns.UI.DropsWindow.summary(vm))
 end
 
+-- /im history [words]: the loot history window, with the words in its search box. /im history stats: how many awards the history
+-- holds, how long building and searching it takes, and how much memory the addon uses, also kept in the saved file (historyStats)
+-- so that the loot owner can watch whether keeping Exchange.MAX_LOG awards is too much.
+local function addonMemory()
+  if not (UpdateAddOnMemoryUsage and GetAddOnMemoryUsage) then return nil end
+  local ok, kilobytes = pcall(function()
+    UpdateAddOnMemoryUsage()
+    return GetAddOnMemoryUsage(ADDON)
+  end)
+  if ok and type(kilobytes) == "number" then return kilobytes end
+  return nil
+end
+
+local function runHistory(argument)
+  local text = string.match(argument or "", "^%s*(.-)%s*$")
+  if string.lower(text) == "stats" then
+    local started = debugprofilestop()
+    local vm = historyModel()
+    ns.History.search(vm.history, "a", nil)
+    local ms = debugprofilestop() - started
+    local rows = vm.history.rows
+    local memory = addonMemory()
+    IntrepidManagerDB.historyStats = {
+      at = GetServerTime(), awards = #rows, raids = #vm.history.raids, ms = math.floor(ms * 10 + 0.5) / 10,
+      memoryKB = memory and math.floor(memory + 0.5) or nil, limit = vm.limit, addonVersion = addonVersion(),
+    }
+    out("History: " .. #rows .. " awards in " .. #vm.history.raids .. " raids" .. (#rows > 0 and (", since " .. rows[#rows].day) or "")
+      .. " (the limit is " .. vm.limit .. "). Built and searched in " .. string.format("%.1f", ms) .. " ms."
+      .. (memory and (" The addon uses " .. string.format("%.0f", memory) .. " KB of memory.") or ""))
+    out("Type /reload to save these numbers to the file.")
+    return
+  end
+  getCouncilWindows().history.open(historyModel(text))
+end
+
 -- /im msgtest [run, stop or clear]: measures addon messages between two clients in a group (net/MsgTest.lua). The client that does
 -- not run it still listens and answers from the start (see ADDON_LOADED below), so the second client needs no command.
 local msgtest
@@ -471,13 +517,15 @@ local function handle(input)
     runJournal(argument)
   elseif command == "drops" then
     runDrops(argument)
+  elseif command == "history" then
+    runHistory(argument)
   elseif command == "offers" then
     getCouncil().offers()
     local windows = getCouncilWindows()
     windows.offers.update(getCouncil().offerModel())
     windows.offers.show()
   else
-    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list], /im drops [list, all, <numbers> or dj <dungeon>]")
+    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list], /im drops [list, all, <numbers> or dj <dungeon>], /im history [words or stats]")
   end
 end
 

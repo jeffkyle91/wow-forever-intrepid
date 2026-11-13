@@ -1,7 +1,7 @@
 -- The entry point (IntrepidManager/IntrepidManager.lua) with a stand-in for the game: /im, /im selftest and the
 -- saved variables. Invented names only. See AGENTS.md.
 
-local MODULES = { "Crc32", "Json", "Envelope", "Names", "Ids", "Check", "Night", "Marks", "Awards", "Council", "Version", "SelfTestSamples", "SelfTest", "DropLog", "Drops" }
+local MODULES = { "Crc32", "Json", "Envelope", "Names", "Ids", "Check", "Night", "Marks", "Awards", "Council", "Version", "SelfTestSamples", "SelfTest", "DropLog", "Drops", "History" }
 
 -- Loads the entry point the way the client does, with its own global environment made of stand-ins.
 -- `options` can set inCombat, noTimer, noBuildInfo and a stand-in `bit`.
@@ -232,4 +232,42 @@ test("the tests load the modules in the order of the TOC", function()
   local files = {}
   for name in toc:gmatch("core\\([%w]+)%.lua") do files[#files + 1] = name end
   deep_eq(files, MODULES)
+end)
+
+test("/im history stats counts the history, times it, and keeps the numbers in the saved file", function()
+  local game = newGame()
+  game.env.date = os.date
+  game.env.GetTime = function() return 12.5 end
+  load_addon_file("IntrepidManager/game/Exchange.lua", game.ns)
+  game.loaded()
+  game.say("history stats")
+  local text = game.output()
+  is_true(text:find("History: 0 awards in 0 raids (the limit is 10000).", 1, true) ~= nil)
+  is_true(text:find("/reload", 1, true) ~= nil)
+  local stats = game.env.IntrepidManagerDB.historyStats
+  eq(stats.awards, 0)
+  eq(stats.limit, 10000)
+  eq(stats.memoryKB, nil) -- no memory call in this stand-in
+  -- with awards and the memory call
+  game.env.IntrepidManagerDB.awards = { schema = 1, log = {
+    { id = "s-a-1", rev = 1, at = 1796846700, date = "2026-12-09", item = "Cloak", to = "Tavian Marrow", place = "Molten Test Core" },
+  } }
+  game.env.UpdateAddOnMemoryUsage = function() end
+  game.env.GetAddOnMemoryUsage = function(name) return name == "IntrepidManager" and 1234.4 or 0 end
+  game.say("history stats")
+  text = game.output()
+  is_true(text:find("History: 1 awards in 1 raids, since ", 1, true) ~= nil)
+  is_true(text:find("The addon uses 1234 KB of memory.", 1, true) ~= nil)
+  eq(game.env.IntrepidManagerDB.historyStats.memoryKB, 1234)
+  -- a failing memory call is left out, not raised
+  game.env.GetAddOnMemoryUsage = function() error("not in this client") end
+  game.say("history stats")
+  eq(game.env.IntrepidManagerDB.historyStats.memoryKB, nil)
+  is_true(game.output():find("error:", 1, true) == nil)
+end)
+
+test("the help line names /im history", function()
+  local game = newGame()
+  game.say("")
+  is_true(game.output():find("/im history [words or stats]", 1, true) ~= nil)
 end)

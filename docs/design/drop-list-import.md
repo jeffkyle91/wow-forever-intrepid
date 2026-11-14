@@ -1,6 +1,6 @@
 # Design: drop lists from the game (LOOT-008)
 
-Status: approved as proposed on #202 (the maintainer, 2026-11-14). The addon side, the drop log and its `drops` string, merged in #203 (2026-11-14). The app import is not built.
+Status: the maintainer approved #202 as proposed (2026-11-14). The addon side, the drop log and its `drops` string, merged in #203 (2026-11-14). The app import is not built.
 
 This design covers:
 - the import LOOT-008 still lists as remaining ("full capture-file import with validated preview"). It doesn't cover LOOT-008's other remaining item, moving or replacing an item.
@@ -415,7 +415,7 @@ The DungeonJournal part was built at the loot owner's request (build 0.0.18) and
 
 ## 12. Backlog, pull requests and order
 
-**Mapping, decided by the maintainer on #202 (2026-11-14):**
+**Mapping, decided by the maintainer (#202, 2026-11-14):**
 - The `drops` format and the probe steps: ADDON-001 (#193), whose spec this is and whose live research is open.
 - The drop log and the export: ADDON-002.
 - The app import: part of LOOT-008, with move and replace still open. It feeds LOOT-007's "confirmation of complete Forever loot data".
@@ -457,7 +457,7 @@ The DungeonJournal part was built at the loot owner's request (build 0.0.18) and
 - **D2.** Store the game's instance id on a guild zone, so later imports match it even when its name differs from the game's? The December 9 raids are made in Settings with names the leaders chose. It's a rules change with tests. **Decided (the maintainer, 2026-11-14, as proposed): yes.**
 - **D3.** Trash items start unticked, and only items from 2 or more trash creatures are offered for the zone-wide list. **Decided (the loot owner, 2026-11-12): yes.**
 - **D4.** The backlog mapping in section 12. **Decided (the maintainer, 2026-11-14, as proposed):** the format and probes under ADDON-001, the drop log and export under ADDON-002, the app import under LOOT-008.
-- **D5.** Should the night string carry the app's zones, so the addon can put `zoneId` in the string? Proposed: when "Copy for addon" is built, not before. Open: the loot owner is building "Copy for addon" (ADDON-002).
+- **D5.** Should the night string carry the app's zones, so the addon can put `zoneId` in the string? Proposed: when "Copy for addon" is built, not before. Open: "Copy for addon" isn't built yet (ADDON-002).
 - **D6.** May items from DungeonJournal (All Rights Reserved) be saved in the guild's drop lists at all, one creature at a time, with their own Log reason? Or should they stay information in the preview? The maintainer's call for this public repository. **Decided (the maintainer, 2026-11-14, as proposed): information in the preview, until decided otherwise.**
 - **D7.** An item Wowhead doesn't know yet can be saved to a drop list, but Browse drops can't make a priority for it, because a priority stores the item's name. Proposed options: wait for Wowhead, or store the game's name as a fallback (a rules and data change). Open: #202 had no single proposal to approve.
 - **D8.** Which loot masters run the drop log on December 9, and how they get the build before the production addon (ADDON-002, target December 22)? **Decided (the loot owner, 2026-11-12): every team's loot master, from a zip with install steps the loot owner hands out before November 30.**

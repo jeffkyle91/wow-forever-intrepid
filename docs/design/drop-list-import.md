@@ -1,12 +1,12 @@
 # Design: drop lists from the game (LOOT-008)
 
-Status: draft for review, 2026-11-12. Nothing in the app is built.
+Status: approved as proposed on #202 (the maintainer, 2026-11-14). The addon side, the drop log and its `drops` string, merged in #203 (2026-11-14). The app import is not built.
 
 This design covers:
 - the import LOOT-008 still lists as remaining ("full capture-file import with validated preview"). It doesn't cover LOOT-008's other remaining item, moving or replacing an item.
 - the addon side that feeds it: what the addon records in the game, and the `drops` string it exports.
 
-The backlog mapping is a proposal for the maintainer ([section 12](#12-backlog-pull-requests-and-order)). Every name and number in the examples is invented.
+The backlog mapping is decided ([section 12](#12-backlog-pull-requests-and-order)). Every name and number in the examples is invented.
 
 ## Why
 
@@ -138,7 +138,7 @@ The game's own journal (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncou
   - DungeonJournal is All Rights Reserved.
   - Its code and data never enter this repository. Fixtures and examples are invented, and DungeonJournal joins the no-copy list in `AGENTS.md`.
   - Storing a journal list in the guild's Firestore, where every member reads it, is more than one player reading it on their own screen. Whether it may be saved at all is decision [D6](#open-questions).
-- **Until D6 is answered:**
+- **Until decided otherwise (D6, the maintainer, 2026-11-14):**
   - Journal items show in the preview as information ("DungeonJournal lists it; not seen in the game") and can't be ticked.
   - The preview compares, and a leader can still type an item in by hand after checking it.
 - **If saving is allowed.** Journal items are ticked one creature at a time, never for a whole paste. They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from. A dungeon the journal calls incomplete shows that note in the preview.
@@ -146,7 +146,7 @@ The game's own journal (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncou
 
 ## 5. The drops string
 
-**Envelope.** A new kind, `drops`, schema 1: `IM1:drops:j:<length>:<payload>:<crc>`. The full definition goes in a new section 14 of `docs/spec/exchange-v0.md`. The existing sections keep their numbers, because other documents link to them. The envelope gives three things raw JSON can't:
+**Envelope.** A new kind, `drops`, schema 1: `IM1:drops:j:<length>:<payload>:<crc>`. The full definition is [section 14 of `docs/spec/exchange-v0.md`](../spec/exchange-v0.md#14-the-drops-string-addon-to-app). The existing sections keep their numbers, because other documents link to them. The envelope gives three things raw JSON can't:
 - the checksum and length catch a truncated or retyped paste;
 - the `|` character and non-ASCII names pass safely through the game's edit box;
 - a string pasted into the wrong box gets a clear message.
@@ -190,7 +190,7 @@ The game's own journal (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncou
 
 **Content rules:**
 - **Evidence.** Every id in `itemIds` has evidence in `seen`, `journal` or `ej`, and every id there is in `itemIds`.
-- **Duplicates.** The first row with a key wins, as spec section 2 says.
+- **Duplicates.** Rows with the same key are merged, as several strings are (below). A repeated key is not a row error.
   - A zone's key is `zoneId`, else `instanceId` plus `difficultyId`, else the name key.
   - A source's key is `npcId`, else `encounterId`, else the name key.
 - **Several strings in one paste.** They're merged by those keys before the preview. A count seen by two clients is taken as the larger one, never the sum.
@@ -198,6 +198,13 @@ The game's own journal (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncou
 - **Row errors.** A zone that fails is dropped as `zone:N`, and a source that fails as `zone:N/source:M`. An item listed under two creatures of a zone is not an error; the preview reports it.
 
 **Size.** One raid zone after a night is about 2,000 to 7,000 characters; a journal dungeon is at most about 4,000. The export window makes one string for the zones picked. Copying a long string out of the game hasn't been measured; it's a probe step.
+
+**Where the code differs (2026-11-14).** `addon/IntrepidManager/core/Drops.lua` (#203) makes the string, and the spec follows the code:
+- **Repeated keys.** A second zone or source with the same key is not a row error, so the importer merges it as it merges several strings. This draft said the first row wins, as spec section 2 says for the other strings.
+- **Order.** Sources come by kind (bosses, rares, trash; trash with the most kills first), then by `first`, which is a date, then by name. The bosses of one night are in name order, not kill order, so section 6's "encounter order" is this order.
+- **Dates.** `first`, `last` and a seen item's `last` are UTC dates: a raid on a US evening has the next day's date.
+- **Journal.** `journal` is `ForeverDungeonJournal/unknown` when DungeonJournal gives no version. Its zone-wide list is never sent.
+- **Kills** count kills known from rolls too, not only corpses opened.
 
 ## 6. Matching
 
@@ -231,7 +238,7 @@ The game's own journal (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncou
 
 **Differs.** A matched guild creature whose name or kind differs from the source's gets a **Differs** row, unanswered: keep the app's, or rename it in an audited edit. Bundled creatures keep their names (decision 2a).
 
-**Order.** New creatures follow the string's encounter order among themselves. A new creature that comes right after a matched creature in the string is placed right after it. Otherwise it goes after the zone's last creature. The preview shows the proposed order; the editor's arrows change it later.
+**Order.** New creatures follow the string's order among themselves (spec section 14.3: by kind, then by first date and name). A new creature that comes right after a matched creature in the string is placed right after it. Otherwise it goes after the zone's last creature. The preview shows the proposed order; the editor's arrows change it later.
 
 **A boss with no items yet** (its kill was seen, nothing passed the filters) is offered as an opt-in row, unticked. Saved, it exists, but Browse drops and the boss order only show creatures that have items.
 
@@ -278,7 +285,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Creature a leader took out** | Unticked, opt-in. Ticking it brings it back with the items, in one write. |
 | **New item: seen in the game, or in the Encounter Journal** | Ticked, also when Wowhead doesn't know it yet. A quest item ("starts a quest") is unticked. |
 | **New item: from trash** | Unticked. Offered for the zone-wide list instead when 2 or more different trash creatures dropped it. |
-| **New item: DungeonJournal only** | Information only until D6. If D6 allows saving, unticked and ticked per creature. |
+| **New item: DungeonJournal only** | Information only (D6). If that's ever changed to allow saving, unticked and ticked per creature. |
 | **Already listed**, **On another creature** | Can't be ticked. |
 | **Taken off by a leader** | Unticked, opt-in. |
 | **Error** | Can't be ticked. Shows the reason. |
@@ -385,8 +392,8 @@ Every name and id is invented. "The phase" is the one picked in the editor.
 - `src/features/loot/TablesEditor.tsx` and a new import panel. Save is disabled while previewing; "make a new zone" checks the Guild Leader (`canEditRoster`).
 - `ARCHITECTURE.md`:
   - the `n{npcId}` and `e{encounterId}` keys and why they avoid the `npc` prefix;
-  - zones made from the import (if D1 allows);
-  - the ROADMAP "zones in Settings" decision, amended if D1 is accepted.
+  - zones made from the import (D1);
+  - the ROADMAP "zones in Settings" decision, amended by D1.
 
 ## 10. The source line in the loot master's window
 
@@ -396,7 +403,7 @@ The loot master's session window shows, above the answers to the picked item, wh
 
 The raider's answer frame is out of scope here: carrying a source to raiders changes the message format (ADDON-002). DungeonJournal also adds its own line to every item tooltip, ours included.
 
-The DungeonJournal part is built in the addon's private repository at the loot owner's request. The drop log part comes with the drop log.
+The DungeonJournal part was built at the loot owner's request (build 0.0.18) and came into this repository with the addon (#198). The drop log part comes with the drop log.
 
 ## 11. What stays manual
 
@@ -408,11 +415,11 @@ The DungeonJournal part is built in the addon's private repository at the loot o
 
 ## 12. Backlog, pull requests and order
 
-**Proposed mapping, for the maintainer to decide.** This document doesn't assert it.
+**Mapping, decided by the maintainer on #202 (2026-11-14):**
 - The `drops` format and the probe steps: ADDON-001 (#193), whose spec this is and whose live research is open.
-- The drop log and the export: a new ID, or part of ADDON-002 or ADDON-003. ADDON-003 already lists boss identification.
+- The drop log and the export: ADDON-002.
 - The app import: part of LOOT-008, with move and replace still open. It feeds LOOT-007's "confirmation of complete Forever loot data".
-- **The claim:** a work-item issue, since LOOT-008's issue #97 is superseded.
+- **The claim:** issue #202, since LOOT-008's issue #97 is superseded.
 
 **Order, with proposed targets:**
 0. **The claim** (this repository's process comes first): a work-item issue for LOOT-008, and a note on #193 for the format and probes.
@@ -431,27 +438,26 @@ The DungeonJournal part is built in the addon's private repository at the loot o
    - **later, with a second player under master loot:** the guessed-boss and chest rules. They apply only to the master looter, so a group-loot dungeon run doesn't test them.
 
    Target: the dungeon run by November 20.
-2. **The addon work, in the addon's private repository** until ADDON-002 moves it here (#193):
+2. **The addon work, under ADDON-002, in this repository's `addon/`** (it moved here in #198):
    - the DungeonJournal reader and the source line, built at the loot owner's request as build 0.0.18;
-   - the drop log;
-   - the export.
+   - the drop log and the export: merged in #203 (2026-11-14).
 
-   It follows that repository's rules: every new client name listed as unverified in `tools/api-known.json` until a probe confirms it; the test stand-in `FakeLoot` extended with `GetLootSourceInfo`, `GetInstanceInfo` and the encounter events; the beta's timelines replayed as shapes in Lua tests; a storyboard for the export window.
+   It follows the addon's rules (`addon/AGENTS.md`): every new client name listed as unverified in `tools/api-known.json` until a probe confirms it; the test stand-in `FakeLoot` extended with `GetLootSourceInfo`, `GetInstanceInfo` and the encounter events; the beta's timelines replayed as shapes in Lua tests; a storyboard for the export window.
 
    Installed on every loot master's client before December 9 (D8). Target: November 30.
-3. **The docs PR:** this document, section 14 of `exchange-v0.md`, invented fixtures, the `drops` kind in `addon/tools/exchange_fixtures.py` and `synthetic.py`, and DungeonJournal added to the no-copy list in `AGENTS.md`. Target: November 22.
-4. **The app import** (an app PR with unit tests from section 8, and rules tests if D2). Target: December 12, so the lists are ready for priorities around December 15.
+3. **The docs PR:** this document, section 14 of `exchange-v0.md`, invented fixtures, and the `drops` kind in `addon/tools/exchange_fixtures.py` and `synthetic.py`. DungeonJournal is already on the no-copy list in `AGENTS.md`. Target: November 22.
+4. **The app import** (an app PR with unit tests from section 8, and rules tests for D2). Target: December 12, so the lists are ready for priorities around December 15.
 5. **The Encounter Journal again on December 9.** If it lists raid loot, the export adds it.
 
 **Tracking.** The addon's builds count as installed, not deployed. The app PR gets an Unreleased line, and the status follows the usual in-progress, awaiting deployment and released steps.
 
 ## Open questions
 
-- **D1.** May a Guild Leader make a new zone from the import, as an explicit choice that's never the default? Proposed: yes. This amends the ROADMAP decision that zones are kept in Settings.
-- **D2.** Store the game's instance id on a guild zone, so later imports match it even when its name differs from the game's? Proposed: yes. The December 9 raids are made in Settings with names the leaders chose. It's a rules change with tests.
+- **D1.** May a Guild Leader make a new zone from the import, as an explicit choice that's never the default? This amends the ROADMAP decision that zones are kept in Settings. **Decided (the maintainer, 2026-11-14, as proposed): yes.**
+- **D2.** Store the game's instance id on a guild zone, so later imports match it even when its name differs from the game's? The December 9 raids are made in Settings with names the leaders chose. It's a rules change with tests. **Decided (the maintainer, 2026-11-14, as proposed): yes.**
 - **D3.** Trash items start unticked, and only items from 2 or more trash creatures are offered for the zone-wide list. **Decided (the loot owner, 2026-11-12): yes.**
-- **D4.** The backlog mapping in section 12. The maintainer's call.
-- **D5.** Should the night string carry the app's zones, so the addon can put `zoneId` in the string? Proposed: when "Copy for addon" is built, not before.
-- **D6.** May items from DungeonJournal (All Rights Reserved) be saved in the guild's drop lists at all, one creature at a time, with their own Log reason? Or should they stay information in the preview? The maintainer's call for this public repository. Proposed: information only, until decided.
-- **D7.** An item Wowhead doesn't know yet can be saved to a drop list, but Browse drops can't make a priority for it, because a priority stores the item's name. Proposed options: wait for Wowhead, or store the game's name as a fallback (a rules and data change).
+- **D4.** The backlog mapping in section 12. **Decided (the maintainer, 2026-11-14, as proposed):** the format and probes under ADDON-001, the drop log and export under ADDON-002, the app import under LOOT-008.
+- **D5.** Should the night string carry the app's zones, so the addon can put `zoneId` in the string? Proposed: when "Copy for addon" is built, not before. Open: the loot owner is building "Copy for addon" (ADDON-002).
+- **D6.** May items from DungeonJournal (All Rights Reserved) be saved in the guild's drop lists at all, one creature at a time, with their own Log reason? Or should they stay information in the preview? The maintainer's call for this public repository. **Decided (the maintainer, 2026-11-14, as proposed): information in the preview, until decided otherwise.**
+- **D7.** An item Wowhead doesn't know yet can be saved to a drop list, but Browse drops can't make a priority for it, because a priority stores the item's name. Proposed options: wait for Wowhead, or store the game's name as a fallback (a rules and data change). Open: #202 had no single proposal to approve.
 - **D8.** Which loot masters run the drop log on December 9, and how they get the build before the production addon (ADDON-002, target December 22)? **Decided (the loot owner, 2026-11-12): every team's loot master, from a zip with install steps the loot owner hands out before November 30.**

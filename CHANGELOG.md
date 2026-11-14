@@ -6,6 +6,7 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- My dashboard has a preparation checklist and progress bar for each character. Save progress as you go; all nine checks are required to be raid ready. Previously marked characters must complete the checklist too.
 - Guild Roster column headers sort the list in either direction, while keeping alts under their mains.
 - The Guild Roster header shows separate totals for mains and alts.
 

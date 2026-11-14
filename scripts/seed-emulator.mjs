@@ -7,6 +7,12 @@ import { raidStartDate } from '../src/shared/lib/raidStart.ts'
 import { seedRoster } from './seedRoster.ts'
 import { createRequire } from 'node:module'
 import { initializePlanning } from '../functions/raidPlanning.js'
+import { emptyReadinessChecklist, readinessChecks } from '../src/shared/members/readiness.ts'
+
+const readiness = (ready = true) => ({
+  schemaVersion: 1, ready,
+  checklist: { ...emptyReadinessChecklist(), ...Object.fromEntries(readinessChecks.map(({ key }) => [key, ready])) },
+})
 
 const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST
 const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST
@@ -61,15 +67,15 @@ await env.withSecurityRulesDisabled(async (context) => {
     accountByCharacter.set(id, uid)
     if (!USERS.some((user) => user.playerId === id)) await set(`${g}/members/${uid}`, { email: `raider${i + 1}@example.test`, displayName: player.name, role: 'Member', playerId: id })
     await set(`${g}/roster/${id}`, { name: player.name, className: player.className, specialization: player.specialization, role, linkedUid: uid })
-    await set(`${g}/characterReadiness/${id}`, { ready: ![4, 5].includes(i + 1), updatedBy: leaderUid, updatedAt: serverTimestamp() })
+    await set(`${g}/characterReadiness/${id}`, { ...readiness(![4, 5].includes(i + 1)), updatedBy: leaderUid, updatedAt: serverTimestamp() })
     await set(`${g}/teamAssignments/${id}`, { team: player.team })
   }
   await set(`${g}/roster/player-alt`, { name: 'Elowen', className: 'Druid', specialization: 'Restoration', role: 'Healer', mainId: 'player-1' })
-  await set(`${g}/characterReadiness/player-alt`, { ready: true, updatedBy: leaderUid, updatedAt: serverTimestamp() })
+  await set(`${g}/characterReadiness/player-alt`, { ...readiness(), updatedBy: leaderUid, updatedAt: serverTimestamp() })
   await set(`${g}/roster/player-5-alt`, { name: 'Thistle', className: 'Priest', specialization: 'Holy', role: 'Healer', mainId: 'player-5' })
-  await set(`${g}/characterReadiness/player-5-alt`, { ready: true, updatedBy: leaderUid, updatedAt: serverTimestamp() })
+  await set(`${g}/characterReadiness/player-5-alt`, { ...readiness(), updatedBy: leaderUid, updatedAt: serverTimestamp() })
   await set(`${g}/roster/player-reserve`, { name: 'Briar', className: 'Paladin', specialization: 'Holy', role: 'Healer', linkedUid: accountByCharacter.get('player-reserve') })
-  await set(`${g}/characterReadiness/player-reserve`, { ready: true, updatedBy: leaderUid, updatedAt: serverTimestamp() })
+  await set(`${g}/characterReadiness/player-reserve`, { ...readiness(), updatedBy: leaderUid, updatedAt: serverTimestamp() })
   await set(`${g}/roster/player-not-ready`, { name: 'Moss', className: 'Rogue', specialization: 'Combat', role: 'Melee' })
   const date = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
   const zones = [{ id: 'zone-a', name: 'Test Deeps', size: 10 }, { id: 'zone-b', name: 'Test Summit', size: 20 }, { id: 'zone-c', name: 'Test Lair', size: 40 }]

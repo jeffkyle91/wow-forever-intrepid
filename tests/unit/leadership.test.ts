@@ -68,7 +68,7 @@ describe('leadership readiness and responses', () => {
 
 test('readiness normalization refuses invalid flags and stamps', () => {
   const valid = { ready: false, updatedBy: 'account', updatedAt: Timestamp.fromMillis(10) }
-  assert.deepEqual(normalizeReadiness('main', valid), { id: 'main', ...valid })
+  assert.deepEqual(normalizeReadiness('main', valid), { id: 'main', ...valid, checklist: null })
   for (const change of [{ ready: 'false' }, { updatedBy: '' }, { updatedAt: 10 }]) assert.equal(normalizeReadiness('main', { ...valid, ...change }), null)
 })
 

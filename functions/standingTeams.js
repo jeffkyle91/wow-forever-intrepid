@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { id, input, membership } from './access.js'
+import { isRaidReady } from './readiness.js'
 
 export const standingDefinitions = [
   { size: 10, collection: 'teamAssignments', teams: ['blue', 'yellow', 'red', 'white'] },
@@ -26,7 +27,7 @@ export async function changeStandingTeam(db, request) {
     await tx.get(lock)
     const characters = roster.docs.map((entry) => ({ ...entry.data(), id: entry.id }))
     const character = characters.find((entry) => entry.id === data.characterId)
-    if (!character || readiness.data()?.ready !== true) throw new HttpsError('failed-precondition', 'Only raid-ready characters can be added or moved. Existing unready assignments may be removed.')
+    if (!character || !isRaidReady(readiness.data())) throw new HttpsError('failed-precondition', 'Only raid-ready characters with a completed checklist can be added or moved. Existing unready assignments may be removed.')
     const peers = assignments.docs.filter((entry) => entry.id !== data.characterId && entry.data().team === data.team)
     if (peers.length >= data.size) throw new HttpsError('failed-precondition', 'That standing team is full.')
     const identity = (entry) => entry.mainId && characters.some((main) => main.id === entry.mainId && !main.mainId) ? entry.mainId : entry.id

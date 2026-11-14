@@ -449,7 +449,7 @@ Measured with `python3 addon/tools/exchange_fixtures.py measure` on synthetic da
 ## 12. Tests both sides run
 
 - **Readers:**
-  - every file in [fixtures/cases/](fixtures/cases/) gives the result [fixtures/cases/cases.json](fixtures/cases/cases.json) names: an E_ code, or OK with the listed row errors. Where a case gives `sameAs`, it must also decode to that model; where it gives `envelopes`, the importer must find that many strings; where it gives `layer: content`, the error comes from the content checks of step 9 (section 5 or 6), so code that has only the envelope steps (1 to 8) accepts the string;
+  - every file in [fixtures/cases/](fixtures/cases/) gives the result [fixtures/cases/cases.json](fixtures/cases/cases.json) names: an E_ code, or OK with the listed row errors. Where a case gives `sameAs`, it must also decode to that model; where it gives `envelopes`, the importer must find that many strings; where it gives `layer: content`, the error comes from the content checks of step 9 (section 5, 6 or 14), so code that has only the envelope steps (1 to 8) accepts the string;
   - the good fixtures decode to their `.model.json`.
 - **Producers:** encoding a `.model.json` gives the fixture string byte for byte (the app for the night string, the addon for the awards and drops strings).
 - **Content checks:** every case in [fixtures/content-cases.json](fixtures/content-cases.json) names a good model (`night-small` or `awards-small`, from its `.model.json`), a list of edits and the answer. Apply the edits, then run the content checks of step 9: the answer is `E_PAYLOAD` (a top-level field is wrong) or `OK` with the sorted `rowErrors` (none when the key is missing). An edit is `["set", path, value]`, `["delete", path]` or `["append", path, value]`; a path is a list of keys and 1-based list positions, so `["roster", 3, "name"]` is the name of the third roster entry, the one the row error `roster:3` names. The cases are built from data in the tool, so a TypeScript importer reads the same file.
@@ -487,11 +487,11 @@ A **zone** (an instance; the addon keeps one per instance id and difficulty):
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `zoneId` | integer | no | The app's zone id. The addon doesn't write it yet: it waits for "Copy for addon" (design decision D5). A reader checks it when present. |
+| `zoneId` | integer, 1 to 100,000,000 | no | The app's zone id. The addon doesn't write it yet: it waits for "Copy for addon" (design decision D5). A reader checks it when present. |
 | `name` | text, 100 | yes | The instance name the game gives, or the dungeon name DungeonJournal gives. |
 | `kind` | `dungeon` or `raid` | yes | `raid` when the game called the instance a raid, else `dungeon`. A dungeon taken from DungeonJournal alone is always `dungeon`. |
 | `players` | integer, 1 to 40 | yes | The instance size. When the game gave none: 40 for a raid, 5 for a dungeon. |
-| `instanceId` | integer | no | The game's instance id. It is not an app zone id. Absent on a dungeon taken from DungeonJournal alone. |
+| `instanceId` | integer, 1 to 100,000,000 | no | The game's instance id. It is not an app zone id. Absent on a dungeon taken from DungeonJournal alone. |
 | `difficultyId` | integer, 1 or more | no | The game's difficulty id. |
 | `journalPartial` | boolean | no | DungeonJournal calls its list for this dungeon incomplete. |
 | `journalSkipped` | integer, 1 or more | no | How many of DungeonJournal's item ids for this dungeon were skipped as invalid (outside 1 to 100,000,000). |
@@ -501,14 +501,14 @@ A **source** (a creature, or an encounter known only from its rolls):
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `npcId` | integer | no | From the corpse's GUID. Absent for an encounter known only from rolls, and for a DungeonJournal entry without one. |
+| `npcId` | integer, 1 to 100,000,000 | no | From the corpse's GUID. Absent for an encounter known only from rolls, and for a DungeonJournal entry without one. |
 | `encounterId` | integer, 1 or more | no | The won encounter a boss belongs to. |
 | `name` | text, 100 | yes | The creature's name; for a boss known only from rolls, the encounter's name; for a source from DungeonJournal alone, DungeonJournal's name. |
 | `kind` | `boss`, `rare` or `trash` | yes | |
 | `guessed` | boolean | no | A boss guessed from the encounter and not confirmed yet (design section 2.2, step 3). DungeonJournal naming the same npc id as a boss of the dungeon makes it sure, and the field is left out. |
 | `kills` | integer, 1 or more | no | Distinct kills this client saw: corpses opened, and kills known from rolls. Absent when there are none. |
 | `first`, `last` | date | no | The first and last kill seen, as **UTC** dates, so a raid on a US evening has the next day's date. `first` is on or before `last`. Absent on a source from DungeonJournal alone. |
-| `itemIds` | list of integers | yes | 0 to 80 different item ids: the items seen in the game, seen most first (then seen last first, then by id), then DungeonJournal's ids that weren't seen, in its order, while there's room. |
+| `itemIds` | list of integers, each 1 to 100,000,000 | yes | 0 to 80 different item ids: the items seen in the game, seen most first (then seen last first, then by id), then DungeonJournal's ids that weren't seen, in its order, while there's room. |
 | `seen` | list | no | The items seen in the game, in the order of `itemIds`, below. Absent when there are none. |
 | `journal` | list of integers | no | The item ids DungeonJournal lists for this creature, seen or not, in its order: up to 80, each in `itemIds`. |
 | `ej` | list of integers | no | Reserved for the item ids the game's Encounter Journal lists (design section 3). The addon doesn't write it yet. A reader checks it as it checks `journal`. |
@@ -521,12 +521,12 @@ A **seen** entry:
 | `n` | integer, 1 or more | yes | How many kills dropped it. A loot window and a roll of the same item in one kill count once. |
 | `last` | date | yes | The last time it dropped, as a UTC date. |
 | `via` | `window` or `roll` | no | `window` when this client saw it in a loot window at least once, `roll` when only in rolls. |
-| `name` | text, 100 | no | The item's name as the game showed it, for an item Wowhead doesn't know yet. |
+| `name` | text, 100 | no | The item's name as the game showed it, so an item Wowhead doesn't know yet still has a name. |
 | `quality` | integer, 0 to 7 | no | The game's item quality. |
 | `boe` | boolean | no | Binds when equipped. |
 | `quest` | boolean | no | A quest item. |
 
-**Content checks** (step 9 of section 1.1). Text, `null` and `false` follow sections 2 and 3.
+**Content checks** (step 9 of section 1.1). Text, `null` and `false` follow sections 2 and 3: `null` in any list of the string (`zones`, `sources`, `itemIds`, `seen`, `journal`, `ej`) is E_PAYLOAD.
 - **The whole string is E_PAYLOAD** when `id` is not an id, `at` is not an integer from 0, `by` is not text of 1 to 60, `journal` is present and not text of 1 to 100, or `zones` is not a list of 1 to 100.
 - **A zone** that breaks a rule of its table is the row error `zone:N`, by position from 1. Its sources are not checked.
 - **A source** is the row error `zone:N/source:M` when:
@@ -556,7 +556,7 @@ IM1:drops:j:2610:{"schema":1,"id":"d-tq64a0-7k2m","at":1797474600,"by":"Intrepid
 
 ### 14.3 What the addon puts in it
 
-- **Which zones.** `/im drops` takes the zones seen in the last 7 days by default, or the zones the loot master picks, newest first (by the last time the zone was seen). DungeonJournal's lists are added only when the loot master asks, and `/im drops dj <dungeon>` adds a dungeon from DungeonJournal alone, when the log doesn't hold it already.
+- **Which zones.** `/im drops` takes the zones seen in the last 7 days by default, newest first (by the last time the zone was seen); `/im drops all` takes every zone, in the same order; `/im drops 1 3` takes the zones the loot master picks from `/im drops list`, in the order picked. DungeonJournal's lists are added only when the loot master asks. `/im drops dj <dungeon>` makes a string of that one dungeon from DungeonJournal alone, with no zone of the log.
 - **The order of sources.** Bosses, then rares, then trash; trash with the most kills first. Otherwise by `first`, then by name. Sources from DungeonJournal alone come last. Because `first` is a date, the bosses of one night come in name order, not in the order they died.
 - **What's left out.** A trash creature with no item kept is left out; a boss or a rare with none stays, with an empty `itemIds`. DungeonJournal's zone-wide list is never sent.
 

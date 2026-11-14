@@ -461,7 +461,7 @@ def drop_source_ok(s):
 
 
 def check_drops(m):
-    """Section 14.2. A zone that fails is the row error zone:N, and its sources are not looked at; a source that fails is
+    """Section 14.1. A zone that fails is the row error zone:N, and its sources are not looked at; a source that fails is
     zone:N/source:M. Repeated keys are not row errors: the importer merges them (section 14.4)."""
     top_level(is_id(m.get("id")) and is_whole(m.get("at"), 0) and is_text(m.get("by"), 60), "header")
     top_level(optional(m.get("journal"), lambda v: is_text(v, 100)), "journal")

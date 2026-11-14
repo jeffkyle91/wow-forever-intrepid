@@ -13,7 +13,7 @@ local _, ns = ...
 local Drops = {}
 ns.Drops = Drops
 
-local Json, Envelope, Ids = ns.Json, ns.Envelope, ns.Ids
+local Json, Envelope, Ids, Check = ns.Json, ns.Envelope, ns.Ids, ns.Check
 
 Drops.SCHEMA = 1
 Drops.MAX_ZONES = 100
@@ -259,8 +259,9 @@ local function isDate(value)
   return type(value) == "string" and string.find(value, "^%d%d%d%d%-%d%d%-%d%d$") ~= nil
 end
 
+-- Text of 1 to 100 code points, not blank and with no NUL (spec section 2).
 local function isName(value)
-  return type(value) == "string" and #value >= 1 and #value <= MAX_NAME and string.find(value, "%S") ~= nil
+  return Check.isText(value, MAX_NAME, true)
 end
 
 local function isList(value)
@@ -346,7 +347,7 @@ function Drops.check(model)
   if model.schema ~= Drops.SCHEMA then return refuse("schema is not 1") end
   if not Ids.isId(model.id) then return refuse("id is missing or not valid") end
   if not whole(model.at, 0) then return refuse("at is missing") end
-  if not isName(model.by) then return refuse("by is missing") end
+  if not Check.isText(model.by, 60, true) then return refuse("by is missing, blank or too long") end
   if model.journal ~= nil and not isName(model.journal) then return refuse("journal is not text") end
   if not isList(model.zones) or #model.zones < 1 or #model.zones > Drops.MAX_ZONES then return refuse("zones is not a list of 1 to 100") end
   local rowErrors, problems = {}, {}

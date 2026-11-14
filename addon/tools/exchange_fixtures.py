@@ -823,6 +823,23 @@ def cases():
         m["zones"][1]["sources"][0]["kind"] = "elite"
     case("ok-row-errors", "drops", string_for("drops", mutated("drops-small", broken_drops)), "OK",
          ["zone:1/source:2", "zone:1/source:5", "zone:2"])
+
+    # Text (section 2) in the drops box: names count code points, only ASCII spaces are blank, a NUL is a row error in a
+    # row and E_PAYLOAD in `by`, and `by` is at most 60.
+    def drop_name(zone, source, name):
+        return string_for("drops", mutated("drops-small", lambda m: m["zones"][zone]["sources"][source].update(name=name)))
+    case("ok-code-points", "drops", drop_name(0, 0, "é" * 100), "OK")
+    case("ok-code-points-over", "drops", drop_name(0, 0, "é" * 101), "OK", ["zone:1/source:1"])
+
+    def drop_blanks(m):
+        m["zones"][0]["sources"][0]["name"] = "\t\t"  # tabs are text
+        m["zones"][0]["sources"][1]["name"] = "   "   # blank: an error
+    case("ok-blank-names", "drops", string_for("drops", mutated("drops-small", drop_blanks)), "OK", ["zone:1/source:2"])
+    case("ok-nul-in-text", "drops", drop_name(1, 0, "The Fixture\u0000Warden"), "OK", ["zone:2/source:1"])
+    case("bad-nul-in-by", "drops", string_for("drops", dict(drops, by="Intrepid\u0000Manager/0.1.0")), "E_PAYLOAD",
+         layer="content")
+    case("bad-long-by", "drops", string_for("drops", dict(drops, by="IntrepidManager/" + "9" * 45)), "E_PAYLOAD",
+         layer="content")
     return out
 
 

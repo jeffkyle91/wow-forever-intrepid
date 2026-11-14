@@ -1,7 +1,7 @@
 -- The drops string (IntrepidManager/core/Drops.lua): built from the drop log, written, read back through the envelope, and checked the
 -- way the Raid Desk's import will (docs/design/drop-list-import.md, section 5). Invented ids and names only.
 
-local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "DropLog", "Drops")
+local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "DropLog", "Drops")
 local DropLog, Drops, Envelope, Json, Ids = ns.DropLog, ns.Drops, ns.Envelope, ns.Json, ns.Ids
 
 local T0 = 1796866200
@@ -239,6 +239,60 @@ test("the checks drop one zone or one creature with its row, and keep the rest",
     if not checked.ok then error("case " .. i .. ": refused: " .. tostring(checked.message)) end
     local ok, why = pcall(deep_eq, checked.rowErrors, case[2])
     if not ok then error("case " .. i .. ": " .. why) end
+  end
+end)
+
+-- The checks of the decoded sample after one change: { ok = true, rowErrors } or the refusal.
+local function checkedAfter(change)
+  local m = decodedSample()
+  change(m)
+  return Drops.check(m)
+end
+
+-- The text rules of spec section 2, which section 14 follows.
+local E_ACUTE = "\195\169" -- one code point, two bytes
+
+test("a name is counted in code points, not bytes: 100 two-byte letters are a name, 101 are too long", function()
+  for _, place in ipairs({
+    { function(m, name) m.zones[2].name = name end, "zone:2" },
+    { function(m, name) m.zones[2].sources[1].name = name end, "zone:2/source:1" },
+    { function(m, name) m.zones[2].sources[1].seen[1].name = name end, "zone:2/source:1" },
+  }) do
+    local fits = checkedAfter(function(m) place[1](m, string.rep(E_ACUTE, 100)) end)
+    is_true(fits.ok)
+    deep_eq(fits.rowErrors, {})
+    local over = checkedAfter(function(m) place[1](m, string.rep(E_ACUTE, 101)) end)
+    is_true(over.ok)
+    deep_eq(over.rowErrors, { place[2] })
+  end
+end)
+
+test("a name of tabs is text: only ASCII spaces make a name blank", function()
+  local tabs = checkedAfter(function(m) m.zones[2].name = "\t" m.zones[2].sources[1].name = "\t\t" end)
+  is_true(tabs.ok)
+  deep_eq(tabs.rowErrors, {})
+  deep_eq(checkedAfter(function(m) m.zones[2].sources[1].name = "   " end).rowErrors, { "zone:2/source:1" })
+end)
+
+test("by is 1 to 60 characters: 61 refuse the whole string", function()
+  local fits = checkedAfter(function(m) m.by = "IntrepidManager/" .. string.rep("9", 44) end)
+  is_true(fits.ok)
+  local over = checkedAfter(function(m) m.by = "IntrepidManager/" .. string.rep("9", 45) end)
+  eq(over.ok, false)
+  eq(over.code, "E_PAYLOAD")
+end)
+
+test("a NUL in a name is a row error, and in by or journal it refuses the whole string", function()
+  deep_eq(checkedAfter(function(m) m.zones[2].name = "Hollow\0Keep" end).rowErrors, { "zone:2" })
+  deep_eq(checkedAfter(function(m) m.zones[2].sources[1].name = "The Fixture\0Warden" end).rowErrors, { "zone:2/source:1" })
+  deep_eq(checkedAfter(function(m) m.zones[2].sources[1].seen[1].name = "Item\0" end).rowErrors, { "zone:2/source:1" })
+  for _, change in ipairs({
+    function(m) m.by = "IntrepidManager/0.0\0.19" end,
+    function(m) m.journal = "ForeverDungeonJournal/2.0\0.3" end,
+  }) do
+    local refused = checkedAfter(change)
+    eq(refused.ok, false)
+    eq(refused.code, "E_PAYLOAD")
   end
 end)
 

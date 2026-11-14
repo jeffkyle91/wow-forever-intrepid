@@ -116,10 +116,18 @@ function LootWindow.new(context)
 
   -- The candidate of a list that `what` names: a number from the list, "me", "other", or a name (the whole name, or the start
   -- of it when only one candidate fits). Returns the candidate and how it was named ("number", "me", "other", "name"), or nil and why.
-  local function resolve(list, what)
+  -- `strict` (an item of Uncommon or better: GiveMasterLoot gives it at once, with no question, and it binds): only the whole name
+  -- or "me", since a number from an older list or the start of a name can pick someone else.
+  local function resolve(list, what, strict)
     what = comparable(what or "")
     if what == "" then return nil, "Say who gets it: a number from the list, a name, or the word me or other." end
     if #list == 0 then return nil, "Nobody can be given this: you are not the master looter here, or nobody is in range." end
+    if strict and what ~= "me" and what ~= "self" and what ~= "myself" then
+      for _, candidate in ipairs(list) do
+        if comparable(candidate.name) == what then return candidate, "name" end
+      end
+      return nil, "For an item of Uncommon or better type the player's whole name, as /im loot lists it (or me): a number or part of a name could pick someone else."
+    end
     if string.find(what, "^%d+$") then
       local number = tonumber(what)
       for _, candidate in ipairs(list) do
@@ -322,7 +330,7 @@ function LootWindow.new(context)
       say("slot " .. tostring(slot) .. " has no item. Type /im loot to see the slots.")
       return
     end
-    local candidate, kind = resolve(info.candidates, what)
+    local candidate, kind = resolve(info.candidates, what, (info.quality or 0) >= 2)
     if not candidate then return say(kind) end
     say("giving slot " .. slot .. " (" .. tostring(info.link or info.name) .. ") to " .. candidate.name .. "...")
     giveSlot(info, candidate, kind, function(result)
@@ -344,7 +352,7 @@ function LootWindow.new(context)
       say("nothing of quality " .. qualityName(maxQuality) .. " or lower in the window.")
       return
     end
-    local candidate, kind = resolve(plan[1].candidates, what)
+    local candidate, kind = resolve(plan[1].candidates, what, maxQuality >= 2)
     if not candidate then return say(kind) end
     local wanted = comparable(candidate.name)
     local current = { cancelled = false }

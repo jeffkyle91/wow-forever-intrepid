@@ -1094,3 +1094,62 @@ test("an item awarded to Disenchant or the guild bank shows Awarded, never a mis
   scene.world.advance(40)
   eq(master.council.rowsModel(1)[#master.council.rowsModel(1)].label, "Awarded")
 end)
+
+test("Trade pressed again while the item is in the window: the trade there still counts, for one item or for two", function()
+  local scene = tradingPair({ exchange = true })
+  local master = scene.master
+  master.council.award(1, "Mirelle Dunmore")
+  master.council.trade("Mirelle Dunmore")
+  scene.world.advance(2)
+  is_true(scene.trade.slots[1] ~= nil)
+  scene.trade.bags[0][2].locked = true -- the game locks a bag slot while its item is in the trade window
+  master.council.trade("Mirelle Dunmore") -- a double click, or the raider is slow to accept
+  is_true(said(master, "the items are in the trade window with Mirelle Dunmore already: both of you press Trade there."))
+  scene.world.advance(2)
+  scene.trade.bags[0][2].locked = nil
+  scene.trade.accept()
+  scene.world.advance(2)
+  eq(master.council.session().items()[1].given, true)
+  local two = tradingPair({ exchange = true, ids = { 101, 102 } })
+  two.master.council.award(1, "Mirelle Dunmore")
+  two.master.council.award(2, "Mirelle Dunmore")
+  two.master.council.trade("Mirelle Dunmore") -- both go in
+  two.world.advance(3)
+  is_true(two.trade.slots[1] ~= nil and two.trade.slots[2] ~= nil)
+  two.trade.bags[0][2].locked, two.trade.bags[0][3].locked = true, true
+  two.master.council.trade("Mirelle Dunmore") -- item 2's row still shows Trade
+  two.world.advance(3)
+  two.trade.bags[0][2].locked, two.trade.bags[0][3].locked = nil, nil
+  two.trade.accept()
+  two.world.advance(2)
+  local items = two.master.council.session().items()
+  deep_eq({ items[1].given, items[2].given }, { true, true })
+end)
+
+test("while an item is in the trade window its award cannot be changed or taken back; the trade then marks the right winner", function()
+  local scene = tradingPair({ exchange = true })
+  local master = scene.master
+  master.council.award(1, "Mirelle Dunmore")
+  master.council.trade("Mirelle Dunmore")
+  scene.world.advance(2)
+  is_true(scene.trade.slots[1] ~= nil)
+  master.council.award(1, "disenchant")
+  is_true(said(master, "item 1 is in the trade with Mirelle Dunmore: finish or close the trade before changing who gets it."))
+  master.council.unaward(1)
+  is_true(said(master, "item 1 is in the trade with Mirelle Dunmore: finish or close the trade before taking the award back."))
+  eq(master.council.session().items()[1].winner, "Mirelle Dunmore")
+  scene.trade.accept()
+  scene.world.advance(2)
+  local log = master.db.awards.log
+  eq(log[#log].to, "Mirelle Dunmore")
+  eq(log[#log].delivery.state, "received")
+end)
+
+test("a session started with a night copied more than 18 hours ago says so before anything is awarded", function()
+  local scene = pair({ exchange = true })
+  scene.master.db.night = { at = 1796867000 - 3 * 86400, raid = { date = "2026-12-02" }, roster = {}, priorities = {} }
+  queue(scene, 101)
+  scene.master.council.command("start 60")
+  is_true(said(scene.master, "the night loaded (2026-12-02) was copied from the Raid Desk "))
+  is_true(said(scene.master, "ago: import tonight's night (Import night) before awarding, or these awards are filed under that night."))
+end)

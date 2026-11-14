@@ -1004,6 +1004,10 @@ function CouncilSession.new(context)
       say(councilLine(names, rank, alone))
     end
     exchange("beginSession", current.id)
+    if context.exchange and not practice and context.exchange.nightWarning then
+      local okNight, warning = pcall(context.exchange.nightWarning)
+      if okNight and warning then say(warning) end
+    end
     answersPrinted = 0
     -- Our own offers are known here at once; the group's copy of them is ignored when it comes back.
     for _, entry in ipairs(current.items()) do
@@ -1105,6 +1109,9 @@ function CouncilSession.new(context)
     if not name then
       return say(tostring(who) .. " is not in your group and has not answered: there is nobody to award item " .. n .. " to.")
     end
+    if entry.winner and tradeEngine and tradeEngine.holds(entry.item) then
+      return say("item " .. n .. " is in the trade with " .. entry.winner .. ": finish or close the trade before changing who gets it.")
+    end
     local ok, why = session.award(n, name)
     if not ok then return say(why) end
     trace("award", n, nil)
@@ -1126,6 +1133,9 @@ function CouncilSession.new(context)
     if not entry then return say("there is no item " .. tostring(n) .. ".") end
     local was = entry.winner
     if not was then return say("item " .. n .. " is not awarded to anybody.") end
+    if tradeEngine and tradeEngine.holds(entry.item) then
+      return say("item " .. n .. " is in the trade with " .. was .. ": finish or close the trade before taking the award back.")
+    end
     local ok, why = session.award(n, nil)
     if not ok then return say(why) end
     trace("unaward", n, nil)
@@ -1192,7 +1202,15 @@ function CouncilSession.new(context)
           for i, w in ipairs(waiting) do
             if w.item == item then
               table.remove(waiting, i)
-              given(w, "trade")
+              -- only while the item is still theirs: an award changed during the trade is left for the loot master to put right
+              local now = current.item(w.n)
+              if now and now.given then
+                trace("given-already", w.n, nil) -- an earlier press for this player followed the same trade
+              elseif now and now.winner and playerKey(now.winner) == playerKey(name) then
+                given(w, "trade")
+              else
+                say("item " .. w.n .. " left in the trade with " .. name .. ", but it is not awarded to them any more: the awards log was not changed. Award it to " .. name .. " again if they keep it.")
+              end
               break
             end
           end

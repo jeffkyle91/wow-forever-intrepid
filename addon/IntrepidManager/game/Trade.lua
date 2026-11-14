@@ -70,14 +70,41 @@ function Trade.new(context)
     return ns.Names.key(string.match(name, "^([^%-]*)"))
   end
 
-  -- Is the open window with this player? Yes when this addon opened it for them, or when the game says that "npc" (the other party
-  -- of a trade) is them. A window that cannot be placed is never used: the items would go to the wrong player.
-  local function windowIsWith(label)
+  -- Who the open window is with, against the player wanted (label; unit when known): "same", "other" or "unknown". The game calls
+  -- the other party of a trade "npc". Their GUID decides when both are known; else their full name (UnitName gives only the first
+  -- name in this client, measured for "player", so GetUnitName(unit, true) comes first).
+  local function partner(label, unit)
+    local wanted = nameKey(label)
+    if not wanted or wanted == "" then return "unknown" end
+    if unit then
+      local okA, theirs = pcall(UnitGUID, "npc")
+      local okB, guid = pcall(UnitGUID, unit)
+      if okA and okB and type(theirs) == "string" and theirs ~= "" and type(guid) == "string" and guid ~= "" then
+        return theirs == guid and "same" or "other"
+      end
+    end
+    local okFull, full = pcall(GetUnitName, "npc", true)
+    if okFull and type(full) == "string" and full ~= "" and string.find(full, " ", 1, true) then
+      return nameKey(full) == wanted and "same" or "other"
+    end
+    local ok, first = pcall(UnitName, "npc")
+    if ok and type(first) == "string" and first ~= "" then
+      if nameKey(first) == wanted then return "same" end
+      local firstWanted = string.match(wanted, "^(%S+)")
+      if nameKey(first) ~= firstWanted then return "other" end -- not even the first name matches
+    end
+    return "unknown"
+  end
+
+  -- Is the open window with this player? Not when the game says it is with someone else; yes when it says it is them, or (when the
+  -- game does not say) when this addon opened it for them. A window that cannot be placed is never used: the items would go to the
+  -- wrong player.
+  local function windowIsWith(label, unit)
     local wanted = nameKey(label)
     if not wanted or wanted == "" then return false end
-    if ownWindow and nameKey(ownWindow) == wanted then return true end
-    local ok, name = pcall(UnitName, "npc")
-    return ok and nameKey(name) == wanted
+    local who = partner(label, unit)
+    if who ~= "unknown" then return who == "same" end
+    return ownWindow ~= nil and nameKey(ownWindow) == wanted
   end
 
   -- The bag and slot of the first item in the bags with this item string (or else the same item id), or nil; and the third value is
@@ -310,8 +337,13 @@ function Trade.new(context)
       mark(event)
       if run and run.waiting == "show" then
         run.waiting = nil
-        ownWindow = run.label
-        windowReady(run)
+        -- The window may be one somebody else opened while ours did not come (out of range, busy): never place into that.
+        if partner(run.label, run.unit) == "other" then
+          finish(run, "someone else", "the trade window that opened is with someone else, not " .. tostring(run.label) .. ": nothing was placed.")
+        else
+          ownWindow = run.label
+          windowReady(run)
+        end
       end
     elseif event == "TRADE_CLOSED" then
       open = false
@@ -394,9 +426,26 @@ function Trade.new(context)
     if type(items) == "string" then items = { items } end
     items = items or {}
     self.listen()
-    if open and not windowIsWith(options.label) then
+    if open and not windowIsWith(options.label, options.unit) then
       say("a trade window is open, and it is not clear that it is with " .. tostring(options.label or "that player") .. ". Close it, then try again.")
       return false
+    end
+    -- Another press for the same player while earlier items wait in the window: those stay part of the trade. The new run takes them
+    -- over, with whatever waits for the trade's end, and places only what is not in the window yet (the bag slots of the items in the
+    -- window are locked: placing them again would fail, and the trade would no longer be followed).
+    local carried
+    if run and run.placed and open and nameKey(run.label) == nameKey(options.label) then
+      local inWindow = {}
+      for _, entry in ipairs(run.placedList) do inWindow[entry.item] = (inWindow[entry.item] or 0) + 1 end
+      local fresh = {}
+      for _, item in ipairs(items) do
+        if (inWindow[item] or 0) > 0 then inWindow[item] = inWindow[item] - 1 else fresh[#fresh + 1] = item end
+      end
+      if #fresh == 0 then
+        say("the items are in the trade window with " .. tostring(options.label) .. " already: both of you press Trade there.")
+        return false
+      end
+      items, carried = fresh, run
     end
     if run and run.placed then finish(run, "left open", "the earlier item is still in the open window.") end
     if run then
@@ -404,6 +453,9 @@ function Trade.new(context)
       return false
     end
     local entries, used, before, missing = {}, {}, {}, 0
+    for _, entry in ipairs(carried and carried.placedList or {}) do
+      if entry.bag and entry.slot then used[entry.bag .. ":" .. entry.slot] = true end
+    end
     for _, item in ipairs(items) do
       if #entries >= MAX_ITEMS then break end
       local bag, slot, holding = self.locate(item, used)
@@ -430,8 +482,21 @@ function Trade.new(context)
     local record = { at = round(GetTime()), item = ns.Council.itemId(entries[1].item), count = #entries, steps = {}, events = {}, windowWasOpen = open }
     run = {
       entries = entries, index = 1, placedList = {}, used = used, before = before, record = record, started = GetTime(),
-      label = options.label, onResult = options.onResult, onCompleted = options.onCompleted,
+      label = options.label, unit = options.unit, onResult = options.onResult, onCompleted = options.onCompleted,
     }
+    if carried then
+      for _, entry in ipairs(carried.placedList) do run.placedList[#run.placedList + 1] = entry end
+      for id, count in pairs(carried.before) do
+        if run.before[id] == nil then run.before[id] = count end
+      end
+      local earlier, later = carried.onCompleted, run.onCompleted
+      if earlier then
+        run.onCompleted = function(given)
+          earlier(given)
+          if later then later(given) end
+        end
+      end
+    end
     local current = run
     step("locate", true, nil)
     if open then
@@ -473,6 +538,15 @@ function Trade.new(context)
 
   function self.isOpen() return open end
   function self.running() return run ~= nil end
+
+  -- Is this item string part of the trade under way (on its way into the window, or in it)?
+  function self.holds(item)
+    if not run then return false end
+    for _, entry in ipairs(run.entries) do
+      if entry.item == item then return true end
+    end
+    return false
+  end
   self.frame = function() return frame end
   return self
 end

@@ -378,6 +378,10 @@ function SessionPanel.new(kit, callbacks)
     leftList.setContentHeight(#current.items * itemRow)
   end
 
+  -- The order of the answers last painted (the selected item's), kept while the pointer is over the list.
+  local heldOrder, heldFor
+  local function rowKey(answer) return string.lower(tostring(answer.who)) end
+
   function self.paintRight()
     local data
     for _, item in ipairs(current.items) do
@@ -399,6 +403,21 @@ function SessionPanel.new(kit, callbacks)
       end
       rows = shown
     end
+    -- While the pointer is over the answers every raider keeps their row and a new answer joins at the bottom, so a click on Award
+    -- never lands on someone who moved up under it (answers sort best claim first, and arrive at any moment). The order catches up
+    -- when the pointer leaves.
+    if heldOrder and heldFor == selected and rightList.frame:IsMouseOver() then
+      local place, kept, added = {}, {}, {}
+      for i, key in ipairs(heldOrder) do place[key] = i end
+      for _, answer in ipairs(rows) do
+        if place[rowKey(answer)] then kept[#kept + 1] = answer else added[#added + 1] = answer end
+      end
+      table.sort(kept, function(a, b) return place[rowKey(a)] < place[rowKey(b)] end)
+      for _, answer in ipairs(added) do kept[#kept + 1] = answer end
+      rows = kept
+    end
+    heldFor, heldOrder = selected, {}
+    for i, answer in ipairs(rows) do heldOrder[i] = rowKey(answer) end
     local tradable = current.state == "running" or current.state == "closed"
     local itemGiven = data ~= nil and data.given
     for i, answer in ipairs(rows) do

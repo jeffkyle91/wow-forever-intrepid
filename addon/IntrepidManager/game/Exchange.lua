@@ -146,6 +146,21 @@ function Exchange.new(context)
     return Night.summary(stand, now(), nil).text
   end
 
+  -- A line for the start of a session when the night loaded was copied from the Raid Desk more than 18 hours ago: every award is
+  -- filed under that night's raid, phase and priorities, so last week's night would take tonight's awards. Nil when it is fresh, or
+  -- when no night is loaded (then the awards carry none of it).
+  function self.nightWarning()
+    local night = db.night
+    if not night or type(night.at) ~= "number" then return nil end
+    local age = now() - night.at
+    if age <= Night.OLD_AFTER then return nil end
+    local day = night.raid and night.raid.date
+    local days = math.floor(age / 86400)
+    local when = days >= 1 and (days .. (days == 1 and " day" or " days")) or (math.floor(age / 3600) .. " hours")
+    return "the night loaded" .. (day and (" (" .. day .. ")") or "") .. " was copied from the Raid Desk " .. when
+      .. " ago: import tonight's night (Import night) before awarding, or these awards are filed under that night."
+  end
+
   if db.night then indexNight() end
 
   ---------------------------------------------------------------------------------------------------------------

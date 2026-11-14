@@ -9,7 +9,8 @@
 --   world.openWindow() / world.accept() / world.cancel()     -- what the players do
 --
 -- world.partner is who the open window is with (default "Mirelle Dunmore"; options.partner), as UnitName("npc") tells while it is open;
--- options.partnerUnknown makes UnitName("npc") tell nothing.
+-- options.partnerUnknown makes UnitName("npc") tell nothing. options.firstNameOnly: UnitName("npc") tells the first word only, as
+-- UnitName does for the player in this client, and GetUnitName("npc", true) the whole name (options.noFullName: it tells nothing).
 --
 -- options: bags (an entry may have locked = true: the bag slot reports isLocked; level = 80: another link level), opens ("yes" opens the window 0.3 s after
 -- InitiateTrade, "sync" opens it during the call, "tooFar" answers with an error message, "never" does nothing), blocked
@@ -58,7 +59,18 @@ function FakeTrade.install(game, options)
   end
   env.GetTradePlayerItemLink = function(slot) return world.slots[slot] end
   env.UnitName = function(unit)
-    if unit == "npc" and world.open and not options.partnerUnknown then return world.partner end
+    if unit == "npc" and world.open and not options.partnerUnknown then
+      if options.firstNameOnly then return (string.match(world.partner, "^(%S+)")) end
+      return world.partner
+    end
+  end
+  local earlierGetUnitName = env.GetUnitName -- (a group's stand-in may have one: every other unit stays its)
+  env.GetUnitName = function(unit, ...)
+    if unit == "npc" then
+      if world.open and options.firstNameOnly and not options.noFullName then return world.partner end
+      return nil
+    end
+    if earlierGetUnitName then return earlierGetUnitName(unit, ...) end
   end
 
   function world.openWindow()

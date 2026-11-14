@@ -581,3 +581,25 @@ test("a full window of answers with votes and Vote buttons holds together (compa
     deep_eq(problems, {})
   end
 end)
+
+test("while the pointer is over the answers each raider keeps their row: a new answer joins at the bottom, and Award hits who was there", function()
+  local scene = setup({ model = model("running", 1), answers = { [1] = {
+    answer("Selwyn Crake", "b", "Best in slot"), answer("Orla Finch", "u", "Upgrade"),
+  } } })
+  scene.panel.update(scene.model)
+  scene.panel.show()
+  local rows = scene.parts.rightRows
+  eq(text(scene, rows[2].who), "Orla Finch")
+  scene.game.state(scene.parts.rightList.frame).mouseOver = true -- the loot master moves to Orla's Award button
+  table.insert(scene.answers[1], 2, answer("Bryce Tallow", "b", "Best in slot")) -- a better answer sorts above Orla
+  scene.panel.update(scene.model)
+  eq(text(scene, rows[2].who), "Orla Finch")
+  eq(text(scene, rows[3].who), "Bryce Tallow")
+  scene.game.fire(rows[2].award, "OnClick", "LeftButton")
+  deep_eq(scene.calls[#scene.calls], { "award", 1, "Orla Finch" })
+  -- the pointer leaves: the best claim first again
+  scene.game.state(scene.parts.rightList.frame).mouseOver = false
+  scene.panel.update(scene.model)
+  eq(text(scene, rows[2].who), "Bryce Tallow")
+  eq(text(scene, rows[3].who), "Orla Finch")
+end)

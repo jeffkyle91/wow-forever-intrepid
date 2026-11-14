@@ -27,6 +27,7 @@ local isText, isGameId, isTrue, isObject, isInteger = Check.isText, Check.isGame
 
 local MAX_LINES = 60
 local OLD_AFTER = 18 * 3600 -- seconds (spec section 4)
+Night.OLD_AFTER = OLD_AFTER
 
 -- Top-level fields: a wrong one means nothing in the string can be trusted. Returns what is wrong, or nil.
 local function headerProblem(m)

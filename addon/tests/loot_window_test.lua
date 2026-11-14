@@ -429,3 +429,14 @@ test("the loot lines kept are limited, and a bad line never raises", function()
   scene.game.send("CHAT_MSG_LOOT", nil)
   eq(scene.db.loottest.errorCount, nil)
 end)
+
+test("an item of Uncommon or better goes only to a whole name (or me): never by a first name, part of one, a number or other", function()
+  local scene = setup({ items = items(4), candidates = { "Jorren Ashvale", "Mirelle Stonebrook", "Tavian Holt" } })
+  for _, what in ipairs({ "mirelle", "mir", "2", "other" }) do
+    scene.window.command("give 1 " .. what)
+    eq(#scene.loot.gives, 0)
+  end
+  is_true(string.find(last(scene), "type the player's whole name", 1, true) ~= nil)
+  scene.window.command("give 1 mirelle stonebrook")
+  eq(#scene.loot.gives, 1)
+end)

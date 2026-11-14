@@ -405,6 +405,8 @@ function StrictUI.new(options)
   function impl.Hide(self) setShown(self, false) end
   function impl.SetShown(self, shown) setShown(self, shown and true or false) end
   function impl.IsShown(self) return state[self].shown end
+  -- Whether the pointer is over the frame: a test sets state(frame).mouseOver.
+  function impl.IsMouseOver(self) return state[self].mouseOver == true end
   local function visible(widget)
     while widget do
       if not state[widget].shown then return false end

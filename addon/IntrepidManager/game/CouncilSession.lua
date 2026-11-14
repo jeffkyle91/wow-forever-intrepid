@@ -13,6 +13,14 @@
 --                 /im award <item> <name>           award an item to a raider (or the Award button next to their answer)
 --                 /im trade <name>                  trade a raider everything that is awarded to them (or the Trade button)
 --   Raider:       /im offers                        what is on offer;   /im respond <item> <bis, up, os or pass> [note]
+--   Council:      /im vote <item> <name>            vote for a raider who asked for the item (or the Vote button); /im vote <item>
+--                                                   clear takes the vote back;  /im votes opens the voting window
+--                 /im council [rank <name>]         who is on the council in this group, and the guild rank it starts at
+--
+-- Council votes (core/Votes.lua): at the start the loot master sends the council (the guild rank chosen and every higher one, and
+-- the loot master always) before the offers. In such a session every answer goes to the group chat, so everyone sees the candidates;
+-- council members vote on the group chat too, one vote per item that moves, until the timer runs out or the item is awarded; and
+-- the loot master tells the group each award. Every client keeps the tally; the loot master's is the one that counts.
 --
 -- The record in IntrepidManagerDB.council has shapes only: item ids, counts and timers, no player names.
 
@@ -45,7 +53,7 @@ function CouncilSession.new(context)
   local version = context.version or "unknown"
   -- Where an item drops ("Boss, Dungeon"), for the loot master's window; nil when nobody knows. Optional (game/DungeonJournal today).
   local sourceOf = context.sourceOf
-  local Council, Wire, Outbox, Bags = ns.Council, ns.Net.CouncilWire, ns.Net.Outbox, ns.Game.Bags
+  local Council, Wire, Outbox, Bags, Votes = ns.Council, ns.Net.CouncilWire, ns.Net.Outbox, ns.Game.Bags, ns.Votes
   local self = { hooks = {} }
 
   local session -- the loot master's session (core/Council), or nil
@@ -71,6 +79,10 @@ function CouncilSession.new(context)
   local lastSid -- the session whose offers came last
   local practiceIds = {} -- the practice sessions of this load (started outside a group): id -> true
   local rosters = {} -- who each session asked: id -> { { who, class }, ... } (the group at the start; memory only, never saved)
+  -- The votes of each session this client knows (memory only, never saved): id -> { votes (a core/Votes board), master (who sent
+  -- the council), voting (true: the loot master sent a council, so answers and votes go to the group chat), answers (n -> key ->
+  -- { who, code, label, note, at, key }: the candidates as this client heard them), awards (n -> winner), ended, opened }
+  local boards = {}
 
   local function say(text) out("Session: " .. text) end
 
@@ -112,6 +124,11 @@ function CouncilSession.new(context)
     local ok, name = pcall(GetUnitName, "player", true)
     if ok and type(name) == "string" and name ~= "" then return name end
     return "Loot master"
+  end
+
+  -- Ask the game for a fresh guild roster; it answers a moment later (the next council reads it).
+  local function askRoster()
+    if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end
   end
 
   local function groupChat()
@@ -169,6 +186,68 @@ function CouncilSession.new(context)
 
   local function ownSession(sid) return session ~= nil and session.id == sid end
 
+  -- The key of a player's name for the version check: the name without a realm, in the matching rule of core/Names (the chat may say
+  -- "Jorren Ashvale-Realm" where the roster says "Jorren Ashvale").
+  local function playerKey(name)
+    if type(name) ~= "string" then return nil end
+    return ns.Names.key(string.match(name, "^([^%-]*)"))
+  end
+
+  -- Is this name the player's own? (Group chat brings our own messages back.)
+  local function isMe(name)
+    local ok, mine = pcall(GetUnitName, "player", true)
+    local key = playerKey(name)
+    return ok and key ~= nil and key ~= "" and playerKey(mine) == key
+  end
+
+  -- The board of session `sid` (made when `create` is true), or nil.
+  local function boardOf(sid, create)
+    if not boards[sid] and create then
+      boards[sid] = { votes = Votes.newBoard(), answers = {}, awards = {} }
+    end
+    return boards[sid]
+  end
+
+  -- The real name of a row: the loot master's own answer is named SELF in its table, but votes and the group use the name.
+  local function realName(who)
+    if who == SELF then return myName() end
+    return who
+  end
+
+  -- May votes on item n of session `sid` be taken now? While the answer timer runs (receiving: and its grace, as messages take time)
+  -- and until the item is awarded or the session ends.
+  local function votingOpen(sid, n, receiving)
+    local extra = receiving and Council.GRACE or 0
+    if session and session.id == sid then
+      if session.state ~= "running" then return false end
+      local entry = session.item(n)
+      if not entry or entry.winner then return false end
+      return GetTime() <= (session.startedAt() or 0) + session.timer + extra
+    end
+    local board = boards[sid]
+    if not board or board.ended or board.awards[n] then return false end
+    local offer = offers.get(sid, n)
+    if not offer then return false end
+    return GetTime() <= offer.deadline + extra
+  end
+
+  -- An answer to item n of another loot master's session, as this client heard it on the group chat (the candidates of the voting
+  -- window). The last one counts, until the time and its grace are over.
+  local function noteAnswer(sid, n, who, code, note)
+    local board = boards[sid]
+    if not board or not offers.get(sid, n) then return false end
+    local offer = offers.get(sid, n)
+    if GetTime() > offer.deadline + Council.GRACE then return false end
+    local key = playerKey(who)
+    if not key or key == "" then return false end
+    board.answers[n] = board.answers[n] or {}
+    local before = board.answers[n][key]
+    board.answers[n][key] = {
+      who = who, key = key, code = code, label = Council.label(code), note = note or "", at = GetTime(),
+    }
+    return true, before
+  end
+
   -- A raider's clients close the offers whose time is up and tell what went unanswered.
   local function closeOffers()
     local closed = offers.expire()
@@ -198,10 +277,24 @@ function CouncilSession.new(context)
     end
     say("item " .. head.n .. ": " .. itemText(head.item, head.name) .. " - answer with /im respond " .. head.n .. " bis, up, os or pass [note]")
     fire("onOffer", offer)
+    -- A session with a council: everyone gets the voting window too, once (the loot master's own window shows the votes).
+    local board = boards[head.sid]
+    if board and board.voting and not board.opened then
+      board.opened = true
+      fire("onVotingOpen", head.sid)
+    end
   end
 
   local function handleAnswer(head, sender)
-    if not (session and ownSession(head.sid)) then return end
+    if not (session and ownSession(head.sid)) then
+      -- another loot master's session: a candidate for the voting window
+      if noteAnswer(head.sid, head.n, sender, head.code, head.note) then
+        trace("heard", head.n, head.code)
+        fire("onVotes", head.sid, head.n)
+      end
+      return
+    end
+    if isMe(sender) then return end -- our own answer, sent to the group for the others, is in the session already
     local ok, replaced, previous = session.respond(head.n, sender, head.code, head.note)
     if not ok then return end
     trace("got", head.n, head.code)
@@ -215,10 +308,44 @@ function CouncilSession.new(context)
       end
     end
     fire("onResponse", head.n, sender, head)
+    fire("onVotes", head.sid, head.n)
+  end
+
+  -- The loot master's council for a session (in parts when it is long): votes from these names count.
+  local function handleCouncil(head, sender)
+    if ownSession(head.sid) then return end
+    local board = boardOf(head.sid, true)
+    if board.master and playerKey(board.master) ~= playerKey(sender) then return end -- only the session's loot master
+    board.master = board.master or sender
+    board.voting = true
+    board.votes.addCouncil(head.names)
+    trace("council", nil, #head.names)
+    fire("onVotes", head.sid)
+  end
+
+  -- A council member's vote. Our own comes back from the group chat: it is in the board already (and a newer one may be too).
+  local function handleVote(head, sender)
+    if isMe(sender) then return end
+    local board = boards[head.sid]
+    if not board or not board.votes.isCouncil(sender) then return end
+    if not votingOpen(head.sid, head.n, true) then return end
+    board.votes.vote(head.n, sender, head.name)
+    trace("vote", head.n, nil)
+    fire("onVotes", head.sid, head.n)
+  end
+
+  -- The loot master awarded an item (or took the award back): the voting window says so, and voting on it is over.
+  local function handleAwardNews(head, sender)
+    if ownSession(head.sid) then return end
+    local board = boards[head.sid]
+    if not board or not board.master or playerKey(board.master) ~= playerKey(sender) then return end
+    board.awards[head.n] = head.name
+    fire("onVotes", head.sid, head.n)
   end
 
   local function handleEnd(head)
     if ownSession(head.sid) then return end
+    if boards[head.sid] then boards[head.sid].ended = true end
     local closed = offers.endSession(head.sid)
     trace("ended", nil, #closed)
     if #closed > 0 then
@@ -226,20 +353,7 @@ function CouncilSession.new(context)
       for _, offer in ipairs(closed) do fire("onOfferChanged", offer) end
       if #offers.open() == 0 then fire("onOffersClosed") end
     end
-  end
-
-  -- The key of a player's name for the version check: the name without a realm, in the matching rule of core/Names (the chat may say
-  -- "Jorren Ashvale-Realm" where the roster says "Jorren Ashvale").
-  local function playerKey(name)
-    if type(name) ~= "string" then return nil end
-    return ns.Names.key(string.match(name, "^([^%-]*)"))
-  end
-
-  -- Is this name the player's own? (Group chat brings our own messages back.)
-  local function isMe(name)
-    local ok, mine = pcall(GetUnitName, "player", true)
-    local key = playerKey(name)
-    return ok and key ~= nil and key ~= "" and playerKey(mine) == key
+    if boards[head.sid] then fire("onVotes", head.sid) end
   end
 
   -- Somebody's version, from an announce or an answer (viaSession: from the hello of a session, which has its own line in the timeline).
@@ -293,14 +407,21 @@ function CouncilSession.new(context)
     if prefix ~= Wire.PREFIX or type(text) ~= "string" then return end
     local head = Wire.decode(text)
     if not head then return end
-    -- An offer or an end comes on the group chat, an answer or a hello by whisper: anything else is not from our code.
+    -- An offer, an end, the council, a vote or an award comes on the group chat, a hello by whisper, an answer by either (the group
+    -- chat in a session with a council): anything else is not from our code.
     local fromGroup = chat == "PARTY" or chat == "RAID" or chat == "INSTANCE_CHAT"
     if head.kind == "I" and fromGroup then
       handleOffer(head, sender)
     elseif head.kind == "X" and fromGroup then
       handleEnd(head)
-    elseif head.kind == "R" and chat == "WHISPER" then
+    elseif head.kind == "R" and (chat == "WHISPER" or fromGroup) then
       handleAnswer(head, sender)
+    elseif head.kind == "C" and fromGroup then
+      handleCouncil(head, sender)
+    elseif head.kind == "W" and fromGroup then
+      handleVote(head, sender)
+    elseif head.kind == "A" and fromGroup then
+      handleAwardNews(head, sender)
     elseif head.kind == "K" and chat == "WHISPER" then
       handleHello(head, sender)
     elseif head.kind == "V" and fromGroup then
@@ -321,6 +442,7 @@ function CouncilSession.new(context)
     local ok, code = pcall(C_ChatInfo.RegisterAddonMessagePrefix, Wire.PREFIX)
     registered = ok and (code == 0 or code == 1)
     store().prefixResult = ok and tostring(code) or ("error: " .. tostring(code))
+    askRoster() -- the guild's ranks, for the council of the next session
     frame = CreateFrame("Frame")
     frame:RegisterEvent("CHAT_MSG_ADDON")
     frame:RegisterEvent("GROUP_ROSTER_UPDATE")
@@ -409,7 +531,7 @@ function CouncilSession.new(context)
     return true
   end
 
-  -- The members of the group as { name, class (a token or nil), connected, me }, in roster order.
+  -- The members of the group as { name, class (a token or nil), connected, me, unit }, in roster order.
   local function groupMembers()
     local units = { "player" }
     if IsInRaid() then
@@ -426,11 +548,100 @@ function CouncilSession.new(context)
           local _, _, token = pcall(function() return UnitClass(unit) end)
           if type(token) ~= "string" or not string.match(token, "^%a+$") then token = nil end
           local connectedOk, connected = pcall(UnitIsConnected, unit)
-          members[#members + 1] = { name = name, class = token, connected = not connectedOk or connected ~= false, me = isMe(name) }
+          members[#members + 1] = { name = name, class = token, connected = not connectedOk or connected ~= false, me = isMe(name), unit = unit }
         end
       end
     end
     return members
+  end
+
+  ---------------------------------------------------------------------------------------------------------------
+  -- The council: the guild rank chosen and every rank above it, among the group
+  ---------------------------------------------------------------------------------------------------------------
+
+  -- The guild rank the council starts at (/im council rank <name>), kept in the saved variables.
+  local function councilRank()
+    local rank = db.settings and db.settings.councilRank
+    if type(rank) == "string" and rank ~= "" then return rank end
+    return Votes.DEFAULT_RANK
+  end
+
+  -- What the game tells of our guild: its name, the ranks known (as { name, index }: the guild's own list of rank names, then the
+  -- ranks of the roster and of the group) and the rank index of each name known (key -> index). Nil when the player is not in a guild.
+  -- The list of rank names finds a rank that nobody online has (an officer's alt is often offline while the officer raids).
+  local function guildRanks(members)
+    local okGuild, guild = pcall(GetGuildInfo, "player")
+    if not okGuild or type(guild) ~= "string" or guild == "" then return nil end
+    local ranks, byKey = {}, {}
+    if GuildControlGetNumRanks and GuildControlGetRankName then
+      local okCount, count = pcall(GuildControlGetNumRanks)
+      for i = 1, (okCount and type(count) == "number") and math.min(count, 20) or 0 do
+        local ok, rankName = pcall(GuildControlGetRankName, i)
+        if ok and type(rankName) == "string" then ranks[#ranks + 1] = { name = rankName, index = i - 1 } end
+      end
+    end
+    for i = 1, 1000 do
+      local ok, name, rankName, rankIndex = pcall(GetGuildRosterInfo, i)
+      if not ok or type(name) ~= "string" then break end
+      if type(rankIndex) == "number" then
+        ranks[#ranks + 1] = { name = rankName, index = rankIndex }
+        local key = playerKey(name)
+        if key and key ~= "" then byKey[key] = rankIndex end
+      end
+    end
+    for _, member in ipairs(members) do
+      local ok, theirs, rankName, rankIndex = pcall(GetGuildInfo, member.unit)
+      if ok and theirs == guild and type(rankIndex) == "number" then
+        ranks[#ranks + 1] = { name = rankName, index = rankIndex }
+        byKey[playerKey(member.name)] = rankIndex
+      end
+    end
+    return guild, ranks, byKey
+  end
+
+  -- The council in the group now: the names (the loot master's first when in the group order), the rank it starts at, and why only
+  -- the loot master is on it (not in a guild, no rank of that name), or nil.
+  local function guildCouncil()
+    local rank = councilRank()
+    local members = groupMembers()
+    local guild, ranks, byKey = guildRanks(members)
+    local threshold = guild and Votes.threshold(ranks, rank) or nil
+    local list = {}
+    for _, member in ipairs(members) do
+      list[#list + 1] = { name = member.me and myName() or member.name, rankIndex = byKey and byKey[playerKey(member.name)], me = member.me }
+    end
+    if #list == 0 then list[1] = { name = myName(), me = true } end
+    local why
+    if not guild then
+      why = "you are not in a guild"
+    elseif not threshold then
+      why = "no guild rank is called " .. rank
+    end
+    return Votes.councilOf(list, threshold), rank, why
+  end
+
+  -- "Council (Officer Alt and higher): 3 in the group - Jorren Ashvale, Bram Tollet, Ness Coyle." and, when only the loot master is on
+  -- it, why.
+  local function councilLine(names, rank, why)
+    if why then
+      return "only you vote: " .. why .. ". /im council rank <name> sets the rank the council starts at (now " .. rank .. ")."
+    end
+    return "council (" .. rank .. " and higher): " .. #names .. " in the group - " .. table.concat(names, ", ") .. "."
+  end
+
+  -- /im council [rank <name>]: who is on the council in this group, or the rank it starts at.
+  function self.councilCommand(argument)
+    local text = string.match(argument or "", "^%s*(.-)%s*$")
+    local word, rest = string.match(text, "^(%S*)%s*(.-)$")
+    if string.lower(word or "") == "rank" then
+      local wanted = string.sub(string.gsub(rest, "[|%c]", ""), 1, 40)
+      if wanted == "" then return say("the council starts at the rank " .. councilRank() .. ". /im council rank <name> changes it.") end
+      db.settings = db.settings or {}
+      db.settings.councilRank = wanted
+      say("the council now starts at the rank " .. wanted .. ".")
+    end
+    askRoster()
+    say(councilLine(guildCouncil()))
   end
 
   -- What the version window shows (read only): the group, each member with what is known of their version.
@@ -748,6 +959,17 @@ function CouncilSession.new(context)
       if #roster == 0 then roster[1] = { who = SELF, class = classToken() } end
     end
     rosters[current.id] = roster
+    -- The council: who may vote on this session's items (the loot master always). It goes out before the offers, so the raiders'
+    -- clients know to send their answers to the group chat, where everyone sees the candidates.
+    local board = boardOf(current.id, true)
+    board.voting, board.master, board.opened = true, myName(), true
+    if practice then
+      board.votes.setCouncil({ myName() })
+    else
+      local names, rank, alone = guildCouncil()
+      board.votes.setCouncil(names)
+      say(councilLine(names, rank, alone))
+    end
     exchange("beginSession", current.id)
     answersPrinted = 0
     -- Our own offers are known here at once; the group's copy of them is ignored when it comes back.
@@ -761,6 +983,7 @@ function CouncilSession.new(context)
       say("practice (you are not in a group): " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer
         .. " seconds. Only you are asked and nothing is sent; its awards stay out of the awards log and the export. Answer in the window or with /im respond.")
     else
+      for _, text in ipairs(Wire.council(current.id, board.votes.council())) do ensureOutbox().push(text, chat) end
       for _, entry in ipairs(current.items()) do
         ensureOutbox().push(Wire.item(current.id, entry.n, current.count(), current.timer, entry.item, entry.quality, entry.name), chat)
       end
@@ -820,6 +1043,15 @@ function CouncilSession.new(context)
     end
   end
 
+  -- Tell the group that item n of our session is awarded to `winner` (nil: the award is taken back), in a session with a council and
+  -- not a practice: the voting windows show it, and voting on the item is over.
+  local function tellAward(n, winner)
+    local board = session and boards[session.id]
+    local chat = groupChat()
+    if not board or not board.voting or practiceIds[session.id] or not chat then return end
+    ensureOutbox().push(Wire.award(session.id, n, winner), chat)
+  end
+
   -- Award item n to `who`: the window's Award button passes the name of an answer, the chat command a typed name. Only what is awarded
   -- to a player is ever put into a trade with them.
   function self.award(n, who)
@@ -833,7 +1065,9 @@ function CouncilSession.new(context)
     local ok, why = session.award(n, name)
     if not ok then return say(why) end
     trace("award", n, nil)
-    exchange("awarded", session.id, entry, name == SELF and myName() or name)
+    local board = boards[session.id]
+    exchange("awarded", session.id, entry, realName(name), board and board.votes.snapshot(n) or nil)
+    tellAward(n, realName(name))
     local pseudo = name == PSEUDO_LABEL["disenchant"] or name == PSEUDO_LABEL["guild bank"]
     say("item " .. n .. " (" .. itemText(entry.item, entry.name) .. ") is awarded to " .. name
       .. (name == SELF and ". Press Trade next to your name when you have it."
@@ -853,6 +1087,7 @@ function CouncilSession.new(context)
     if not ok then return say(why) end
     trace("unaward", n, nil)
     exchange("unawarded", session.id, entry)
+    tellAward(n, nil)
     say("item " .. n .. " is not awarded to " .. was .. " any more.")
     fire("onAwarded", n, nil)
   end
@@ -987,6 +1222,8 @@ function CouncilSession.new(context)
       say(why)
       return false
     end
+    local board = boards[offer.sid]
+    local chat = groupChat()
     if offer.mine then
       local ok, problem = false, "the session is over."
       if session then ok, problem = session.respond(n, SELF, code, cleaned) end
@@ -994,6 +1231,16 @@ function CouncilSession.new(context)
         say(problem)
         return false
       end
+      -- the raiders' voting windows list the loot master's own answer too
+      if board and board.voting and chat and not practiceIds[offer.sid] then
+        ensureOutbox().push(Wire.response(offer.sid, n, code, cleaned), chat)
+      end
+      fire("onVotes", offer.sid, n)
+    elseif board and board.voting and chat then
+      -- a session with a council: the answer goes to the group chat, where the loot master and the voting windows read it
+      ensureOutbox().push(Wire.response(offer.sid, n, code, cleaned), chat)
+      noteAnswer(offer.sid, n, myName(), code, cleaned)
+      fire("onVotes", offer.sid, n)
     else
       ensureOutbox().push(Wire.response(offer.sid, n, code, cleaned), "WHISPER", offer.master)
     end
@@ -1033,6 +1280,219 @@ function CouncilSession.new(context)
     local code = Council.codeOf(word)
     if not code then return say("answer with bis, up, os or pass.") end
     self.answer(tonumber(n), code, note ~= "" and note or nil)
+  end
+
+  ---------------------------------------------------------------------------------------------------------------
+  -- The council: votes
+  ---------------------------------------------------------------------------------------------------------------
+
+  -- The session the voting window and /im vote are about: ours once it has started, else the one offered last.
+  local function votingSid()
+    if session and session.state ~= "building" and boards[session.id] then return session.id end
+    return lastSid
+  end
+
+  local function byClaim(a, b)
+    local ra, rb = Council.response(a.code).rank, Council.response(b.code).rank
+    if ra ~= rb then return ra < rb end
+    if a.at ~= b.at then return a.at < b.at end
+    return a.key < b.key
+  end
+
+  -- The candidates of item n of session `sid`, best claim first and earlier first: { { who, code, label, note, key }, ... }. Our own
+  -- session's are its answers (the loot master's own named SELF); another's are the answers heard on the group chat.
+  local function candidatesOf(sid, n)
+    local rows = {}
+    if session and session.id == sid then
+      for _, row in ipairs(session.rows(n)) do
+        rows[#rows + 1] = { who = row.who, code = row.code, label = row.label, note = row.note, key = playerKey(realName(row.who)) }
+      end
+      return rows
+    end
+    local board = boards[sid]
+    for _, answer in pairs(board and board.answers[n] or {}) do rows[#rows + 1] = answer end
+    table.sort(rows, byClaim)
+    return rows
+  end
+
+  -- The council members in the group now (in a practice, the loot master): the M of "N out of M have voted".
+  local function councilPresent(sid)
+    local board = boards[sid]
+    if not board then return {} end
+    if practiceIds[sid] then return board.votes.council() end
+    local present = {}
+    for _, member in ipairs(groupMembers()) do
+      local name = member.me and myName() or member.name
+      if board.votes.isCouncil(name) then present[#present + 1] = name end
+    end
+    return present
+  end
+
+  -- The winner of item n of session `sid` as far as this client knows, or nil.
+  local function winnerOf(sid, n)
+    if session and session.id == sid then
+      local entry = session.item(n)
+      return entry and entry.winner and realName(entry.winner) or nil
+    end
+    local board = boards[sid]
+    return board and board.awards[n] or nil
+  end
+
+  -- Add the votes to rows of item n (rows with who and code; a row without a code is a raider who has not answered): votes (how
+  -- many), voters (who, A to Z), mine (this player's vote is for them), leader (the most votes among those who did not pass; several
+  -- on a tie) and canVote (this player may vote for them now).
+  local function withVotes(sid, n, rows)
+    local board = boards[sid]
+    if not board then return rows end
+    local tally = board.votes.tally(n)
+    local eligible = {}
+    for _, row in ipairs(rows) do
+      if row.code and row.code ~= "p" then eligible[playerKey(realName(row.who))] = true end
+    end
+    local leaders = {}
+    for _, key in ipairs((board.votes.leaders(n, eligible))) do leaders[key] = true end
+    local me = myName()
+    local myKey = playerKey(board.votes.voteOf(n, me))
+    local open = board.voting and votingOpen(sid, n) and board.votes.isCouncil(me)
+    for _, row in ipairs(rows) do
+      local key = playerKey(realName(row.who))
+      local slot = tally[key]
+      row.votes = slot and slot.count or 0
+      row.voters = slot and slot.voters or {}
+      row.mine = myKey ~= nil and myKey == key or nil
+      row.leader = leaders[key]
+      row.canVote = (open and eligible[key]) or nil
+    end
+    return rows
+  end
+
+  -- Vote on item n (of session `sid`, or the one the voting window shows) for `target`, a raider who answered it with anything but
+  -- Pass; a nil target takes the vote back, and so does `toggle` (the window's button) when the vote is for `target` already. One
+  -- vote per item: a vote for somebody else moves it. Returns true, or false after saying why.
+  function self.vote(n, target, sid, toggle)
+    sid = sid or votingSid()
+    local board = sid and boards[sid]
+    if not board or not board.voting then
+      say("there is no session with a council to vote in.")
+      return false
+    end
+    local me = myName()
+    if not board.votes.isCouncil(me) then
+      say("only the council votes (" .. councilRank() .. " and higher, and the loot master).")
+      return false
+    end
+    if not votingOpen(sid, n) then
+      say("voting on item " .. tostring(n) .. " is over (the answer time ran out, or the item was awarded).")
+      return false
+    end
+    local chosen
+    if target ~= nil then
+      local key = playerKey(realName(target))
+      for _, row in ipairs(candidatesOf(sid, n)) do
+        if row.key == key and row.code ~= "p" then chosen = realName(row.who) end
+      end
+      if not chosen then
+        say(tostring(target) .. " has not asked for item " .. tostring(n) .. ": votes are for the raiders who answered it with anything but Pass.")
+        return false
+      end
+      if toggle and playerKey(board.votes.voteOf(n, me)) == key then chosen = nil end
+    end
+    board.votes.vote(n, me, chosen)
+    local chat = groupChat()
+    if chat and not practiceIds[sid] then ensureOutbox().push(Wire.vote(sid, n, chosen), chat) end
+    trace(chosen and "voted" or "unvoted", n, nil)
+    say("item " .. n .. ": " .. (chosen and ("your vote is for " .. chosen .. ".") or "your vote is taken back."))
+    fire("onVotes", sid, n)
+    return true
+  end
+
+  -- /im vote <item> <name> or /im vote <item> clear.
+  function self.voteCommand(argument)
+    local n, rest = string.match(argument or "", "^%s*(%d+)%s*(.-)%s*$")
+    if not n or rest == "" then
+      return say("use /im vote <item number> <name>, or /im vote <item number> clear. /im votes opens the voting window.")
+    end
+    if string.lower(rest) == "clear" then return self.vote(tonumber(n), nil) end
+    self.vote(tonumber(n), rest)
+  end
+
+  -- /im votes: the voting window, or a line when there is no session with a council.
+  function self.openVoting()
+    local sid = votingSid()
+    if not (sid and boards[sid] and boards[sid].voting) then return say("there is no session with a council yet.") end
+    fire("onVotingOpen", sid)
+    if not self.hooks.onVotingOpen then
+      for _, item in ipairs(self.votingModel().items) do
+        say("item " .. item.n .. ": " .. item.voted .. " voted" .. (item.myVote and (", your vote is for " .. item.myVote) or "")
+          .. (item.winner and (", awarded to " .. item.winner) or ""))
+      end
+    end
+  end
+
+  -- What the voting window shows (read only), for the session with a council that ours is or that was offered last:
+  --   { sid, master ("you" for our own), practice, council (true: this player may vote), rank, councilSize (the council members in
+  --     the group), state ("running" while the answer timer runs, "over", "none"), remaining (seconds, while it runs), items = { { n,
+  --     item, name, quality, icon, winner, voted (council members in the group who voted), candidates (answers other than Pass),
+  --     open (votes are taken), myVote } } }
+  function self.votingModel()
+    local sid = votingSid()
+    local board = sid and boards[sid]
+    local model = { items = {}, state = "none", rank = councilRank() }
+    if not board or not board.voting then return model end
+    local own = session ~= nil and session.id == sid
+    model.sid, model.master, model.practice = sid, own and "you" or board.master, practiceIds[sid]
+    model.council = board.votes.isCouncil(myName())
+    local present = councilPresent(sid)
+    model.councilSize = #present
+    local list = {}
+    if own then
+      for _, entry in ipairs(session.items()) do list[#list + 1] = entry end
+      if session.state == "running" then model.remaining = session.remaining() end
+    else
+      for _, offer in ipairs(offers.list()) do
+        if offer.sid == sid then
+          list[#list + 1] = offer
+          if not board.ended then model.remaining = math.max(model.remaining or 0, offers.remaining(offer)) end
+        end
+      end
+    end
+    model.state = (model.remaining or 0) > 0 and "running" or "over"
+    if model.state == "over" then model.remaining = nil end
+    for _, entry in ipairs(list) do
+      local candidates = 0
+      for _, row in ipairs(candidatesOf(sid, entry.n)) do
+        if row.code ~= "p" then candidates = candidates + 1 end
+      end
+      model.items[#model.items + 1] = {
+        n = entry.n, item = entry.item, name = entry.name or ("item " .. tostring(Council.itemId(entry.item))), quality = entry.quality or 1,
+        icon = iconOf(entry.item), winner = winnerOf(sid, entry.n), voted = board.votes.voted(entry.n, present), candidates = candidates,
+        open = votingOpen(sid, entry.n), myVote = board.votes.voteOf(entry.n, myName()),
+      }
+    end
+    return model
+  end
+
+  -- The rows of item n in the voting window: every candidate, best claim first (Pass last), with the class the group tells, the
+  -- votes (withVotes above) and winner = true for the one it was awarded to.
+  function self.votingRows(n)
+    local sid = votingSid()
+    if not (sid and boards[sid]) then return {} end
+    local classes = {}
+    for _, member in ipairs(groupMembers()) do
+      local key = playerKey(member.me and myName() or member.name)
+      if key then classes[key] = member.class end
+    end
+    local winnerKey = playerKey(winnerOf(sid, n))
+    local rows = {}
+    for _, row in ipairs(candidatesOf(sid, n)) do
+      local who = realName(row.who)
+      local key = playerKey(who)
+      rows[#rows + 1] = {
+        who = who, code = row.code, label = row.label, note = row.note, class = classes[key],
+        winner = (winnerKey ~= nil and winnerKey == key) or nil,
+      }
+    end
+    return withVotes(sid, n, rows)
   end
 
   ---------------------------------------------------------------------------------------------------------------
@@ -1149,6 +1609,16 @@ function CouncilSession.new(context)
         model.answers = session.answers()
         model.expected = asked * session.count()
         for _, item in ipairs(model.items) do item.asked = asked end
+        -- the votes: how many of the council in the group voted on each item, and whether votes are still taken
+        local board = boards[session.id]
+        if board then
+          local present = councilPresent(session.id)
+          model.councilSize = #present
+          for _, item in ipairs(model.items) do
+            item.voted = board.votes.voted(item.n, present)
+            item.votingOpen = votingOpen(session.id, item.n)
+          end
+        end
       end
     end
     return model
@@ -1204,6 +1674,7 @@ function CouncilSession.new(context)
           rows[#rows + 1] = { who = entry.winner, label = label, note = "", class = ack and ack.class, winner = true, given = entry.given, missing = true }
         end
       end
+      withVotes(session.id, n, rows)
     end
     return rows
   end

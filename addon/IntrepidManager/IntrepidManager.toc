@@ -2,7 +2,7 @@
 ## Title: Intrepid Manager
 ## Notes: Loot manager for the Intrepid guild. Works with the Raid Desk web app.
 ## Author: Intrepid
-## Version: 0.0.25
+## Version: 0.0.26
 ## SavedVariables: IntrepidManagerDB
 ## OptionalDeps: ForeverDungeonJournal
 
@@ -16,6 +16,7 @@ core\Night.lua
 core\Marks.lua
 core\Awards.lua
 core\Council.lua
+core\Votes.lua
 core\Version.lua
 core\SelfTestSamples.lua
 core\SelfTest.lua
@@ -44,6 +45,7 @@ ui\HistoryWindow.lua
 ui\ResponseFrame.lua
 ui\BagPicker.lua
 ui\SessionPanel.lua
+ui\VotingWindow.lua
 ui\VersionWindow.lua
 ui\IconWindow.lua
 ui\Inspect.lua

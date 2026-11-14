@@ -16,11 +16,11 @@ ns.UI = ns.UI or {}
 ns.UI.Demo = Demo
 
 -- No pipe characters in what goes to the chat: the game reads them as the start of a color or link.
-local HELP = "/im window [session, import, export, history, icons, picker or confirm] [roomy] [flat]. The session window also takes 40, "
+local HELP = "/im window [session, import, export, history, voting, icons, picker or confirm] [roomy] [flat]. The session window also takes 40, "
   .. "unconfirmed, failed, observed or warning (which state it shows); the import window takes sample (the sample night is "
   .. "pasted in); the import and export windows take busy (a session is open)."
 
-local WINDOWS = { session = true, import = true, export = true, history = true, icons = true, picker = true, confirm = true }
+local WINDOWS = { session = true, import = true, export = true, history = true, voting = true, icons = true, picker = true, confirm = true }
 local EXTRAS = { ["40"] = true, unconfirmed = true, failed = true, observed = true, warning = true, busy = true, sample = true }
 
 local ATTEMPTS = {
@@ -55,7 +55,8 @@ function Demo.new(context)
   local db = context.db or {}
   local self = {}
   local kit, kitKey
-  local session, import, export, icons, history -- the windows, once built (they belong to one kit)
+  local session, import, export, icons, history, voting -- the windows, once built (they belong to one kit)
+  local myVotes = {} -- the voting window's pretend votes: item n -> name
   local exportEverything = false   -- the export window's box "Everything, not only what is new"
   local options, given, removed    -- what the session window shows now, and what was "given" in the demo
 
@@ -80,7 +81,8 @@ function Demo.new(context)
       if export then export.hide() end
       if icons then icons.hide() end
       if history then history.hide() end
-      session, import, export, icons, history = nil, nil, nil, nil, nil
+      if voting then voting.hide() end
+      session, import, export, icons, history, voting = nil, nil, nil, nil, nil, nil
       db.positions = db.positions or {}
       kit = ns.UI.Kit.new({
         density = request.density, chrome = request.chrome, positions = db.positions,
@@ -266,14 +268,14 @@ function Demo.new(context)
   local function clock(at) return date("*t", at) end
 
   -- Export in the demo's history: the export window with every award of the night or raid picked, written for real from the
-  -- invented log (without `place`, which never leaves the addon), so the string reads back like a real one.
+  -- invented log (without `place` and `votes`, which never leave the addon), so the string reads back like a real one.
   local function exportPicked(request, log, pick)
     local ids, awards = ns.History.idsOf(ns.History.build(log, clock), pick.kind, pick.key), {}
     for _, award in ipairs(log) do
       if ids[award.id] then
         local copy = {}
         for key, value in pairs(award) do
-          if key ~= "place" then copy[key] = value end
+          if key ~= "place" and key ~= "votes" then copy[key] = value end
         end
         awards[#awards + 1] = copy
       end
@@ -306,6 +308,30 @@ function Demo.new(context)
   end
 
   -----------------------------------------------------------------------------------------------------------
+  -- The voting window: an invented session with a council (ui/Sample.lua); Vote moves a pretend vote, nothing is sent
+  -----------------------------------------------------------------------------------------------------------
+  local function showVoting(request)
+    kitFor(request)
+    if not voting then
+      voting = ns.UI.VotingWindow.new(kit, {
+        model = function() return (ns.UI.Sample.voting(myVotes)) end,
+        rows = function(n)
+          local _, rows = ns.UI.Sample.voting(myVotes)
+          return rows[n] or {}
+        end,
+        vote = function(n, who)
+          myVotes[n] = myVotes[n] ~= who and who or nil
+          out("Demo: " .. (myVotes[n] and ("your vote on item " .. n .. " would go to " .. who) or ("your vote on item " .. n .. " would be taken back")) .. ". Nothing was sent.")
+        end,
+      })
+    end
+    myVotes = {}
+    voting.update((ns.UI.Sample.voting(myVotes)))
+    voting.show()
+    return voting
+  end
+
+  -----------------------------------------------------------------------------------------------------------
   -- Outside
   -----------------------------------------------------------------------------------------------------------
   function self.open(argument)
@@ -322,6 +348,8 @@ function Demo.new(context)
       showIcons(request)
     elseif request.window == "history" then
       showHistory(request)
+    elseif request.window == "voting" then
+      showVoting(request)
     else
       showSession(request)
       if request.window == "picker" then
@@ -369,10 +397,11 @@ function Demo.new(context)
     if export then export.hide() end
     if icons then icons.hide() end
     if history then history.hide() end
+    if voting then voting.hide() end
   end
 
-  -- The windows built so far ({ session, import, export, icons, history }), for the tests and for /im facts.
-  function self.windows() return { session = session, import = import, export = export, icons = icons, history = history } end
+  -- The windows built so far ({ session, import, export, icons, history, voting }), for the tests and for /im facts.
+  function self.windows() return { session = session, import = import, export = export, icons = icons, history = history, voting = voting } end
 
   self.parse = parse
   self.HELP = HELP

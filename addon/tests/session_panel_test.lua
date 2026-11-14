@@ -36,6 +36,8 @@ local function setup(options)
   game.env.GameTooltip = {
     SetOwner = function(_, owner, anchor) scene.tips[#scene.tips + 1] = { "owner", owner, anchor } end,
     SetHyperlink = function(_, link) scene.tips[#scene.tips + 1] = { "link", link } end,
+    SetText = function(_, words) scene.tips[#scene.tips + 1] = { "text", words } end,
+    AddLine = function(_, words) scene.tips[#scene.tips + 1] = { "line", words } end,
     Show = function() scene.tips[#scene.tips + 1] = { "show" } end,
     Hide = function() scene.tips[#scene.tips + 1] = { "hide" } end,
   }
@@ -53,7 +55,7 @@ local function setup(options)
     rows = function(n) return scene.answers[n] or {} end,
     bags = record("bags"), remove = record("remove"), start = record("start"), finish = record("finish"), reset = record("reset"),
     award = record("award"), unaward = record("unaward"), trade = record("trade"), versions = record("versions"),
-    importNight = record("importNight"), exportAwards = record("exportAwards"), history = record("history"),
+    importNight = record("importNight"), exportAwards = record("exportAwards"), history = record("history"), vote = record("vote"),
   })
   scene.parts = scene.panel.parts
   return scene
@@ -503,4 +505,79 @@ test("History opens the loot history, beside Export awards", function()
   eq(scene.game.state(scene.parts.history).text, "History")
   scene.game.fire(scene.parts.history, "OnClick", "LeftButton")
   deep_eq(scene.calls[#scene.calls], { "history" })
+end)
+
+test("the votes: the line above the answers says how many of the council voted, and the sentence is left out without a council", function()
+  local SessionPanel = setup().ns.UI.SessionPanel
+  eq(SessionPanel.votesText(1, 3), "Votes 1 of 3")
+  eq(SessionPanel.votesText(nil, 2), "Votes 0 of 2")
+  eq(SessionPanel.votesText(1, nil), nil)
+  eq(SessionPanel.votesText(0, 0), nil)
+  eq(SessionPanel.detailText({ b = 1, u = 0, o = 0, p = 0 }, "Lord Fixture, Test Keep", 1, 2),
+    "BiS 1   Upgrade 0   Off-spec 0   Pass 0   Votes 1 of 2   From Lord Fixture, Test Keep")
+  eq(SessionPanel.detailText(nil, nil, 1, 2), "") -- before the start, nothing
+  local data = model("running", 2, { councilSize = 2 })
+  data.items[1].voted = 1
+  local scene = setup({ model = data, answers = { [1] = { answer("Orla Finch", "u", "Upgrade") } } })
+  scene.panel.update(data)
+  scene.panel.show()
+  eq(text(scene, scene.parts.countsLine), "BiS 0   Upgrade 0   Off-spec 0   Pass 0   Votes 1 of 2")
+  eq(text(scene, scene.parts.headVotes), "VOTES")
+end)
+
+test("each answer shows its votes and the Vote button while votes are taken; the most voted is tinted, and the button votes", function()
+  local leader = answer("Orla Finch", "u", "Upgrade")
+  leader.votes, leader.voters, leader.leader, leader.canVote, leader.mine = 2, { "Bram Tollet", "Jorren Ashvale" }, true, true, true
+  local other = answer("Selwyn Crake", "b", "Best in slot")
+  other.votes, other.voters, other.canVote = 0, {}, true
+  local passed = answer("Tamsin Rook", "p", "Pass")
+  passed.votes, passed.voters = 0, {}
+  local waiting = { who = "Dell Harrow", label = "Waiting", note = "", missing = true, votes = 0, voters = {} }
+  local scene = setup({ model = model("running", 1, { councilSize = 2 }), answers = { [1] = { leader, other, passed, waiting } } })
+  scene.panel.update(scene.model)
+  scene.panel.show()
+  local rows = scene.parts.rightRows
+  eq(text(scene, rows[1].votes), "2")
+  eq(text(scene, rows[1].vote), "Voted")
+  eq(shown(scene, rows[1].leaderBg), true)
+  eq(text(scene, rows[2].votes), "0")
+  eq(text(scene, rows[2].vote), "Vote")
+  eq(shown(scene, rows[2].leaderBg), false)
+  eq(shown(scene, rows[3].vote), false) -- a Pass is no candidate
+  eq(text(scene, rows[4].votes), "") -- nor a raider who has not answered
+  eq(shown(scene, rows[4].vote), false)
+  press(scene, rows[2].vote)
+  press(scene, rows[1].vote)
+  deep_eq(scene.calls, { { "vote", 1, "Selwyn Crake" }, { "vote", 1, "Orla Finch" } })
+  -- hovering the count tells who voted
+  scene.game.fire(rows[1].votesHit, "OnEnter")
+  deep_eq({ scene.tips[2], scene.tips[3], scene.tips[4] }, { { "text", "Votes for Orla Finch: 2" }, { "line", "Bram Tollet" }, { "line", "Jorren Ashvale" } })
+  scene.tips = {}
+  scene.game.fire(rows[2].votesHit, "OnEnter")
+  deep_eq(scene.tips[2], { "text", "No votes yet" })
+  -- once awarded, the winner's mark takes the place of the tint
+  leader.winner = true
+  scene.panel.update(scene.model)
+  eq(shown(scene, rows[1].leaderBg), false)
+  eq(shown(scene, rows[1].winnerBg), true)
+  deep_eq(scene.errors, {})
+end)
+
+test("a full window of answers with votes and Vote buttons holds together (compact and roomy)", function()
+  for _, density in ipairs({ "compact", "roomy" }) do
+    local answers = { [1] = {} }
+    for i = 1, 20 do
+      local row = answer("Raider Number " .. i, "u", "Best in slot", "a fairly long note about the item", "PRIEST")
+      row.votes, row.voters, row.canVote, row.leader, row.mine = 12, {}, true, i == 1, i == 2
+      answers[1][i] = row
+    end
+    answers[1][3].winner = true
+    local scene = setup({ density = density, model = model("running", 3, { councilSize = 12 }), answers = answers })
+    scene.model.items[1].voted = 12
+    scene.panel.update(scene.model)
+    scene.panel.show()
+    local problems = Intact.problems(scene.game, scene.panel.frame)
+    if #problems > 0 then print(density, table.concat(problems, "\n")) end
+    deep_eq(problems, {})
+  end
 end)

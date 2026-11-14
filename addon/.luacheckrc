@@ -30,6 +30,7 @@ read_globals = {
   "C_AddOns",
   "ForeverDungeonJournal_NS", -- the optional addon DungeonJournal (game/DungeonJournal.lua)
   "C_ChatInfo",
+  "C_GuildInfo", -- the council: asks for a fresh guild roster
   "C_Container",
   "C_Item",
   "C_PartyInfo",
@@ -43,6 +44,10 @@ read_globals = {
   "GetBuildInfo",
   "GetLocale",
   "GetNumGroupMembers",
+  "GetGuildInfo", -- the council: our guild and the group's ranks
+  "GetGuildRosterInfo", -- the council: the guild's ranks
+  "GuildControlGetNumRanks", -- the council: the guild's rank names, behind an existence check
+  "GuildControlGetRankName",
   "GetPhysicalScreenSize",
   "GetAddOnMemoryUsage", -- /im history stats, behind an existence check
   "GetServerTime",

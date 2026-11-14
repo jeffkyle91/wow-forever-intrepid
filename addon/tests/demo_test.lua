@@ -6,7 +6,7 @@ local StockTemplates = dofile("tests/support/stock_templates.lua")
 local FILES = {
   "core/Crc32", "core/Json", "core/Envelope", "core/Names", "core/Ids", "core/Check", "core/Night", "core/Awards", "core/SelfTestSamples",
   "core/History", "ui/Kit", "ui/Sample", "ui/Confirm", "ui/Picker", "ui/SessionWindow", "ui/ImportWindow", "ui/ExportWindow", "ui/IconWindow",
-  "ui/HistoryWindow", "ui/Demo",
+  "ui/HistoryWindow", "ui/SessionPanel", "ui/VotingWindow", "ui/Demo",
 }
 
 -- A game with the demo in it. Everything it says goes to scene.said; the saved variables are scene.db.
@@ -70,7 +70,7 @@ test("a word the demo does not know gets the help line and opens nothing", funct
   scene.demo.open("sideways")
   eq(#scene.game.frames, 1)
   eq(#scene.said, 1)
-  is_true(string.find(scene.said[1], "I do not know 'sideways'. /im window [session, import, export, history, icons, picker or confirm]", 1, true) == 1)
+  is_true(string.find(scene.said[1], "I do not know 'sideways'. /im window [session, import, export, history, voting, icons, picker or confirm]", 1, true) == 1)
   eq(string.find(scene.said[1], "|", 1, true), nil) -- the game would read a pipe in the chat as the start of a color or a link
   eq(scene.demo.windows().session, nil)
 end)
@@ -385,5 +385,48 @@ test("Export in the demo's history: the export window holds the picked night's i
   is_true(checked.ok)
   deep_eq(checked.rowErrors, {})
   is_true(string.find(copied, "Test Core", 1, true) == nil) -- the place never leaves the addon
+  is_true(string.find(copied, "votes", 1, true) == nil) -- nor who voted for whom
   is_true(said(scene, "Demo: the export window holds the " .. night.count .. " invented awards of"))
+end)
+
+test("/im window voting: an invented session with a council; Vote moves a pretend vote, pressed again it is taken back", function()
+  local scene = setup()
+  scene.game.env.GameTooltip = { SetOwner = function() end, SetHyperlink = function() end, SetText = function() end, AddLine = function() end,
+    Show = function() end, Hide = function() end }
+  scene.demo.open("voting")
+  local window = scene.demo.windows().voting
+  is_true(window.isShown())
+  is_true(said(scene, "Showing the voting window"))
+  local parts = window.parts
+  eq(text(scene, parts.status), "3 out of 4 have voted - 38 s left")
+  eq(text(scene, parts.rightRows[1].who), "Bram Tollet")
+  eq(text(scene, parts.rightRows[1].votes), "2")
+  press(scene, parts.rightRows[2].vote) -- Mirelle Dunmore: 1 vote, and now the demo player's
+  is_true(said(scene, "Demo: your vote on item 1 would go to Mirelle Dunmore. Nothing was sent."))
+  eq(text(scene, parts.rightRows[2].votes), "2")
+  eq(text(scene, parts.rightRows[2].vote), "Voted")
+  eq(text(scene, parts.status), "4 out of 4 have voted - 38 s left")
+  press(scene, parts.rightRows[2].vote)
+  is_true(said(scene, "Demo: your vote on item 1 would be taken back. Nothing was sent."))
+  eq(text(scene, parts.rightRows[2].votes), "1")
+  -- the awarded item
+  press(scene, parts.leftRows[2].frame)
+  eq(text(scene, parts.status), "Awarded to Selwyn Crake")
+  eq(scene.game.visible(parts.rightRows[1].vote), false)
+  scene.demo.hideAll()
+  eq(window.isShown(), false)
+end)
+
+test("the demo's history has votes on some awards, and their tooltip lists them", function()
+  local scene = setup()
+  local log = scene.ns.UI.Sample.historyLog(1796866200)
+  local withVotes = 0
+  for _, award in ipairs(log) do
+    if award.votes then
+      withVotes = withVotes + 1
+      eq(award.votes[1].to, award.to)
+      eq(#award.votes[1].by, 2)
+    end
+  end
+  is_true(withVotes > 4)
 end)

@@ -2,7 +2,7 @@
 
 local function load()
   local ns = {}
-  load_core(ns, "Names", "Council")
+  load_core(ns, "Names", "Council", "Votes")
   load_addon_file("IntrepidManager/net/CouncilWire.lua", ns)
   return ns.Net.CouncilWire, ns.Council
 end
@@ -249,4 +249,46 @@ test("an announce of the version and a full version check are made and read back
   refused("Q~1~abcdefghijklmnop", "bad request")
   local decoded = Wire.decode("V~2~0.0.15")
   eq(decoded, nil)
+end)
+
+test("the council travels as names joined by commas, in as many messages as it takes, each within 255 bytes", function()
+  local Wire = load()
+  deep_eq(Wire.council("k3f9", { "Jorren Ashvale", "Bram|Tollet", "", "Ness, Coyle" }), { "C~1~k3f9~Jorren Ashvale,BramTollet,Ness Coyle" })
+  deep_eq(Wire.council("k3f9", {}), { "C~1~k3f9~" })
+  local names = {}
+  for i = 1, 40 do names[i] = "Councilmember" .. i .. " Surnamelong" end
+  local texts = Wire.council("k3f9", names)
+  is_true(#texts > 1)
+  local back = {}
+  for _, text in ipairs(texts) do
+    is_true(#text <= Wire.MAX)
+    local head = Wire.decode(text)
+    eq(head.kind, "C")
+    eq(head.sid, "k3f9")
+    for _, name in ipairs(head.names) do back[#back + 1] = name end
+  end
+  deep_eq(back, names)
+  deep_eq(Wire.decode("C~1~k3f9~"), { kind = "C", sid = "k3f9", names = {} })
+  deep_eq(Wire.decode("C~1~k3f9~Jorren Ashvale,,Bram Tollet,"), { kind = "C", sid = "k3f9", names = { "Jorren Ashvale", "Bram Tollet" } })
+  eq(Wire.decode("C~1~k3f9"), nil)
+  eq(Wire.decode("C~1~" .. string.rep("a", 13) .. "~Jorren"), nil)
+end)
+
+test("a vote and an award carry the item and a name; no name takes it back; bad items are refused", function()
+  local Wire = load()
+  eq(Wire.vote("k3f9", 2, "Mirelle Dunmore"), "W~1~k3f9~2~Mirelle Dunmore")
+  eq(Wire.vote("k3f9", 2, nil), "W~1~k3f9~2~")
+  eq(Wire.award("k3f9", 3, "Guild bank"), "A~1~k3f9~3~Guild bank")
+  eq(Wire.award("k3f9", 3, ""), "A~1~k3f9~3~")
+  deep_eq(Wire.decode("W~1~k3f9~2~Mirelle Dunmore"), { kind = "W", sid = "k3f9", n = 2, name = "Mirelle Dunmore" })
+  deep_eq(Wire.decode("W~1~k3f9~2~"), { kind = "W", sid = "k3f9", n = 2 })
+  deep_eq(Wire.decode("A~1~k3f9~3~Guild bank"), { kind = "A", sid = "k3f9", n = 3, name = "Guild bank" })
+  deep_eq(Wire.decode("A~1~k3f9~3~"), { kind = "A", sid = "k3f9", n = 3 })
+  local _, why = Wire.decode("W~1~k3f9~0~Mirelle Dunmore")
+  eq(why, "bad vote")
+  _, why = Wire.decode("A~1~k3f9~21~Mirelle Dunmore")
+  eq(why, "bad award")
+  eq(Wire.decode("W~1~k3f9~x~Mirelle"), nil)
+  -- a name is cleaned on the way in too
+  deep_eq(Wire.decode("W~1~k3f9~2~ Mirelle|Dunmore "), { kind = "W", sid = "k3f9", n = 2, name = "MirelleDunmore" })
 end)

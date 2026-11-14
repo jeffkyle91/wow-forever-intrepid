@@ -603,3 +603,23 @@ test("a new award while a night is picked: it stays picked, and a night that gro
   eq(#awardLines(scene), 2)
   eq(raidLines(scene)[3], "Hollow Test Keep / 8:05 PM / 1")
 end)
+
+test("the tooltip ends with who voted for whom when the session had votes, the most votes first; nothing without votes", function()
+  local scene = setup()
+  local log = twoRaids()
+  log[5].votes = {
+    { to = "Jorren Ashvale", by = { "Bram Tollet", "Ness Coyle" } },
+    { to = "Mirelle Quint", by = { "Orrin Vale" } },
+  }
+  scene.window.open(vm(scene, log))
+  scene.game.fire(scene.parts.awardList.lines[1].frame, "OnEnter")
+  local words = tipWords(scene)
+  deep_eq({ words[#words - 3], words[#words - 2], words[#words - 1], words[#words] }, {
+    "line Votes", "line Jorren Ashvale (2): Bram Tollet, Ness Coyle", "line Mirelle Quint (1): Orrin Vale", "show",
+  })
+  scene.tips = {}
+  scene.game.fire(scene.parts.awardList.lines[2].frame, "OnEnter")
+  eq(findCall(scene, "line", "Votes"), nil)
+  deep_eq(scene.ns.UI.HistoryWindow.votesLines({}), {})
+  deep_eq(scene.errors, {})
+end)

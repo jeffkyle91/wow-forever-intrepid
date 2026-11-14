@@ -108,6 +108,14 @@ function Sample.historyLog(now)
       delivery = given and { state = "received", at = at + 300, how = "trade" } or { state = "assigned" },
       status = (n % 11 == 0) and "removed" or nil, place = place,
     }
+    -- the council's votes on every other award of the raid (who voted for the winner, and one vote for somebody else)
+    if not pseudo and place == "Molten Test Core" and n % 2 == 0 then
+      local record = log[#log]
+      record.votes = {
+        { to = record.to, by = { roster[((n + 3) % #roster) + 1].name, roster[((n + 5) % #roster) + 1].name } },
+        { to = roster[((n + 1) % #roster) + 1].name, by = { roster[((n + 7) % #roster) + 1].name } },
+      }
+    end
   end
   local day, hour = 86400, 3600
   for week = 3, 0, -1 do
@@ -118,4 +126,50 @@ function Sample.historyLog(now)
     if week > 0 then add(start + 3 * day, "Hollow Test Keep") end
   end
   return log
+end
+
+-- An invented loot session with a council for the voting window (/im window voting): three items, the player on the council of
+-- four. Item 1 has candidates and votes, item 2 was awarded, nobody has asked for item 3 yet. `mine` (n -> name) is the demo
+-- player's pretend votes, added to the counts. Returns the model and the rows of each item.
+function Sample.voting(mine)
+  mine = mine or {}
+  local model = {
+    state = "running", remaining = 38, master = "Jorren Ashvale", council = true, rank = "Officer Alt", councilSize = 4, items = {
+      { n = 1, item = "item:900101", name = "Blade of the Fixture", quality = 4, icon = "Interface\\Icons\\INV_Sword_27", voted = 3, candidates = 3, open = true },
+      { n = 2, item = "item:900102", name = "Cloak of the Mock", quality = 4, icon = "Interface\\Icons\\INV_Misc_Cape_02", voted = 2, candidates = 2,
+        winner = "Selwyn Crake" },
+      { n = 3, item = "item:900103", name = "Ring of Placeholders", quality = 3, icon = "Interface\\Icons\\INV_Jewelry_Ring_03", voted = 0, candidates = 0, open = true },
+    },
+  }
+  local rows = {
+    [1] = {
+      { who = "Bram Tollet", class = "WARRIOR", code = "b", label = "Best in slot", note = "", voters = { "Ness Coyle", "Orrin Vale" } },
+      { who = "Mirelle Dunmore", class = "PRIEST", code = "u", label = "Upgrade", note = "my first ring", voters = { "Dell Harrow" } },
+      { who = "Tamsin Rook", class = "MAGE", code = "o", label = "Off-spec", note = "", voters = {} },
+      { who = "Cass Wren", class = "ROGUE", code = "p", label = "Pass", note = "", voters = {} },
+    },
+    [2] = {
+      { who = "Selwyn Crake", class = "DRUID", code = "b", label = "Best in slot", note = "", voters = { "Ness Coyle", "Orrin Vale" }, winner = true },
+      { who = "Garrick Vole", class = "DRUID", code = "u", label = "Upgrade", note = "", voters = {} },
+    },
+    [3] = {},
+  }
+  for n, list in pairs(rows) do
+    local item = model.items[n]
+    local best = 0
+    for _, row in ipairs(list) do
+      if mine[n] == row.who then
+        local voters = { "You" }
+        for _, voter in ipairs(row.voters) do voters[#voters + 1] = voter end
+        row.voters, row.mine = voters, true
+      end
+      row.votes = #row.voters
+      row.canVote = item.open and row.code ~= "p" or nil
+      if row.code ~= "p" and row.votes > best then best = row.votes end
+    end
+    for _, row in ipairs(list) do row.leader = (best > 0 and row.code ~= "p" and row.votes == best) or nil end
+    item.myVote = mine[n]
+    if mine[n] then item.voted = item.voted + 1 end
+  end
+  return model, rows
 end

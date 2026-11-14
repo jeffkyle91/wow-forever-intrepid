@@ -20,7 +20,7 @@ local function client(world, name, extra)
   }
   if extra then extra(env, game) end
   local ns = {}
-  load_core(ns, "Names", "Council", "Version")
+  load_core(ns, "Names", "Council", "Votes", "Version")
   if world.exchange then load_core(ns, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards") end
   game.load("IntrepidManager/net/CouncilWire.lua", ns)
   game.load("IntrepidManager/net/Outbox.lua", ns)
@@ -323,7 +323,7 @@ test("more than ten items go out within the game's allowance and all arrive in o
   for i = 1, 14 do queue(scene, 300 + i) end
   master.council.command("start 120")
   scene.world.advance(1)
-  eq(count(raider, "answer with /im respond"), 10) -- the burst of ten
+  eq(count(raider, "answer with /im respond"), 9) -- the burst of ten: the council, then nine offers
   scene.world.advance(6)
   eq(count(raider, "answer with /im respond"), 14)
   local order = {}
@@ -345,8 +345,8 @@ test("messages that do not come the way our code sends them are ignored", functi
   local function send(game, text, chat, from)
     game.send("CHAT_MSG_ADDON", "IMC1", text, chat, from)
   end
-  -- an answer by group chat, an answer to another session, an answer after a bad code: nothing counts
-  send(master.game, "R~1~ml1~1~u~~~sneaky", "RAID", "Mirelle Dunmore")
+  -- an answer to another session (by whisper or the group chat), an answer after a bad code: nothing counts
+  send(master.game, "R~1~zzzz~1~u~~~other session", "RAID", "Mirelle Dunmore")
   send(master.game, "R~1~zzzz~1~u~~~other session", "WHISPER", "Mirelle Dunmore")
   send(master.game, "R~1~ml1~1~q~~~bad code", "WHISPER", "Mirelle Dunmore")
   send(master.game, "R~1~ml1~9~u~~~no such item", "WHISPER", "Mirelle Dunmore")
@@ -477,7 +477,7 @@ test("the game refusing the prefix stops a session before it starts, and a refus
   master.game.env.C_ChatInfo.SendAddonMessage = function() return 5 end -- NotInGroup
   master.council.command("start")
   is_true(said(master, "a message could not be sent (NotInGroup)"))
-  eq(master.db.council.dropped, 1)
+  eq(master.db.council.dropped, 2) -- the council and the offer
   eq(master.db.council.lastDrop, "NotInGroup")
 end)
 
@@ -497,7 +497,8 @@ test("the record keeps a timeline of the session on each side: when, what, which
     return table.concat(list, " ")
   end
   eq(kinds(master), "start hello got end") -- (its own end coming back is not logged)
-  eq(kinds(raider), "offer hello-sent offer answer ended") -- (the hello goes out with the first offer)
+  -- (the hello goes out with the first offer; the raider's own answer comes back from the group chat as one heard)
+  eq(kinds(raider), "council offer hello-sent offer answer heard ended")
   local log = master.db.council.log
   eq(log[1].n, 2) -- the start: two items
   eq(log[1].c, 30) -- and the timer

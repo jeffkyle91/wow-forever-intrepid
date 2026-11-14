@@ -23,6 +23,12 @@
 -- The group as a client sees it: "player" is the client, party1 to party4 (or raid1 to raidN, the client included) are the clients
 -- that joined, in the order they joined: UnitExists, GetUnitName, UnitClass (only for clients that have a class) and UnitIsConnected
 -- answer for them.
+--
+-- The guild, for the council: a client's guild = { name, rank, index } (nil: not in a guild). GetGuildInfo(unit) answers for the
+-- group as the game does (the guild's name, the rank's name and its index, 0 being the Guild Master), and GetGuildRosterInfo(i) lists
+-- the joined clients of the player's guild, then world.roster ({ { name, rank, index }, ... }: members who are not in the group).
+-- C_GuildInfo.GuildRoster counts the asks in client.rosterAsked. With world.rankNames set before a client joins, that client also has
+-- GuildControlGetNumRanks and GuildControlGetRankName (1 is the Guild Master).
 
 local FakeChat = {}
 
@@ -85,6 +91,28 @@ function FakeChat.new(options)
     env.UnitIsConnected = function(unit)
       local found = unitClient(unit)
       return found ~= nil and found.connected ~= false
+    end
+    env.GetGuildInfo = function(unit)
+      local found = unitClient(unit)
+      local guild = found and found.guild
+      if guild then return guild.name, guild.rank, guild.index end
+    end
+    env.GetGuildRosterInfo = function(index)
+      local mine = client.guild
+      if not mine then return nil end
+      local list = {}
+      for _, other in ipairs(world.clients) do
+        if other.guild and other.guild.name == mine.name then list[#list + 1] = { other.name, other.guild.rank, other.guild.index } end
+      end
+      for _, extra in ipairs(world.roster or {}) do list[#list + 1] = { extra.name, extra.rank, extra.index } end
+      local member = list[index]
+      if member then return member[1], member[2], member[3] end
+    end
+    env.C_GuildInfo = { GuildRoster = function() client.rosterAsked = (client.rosterAsked or 0) + 1 end }
+    -- the guild's own list of rank names, when the test sets world.rankNames ({ "Guild Master", "Officer", ... }, highest first)
+    if world.rankNames then
+      env.GuildControlGetNumRanks = function() return client.guild and #world.rankNames or 0 end
+      env.GuildControlGetRankName = function(index) return client.guild and world.rankNames[index] or nil end
     end
     env.GetTimePreciseSec = function() return game.clock + client.offset end
     env.IsEncounterInProgress = function() return client.encounter or false end

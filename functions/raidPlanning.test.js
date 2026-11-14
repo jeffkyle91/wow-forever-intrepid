@@ -5,6 +5,9 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { changePlacement, createScheduledRaid, eligibleInvitations, initializePlanning, planningRef, startInstant, synchronizePlanning, synchronizePlanningGuild } from './raidPlanning.js'
 import { addAbsence, removeAbsence, saveResponse, synchronizeRaid } from './raids.js'
 import { changeStandingTeam } from './standingTeams.js'
+import { readinessChecks } from '../src/shared/members/readiness.ts'
+
+const readyRecord = () => ({ schemaVersion: 1, ready: true, checklist: Object.fromEntries(readinessChecks.map(({ key }) => [key, true])) })
 
 const host = process.env.FIRESTORE_EMULATOR_HOST
 if (!host || !/^(127\.0\.0\.1|localhost):\d+$/.test(host)) throw new Error('Planning tests require a local Firestore emulator.')
@@ -36,7 +39,7 @@ beforeEach(async () => {
     ['unlinked', { name: 'Thistle' }],
   ]) {
     batch.set(guild.collection('roster').doc(characterId), fields)
-    batch.set(guild.collection('characterReadiness').doc(characterId), { ready: true })
+    batch.set(guild.collection('characterReadiness').doc(characterId), readyRecord())
   }
   batch.set(guild.collection('teamAssignments').doc('main'), { team: 'blue' })
   batch.set(guild.collection('teamAssignments').doc('other'), { team: 'yellow' })
@@ -200,7 +203,7 @@ describe('invitation synchronization', () => {
   test('readiness gains append once, readiness loss retains invite and position', async () => {
     await guild.collection('characterReadiness').doc('main').set({ ready: false })
     await initialize()
-    await guild.collection('characterReadiness').doc('main').set({ ready: true })
+    await guild.collection('characterReadiness').doc('main').set(readyRecord())
     await synchronizePlanningGuild(db, guild.id)
     await synchronizePlanningGuild(db, guild.id)
     assert.equal((await plan()).invitations.length, 2)
@@ -212,13 +215,31 @@ describe('invitation synchronization', () => {
     assert.equal((await raid.collection('signups').doc('member').get()).data().status, 'accept')
   })
   test('unlinked, removed and foreign main pointers never qualify', () => {
-    assert.deepEqual(eligibleInvitations([{ id: 'main', linkedUid: 'elsewhere' }], [{ id: 'member', playerId: 'main', role: 'Member' }], [{ id: 'main', ready: true }]), [])
-    assert.deepEqual(eligibleInvitations([{ id: 'main', linkedUid: 'member' }], [{ id: 'member', playerId: 'main', role: 'Removed' }], [{ id: 'main', ready: true }]), [])
+    assert.deepEqual(eligibleInvitations([{ id: 'main', linkedUid: 'elsewhere' }], [{ id: 'member', playerId: 'main', role: 'Member' }], [{ id: 'main', ...readyRecord() }]), [])
+    assert.deepEqual(eligibleInvitations([{ id: 'main', linkedUid: 'member' }], [{ id: 'member', playerId: 'main', role: 'Removed' }], [{ id: 'main', ...readyRecord() }]), [])
+  })
+  test('legacy and incomplete ready flags do not create invitations; completing the checklist does', async () => {
+    const ref = guild.collection('characterReadiness').doc('main')
+    await ref.set({ ready: true })
+    await initialize()
+    assert.deepEqual((await plan()).invitations.map((entry) => entry.uid), ['other-member'])
+    await ref.set({ ...readyRecord(), checklist: { ...readyRecord().checklist, level60: false } })
+    await synchronizePlanning(db, guild.id, raid.id)
+    assert.equal((await plan()).invitations.length, 1)
+    await ref.set(readyRecord())
+    await synchronizePlanning(db, guild.id, raid.id)
+    assert.equal((await plan()).invitations.length, 2)
+    await respond()
+    await ref.set({ ...readyRecord(), ready: false, checklist: { ...readyRecord().checklist, enchants: false } })
+    await synchronizePlanning(db, guild.id, raid.id)
+    assert.equal((await plan()).invitations.length, 2)
+    assert.deepEqual(ids(await plan(), 10, 'blue'), ['main'])
+    assert.equal((await raid.collection('signups').doc('member').get()).data().status, 'accept')
   })
   test('cancelled and started plans never receive late additions', async () => {
     await guild.collection('characterReadiness').doc('main').set({ ready: false })
     await initialize()
-    await guild.collection('characterReadiness').doc('main').set({ ready: true })
+    await guild.collection('characterReadiness').doc('main').set(readyRecord())
     for (const fields of [{ status: 'cancelled' }, { status: 'scheduled', startsAt: Timestamp.fromMillis(0) }]) {
       await raid.update(fields)
       await synchronizePlanning(db, guild.id, raid.id)
@@ -266,6 +287,21 @@ describe('leader placements and safety', () => {
     await denied(move('unlinked', 'red'), 'failed-precondition')
     await move('main', 'unassigned')
     assert.deepEqual(ids(await plan(), 10, 'blue'), [])
+  })
+  test('legacy and incomplete checklist flags cannot bypass standing or scheduled placement', async () => {
+    const ref = guild.collection('characterReadiness').doc('main')
+    for (const record of [{ ready: true }, { ...readyRecord(), checklist: { ...readyRecord().checklist, raidKnowledge: false } }]) {
+      await ref.set(record)
+      await denied(move('main', 'red'), 'failed-precondition')
+      for (const [size, team] of [[10, 'red'], [20, 'pink'], [40, 'brown']]) {
+        await denied(changeStandingTeam(db, request({ size, characterId: 'main', team })), 'failed-precondition')
+      }
+    }
+    await move('main', 'unassigned')
+    await changeStandingTeam(db, request({ size: 20, characterId: 'main', team: null }))
+    await ref.set(readyRecord())
+    await move('main', 'red')
+    await changeStandingTeam(db, request({ size: 20, characterId: 'main', team: 'pink' }))
   })
   test('lineups are independent, and same player can appear on separate individual teams', async () => {
     await respond('accept', 'alt')

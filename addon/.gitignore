@@ -1,0 +1,12 @@
+# Saved-variables files and test results contain character and guild names. Never commit them.
+results/
+SavedVariables/
+*.bak
+# Built zips
+*.zip
+dist/
+# Generated paste test strings (tools/make-paste-tests.py)
+paste-tests/
+__pycache__/
+# Pictures drawn by tests/storyboards.lua
+build/

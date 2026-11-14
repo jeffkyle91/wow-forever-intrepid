@@ -1,15 +1,16 @@
 # Exchange strings, v0 (ADDON-001)
 
-Status: **draft 3, 2026-11-11** (ADDON-001, #193). The spec moved here from the addon's own repository, with its fixtures and its reference tool ([addon/tools/](../../addon/tools/)). Draft 3 makes every award that is not a pseudo award say how it was decided ([section 6.1](#61-content)). Draft 2 (2026-10-19) fixed the findings of the first review (three readers and a skeptic). The loot owner decided the encoding (JSON), pseudo recipients (a new award field), past-phase imports (allowed), items still owed (later) and award decisions (picked by the loot master).
+Status: **draft 4, 2026-11-14** (ADDON-001, #193). Draft 4 adds the drops string ([section 14](#14-the-drops-string-addon-to-app)), which the addon makes since #203, for the drop list import (LOOT-008). The spec moved here from the addon's own repository, with its fixtures and its reference tool ([addon/tools/](../../addon/tools/)). Draft 3 makes every award that is not a pseudo award say how it was decided ([section 6.1](#61-content)). Draft 2 (2026-10-19) fixed the findings of the first review (three readers and a skeptic). The loot owner decided the encoding (JSON), pseudo recipients (a new award field), past-phase imports (allowed), items still owed (later) and award decisions (picked by the loot master).
 
 Four small additions came from writing the Lua reader on the same day: the nesting limit (section 3), U+0000 in text (section 2), the E_KIND wording and E_MULTIPLE without reading the second string (section 1.1). The addon's Lua code for both strings is built and passes all the fixtures; it moves here with the addon (ADDON-002). The app side (the importer and "Copy for addon") is not built.
 
-This spec covers the two strings that stage v0 needs, and nothing else:
+This spec covers the two strings that stage v0 needs, and the drops string of LOOT-008 ([section 14](#14-the-drops-string-addon-to-app)):
 
 | String | Direction | Made by | Pasted into |
 | --- | --- | --- | --- |
 | **night** | app to addon, before the raid | the Raid Desk's "Copy for addon" button | the addon's import box (loot master) |
 | **awards** | addon to app, after the raid or after a boss | the addon's export window | the Raid Desk's importer (LOOT-005) |
+| **drops** | addon to app, after a raid night or a dungeon run | the addon's drops window (`/im drops`) | the Raid Desk's drop list import (LOOT-008) |
 
 Council messages, response buttons, timers, assignments, strategies and the list of items still owed from earlier nights get their own specs later. Readers ignore unknown fields ([section 9](#9-versioning)), so new fields never break an older reader.
 
@@ -28,7 +29,7 @@ IM1:<kind>:<encoding>:<length>:<payload>:<crc>
 | Part | Value |
 | --- | --- |
 | `IM1` | Fixed. "Intrepid Manager, envelope version 1." Changes only if the envelope itself changes. |
-| `kind` | `night` or `awards`. |
+| `kind` | `night`, `awards` or `drops` ([section 14](#14-the-drops-string-addon-to-app)). |
 | `encoding` | `j`: the payload is JSON ([section 3](#3-the-payload-json)). `jz` is reserved for a compressed form and is not defined. |
 | `length` | The number of characters in the payload, in decimal, without leading zeros. An empty payload has length `0`. |
 | `payload` | Exactly `length` characters. It may contain `:`. |
@@ -59,7 +60,7 @@ A reader (the addon's import box, the app's importer) runs these steps in order 
 6. Compute the CRC. A different value → **E_CHECKSUM**.
 7. Decode the payload ([section 3](#3-the-payload-json)). Anything that is not a JSON object, or that breaks the rules of section 3 → **E_PAYLOAD**.
 8. A `schema` the reader does not know → **E_SCHEMA**. A missing `schema` is E_PAYLOAD.
-9. Check the content ([section 5](#5-the-night-string-app-to-addon) or [6](#6-the-awards-string-addon-to-app)).
+9. Check the content ([section 5](#5-the-night-string-app-to-addon), [6](#6-the-awards-string-addon-to-app) or [14](#14-the-drops-string-addon-to-app)).
    - A broken top level → **E_PAYLOAD**.
    - A broken row → a row error: the reader rejects that row and keeps the rest.
 10. Look for another `IM1:` after the end of this envelope.
@@ -74,7 +75,7 @@ The same codes and messages are used on both sides:
 | --- | --- |
 | E_NOT_IM | This is not an Intrepid Manager string. |
 | E_VERSION | This string was made by a newer version. Update the addon (or reload the Raid Desk) and try again. |
-| E_KIND | This is a (or an, before a vowel) *kind* string; this box takes *expected* strings. Then, for the kind that was found: night → "Paste night strings into the addon."; awards → "Paste awards strings into the Raid Desk importer." |
+| E_KIND | This is a (or an, before a vowel) *kind* string; this box takes *expected* strings. Then, for the kind that was found: night → "Paste night strings into the addon."; awards → "Paste awards strings into the Raid Desk importer."; drops → "Paste drops strings into the Raid Desk's drop list import." |
 | E_ENCODING | This string uses a format this version cannot read. Update the addon (or reload the Raid Desk). |
 | E_MALFORMED | This string is damaged. Copy it again from the source. |
 | E_TRUNCATED | Only part of the string arrived (*got* of *expected* characters). Copy it again, all of it. |
@@ -450,7 +451,7 @@ Measured with `python3 addon/tools/exchange_fixtures.py measure` on synthetic da
 - **Readers:**
   - every file in [fixtures/cases/](fixtures/cases/) gives the result [fixtures/cases/cases.json](fixtures/cases/cases.json) names: an E_ code, or OK with the listed row errors. Where a case gives `sameAs`, it must also decode to that model; where it gives `envelopes`, the importer must find that many strings; where it gives `layer: content`, the error comes from the content checks of step 9 (section 5 or 6), so code that has only the envelope steps (1 to 8) accepts the string;
   - the good fixtures decode to their `.model.json`.
-- **Producers:** encoding a `.model.json` gives the fixture string byte for byte (the app for the night string, the addon for the awards string).
+- **Producers:** encoding a `.model.json` gives the fixture string byte for byte (the app for the night string, the addon for the awards and drops strings).
 - **Content checks:** every case in [fixtures/content-cases.json](fixtures/content-cases.json) names a good model (`night-small` or `awards-small`, from its `.model.json`), a list of edits and the answer. Apply the edits, then run the content checks of step 9: the answer is `E_PAYLOAD` (a top-level field is wrong) or `OK` with the sorted `rowErrors` (none when the key is missing). An edit is `["set", path, value]`, `["delete", path]` or `["append", path, value]`; a path is a list of keys and 1-based list positions, so `["roster", 3, "name"]` is the name of the third roster entry, the one the row error `roster:3` names. The cases are built from data in the tool, so a TypeScript importer reads the same file.
 - **Marks:** every case in [fixtures/marks-cases.json](fixtures/marks-cases.json) gives its expected marks and warnings.
 - **CRC-32:** [fixtures/crc32-vectors.json](fixtures/crc32-vectors.json).
@@ -462,3 +463,119 @@ Measured with `python3 addon/tools/exchange_fixtures.py measure` on synthetic da
 1. **Settled 2026-10-19 (probe 0.5.5, Mac and Windows):** `bit`, `bit.bxor`, `GetServerTime`, `C_EncodingUtil` and `C_EncodingUtil.DeserializeJSON` all exist on the beta client. Recheck at launch (2026-11-04).
 2. **Accented names.** Whether Forever allows them at all. The matching rule above handles them exactly, without case folding.
 3. **The player GUID.** An optional field on awards would help with renamed characters and same-name entries. It can be added later without a new schema.
+
+## 14. The drops string (addon to app)
+
+The addon's drop log records, in a dungeon or raid, which creature or encounter dropped which items and how often. The drops string carries it to the Raid Desk's drop list import (LOOT-008, not built). Why and how the log records it, and what the import does, are in [`docs/design/drop-list-import.md`](../design/drop-list-import.md). This section is the format. [`IntrepidManager/core/Drops.lua`](../../addon/IntrepidManager/core/Drops.lua) makes it (merged in #203), and wins where the design and the code differ.
+
+The string never holds a player's name or GUID, chat text, master loot candidates, roll results or winners. Its names are zones, creatures and items, and its `by` is the addon.
+
+### 14.1 Content
+
+Top level, in canonical order:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `schema` | integer | yes | `1` |
+| `id` | id | yes | `d-`, the time it was made in base 36, `-`, four random base-36 characters: `d-tq64a0-7k2m`. New for each export. |
+| `at` | time | yes | When it was made. 0 or more. |
+| `by` | text | yes | `IntrepidManager/<version>`, the version cut to 40 characters. |
+| `journal` | text, 100 | no | `ForeverDungeonJournal/<version>`, the version its TOC states (cut to 40 characters, `unknown` when it gives none). Present only when at least one DungeonJournal item id is in the string. |
+| `zones` | list | yes | 1 to 100 zones, below. The addon makes no string when no zone is picked. |
+
+A **zone** (an instance; the addon keeps one per instance id and difficulty):
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `zoneId` | integer | no | The app's zone id. The addon doesn't write it yet: it waits for "Copy for addon" (design decision D5). A reader checks it when present. |
+| `name` | text, 100 | yes | The instance name the game gives, or the dungeon name DungeonJournal gives. |
+| `kind` | `dungeon` or `raid` | yes | `raid` when the game called the instance a raid, else `dungeon`. A dungeon taken from DungeonJournal alone is always `dungeon`. |
+| `players` | integer, 1 to 40 | yes | The instance size. When the game gave none: 40 for a raid, 5 for a dungeon. |
+| `instanceId` | integer | no | The game's instance id. It is not an app zone id. Absent on a dungeon taken from DungeonJournal alone. |
+| `difficultyId` | integer, 1 or more | no | The game's difficulty id. |
+| `journalPartial` | boolean | no | DungeonJournal calls its list for this dungeon incomplete. |
+| `journalSkipped` | integer, 1 or more | no | How many of DungeonJournal's item ids for this dungeon were skipped as invalid (outside 1 to 100,000,000). |
+| `sources` | list | yes | 0 to 100 sources, below. May be empty. |
+
+A **source** (a creature, or an encounter known only from its rolls):
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `npcId` | integer | no | From the corpse's GUID. Absent for an encounter known only from rolls, and for a DungeonJournal entry without one. |
+| `encounterId` | integer, 1 or more | no | The won encounter a boss belongs to. |
+| `name` | text, 100 | yes | The creature's name; for a boss known only from rolls, the encounter's name; for a source from DungeonJournal alone, DungeonJournal's name. |
+| `kind` | `boss`, `rare` or `trash` | yes | |
+| `guessed` | boolean | no | A boss guessed from the encounter and not confirmed yet (design section 2.2, step 3). DungeonJournal naming the same npc id as a boss of the dungeon makes it sure, and the field is left out. |
+| `kills` | integer, 1 or more | no | Distinct kills this client saw: corpses opened, and kills known from rolls. Absent when there are none. |
+| `first`, `last` | date | no | The first and last kill seen, as **UTC** dates, so a raid on a US evening has the next day's date. `first` is on or before `last`. Absent on a source from DungeonJournal alone. |
+| `itemIds` | list of integers | yes | 0 to 80 different item ids: the items seen in the game, seen most first (then seen last first, then by id), then DungeonJournal's ids that weren't seen, in its order, while there's room. |
+| `seen` | list | no | The items seen in the game, in the order of `itemIds`, below. Absent when there are none. |
+| `journal` | list of integers | no | The item ids DungeonJournal lists for this creature, seen or not, in its order: up to 80, each in `itemIds`. |
+| `ej` | list of integers | no | Reserved for the item ids the game's Encounter Journal lists (design section 3). The addon doesn't write it yet. A reader checks it as it checks `journal`. |
+
+A **seen** entry:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `itemId` | integer | yes | One of the source's `itemIds`, once per source. |
+| `n` | integer, 1 or more | yes | How many kills dropped it. A loot window and a roll of the same item in one kill count once. |
+| `last` | date | yes | The last time it dropped, as a UTC date. |
+| `via` | `window` or `roll` | no | `window` when this client saw it in a loot window at least once, `roll` when only in rolls. |
+| `name` | text, 100 | no | The item's name as the game showed it, for an item Wowhead doesn't know yet. |
+| `quality` | integer, 0 to 7 | no | The game's item quality. |
+| `boe` | boolean | no | Binds when equipped. |
+| `quest` | boolean | no | A quest item. |
+
+**Content checks** (step 9 of section 1.1). Text, `null` and `false` follow sections 2 and 3.
+- **The whole string is E_PAYLOAD** when `id` is not an id, `at` is not an integer from 0, `by` is not text of 1 to 60, `journal` is present and not text of 1 to 100, or `zones` is not a list of 1 to 100.
+- **A zone** that breaks a rule of its table is the row error `zone:N`, by position from 1. Its sources are not checked.
+- **A source** is the row error `zone:N/source:M` when:
+  - a field breaks a rule of its table;
+  - `first` is after `last`;
+  - `itemIds` has more than 80 ids or repeats one;
+  - a `seen` entry's `itemId` is not in `itemIds`, or two entries have the same one;
+  - an id of `journal` or `ej` is not in `itemIds`, or the list repeats one;
+  - an id of `itemIds` has no evidence: it's in none of `seen`, `journal` and `ej`.
+- **Repeated keys are not row errors.** Two zones or two sources with the same key stay two rows, and the importer merges them before its preview, as it merges several strings ([section 14.4](#144-what-the-apps-importer-does-with-it-loot-008)). A zone's key is `zoneId`, else `instanceId` with `difficultyId`, else its name key; a source's key is `npcId`, else `encounterId`, else its name key. One item under two sources of a zone is not an error either.
+
+### 14.2 Example
+
+From [fixtures/drops-small.j.txt](fixtures/drops-small.j.txt), shortened. Line breaks are added here for reading; the real string is one line, and the fixture is the authority.
+
+```
+IM1:drops:j:2610:{"schema":1,"id":"d-tq64a0-7k2m","at":1797474600,"by":"IntrepidManager/0.1.0",
+"journal":"ForeverDungeonJournal/2.0.3","zones":[{"name":"Hollow Test Barrow","kind":"raid","players":40,
+"instanceId":9901,"difficultyId":9,"sources":[{"npcId":990001,"encounterId":9101,"name":"Grimtooth the Test Boss",
+"kind":"boss","kills":2,"first":"2026-12-10","last":"2026-12-17","itemIds":[900001,900007,900002],
+"seen":[{"itemId":900001,"n":2,"last":"2026-12-17","via":"window","name":"Blade of the Fixture","quality":4},…]},
+{"encounterId":9102,"name":"Lady Test Ipsum","kind":"boss","kills":1,…},…]},
+{"name":"Hollow Test Keep","kind":"dungeon","players":5,"instanceId":9100,"difficultyId":1,"journalPartial":true,
+"journalSkipped":2,"sources":[…,{"npcId":990015,"name":"Quiet Placeholder","kind":"boss","itemIds":[900107],
+"journal":[900107]}]}]}:70f6fd40
+```
+
+### 14.3 What the addon puts in it
+
+- **Which zones.** `/im drops` takes the zones seen in the last 7 days by default, or the zones the loot master picks, newest first (by the last time the zone was seen). DungeonJournal's lists are added only when the loot master asks, and `/im drops dj <dungeon>` adds a dungeon from DungeonJournal alone, when the log doesn't hold it already.
+- **The order of sources.** Bosses, then rares, then trash; trash with the most kills first. Otherwise by `first`, then by name. Sources from DungeonJournal alone come last. Because `first` is a date, the bosses of one night come in name order, not in the order they died.
+- **What's left out.** A trash creature with no item kept is left out; a boss or a rare with none stays, with an empty `itemIds`. DungeonJournal's zone-wide list is never sent.
+
+### 14.4 What the app's importer does with it (LOOT-008)
+
+The import is designed in [`docs/design/drop-list-import.md`](../design/drop-list-import.md), which wins wherever the two differ. What a producer can rely on:
+
+- **Several strings at once.** The importer reads every envelope it finds (step 10), so two loot masters' strings, or a loot master's and a raider's, import together. It is never E_MULTIPLE.
+- **Merging.** Rows are merged by the keys of section 14.1. A count seen by two clients is the larger one, never the sum. A source known only by its encounter joins a source of the same zone with the same `encounterId` and an `npcId`.
+- **Nothing is saved before a preview**, and nothing is ever deleted.
+- **DungeonJournal items** (`journal`) are information in the preview and can't be saved, until the maintainer decides otherwise (design decision D6, 2026-11-14).
+
+### 14.5 Versioning
+
+- **Schema 1.** New optional fields don't change it (section 9). `zoneId` and `ej` are already defined, so the zone id after "Copy for addon" and the Encounter Journal's items need no new schema.
+- **An older reader.** A box that doesn't take drops strings, or a reader older than the `drops` kind, answers E_KIND at step 3 and never reads the payload. A reader that knows the kind adds "Paste drops strings into the Raid Desk's drop list import." to that message (section 1.1). A reader of schema 1 answers a newer schema with E_SCHEMA.
+
+### 14.6 Tests and what's open
+
+- **Fixtures.** [fixtures/drops-small](fixtures/drops-small.model.json) is an invented raid zone over two nights and a dungeon run with DungeonJournal's lists. The addon builds it from a drop log and writes it byte for byte (`addon/tests/drops_test.lua`). The `drops-` cases in [fixtures/cases/](fixtures/cases/) run in the drops box, as section 12 says, and `awards-bad-drops-string` in the awards box.
+- **Size.** The fixture is 2,636 characters. A raid zone after a night with 8 bosses and 30 trash creatures stays under 12,000 (`drops_test.lua`). Copying a long string out of the game hasn't been measured.
+- **Open: the addon's own checks.** `Drops.check` counts the lengths of names in bytes, not code points, so a name of non-ASCII letters can be refused under 100 characters. It also takes a name of only tabs as blank, allows `by` up to 100 characters and doesn't refuse U+0000. The rules above are the contract, and the reference tool follows them. The shared cases stay where both agree.

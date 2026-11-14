@@ -20,7 +20,7 @@ import { findMyCharacters, inPhase, myAbsences, myAwards, myPriorities, upcoming
 import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
 import './Dashboard.css'
 import './DashboardRaidArt.css'
-import { RaidReadyToggle } from '../../shared/members/RaidReadyToggle'
+import { RaidReadinessControl } from '../../shared/members/RaidReadinessControl'
 
 const dateLabel = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
@@ -85,14 +85,14 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   return <div className="dash-grid">
     <Panel icon={<Swords size={15} />} title="My Characters" help={<HelpPopover label="About My Characters" trigger={<CircleHelp size={16} aria-hidden="true" />}>
       <p>Used to manage your main and alt characters.</p>
-      <p>Raid ready means properly talented, geared, and keys/attunements are completed.</p>
+      <p>Open each character's readiness checklist to record preparation and see progress. Save all nine checks to mark that character raid ready.</p>
     </HelpPopover>}>
       <ul className="dash-list">{characters.map((character, index) => <li key={character.id} className={`${classAccent(character.className)} dash-ready-character`}>
         <span className="dash-character">{index > 0 && <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" />}<ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
         <RolePill role={character.role} />
-        <RaidReadyToggle characterId={character.id} name={character.name} ctx={ctx} />
+        <RaidReadinessControl characterId={character.id} name={character.name} ctx={ctx} />
       </li>)}</ul>
-      <p className="dash-note">Mark each character ready independently. This helps leaders check raid responses; it does not reserve a spot or restrict sign-ups.</p>
+      <p className="dash-note">Save each character's preparation checklist independently. All nine steps are required to be raid ready; this does not reserve a spot or restrict sign-ups.</p>
       {ctx.data.readinessError && <p role="alert">{ctx.data.readinessError}</p>}
     </Panel>
 

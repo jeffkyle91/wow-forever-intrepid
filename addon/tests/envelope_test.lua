@@ -1,7 +1,9 @@
 -- The envelope (docs/spec/exchange-v0.md, section 1) and the shared cases in docs/spec/fixtures/cases/.
 -- Invented names only. See AGENTS.md.
-local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards")
+local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards", "Drops")
 local Envelope, Json, Night, Awards = ns.Envelope, ns.Json, ns.Night, ns.Awards
+-- The content checks of each box (step 9).
+local CHECKS = { night = Night, awards = Awards, drops = ns.Drops }
 
 local FIXTURES = SPEC .. "fixtures/"
 
@@ -53,7 +55,7 @@ for _, case in ipairs(cases) do
     if case.box == "night" then
       result = Envelope.read(text, "night")
     else
-      result = Envelope.readAll(text, "awards")
+      result = Envelope.readAll(text, case.box)
     end
     if result.internal then error("a bug, not bad input: " .. result.message) end
     if case.layer == "content" then
@@ -61,7 +63,7 @@ for _, case in ipairs(cases) do
       -- the envelope itself is fine
       if not result.ok then error("the envelope should be accepted, got " .. result.code .. ": " .. result.message) end
       eq(case.expect, "E_PAYLOAD")
-      local checked = (case.box == "night" and Night or Awards).check(result.model or result.items[1].model)
+      local checked = CHECKS[case.box].check(result.model or result.items[1].model)
       eq(checked.ok, false)
       eq(checked.code, "E_PAYLOAD")
     elseif case.expect == "OK" then
@@ -72,7 +74,7 @@ for _, case in ipairs(cases) do
       -- step 9, the content checks: the rows the case names are the ones that are wrong (all strings of the text together)
       local rowErrors = {}
       for _, item in ipairs(items) do
-        local checked = (case.box == "night" and Night or Awards).check(item.model)
+        local checked = CHECKS[case.box].check(item.model)
         if not checked.ok then error("the content checks refused it: " .. checked.code .. ": " .. checked.message) end
         for _, name in ipairs(checked.rowErrors) do rowErrors[#rowErrors + 1] = name end
       end

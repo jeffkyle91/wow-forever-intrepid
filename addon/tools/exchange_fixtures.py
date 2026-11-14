@@ -37,7 +37,12 @@ AWARDS = ["schema", "id", "at", "by", "awards"]
 AWARD = ["id", "rev", "session", "at", "date", "phase", "raid", "itemId", "item", "toId", "to", "pseudo", "decision",
          "priority", "encounter", "npcId", "zoneId", "note", "delivery", "status"]
 DELIVERY = ["state", "at", "how"]
-SCHEMAS = {"night": 1, "awards": 1}
+# The drops string (section 14), in the order IntrepidManager/core/Drops.lua writes it.
+DROPS = ["schema", "id", "at", "by", "journal", "zones"]
+DROP_ZONE = ["zoneId", "name", "kind", "players", "instanceId", "difficultyId", "journalPartial", "journalSkipped", "sources"]
+DROP_SOURCE = ["npcId", "encounterId", "name", "kind", "guessed", "kills", "first", "last", "itemIds", "seen", "journal", "ej"]
+DROP_SEEN = ["itemId", "n", "last", "via", "name", "quality", "boe", "quest"]
+SCHEMAS = {"night": 1, "awards": 1, "drops": 1}
 
 
 def ordered(obj, fields, where):
@@ -63,6 +68,22 @@ def canonical(kind, model):
                  lines=[ordered(line, LINE, f"priorities[{i}].lines[{j}]") for j, line in enumerate(p.get("lines", []))])
             for i, p in enumerate(out.get("priorities", []))
         ]
+        return out
+    if kind == "drops":
+        out = ordered(model, DROPS, "drops")
+        zones = []
+        for i, z in enumerate(out.get("zones", [])):
+            zone = ordered(z, DROP_ZONE, f"zones[{i}]")
+            sources = []
+            for j, s in enumerate(zone.get("sources", [])):
+                source = ordered(s, DROP_SOURCE, f"zones[{i}].sources[{j}]")
+                if "seen" in source:
+                    source["seen"] = [ordered(e, DROP_SEEN, f"zones[{i}].sources[{j}].seen[{k}]")
+                                      for k, e in enumerate(source["seen"])]
+                sources.append(source)
+            zone["sources"] = sources
+            zones.append(zone)
+        out["zones"] = zones
         return out
     out = ordered(model, AWARDS, "awards")
     out["awards"] = [dict(ordered(a, AWARD, f"awards[{i}]"), **(
@@ -143,7 +164,7 @@ def read_envelope(data, start, box):
         raise ReadError("E_PAYLOAD", "schema")
     if schema > SCHEMAS[kind] or schema < 1:
         raise ReadError("E_SCHEMA", str(schema))
-    errors = check_night(model) if kind == "night" else check_awards(model)
+    errors = CHECKS[kind](model)
     return model, errors, stop
 
 
@@ -376,6 +397,90 @@ def check_awards(m):
     return errors
 
 
+DROP_KINDS = ("boss", "rare", "trash")
+ZONE_KINDS = ("dungeon", "raid")
+VIA = ("window", "roll")
+MAX_DROP_ZONES, MAX_DROP_SOURCES, MAX_DROP_ITEMS = 100, 100, 80
+
+
+def is_whole(value, low, high=None):
+    return is_int(value) and value >= low and (high is None or value <= high)
+
+
+def item_set(value):
+    """The ids of a list of up to 80 different item ids, or None."""
+    if not isinstance(value, list) or len(value) > MAX_DROP_ITEMS:
+        return None
+    ids = set()
+    for item in value:
+        if not is_game_id(item) or item in ids:
+            return None
+        ids.add(item)
+    return ids
+
+
+def drop_zone_ok(z):
+    return (isinstance(z, dict) and optional(z.get("zoneId"), is_game_id) and is_text(z.get("name"), 100)
+            and z.get("kind") in ZONE_KINDS and is_whole(z.get("players"), 1, 40)
+            and optional(z.get("instanceId"), is_game_id) and optional(z.get("difficultyId"), lambda v: is_whole(v, 1))
+            and is_true(z.get("journalPartial")) and optional(z.get("journalSkipped"), lambda v: is_whole(v, 1))
+            and isinstance(z.get("sources"), list) and len(z["sources"]) <= MAX_DROP_SOURCES)
+
+
+def drop_source_ok(s):
+    if not (isinstance(s, dict) and optional(s.get("npcId"), is_game_id)
+            and optional(s.get("encounterId"), lambda v: is_whole(v, 1)) and is_text(s.get("name"), 100)
+            and s.get("kind") in DROP_KINDS and is_true(s.get("guessed")) and optional(s.get("kills"), lambda v: is_whole(v, 1))
+            and optional(s.get("first"), lambda v: isinstance(v, str) and DATE.fullmatch(v) is not None)
+            and optional(s.get("last"), lambda v: isinstance(v, str) and DATE.fullmatch(v) is not None)):
+        return False
+    if "first" in s and "last" in s and s["first"] > s["last"]:
+        return False
+    items = item_set(s.get("itemIds"))
+    if items is None:
+        return False
+    evidence = set()
+    if "seen" in s:
+        if not isinstance(s["seen"], list):
+            return False
+        for e in s["seen"]:
+            if not (isinstance(e, dict) and is_game_id(e.get("itemId")) and e["itemId"] in items and e["itemId"] not in evidence
+                    and is_whole(e.get("n"), 1) and isinstance(e.get("last"), str) and DATE.fullmatch(e["last"])
+                    and e.get("via") in (None, *VIA) and optional(e.get("name"), lambda v: is_text(v, 100))
+                    and optional(e.get("quality"), lambda v: is_whole(v, 0, 7)) and is_true(e.get("boe"))
+                    and is_true(e.get("quest"))):
+                return False
+            evidence.add(e["itemId"])
+    for field in ("journal", "ej"):
+        if field in s:
+            listed = item_set(s[field])
+            if listed is None or not listed <= items:
+                return False
+            evidence |= listed
+    return items <= evidence
+
+
+def check_drops(m):
+    """Section 14.2. A zone that fails is the row error zone:N, and its sources are not looked at; a source that fails is
+    zone:N/source:M. Repeated keys are not row errors: the importer merges them (section 14.4)."""
+    top_level(is_id(m.get("id")) and is_whole(m.get("at"), 0) and is_text(m.get("by"), 60), "header")
+    top_level(optional(m.get("journal"), lambda v: is_text(v, 100)), "journal")
+    zones = m.get("zones")
+    top_level(isinstance(zones, list) and 1 <= len(zones) <= MAX_DROP_ZONES, "zones")
+    errors = []
+    for zi, zone in enumerate(zones, 1):
+        if not drop_zone_ok(zone):
+            errors.append(f"zone:{zi}")
+            continue
+        for si, source in enumerate(zone["sources"], 1):
+            if not drop_source_ok(source):
+                errors.append(f"zone:{zi}/source:{si}")
+    return errors
+
+
+CHECKS = {"night": check_night, "awards": check_awards, "drops": check_drops}
+
+
 # ---------------------------------------------------------------------------------------------------------
 # Awarded marks (spec section 7)
 # ---------------------------------------------------------------------------------------------------------
@@ -552,8 +657,12 @@ def load(name):
     return json.loads((FIXTURES / f"{name}.model.json").read_text(encoding="utf-8"))
 
 
+def kind_of(name):
+    return name.split("-")[0]
+
+
 def mutated(name, change):
-    model = canonical("night" if name.startswith("night") else "awards", load(name))
+    model = canonical(kind_of(name), load(name))
     change(model)
     return model
 
@@ -695,6 +804,25 @@ def cases():
         m["awards"].append(dict(json.loads(json.dumps(m["awards"][2])), id="s-tpt55c-j7wd-9", pseudo="guild-bank"))
     case("ok-row-errors", "awards", string_for("awards", mutated("awards-small", broken_awards)), "OK",
          ["s-tpt2u0-q4tz-2", "s-tpt55c-j7wd-2", "award:6", "s-tpt55c-j7wd-9"])
+
+    # The drops string (section 14): the app's drop list import reads every string it finds, as the awards importer does.
+    drops = load("drops-small")
+    good_drops = string_for("drops", drops)
+    case("bad-drops-string", "awards", good_drops, "E_KIND")
+    case("ok-two-strings", "drops", good_drops + "\n" + string_for("drops", dict(drops, id="d-tq64b2-p3wz")), "OK", envelopes=2)
+    case("bad-altered", "drops", good_drops.replace("Grimtooth", "Grimtootb", 1), "E_CHECKSUM")
+    case("bad-truncated", "drops", good_drops[:-300], "E_TRUNCATED")
+    case("bad-newer-schema", "drops", string_for("drops", dict(drops, schema=2)), "E_SCHEMA")
+    case("bad-wrong-kind", "drops", string_for("night", night), "E_KIND")
+    case("bad-no-zones", "drops", string_for("drops", dict(drops, zones=[])), "E_PAYLOAD", layer="content")
+
+    def broken_drops(m):
+        m["zones"][0]["sources"][1]["itemIds"].append(900099)    # an item with no evidence
+        m["zones"][0]["sources"][4]["seen"][0]["via"] = "mail"   # not window or roll
+        m["zones"][1]["kind"] = "cave"                           # the zone goes, with its sources
+        m["zones"][1]["sources"][0]["kind"] = "elite"
+    case("ok-row-errors", "drops", string_for("drops", mutated("drops-small", broken_drops)), "OK",
+         ["zone:1/source:2", "zone:1/source:5", "zone:2"])
     return out
 
 
@@ -1025,9 +1153,12 @@ def content_answer(entry):
     return "OK", sorted(errors)
 
 
+GOOD = [("night", "night-small"), ("night", "night-empty"), ("awards", "awards-small"), ("drops", "drops-small")]
+
+
 def wanted_files():
     files = {}
-    for kind, name in [("night", "night-small"), ("night", "night-empty"), ("awards", "awards-small")]:
+    for kind, name in GOOD:
         files[f"{name}.j.txt"] = string_for(kind, load(name))
     entries = []
     for entry, text in sorted(cases(), key=lambda pair: pair[0]["file"]):
@@ -1111,14 +1242,14 @@ def build(write):
 def verify():
     """Every case gives the result cases.json names, good strings read back as their models, and the marks match."""
     problems = []
-    models = {"night-small": canonical("night", load("night-small")), "awards-small": canonical("awards", load("awards-small"))}
-    for kind, name in [("night", "night-small"), ("night", "night-empty"), ("awards", "awards-small")]:
+    models = {name: canonical(kind_of(name), load(name)) for name in ("night-small", "awards-small", "drops-small")}
+    for kind, name in GOOD:
         model, row_errors = read(string_for(kind, load(name)), kind)
         if model != canonical(kind, load(name)) or row_errors:
             problems.append(f"{name}: reads back differently ({row_errors or 'model differs'})")
     for entry, text in cases():
         try:
-            results = read(text, "night") if entry["box"] == "night" else read_all(text, "awards")
+            results = read(text, "night") if entry["box"] == "night" else read_all(text, entry["box"])
             results = [results] if entry["box"] == "night" else results
             got, row_errors = "OK", sorted(e for _, errors in results for e in errors)
         except ReadError as error:

@@ -276,3 +276,27 @@ test("a stuck message is tried exactly twenty times; push says yes; the stats co
   eq(other.stats().pending, 2)
   eq(other.pending(), 2)
 end)
+
+test("a message can be a function that makes its text when it goes out; nil and why drop it, and an error is caught", function()
+  local w = world()
+  local box = w.box()
+  local made = 0
+  for i = 1, 11 do box.push("m" .. i, "PARTY") end
+  box.push(function()
+    made = made + 1
+    return "left " .. math.floor(30 - w.t)
+  end, "PARTY")
+  eq(made, 0) -- it waits behind the eleventh, so its text is not made yet
+  w.advance(2.2)
+  eq(made, 1)
+  eq(w.sent[12].text, "left 27")
+  box.push(function() return nil, "too late" end, "PARTY")
+  box.push(function() error("broken") end, "PARTY")
+  box.push("after", "PARTY")
+  w.advance(5)
+  eq(#w.drops, 2)
+  eq(w.drops[1].why, "too late")
+  is_true(string.find(w.drops[2].why, "error: ", 1, true) == 1)
+  eq(w.sent[#w.sent].text, "after")
+  eq(box.pending(), 0)
+end)

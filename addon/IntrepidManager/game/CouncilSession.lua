@@ -38,6 +38,7 @@ local ANNOUNCE_DELAY = 3 -- seconds after joining a group before the version is 
 local ANNOUNCE_GAP = 30 -- seconds between two announces
 local ENCOUNTER_RETRY = 15 -- seconds before an announce is tried again after a boss fight held it back
 local REPLY_GAP = 60 -- seconds before the same announcer is told our version again
+local COUNCIL_BUILD = "0.0.27" -- the first build whose answers reach the council's voting windows (a copy on the group chat)
 local RESET_CONFIRM = 10 -- seconds in which a second press of New session drops awards that are not given yet
 local VERSION_TRACES = 40 -- lines of the timeline kept for versions heard (the log has room for 400, and the sessions need it)
 local MAX_VERSION_WARNINGS = 3 -- chat lines "has a newer version" in one login, whatever the group sends
@@ -74,6 +75,7 @@ function CouncilSession.new(context)
   local resetWarnedAt -- when New session last warned about awards that are not given yet
   local greeted = {} -- sessions that we said hello to
   local acks = {} -- the hellos heard for our own session: key -> { version, class }
+  local oldBuildWarned = {} -- raiders of an older build already named, per session: "sid/key" -> true
   local answersPrinted = 0
   local bagRows = {}
   local lastSid -- the session whose offers came last
@@ -214,6 +216,22 @@ function CouncilSession.new(context)
     return who
   end
 
+  -- The loot master of another loot master's session as this client knows it (its council or its first offer named them), or nil.
+  local function masterOf(sid)
+    if boards[sid] and boards[sid].master then return boards[sid].master end
+    for _, offer in ipairs(offers.list()) do
+      if offer.sid == sid and not offer.mine then return offer.master end
+    end
+    return nil
+  end
+
+  -- Does a message about session `sid` come from its loot master? (Anybody, while no loot master is known for it yet.) Offers, the
+  -- council, awards and the end are the loot master's alone: a copy from anybody else changes nothing.
+  local function fromMaster(sid, sender)
+    local master = masterOf(sid)
+    return master == nil or playerKey(master) == playerKey(sender)
+  end
+
   -- May votes on item n of session `sid` be taken now? While the answer timer runs (receiving: and its grace, as messages take time)
   -- and until the item is awarded or the session ends.
   local function votingOpen(sid, n, receiving)
@@ -264,6 +282,7 @@ function CouncilSession.new(context)
 
   local function handleOffer(head, sender)
     if ownSession(head.sid) then return end -- our own offer, already known here
+    if not fromMaster(head.sid, sender) then return end
     local offer, isNew = offers.receive(head.sid, sender, head.n, head.count, head.timer, head.item, { name = head.name, quality = head.quality })
     if not isNew then return end
     lastSid = head.sid
@@ -285,16 +304,18 @@ function CouncilSession.new(context)
     end
   end
 
-  local function handleAnswer(head, sender)
+  local function handleAnswer(head, sender, fromGroup)
     if not (session and ownSession(head.sid)) then
-      -- another loot master's session: a candidate for the voting window
-      if noteAnswer(head.sid, head.n, sender, head.code, head.note) then
+      -- another loot master's session: the copy on the group chat is a candidate for the voting window
+      if fromGroup and noteAnswer(head.sid, head.n, sender, head.code, head.note) then
         trace("heard", head.n, head.code)
         fire("onVotes", head.sid, head.n)
       end
       return
     end
-    if isMe(sender) then return end -- our own answer, sent to the group for the others, is in the session already
+    -- Our own session counts the whisper: whispers have no allowance, so it is on time however many items a raider answers at once.
+    -- The copy on the group chat is for the voting windows and may come seconds later (our own answer comes back that way too).
+    if fromGroup or isMe(sender) then return end
     local ok, replaced, previous = session.respond(head.n, sender, head.code, head.note)
     if not ok then return end
     trace("got", head.n, head.code)
@@ -314,8 +335,8 @@ function CouncilSession.new(context)
   -- The loot master's council for a session (in parts when it is long): votes from these names count.
   local function handleCouncil(head, sender)
     if ownSession(head.sid) then return end
+    if not fromMaster(head.sid, sender) then return end
     local board = boardOf(head.sid, true)
-    if board.master and playerKey(board.master) ~= playerKey(sender) then return end -- only the session's loot master
     board.master = board.master or sender
     board.voting = true
     board.votes.addCouncil(head.names)
@@ -323,9 +344,12 @@ function CouncilSession.new(context)
     fire("onVotes", head.sid)
   end
 
-  -- A council member's vote. Our own comes back from the group chat: it is in the board already (and a newer one may be too).
-  local function handleVote(head, sender)
+  -- A council member's vote. The loot master counts the one whispered to it (on time: whispers have no allowance); everyone else
+  -- counts the copy on the group chat. Our own comes back from the group chat: it is in the board already (and a newer one may be too).
+  local function handleVote(head, sender, fromGroup)
     if isMe(sender) then return end
+    local own = ownSession(head.sid)
+    if (own and fromGroup) or (not own and not fromGroup) then return end
     local board = boards[head.sid]
     if not board or not board.votes.isCouncil(sender) then return end
     if not votingOpen(head.sid, head.n, true) then return end
@@ -343,8 +367,9 @@ function CouncilSession.new(context)
     fire("onVotes", head.sid, head.n)
   end
 
-  local function handleEnd(head)
+  local function handleEnd(head, sender)
     if ownSession(head.sid) then return end
+    if not fromMaster(head.sid, sender) then return end
     if boards[head.sid] then boards[head.sid].ended = true end
     local closed = offers.endSession(head.sid)
     trace("ended", nil, #closed)
@@ -381,6 +406,14 @@ function CouncilSession.new(context)
     local key = ns.Names.key(sender)
     if key and not acks[key] then acks[key] = { version = head.version, class = head.class, who = sender } end
     noteVersion(sender, head.version, head.class, true)
+    -- A raider of a build before the council's answers whispers to us alone: the council cannot see the answer or vote for them.
+    local board = boards[head.sid]
+    local warnKey = head.sid .. "/" .. tostring(key)
+    if board and board.voting and not practiceIds[head.sid] and not oldBuildWarned[warnKey]
+      and ns.Version.relation(COUNCIL_BUILD, head.version) == "older" then
+      oldBuildWarned[warnKey] = true
+      say(sender .. " has Intrepid Manager " .. tostring(head.version) .. ": their answers reach only you, so the council cannot see them or vote for them. Please ask them to update.")
+    end
     trace("hello", nil, head.class)
     fire("onHello", sender, head.version)
   end
@@ -407,19 +440,19 @@ function CouncilSession.new(context)
     if prefix ~= Wire.PREFIX or type(text) ~= "string" then return end
     local head = Wire.decode(text)
     if not head then return end
-    -- An offer, an end, the council, a vote or an award comes on the group chat, a hello by whisper, an answer by either (the group
-    -- chat in a session with a council): anything else is not from our code.
+    -- An offer, an end, the council or an award comes on the group chat, a hello by whisper, an answer or a vote by either (the
+    -- whisper to the loot master, the group chat's copy for the voting windows): anything else is not from our code.
     local fromGroup = chat == "PARTY" or chat == "RAID" or chat == "INSTANCE_CHAT"
     if head.kind == "I" and fromGroup then
       handleOffer(head, sender)
     elseif head.kind == "X" and fromGroup then
-      handleEnd(head)
+      handleEnd(head, sender)
     elseif head.kind == "R" and (chat == "WHISPER" or fromGroup) then
-      handleAnswer(head, sender)
+      handleAnswer(head, sender, fromGroup)
     elseif head.kind == "C" and fromGroup then
       handleCouncil(head, sender)
-    elseif head.kind == "W" and fromGroup then
-      handleVote(head, sender)
+    elseif head.kind == "W" and (chat == "WHISPER" or fromGroup) then
+      handleVote(head, sender, fromGroup)
     elseif head.kind == "A" and fromGroup then
       handleAwardNews(head, sender)
     elseif head.kind == "K" and chat == "WHISPER" then
@@ -960,7 +993,7 @@ function CouncilSession.new(context)
     end
     rosters[current.id] = roster
     -- The council: who may vote on this session's items (the loot master always). It goes out before the offers, so the raiders'
-    -- clients know to send their answers to the group chat, where everyone sees the candidates.
+    -- clients know to copy their answers to the group chat, where everyone sees the candidates.
     local board = boardOf(current.id, true)
     board.voting, board.master, board.opened = true, myName(), true
     if practice then
@@ -984,8 +1017,16 @@ function CouncilSession.new(context)
         .. " seconds. Only you are asked and nothing is sent; its awards stay out of the awards log and the export. Answer in the window or with /im respond.")
     else
       for _, text in ipairs(Wire.council(current.id, board.votes.council())) do ensureOutbox().push(text, chat) end
+      -- Each offer carries the seconds left when it goes out, not the whole timer: the group chat lets 10 messages go at once and then
+      -- 1 a second, so with many items the last offers leave seconds late, and every raider's countdown must still end with ours.
       for _, entry in ipairs(current.items()) do
-        ensureOutbox().push(Wire.item(current.id, entry.n, current.count(), current.timer, entry.item, entry.quality, entry.name), chat)
+        ensureOutbox().push(function()
+          local left = session == current and current.remaining() or nil
+          if not left or left < 1 then
+            return nil, "item " .. entry.n .. " was not offered: the answer time was over before the offer could go out"
+          end
+          return Wire.item(current.id, entry.n, current.count(), math.floor(left), entry.item, entry.quality, entry.name)
+        end, chat)
       end
       say("started: " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer .. " seconds. Raiders with the addon are asked; answer yourself with /im respond.")
     end
@@ -1043,6 +1084,8 @@ function CouncilSession.new(context)
     end
   end
 
+  local eligibleOf -- the raiders whose votes count on an item (defined with the votes below)
+
   -- Tell the group that item n of our session is awarded to `winner` (nil: the award is taken back), in a session with a council and
   -- not a practice: the voting windows show it, and voting on the item is over.
   local function tellAward(n, winner)
@@ -1066,7 +1109,7 @@ function CouncilSession.new(context)
     if not ok then return say(why) end
     trace("award", n, nil)
     local board = boards[session.id]
-    exchange("awarded", session.id, entry, realName(name), board and board.votes.snapshot(n) or nil)
+    exchange("awarded", session.id, entry, realName(name), board and board.votes.snapshot(n, eligibleOf(session.id, n)) or nil)
     tellAward(n, realName(name))
     local pseudo = name == PSEUDO_LABEL["disenchant"] or name == PSEUDO_LABEL["guild bank"]
     say("item " .. n .. " (" .. itemText(entry.item, entry.name) .. ") is awarded to " .. name
@@ -1237,7 +1280,9 @@ function CouncilSession.new(context)
       end
       fire("onVotes", offer.sid, n)
     elseif board and board.voting and chat then
-      -- a session with a council: the answer goes to the group chat, where the loot master and the voting windows read it
+      -- a session with a council: the answer goes to the loot master by whisper (whispers have no allowance, so it is on time however
+      -- many items are answered at once), and a copy to the group chat for the voting windows
+      ensureOutbox().push(Wire.response(offer.sid, n, code, cleaned), "WHISPER", offer.master)
       ensureOutbox().push(Wire.response(offer.sid, n, code, cleaned), chat)
       noteAnswer(offer.sid, n, myName(), code, cleaned)
       fire("onVotes", offer.sid, n)
@@ -1286,9 +1331,10 @@ function CouncilSession.new(context)
   -- The council: votes
   ---------------------------------------------------------------------------------------------------------------
 
-  -- The session the voting window and /im vote are about: ours once it has started, else the one offered last.
+  -- The session the voting window and /im vote are about: ours while it runs, else the one offered last (ours, after it is over,
+  -- unless another loot master has offered items since).
   local function votingSid()
-    if session and session.state ~= "building" and boards[session.id] then return session.id end
+    if session and session.state == "running" and boards[session.id] then return session.id end
     return lastSid
   end
 
@@ -1315,7 +1361,16 @@ function CouncilSession.new(context)
     return rows
   end
 
-  -- The council members in the group now (in a practice, the loot master): the M of "N out of M have voted".
+  -- The keys of the raiders who asked for item n of session `sid` with anything but Pass: the only ones whose votes count.
+  eligibleOf = function(sid, n)
+    local keys = {}
+    for _, row in ipairs(candidatesOf(sid, n)) do
+      if row.code ~= "p" and row.key then keys[row.key] = true end
+    end
+    return keys
+  end
+
+  -- The council members in the group now and online (in a practice, the loot master): the M of "N out of M have voted".
   local function councilPresent(sid)
     local board = boards[sid]
     if not board then return {} end
@@ -1323,7 +1378,7 @@ function CouncilSession.new(context)
     local present = {}
     for _, member in ipairs(groupMembers()) do
       local name = member.me and myName() or member.name
-      if board.votes.isCouncil(name) then present[#present + 1] = name end
+      if member.connected and board.votes.isCouncil(name) then present[#present + 1] = name end
     end
     return present
   end
@@ -1356,10 +1411,10 @@ function CouncilSession.new(context)
     local open = board.voting and votingOpen(sid, n) and board.votes.isCouncil(me)
     for _, row in ipairs(rows) do
       local key = playerKey(realName(row.who))
-      local slot = tally[key]
+      local slot = eligible[key] and tally[key] or nil -- a vote for a raider who passed stays on the board but does not count
       row.votes = slot and slot.count or 0
       row.voters = slot and slot.voters or {}
-      row.mine = myKey ~= nil and myKey == key or nil
+      row.mine = (eligible[key] and myKey ~= nil and myKey == key) or nil
       row.leader = leaders[key]
       row.canVote = (open and eligible[key]) or nil
     end
@@ -1399,7 +1454,12 @@ function CouncilSession.new(context)
     end
     board.votes.vote(n, me, chosen)
     local chat = groupChat()
-    if chat and not practiceIds[sid] then ensureOutbox().push(Wire.vote(sid, n, chosen), chat) end
+    if chat and not practiceIds[sid] then
+      -- the loot master counts the whisper (on time: whispers have no allowance); the copy on the group chat is for the voting windows
+      local own = session ~= nil and session.id == sid
+      if not own and board.master then ensureOutbox().push(Wire.vote(sid, n, chosen), "WHISPER", board.master) end
+      ensureOutbox().push(Wire.vote(sid, n, chosen), chat)
+    end
     trace(chosen and "voted" or "unvoted", n, nil)
     say("item " .. n .. ": " .. (chosen and ("your vote is for " .. chosen .. ".") or "your vote is taken back."))
     fire("onVotes", sid, n)
@@ -1459,14 +1519,14 @@ function CouncilSession.new(context)
     model.state = (model.remaining or 0) > 0 and "running" or "over"
     if model.state == "over" then model.remaining = nil end
     for _, entry in ipairs(list) do
-      local candidates = 0
-      for _, row in ipairs(candidatesOf(sid, entry.n)) do
-        if row.code ~= "p" then candidates = candidates + 1 end
-      end
+      local eligible, candidates = eligibleOf(sid, entry.n), 0
+      for _ in pairs(eligible) do candidates = candidates + 1 end
+      local myVote = board.votes.voteOf(entry.n, myName())
+      if myVote and not eligible[playerKey(myVote)] then myVote = nil end -- a vote for a raider who passed does not count
       model.items[#model.items + 1] = {
         n = entry.n, item = entry.item, name = entry.name or ("item " .. tostring(Council.itemId(entry.item))), quality = entry.quality or 1,
-        icon = iconOf(entry.item), winner = winnerOf(sid, entry.n), voted = board.votes.voted(entry.n, present), candidates = candidates,
-        open = votingOpen(sid, entry.n), myVote = board.votes.voteOf(entry.n, myName()),
+        icon = iconOf(entry.item), winner = winnerOf(sid, entry.n), voted = board.votes.voted(entry.n, present, eligible), candidates = candidates,
+        open = votingOpen(sid, entry.n), myVote = myVote,
       }
     end
     return model
@@ -1615,7 +1675,7 @@ function CouncilSession.new(context)
           local present = councilPresent(session.id)
           model.councilSize = #present
           for _, item in ipairs(model.items) do
-            item.voted = board.votes.voted(item.n, present)
+            item.voted = board.votes.voted(item.n, present, eligibleOf(session.id, item.n))
             item.votingOpen = votingOpen(session.id, item.n)
           end
         end

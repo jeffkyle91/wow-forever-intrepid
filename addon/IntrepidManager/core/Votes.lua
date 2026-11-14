@@ -21,7 +21,7 @@ ns.Votes = Votes
 Votes.DEFAULT_RANK = "Officer Alt"
 Votes.MAX_NAME = 48 -- bytes in a name that travels in a vote or the council list
 
--- The key a name is matched by: no realm, no case, no accents' differences (core/Names). "" for nothing.
+-- The key a name is matched by: no realm, and no difference of case in plain letters (core/Names). "" for nothing.
 function Votes.key(name)
   if type(name) ~= "string" then return "" end
   return ns.Names.key(string.match(name, "^([^%-]*)") or "")
@@ -146,8 +146,15 @@ function Votes.newBoard()
     return a < b
   end
 
-  -- The votes of item n by whom they are for: { [target key] = { who (the target's name as the first vote spelled it), count, voters =
-  -- { names A to Z } } }.
+  -- Is spelling a of one name better than b? Without a realm first, then A to Z, so every client shows the same one.
+  local function spelling(a, b)
+    local ra, rb = string.find(a, "-", 1, true) ~= nil, string.find(b, "-", 1, true) ~= nil
+    if ra ~= rb then return rb end
+    return a < b
+  end
+
+  -- The votes of item n by whom they are for: { [target key] = { who (the target's name: the spelling without a realm when a vote
+  -- has it, else the first A to Z), count, voters = { names A to Z } } }.
   function self.tally(n)
     local result = {}
     local entry = items[n]
@@ -157,6 +164,8 @@ function Votes.newBoard()
       if not slot then
         slot = { who = vote.target, count = 0, voters = {} }
         result[vote.targetKey] = slot
+      elseif spelling(vote.target, slot.who) then
+        slot.who = vote.target
       end
       slot.count = slot.count + 1
       slot.voters[#slot.voters + 1] = vote.voter
@@ -165,22 +174,25 @@ function Votes.newBoard()
     return result
   end
 
-  -- How many of `present` (a list of names; nil: the whole council) have a vote on item n. Only council members count.
-  function self.voted(n, present)
+  -- How many of `present` (a list of names; nil: the whole council) have a vote on item n. Only council members count, and only votes
+  -- for `eligible` (a set of target keys: the raiders who asked with anything but Pass; nil: anybody voted for). A vote for a raider who
+  -- changed to Pass stays on the board but does not count, unless they ask again.
+  function self.voted(n, present, eligible)
     local entry = items[n]
     if not entry then return 0 end
+    local function counts(vote) return vote ~= nil and (not eligible or eligible[vote.targetKey] == true) end
     local total = 0
     if present then
       local seen = {}
       for _, name in ipairs(present) do
         local key = Votes.key(name)
-        if key ~= "" and not seen[key] and councilKeys[key] and entry.byVoter[key] then total = total + 1 end
+        if key ~= "" and not seen[key] and councilKeys[key] and counts(entry.byVoter[key]) then total = total + 1 end
         seen[key] = true
       end
       return total
     end
-    for key in pairs(entry.byVoter) do
-      if councilKeys[key] then total = total + 1 end
+    for key, vote in pairs(entry.byVoter) do
+      if councilKeys[key] and counts(vote) then total = total + 1 end
     end
     return total
   end
@@ -202,14 +214,16 @@ function Votes.newBoard()
     return keys, best
   end
 
-  -- What the awards log keeps of item n's votes: { { to, by = { voters A to Z } }, ... }, the most votes first, then A to Z. Nil
-  -- when nobody voted.
-  function self.snapshot(n)
+  -- What the awards log keeps of item n's votes: { { to, by = { voters A to Z } }, ... }, the most votes first, then A to Z; only
+  -- votes for `eligible` (as in voted). Nil when nobody voted.
+  function self.snapshot(n, eligible)
     local list = {}
-    for _, slot in pairs(self.tally(n)) do
-      local by = {}
-      for i, voter in ipairs(slot.voters) do by[i] = voter end
-      list[#list + 1] = { to = slot.who, by = by }
+    for key, slot in pairs(self.tally(n)) do
+      if not eligible or eligible[key] then
+        local by = {}
+        for i, voter in ipairs(slot.voters) do by[i] = voter end
+        list[#list + 1] = { to = slot.who, by = by }
+      end
     end
     if #list == 0 then return nil end
     table.sort(list, function(a, b)

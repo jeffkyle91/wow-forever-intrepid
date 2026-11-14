@@ -6,6 +6,7 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- Guild and Raid Leaders can press **Copy for addon** on Loot priorities to copy the current phase's priority lists, who has already received, the roster and the raid night for the loot master's addon, then paste it in the game with `/im import`. The dialog lists anything the addon will skip before you copy. (ADDON-002)
 - Raid Readiness separates character preparation from ongoing acknowledgments for enchants, rotation, consumables, and learning raids. Existing saved checks are preserved. (MEMBER-011 follow-up)
 - Guild Roster separates App Access from Raid Readiness, with a compact readiness progress bar and count, and tighter rows. (MEMBER-011 follow-up)
 - Guild Roster starts with alts hidden and names sorted A–Z. An alt's App Access reflects its main's linked account. (MEMBER-011 follow-up)

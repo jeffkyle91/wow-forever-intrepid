@@ -6,7 +6,13 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
-- Guild and Raid Leaders can press **Copy for addon** on Loot priorities to copy the current phase's priority lists, who has already received, the roster and the raid night for the loot master's addon, then paste it in the game with `/im import`. The dialog lists anything the addon will skip before you copy. (ADDON-002)
+## 2026-11-14 - 427f745
+
+Refresh open tabs to load the update.
+
+- Guild and Raid Leaders can press **Copy for addon** on Loot priorities to copy the current phase's priority lists, who has already received, the roster and the raid night for the loot master's addon, then paste it in the game with `/im import`. The dialog lists anything the addon will skip before you copy.
+
+Verified production deployment. Source PR: #207. Both Hosting domains served the built assets and sign-in rendered; authenticated production export and in-game import were not tested. The addon must be installed separately.
 
 ## 2026-11-14 - 0f75b2f
 

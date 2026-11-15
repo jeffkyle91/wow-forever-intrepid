@@ -1,5 +1,8 @@
+import { ClipboardCopy } from 'lucide-react'
 import { makeWho } from '../../shared/game/candidates'
+import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
+import { CopyForAddonModal } from './CopyForAddonModal'
 import { filterOptions } from './filters'
 import { encounterOptions } from './groupPriorities'
 import { clearPriorityFilters, filtersActive, setPriorityFilters, usePriorityFilters } from './priorityFilters'
@@ -13,12 +16,18 @@ const indent = '\u00a0\u00a0\u00a0\u00a0'
 
 export function PrioritiesToolbar({ ctx }: { ctx: TabContext }) {
   const filters = usePriorityFilters()
-  const { view, priorities } = usePhaseView(ctx)
+  const { view, priorities, canAward } = usePhaseView(ctx)
   const bossOrder = useBossOrder(ctx.data.lootTables, view.no)
   const options = filterOptions(priorities, filters, makeWho(ctx.data.roster))
   // Each dungeon, then its bosses below it. The current choice is always offered, so it can be cleared if its priorities are gone.
   const encounters = encounterOptions(priorities, bossOrder)
   if (filters.encounter && !encounters.some((option) => option.value === filters.encounter)) encounters.push({ value: filters.encounter, label: filters.encounter.slice(2).replace('|', ' \u00b7 '), level: 0 })
+  // Copy for addon (ADDON-002) shows on the same terms as Record loot (canAward: a Guild or Raid Leader looking at the current phase; the VIEW AS
+  // preview takes the role away). It only hides the control: the dialog reads what is already loaded and writes nothing but the clipboard.
+  function openCopyForAddon() {
+    const today = localDateKey(new Date())
+    ctx.openModal(({ close, live }) => <CopyForAddonModal phase={view} today={today} close={close} live={live} />)
+  }
   return <div className="loot-filters">
     <div className="segmented-control" role="group" aria-label="Loot list view">
       <button className={filters.hideCompleted ? 'segment' : 'segment selected'} onClick={() => setPriorityFilters({ hideCompleted: false })} aria-pressed={!filters.hideCompleted}>All items</button>
@@ -41,5 +50,6 @@ export function PrioritiesToolbar({ ctx }: { ctx: TabContext }) {
       {options.players.map((player) => <option key={player.key} value={player.key}>{player.name}</option>)}
     </select>
     {filtersActive(filters) && <button className="loot-filter-clear" onClick={clearPriorityFilters}>Clear filters</button>}
+    {canAward && <button type="button" className="button button-secondary loot-filter-copy" onClick={openCopyForAddon}><ClipboardCopy size={14} /> Copy for addon</button>}
   </div>
 }

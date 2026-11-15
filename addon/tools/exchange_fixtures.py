@@ -828,8 +828,8 @@ def cases():
     # row and E_PAYLOAD in `by`, and `by` is at most 60.
     def drop_name(zone, source, name):
         return string_for("drops", mutated("drops-small", lambda m: m["zones"][zone]["sources"][source].update(name=name)))
-    case("ok-code-points", "drops", drop_name(0, 0, "é" * 100), "OK")
-    case("ok-code-points-over", "drops", drop_name(0, 0, "é" * 101), "OK", ["zone:1/source:1"])
+    case("ok-code-points", "drops", drop_name(0, 0, "\u00e9" * 100), "OK")
+    case("ok-code-points-over", "drops", drop_name(0, 0, "\u00e9" * 101), "OK", ["zone:1/source:1"])
 
     def drop_blanks(m):
         m["zones"][0]["sources"][0]["name"] = "\t\t"  # tabs are text

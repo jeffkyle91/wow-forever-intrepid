@@ -1,0 +1,17 @@
+/* Copy for addon (CopyForAddonModal, ADDON-002). The form is the same .modal-form as Record loot; these are its few extras, in the same colors. */
+.addon-copy-intro { margin: 0; color: #526158; font-size: 11px; line-height: 1.45; }
+.addon-copy-facts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; color: #526158; font-size: 11px; line-height: 1.45; }
+.addon-copy-counts { color: #626e7b; }
+.addon-copy-problem { margin: 0; color: #9a3b2c; font-size: 11px; font-weight: 600; line-height: 1.45; }
+.addon-copy-done { margin: 0; color: #2f6a8f; font-size: 11px; line-height: 1.45; }
+.addon-copy code { padding: 0 3px; border-radius: 3px; background: #eef3f8; font-size: 10.5px; }
+.addon-copy-warnings { padding: 8px 10px; border-left: 3px solid #d29b2d; border-radius: 0 var(--card-radius) var(--card-radius) 0; color: #6a4a10; background: #fbf3df; font-size: 11px; line-height: 1.45; }
+.addon-copy-warnings p { margin: 0; }
+.addon-copy-warnings ul { max-height: 140px; margin: 6px 0 0; padding-left: 18px; overflow: auto; font-size: 10px; overflow-wrap: anywhere; }
+.addon-copy .addon-copy-text { min-height: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; word-break: break-all; resize: vertical; }
+:root[data-theme='dark'] .addon-copy-intro, :root[data-theme='dark'] .addon-copy-facts { color: #bfccd9; }
+:root[data-theme='dark'] .addon-copy-counts { color: #9fb0c3; }
+:root[data-theme='dark'] .addon-copy-problem { color: #f0a090; }
+:root[data-theme='dark'] .addon-copy-done { color: #8fc2e8; }
+:root[data-theme='dark'] .addon-copy code { background: #243448; }
+:root[data-theme='dark'] .addon-copy-warnings { border-left-color: #c9a24b; color: #f0d9a0; background: #3a2f17; }

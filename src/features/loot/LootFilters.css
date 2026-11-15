@@ -11,3 +11,6 @@
 
 /* With no panel heading (Loot priorities) the filters start from the left. */
 .panel-toolbar-bare .loot-filters, .panel-toolbar-bare .toolbar-controls:has(.loot-filters) { justify-content: flex-start; }
+
+/* Copy for addon (ADDON-002), for leaders: a secondary button the height of the filters. */
+.loot-filter-copy { min-height: 31px; gap: 6px; padding: 0 10px; font-size: 10px; }

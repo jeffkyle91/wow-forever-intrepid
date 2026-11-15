@@ -31,6 +31,7 @@
 --   versions()            the Versions button: ask the group which version of the addon each has, and show the answers
 --   importNight()         the Import night button: open the window that takes the night string of the Raid Desk
 --   exportAwards()        the Export awards button: open the window with the awards string for the Raid Desk
+--   history()             the History button: open the loot history
 --
 -- Above the answers, one line says how the picked item was answered once the session runs, and where it drops when that is known.
 --
@@ -194,6 +195,8 @@ function SessionPanel.new(kit, callbacks)
   importButton:SetPoint("TOPLEFT", pad + 46 + 44 + gap + 60 + gap * 3, -barTop)
   local exportButton = kit.button(body, "Export awards", { width = 100 })
   exportButton:SetPoint("TOPLEFT", importButton, "TOPRIGHT", gap, 0)
+  local historyButton = kit.button(body, "History", { width = 64 })
+  historyButton:SetPoint("TOPLEFT", exportButton, "TOPRIGHT", gap, 0)
   local startButton = kit.button(body, "Start session", { primary = true, width = 110 })
   startButton:SetPoint("TOPRIGHT", -pad, -barTop)
   local endButton = kit.button(body, "End session", { width = 110 })
@@ -398,6 +401,7 @@ function SessionPanel.new(kit, callbacks)
   hideMissing:SetScript("OnClick", kit.safe(function() self.paintRight() end))
   importButton:SetScript("OnClick", kit.safe(function() call("importNight") end))
   exportButton:SetScript("OnClick", kit.safe(function() call("exportAwards") end))
+  historyButton:SetScript("OnClick", kit.safe(function() call("history") end))
   startButton:SetScript("OnClick", kit.safe(function()
     local seconds = tonumber(timerBox:GetText())
     if not seconds or seconds < ns.Council.MIN_TIMER or seconds > ns.Council.MAX_TIMER then
@@ -444,7 +448,7 @@ function SessionPanel.new(kit, callbacks)
   self.frame = window.frame
   self.parts = {
     window = window, itemsHead = itemsHead, answersHead = answersHead, status = status, countsLine = countsLine, hint = hint, hideMissing = hideMissing,
-    add = addButton, versions = versionsButton, importNight = importButton, exportAwards = exportButton, start = startButton, finish = endButton, new = newButton, timer = timerBox, leftList = leftList,
+    add = addButton, versions = versionsButton, importNight = importButton, exportAwards = exportButton, history = historyButton, start = startButton, finish = endButton, new = newButton, timer = timerBox, leftList = leftList,
     rightList = rightList, leftRows = leftRows, rightRows = rightRows,
   }
   self.metrics = { width = width, height = height, itemRow = itemRow, rowHeight = rowHeight, visible = VISIBLE }

@@ -291,3 +291,40 @@ test("a removed award is held like any other: the app needs to hear about the re
   eq(selection.count, 1)
   eq(selection.changed, 1)
 end)
+
+test("a selection says of each award whether it is new, changed or neither", function()
+  local log = { award("s-a-1", 10, 1), award("s-a-2", 12, 1), award("s-a-3", 5, 1) }
+  local night = loadedNight(1, { { "s-a-1", 10 }, { "s-a-2", 11 } })
+  local selection = Awards.select(log, night, NOW, true)
+  deep_eq(selection.kinds, { false, "changed", "new" })
+end)
+
+test("an export never passes the limit: the oldest awards that fit, and how many wait for the next one", function()
+  local log = {}
+  for n = 1, 30 do log[n] = award("s-a-" .. n, n, 1) end
+  local night = loadedNight(1, { { "s-a-2", 1 } }) -- s-a-2 is known in an older revision: changed
+  local selection = Awards.select(log, night, NOW, false)
+  eq(selection.count, 30)
+  -- room for exactly 10 awards after the head room
+  local room = 0
+  for n = 1, 10 do room = room + #Json.encode(log[n], Awards.AWARD) + 1 end
+  local kept = Awards.fit(selection, 400 + room)
+  eq(kept.count, 10)
+  eq(kept.left, 20)
+  deep_eq(ids(kept), { "s-a-1", "s-a-2", "s-a-3", "s-a-4", "s-a-5", "s-a-6", "s-a-7", "s-a-8", "s-a-9", "s-a-10" })
+  eq(kept.changed, 1)
+  eq(kept.new, 9)
+  eq(#kept.kinds, 10)
+  -- what fits is written within the limit
+  local text = Awards.encode({ schema = 1, id = "a-tpt2u0-q4tz", at = NOW, by = "IntrepidManager/test", awards = kept.awards })
+  is_true(#text <= 400 + room)
+  -- everything fits under the real limit
+  local all = Awards.fit(selection)
+  eq(all.count, 30)
+  eq(all.left, 0)
+  eq(Awards.LIMIT, 100000)
+  -- one award is always held, even past a tiny limit, so an export is never empty while there are awards
+  eq(Awards.fit(selection, 10).count, 1)
+  -- nothing selected, nothing held
+  eq(Awards.fit({ awards = {}, kinds = {} }).count, 0)
+end)

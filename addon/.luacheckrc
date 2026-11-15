@@ -44,6 +44,7 @@ read_globals = {
   "GetLocale",
   "GetNumGroupMembers",
   "GetPhysicalScreenSize",
+  "GetAddOnMemoryUsage", -- /im history stats, behind an existence check
   "GetServerTime",
   "GetTime",
   "GetTimePreciseSec",
@@ -86,6 +87,7 @@ read_globals = {
   "IsInInstance",
   "UnitClassification",
   "UnitGUID",
+  "UpdateAddOnMemoryUsage", -- /im history stats, behind an existence check
 }
 
 -- Test files define their own helpers (see tests/run.lua).

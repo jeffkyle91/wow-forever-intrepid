@@ -1,6 +1,7 @@
 -- Does a window built from the strict stand-in widgets hold together? Every widget that is shown lies inside the window,
 -- one-line text is not wider than its box, wrapped text stays inside the box it was written in, a button is wide enough
--- for its label (with 3 pixels to spare on each side), no two controls overlap,
+-- for its label (with 3 pixels to spare on each side), no two controls of one strata overlap (a dropdown's list in a higher
+-- strata is drawn over the window on purpose),
 -- the layout has nothing to warn about (no anchor, crossing anchors) and the mouse audit of the game is empty.
 --
 --   local Intact = dofile("tests/support/intact.lua")
@@ -69,7 +70,8 @@ function Intact.problems(game, frame)
   for i = 1, #controls do
     for j = i + 1, #controls do
       local a, b = controls[i].rect, controls[j].rect
-      if a.left < b.right - 0.5 and b.left < a.right - 0.5 and a.bottom < b.top - 0.5 and b.bottom < a.top - 0.5 then
+      local sameStrata = state(controls[i].widget).strata == state(controls[j].widget).strata
+      if sameStrata and a.left < b.right - 0.5 and b.left < a.right - 0.5 and a.bottom < b.top - 0.5 and b.bottom < a.top - 0.5 then
         problems[#problems + 1] = controls[i].what .. " overlaps " .. controls[j].what
       end
     end

@@ -53,7 +53,7 @@ local function setup(options)
     rows = function(n) return scene.answers[n] or {} end,
     bags = record("bags"), remove = record("remove"), start = record("start"), finish = record("finish"), reset = record("reset"),
     award = record("award"), unaward = record("unaward"), trade = record("trade"), versions = record("versions"),
-    importNight = record("importNight"), exportAwards = record("exportAwards"),
+    importNight = record("importNight"), exportAwards = record("exportAwards"), history = record("history"),
   })
   scene.parts = scene.panel.parts
   return scene
@@ -495,4 +495,12 @@ test("Hide no response is not shown before the start, and a full window of waiti
     big.panel.show()
     deep_eq(Intact.problems(big.game, big.panel.frame), {})
   end
+end)
+
+test("History opens the loot history, beside Export awards", function()
+  local scene = setup()
+  scene.panel.show()
+  eq(scene.game.state(scene.parts.history).text, "History")
+  scene.game.fire(scene.parts.history, "OnClick", "LeftButton")
+  deep_eq(scene.calls[#scene.calls], { "history" })
 end)

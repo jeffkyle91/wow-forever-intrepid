@@ -4,8 +4,9 @@ local UI = dofile("tests/support/strict_ui.lua")
 local StockTemplates = dofile("tests/support/stock_templates.lua")
 
 local FILES = {
-  "core/Crc32", "core/Json", "core/Envelope", "core/Names", "core/Ids", "core/Check", "core/Night", "core/SelfTestSamples",
-  "ui/Kit", "ui/Sample", "ui/Confirm", "ui/Picker", "ui/SessionWindow", "ui/ImportWindow", "ui/ExportWindow", "ui/IconWindow", "ui/Demo",
+  "core/Crc32", "core/Json", "core/Envelope", "core/Names", "core/Ids", "core/Check", "core/Night", "core/Awards", "core/SelfTestSamples",
+  "core/History", "ui/Kit", "ui/Sample", "ui/Confirm", "ui/Picker", "ui/SessionWindow", "ui/ImportWindow", "ui/ExportWindow", "ui/IconWindow",
+  "ui/HistoryWindow", "ui/Demo",
 }
 
 -- A game with the demo in it. Everything it says goes to scene.said; the saved variables are scene.db.
@@ -69,7 +70,7 @@ test("a word the demo does not know gets the help line and opens nothing", funct
   scene.demo.open("sideways")
   eq(#scene.game.frames, 1)
   eq(#scene.said, 1)
-  is_true(string.find(scene.said[1], "I do not know 'sideways'. /im window [session, import, export, icons, picker or confirm]", 1, true) == 1)
+  is_true(string.find(scene.said[1], "I do not know 'sideways'. /im window [session, import, export, history, icons, picker or confirm]", 1, true) == 1)
   eq(string.find(scene.said[1], "|", 1, true), nil) -- the game would read a pipe in the chat as the start of a color or a link
   eq(scene.demo.windows().session, nil)
 end)
@@ -345,4 +346,44 @@ test("the icon test window opens on its own word, one main window at a time, and
   scene.demo.hideAll()
   eq(scene.demo.windows().icons.isShown(), false)
   deep_eq(scene.game.audit(), {})
+end)
+
+test("/im window history shows four weeks of invented raids in the loot history, and gives nothing", function()
+  local scene = setup()
+  scene.demo.open("history")
+  local window = scene.demo.windows().history
+  eq(window.isShown(), true)
+  local rows, raids = window.shown()
+  eq(#rows, 51) -- 4 nights of 12 awards and 3 dungeon runs
+  eq(#raids, 1 + 4 * 3 + 3) -- All raids, each raid night with its two raids under it, and the three dungeon runs
+  eq(rows[#rows].place, "Molten Test Core")
+  is_true(said(scene, "Showing the history window"))
+  -- another density makes new windows, and the old one is hidden
+  scene.demo.open("history roomy")
+  eq(window.isShown(), false)
+  eq(scene.demo.windows().history.isShown(), true)
+  scene.demo.hideAll()
+  eq(scene.demo.windows().history.isShown(), false)
+end)
+
+test("Export in the demo's history: the export window holds the picked night's invented awards, a string that reads back", function()
+  local scene = setup()
+  scene.demo.open("history")
+  local history = scene.demo.windows().history
+  local _, entries = history.shown()
+  local night = entries[2].night -- the newest night
+  scene.game.fire(history.parts.raidList.lines[2].frame, "OnClick", "LeftButton")
+  scene.game.fire(history.parts.exportButton, "OnClick", "LeftButton")
+  local export = scene.demo.windows().export
+  is_true(export.isShown())
+  is_true(history.isShown()) -- the history stays open beside it
+  local copied = export.parts.edit:GetText()
+  local read = scene.ns.Envelope.read(copied, "awards")
+  is_true(read.ok)
+  eq(#read.model.awards, night.count)
+  local checked = scene.ns.Awards.check(read.model)
+  is_true(checked.ok)
+  deep_eq(checked.rowErrors, {})
+  is_true(string.find(copied, "Test Core", 1, true) == nil) -- the place never leaves the addon
+  is_true(said(scene, "Demo: the export window holds the " .. night.count .. " invented awards of"))
 end)

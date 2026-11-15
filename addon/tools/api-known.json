@@ -1483,6 +1483,7 @@
    "C_ChallengeMode": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "C_Spell": "The drop log names the player's cast to tell a gathering spell (game/DropWatch.lua). Modern clients have C_Spell.GetSpellName; checked before use, with GetSpellInfo as the fallback. Not probed yet.",
    "ForeverDungeonJournal_NS": "Set by the optional addon DungeonJournal (folder ForeverDungeonJournal, Core/Bootstrap.lua) when the player has it installed; read on the loot owner's copy, 2026-11-12. /im dj records whether it is there. Read only, every read guarded.",
+   "GetAddOnMemoryUsage": "/im history stats reads the addon's memory use with it, behind an existence check, to watch what keeping 10,000 awards costs. A Blizzard global; not in any probe or self-test result yet (historyStats.memoryKB in the saved file shows it working).",
    "GetAddOnMetadata": "ForeverLoot only reaches it as a fallback after C_AddOns.GetAddOnMetadata. The probe saw C_AddOns.GetAddOnMetadata and found the old AddOn globals missing (GetAddOnInfo, GetNumAddOns, IsAddOnLoaded), so this one is probably missing too. Harmless as a fallback; remove it or test it.",
    "GetMouseButtonClicked": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "GetNumClasses": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
@@ -1492,7 +1493,8 @@
    "ITEM_QUALITY_COLORS": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "LOCALIZED_CLASS_NAMES_MALE": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
    "TradeFrame": "ForeverLoot only calls it behind an existence check, so its use shows nothing about whether the client has it.",
-   "UnitClassification": "The drop log (game/DropWatch.lua) asks it whether a creature under the mouse or targeted is rare (rare, rareelite). Not in any probe or self-test result yet: a dungeon run with the drop log answers it (stats.raresSeen)."
+   "UnitClassification": "The drop log (game/DropWatch.lua) asks it whether a creature under the mouse or targeted is rare (rare, rareelite). Not in any probe or self-test result yet: a dungeon run with the drop log answers it (stats.raresSeen).",
+   "UpdateAddOnMemoryUsage": "/im history stats reads the addon's memory use with it, behind an existence check, to watch what keeping 10,000 awards costs. A Blizzard global; not in any probe or self-test result yet (historyStats.memoryKB in the saved file shows it working)."
   },
   "methods": {
    "SetInventoryItem": "Blizzard's GameTooltip method for an equipped item; not in any result yet. /im facts calls it on the tooltip and records what the tooltip then holds, so the next run settles it"

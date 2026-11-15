@@ -6,6 +6,8 @@
 -- assigned when the item is awarded, received when the trade went through, removed (a new revision) when the award is taken
 -- back. An award is never changed in recipient or item: that is a removal and a new award with a new id. The ids are made from the
 -- session's start time and four random characters chosen when the addon loads, so a crash never reuses one (section 6.1).
+-- Each award also keeps `place`, the dungeon or raid the loot master was in, for the loot history (core/History.lua). It is not in
+-- the spec, so the export leaves it out. The log keeps the last Exchange.MAX_LOG awards: the history's "everything".
 --
 --   local exchange = ns.Game.Exchange.new({ db = IntrepidManagerDB, version = "0.0.17" })
 --   exchange.importNight(result)            -- the loot master pressed Import: result is what ns.Night.read made of the string
@@ -15,6 +17,7 @@
 --   exchange.unawarded(key, entry)          -- the award is taken back
 --   exchange.given(key, entry, how)         -- the item reached the winner: how is "trade", "master-loot" or "manual"
 --   exchange.exportModel(everything)        -- the view-model of ui/ExportWindow
+--   exchange.log()                          -- the awards, oldest first (the loot history reads it)
 --
 -- The names of players are in these records: they are what the Raid Desk needs, and the saved file is not for sharing.
 
@@ -24,7 +27,12 @@ local Exchange = {}
 ns.Game = ns.Game or {}
 ns.Game.Exchange = Exchange
 
-local MAX_LOG = 2000 -- awards kept; a raid night makes a few dozen
+-- Awards kept. A raid night makes a few dozen, so this is years of raiding; the loot owner chose it on 2026-11-13, to be watched
+-- (/im history stats says how many there are and how big they are).
+local MAX_LOG = 10000
+Exchange.MAX_LOG = MAX_LOG
+-- The fields an award keeps for the addon alone: the export leaves them out (the spec has no such field).
+local LOCAL_FIELDS = { place = true }
 Exchange.PSEUDO_LABEL = { disenchant = "Disenchant", ["guild-bank"] = "Guild bank" }
 
 -- "disenchant" or "guild-bank" for the labels of the pseudo recipients (any case, "guild bank" or "guild-bank"), else nil.
@@ -41,14 +49,34 @@ local function cut(text, limit)
   return string.sub(text, 1, limit)
 end
 
+-- The dungeon or raid the player is in, by the game's name, or nil outside one (GetInstanceInfo; any failure is nil).
+function Exchange.currentPlace()
+  if not GetInstanceInfo then return nil end
+  local ok, name, instanceType = pcall(GetInstanceInfo)
+  if not ok or type(name) ~= "string" or name == "" then return nil end
+  if instanceType == "party" or instanceType == "raid" then return name end
+  return nil
+end
+
+-- An award as the spec has it: a copy without the fields the addon keeps for itself.
+local function forExport(award)
+  local copy = {}
+  for key, value in pairs(award) do
+    if not LOCAL_FIELDS[key] then copy[key] = value end
+  end
+  return copy
+end
+
 -- options: db (the saved variables), version (the addon's), now (server time, default GetServerTime), dateOf(at) (the loot master's
--- local date as YYYY-MM-DD), random (math.random), sessionOpen() (a loot session runs).
+-- local date as YYYY-MM-DD), random (math.random), sessionOpen() (a loot session runs), place() (the dungeon or raid the player is
+-- in, default Exchange.currentPlace).
 function Exchange.new(context)
   local db = context.db
   local Council, Names, Ids, Awards, Night, Envelope = ns.Council, ns.Names, ns.Ids, ns.Awards, ns.Night, ns.Envelope
   local now = context.now or function() return GetServerTime() end
   local dateOf = context.dateOf or function(at) return date("%Y-%m-%d", at) end
   local random = context.random or math.random
+  local place = context.place or Exchange.currentPlace
   local self = {}
 
   local part = Ids.randomPart(random) -- for every session of this load
@@ -189,6 +217,8 @@ function Exchange.new(context)
       record.zoneId = priority.zoneId
     end
     record.delivery = { state = "assigned" }
+    local where = place()
+    if type(where) == "string" and where ~= "" then record.place = cut(where, 120) end
     local entries = log()
     entries[#entries + 1] = record
     while #entries > MAX_LOG do table.remove(entries, 1) end
@@ -228,14 +258,22 @@ function Exchange.new(context)
   -- The export
   ---------------------------------------------------------------------------------------------------------------
 
-  -- The view-model of the export window (ui/ExportWindow): which awards the string holds is decided by Awards.select (spec 6.1).
-  function self.exportModel(everything)
+  -- The view-model of the export window (ui/ExportWindow): which awards the string holds is decided by Awards.select (spec 6.1),
+  -- and the string never passes Awards.LIMIT: what does not fit waits for the next export (`left`). `only` = { ids = award id ->
+  -- true, label = "Molten Core - Wed, Dec 9, 2026, 8:05 PM" }: those awards only, a night or a raid of the loot history.
+  function self.exportModel(everything, only)
     local at = now()
     local night = db.night and { model = { phase = db.night.phase }, known = db.night.known or {} } or nil
-    local selected = Awards.select(log(), night, at, everything)
+    everything = everything and not only
+    local selected = Awards.select(log(), night, at, everything, only and only.ids)
+    local plain = {}
+    for index, award in ipairs(selected.awards) do plain[index] = forExport(award) end
+    selected.awards = plain
+    selected = Awards.fit(selected)
     local vm = {
-      count = selected.count, new = selected.new, changed = selected.changed, hasNight = night ~= nil, everything = everything and true or false,
-      sessionOpen = context.sessionOpen and context.sessionOpen() or false,
+      count = selected.count, new = selected.new, changed = selected.changed, left = selected.left, hasNight = night ~= nil,
+      everything = everything and true or false, sessionOpen = context.sessionOpen and context.sessionOpen() or false,
+      session = only and only.label or nil,
     }
     if selected.count > 0 then
       vm.text = Awards.encode({

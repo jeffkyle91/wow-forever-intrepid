@@ -16,11 +16,11 @@ ns.UI = ns.UI or {}
 ns.UI.Demo = Demo
 
 -- No pipe characters in what goes to the chat: the game reads them as the start of a color or link.
-local HELP = "/im window [session, import, export, icons, picker or confirm] [roomy] [flat]. The session window also takes 40, "
+local HELP = "/im window [session, import, export, history, icons, picker or confirm] [roomy] [flat]. The session window also takes 40, "
   .. "unconfirmed, failed, observed or warning (which state it shows); the import window takes sample (the sample night is "
   .. "pasted in); the import and export windows take busy (a session is open)."
 
-local WINDOWS = { session = true, import = true, export = true, icons = true, picker = true, confirm = true }
+local WINDOWS = { session = true, import = true, export = true, history = true, icons = true, picker = true, confirm = true }
 local EXTRAS = { ["40"] = true, unconfirmed = true, failed = true, observed = true, warning = true, busy = true, sample = true }
 
 local ATTEMPTS = {
@@ -55,7 +55,7 @@ function Demo.new(context)
   local db = context.db or {}
   local self = {}
   local kit, kitKey
-  local session, import, export, icons -- the windows, once built (they belong to one kit)
+  local session, import, export, icons, history -- the windows, once built (they belong to one kit)
   local exportEverything = false   -- the export window's box "Everything, not only what is new"
   local options, given, removed    -- what the session window shows now, and what was "given" in the demo
 
@@ -79,7 +79,8 @@ function Demo.new(context)
       if import then import.hide() end
       if export then export.hide() end
       if icons then icons.hide() end
-      session, import, export, icons = nil, nil, nil, nil
+      if history then history.hide() end
+      session, import, export, icons, history = nil, nil, nil, nil, nil
       db.positions = db.positions or {}
       kit = ns.UI.Kit.new({
         density = request.density, chrome = request.chrome, positions = db.positions,
@@ -211,6 +212,20 @@ function Demo.new(context)
     }
   end
 
+  local function makeExport(request)
+    if not export then
+      export = ns.UI.ExportWindow.new(kit, {
+        everything = function(on)
+          exportEverything = on
+          export.update(exportVm(request))
+          out("Demo: the export would hold " .. (on and "everything" or "what is new") .. ".")
+        end,
+        done = function() out("Demo: Done. After a real export the addon would suggest a /reload, never force one.") end,
+      })
+    end
+    return export
+  end
+
   local function showExport(request, together)
     kitFor(request)
     if not together then
@@ -223,16 +238,7 @@ function Demo.new(context)
       if icons then icons.hide() end
     end
     exportEverything = false
-    if not export then
-      export = ns.UI.ExportWindow.new(kit, {
-        everything = function(on)
-          exportEverything = on
-          export.update(exportVm(request))
-          out("Demo: the export would hold " .. (on and "everything" or "what is new") .. ".")
-        end,
-        done = function() out("Demo: Done. After a real export the addon would suggest a /reload, never force one.") end,
-      })
-    end
+    makeExport(request)
     export.open(exportVm(request))
     return export
   end
@@ -255,6 +261,51 @@ function Demo.new(context)
   end
 
   -----------------------------------------------------------------------------------------------------------
+  -- The loot history window: four weeks of invented raids (ui/Sample.lua), in the player's local time
+  -----------------------------------------------------------------------------------------------------------
+  local function clock(at) return date("*t", at) end
+
+  -- Export in the demo's history: the export window with every award of the night or raid picked, written for real from the
+  -- invented log (without `place`, which never leaves the addon), so the string reads back like a real one.
+  local function exportPicked(request, log, pick)
+    local ids, awards = ns.History.idsOf(ns.History.build(log, clock), pick.kind, pick.key), {}
+    for _, award in ipairs(log) do
+      if ids[award.id] then
+        local copy = {}
+        for key, value in pairs(award) do
+          if key ~= "place" then copy[key] = value end
+        end
+        awards[#awards + 1] = copy
+      end
+    end
+    local now = GetServerTime and GetServerTime() or 1796866200
+    local text = #awards > 0 and ns.Awards.encode({
+      schema = 1, id = ns.Ids.exportId(now, function() return 1 end), at = now, by = "IntrepidManager/demo", awards = awards,
+    }) or nil
+    kitFor(request)
+    makeExport(request)
+    export.open({ text = text, count = #awards, new = #awards, changed = 0, hasNight = false, session = pick.label })
+    out("Demo: the export window holds the " .. #awards .. " invented awards of " .. pick.label .. ".")
+  end
+
+  local shownLog, shownRequest -- what the history window shows now, for its Export
+  local function showHistory(request)
+    kitFor(request)
+    local now = GetServerTime and GetServerTime() or 1796866200
+    local log = ns.UI.Sample.historyLog(now)
+    shownLog, shownRequest = log, request
+    if not history then
+      history = ns.UI.HistoryWindow.new(kit, { export = function(pick) exportPicked(shownRequest, shownLog, pick) end })
+    end
+    local today = date("*t", now)
+    history.open({
+      history = ns.History.build(log, clock), year = today.year, today = ns.History.dayNumber(today.year, today.month, today.day),
+      limit = 10000, search = "",
+    })
+    return history
+  end
+
+  -----------------------------------------------------------------------------------------------------------
   -- Outside
   -----------------------------------------------------------------------------------------------------------
   function self.open(argument)
@@ -269,6 +320,8 @@ function Demo.new(context)
       showExport(request)
     elseif request.window == "icons" then
       showIcons(request)
+    elseif request.window == "history" then
+      showHistory(request)
     else
       showSession(request)
       if request.window == "picker" then
@@ -315,10 +368,11 @@ function Demo.new(context)
     if import then import.hide() end
     if export then export.hide() end
     if icons then icons.hide() end
+    if history then history.hide() end
   end
 
-  -- The windows built so far ({ session, import, export, icons }), for the tests and for /im facts.
-  function self.windows() return { session = session, import = import, export = export, icons = icons } end
+  -- The windows built so far ({ session, import, export, icons, history }), for the tests and for /im facts.
+  function self.windows() return { session = session, import = import, export = export, icons = icons, history = history } end
 
   self.parse = parse
   self.HELP = HELP

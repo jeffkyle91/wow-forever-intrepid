@@ -33,6 +33,7 @@ import { raidStartDate } from './shared/lib/raidStart'
 import { isMarkedComplete } from './shared/raids/raidCategory'
 import { sameRaidZones } from './shared/raids/zoneSnapshots'
 import { setMembershipRemoved as writeMembershipRemoved } from './shared/members/access'
+import { isReadinessChecklist, normalizeReadiness, readinessProgress, type ReadinessChecklist } from './shared/members/readiness'
 import { normalizeCharacterRequest, type CharacterProposal, type CharacterRequest } from './shared/characters/requests'
 export type { PlayerRecord } from './shared/game/players'
 
@@ -167,10 +168,20 @@ export async function submitCharacterRequest(requestId: string, proposal: Charac
   await httpsCallable(functions, 'submitCharacterRequest')({ guildId, requestId, ...proposal, note })
 }
 
-export async function setCharacterReadiness(characterId: string, ready: boolean) {
+export async function setCharacterReadiness(characterId: string, checklist: ReadinessChecklist, expectedUpdatedAt: Timestamp | null) {
   if (!auth?.currentUser) throw new Error('Sign in to update raid readiness.')
-  await setDoc(doc(requireDb(), 'guilds', guildId, 'characterReadiness', characterId), {
-    ready, updatedBy: auth.currentUser.uid, updatedAt: serverTimestamp(),
+  if (!isReadinessChecklist(checklist)) throw new Error('Complete a valid raid-readiness checklist.')
+  const updatedBy = auth.currentUser.uid
+  const database = requireDb()
+  const ref = doc(database, 'guilds', guildId, 'characterReadiness', characterId)
+  await runTransaction(database, async (transaction) => {
+    const snapshot = await transaction.get(ref)
+    const current = snapshot.exists() ? normalizeReadiness(characterId, snapshot.data()) : null
+    if (snapshot.exists() && !current) throw new Error('This readiness record could not be read. Ask a Guild Leader to check it.')
+    if (expectedUpdatedAt ? !current?.updatedAt.isEqual(expectedUpdatedAt) : snapshot.exists()) {
+      throw new Error('Readiness changed while you were editing. Close and reopen the checklist to review the latest progress.')
+    }
+    transaction.set(ref, { schemaVersion: 1, checklist, ready: readinessProgress(checklist).ready, updatedBy, updatedAt: serverTimestamp() })
   })
 }
 

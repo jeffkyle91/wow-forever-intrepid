@@ -1,7 +1,7 @@
 -- The drops string (IntrepidManager/core/Drops.lua): built from the drop log, written, read back through the envelope, and checked the
 -- way the Raid Desk's import will (docs/design/drop-list-import.md, section 5). Invented ids and names only.
 
-local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "DropLog", "Drops")
+local ns = load_core({}, "Crc32", "Json", "Envelope", "Ids", "Check", "DropLog", "Drops")
 local DropLog, Drops, Envelope, Json, Ids = ns.DropLog, ns.Drops, ns.Envelope, ns.Json, ns.Ids
 
 local T0 = 1796866200
@@ -242,6 +242,60 @@ test("the checks drop one zone or one creature with its row, and keep the rest",
   end
 end)
 
+-- The checks of the decoded sample after one change: { ok = true, rowErrors } or the refusal.
+local function checkedAfter(change)
+  local m = decodedSample()
+  change(m)
+  return Drops.check(m)
+end
+
+-- The text rules of spec section 2, which section 14 follows.
+local E_ACUTE = "\195\169" -- one code point, two bytes
+
+test("a name is counted in code points, not bytes: 100 two-byte letters are a name, 101 are too long", function()
+  for _, place in ipairs({
+    { function(m, name) m.zones[2].name = name end, "zone:2" },
+    { function(m, name) m.zones[2].sources[1].name = name end, "zone:2/source:1" },
+    { function(m, name) m.zones[2].sources[1].seen[1].name = name end, "zone:2/source:1" },
+  }) do
+    local fits = checkedAfter(function(m) place[1](m, string.rep(E_ACUTE, 100)) end)
+    is_true(fits.ok)
+    deep_eq(fits.rowErrors, {})
+    local over = checkedAfter(function(m) place[1](m, string.rep(E_ACUTE, 101)) end)
+    is_true(over.ok)
+    deep_eq(over.rowErrors, { place[2] })
+  end
+end)
+
+test("a name of tabs is text: only ASCII spaces make a name blank", function()
+  local tabs = checkedAfter(function(m) m.zones[2].name = "\t" m.zones[2].sources[1].name = "\t\t" end)
+  is_true(tabs.ok)
+  deep_eq(tabs.rowErrors, {})
+  deep_eq(checkedAfter(function(m) m.zones[2].sources[1].name = "   " end).rowErrors, { "zone:2/source:1" })
+end)
+
+test("by is 1 to 60 characters: 61 refuse the whole string", function()
+  local fits = checkedAfter(function(m) m.by = "IntrepidManager/" .. string.rep("9", 44) end)
+  is_true(fits.ok)
+  local over = checkedAfter(function(m) m.by = "IntrepidManager/" .. string.rep("9", 45) end)
+  eq(over.ok, false)
+  eq(over.code, "E_PAYLOAD")
+end)
+
+test("a NUL in a name is a row error, and in by or journal it refuses the whole string", function()
+  deep_eq(checkedAfter(function(m) m.zones[2].name = "Hollow\0Keep" end).rowErrors, { "zone:2" })
+  deep_eq(checkedAfter(function(m) m.zones[2].sources[1].name = "The Fixture\0Warden" end).rowErrors, { "zone:2/source:1" })
+  deep_eq(checkedAfter(function(m) m.zones[2].sources[1].seen[1].name = "Item\0" end).rowErrors, { "zone:2/source:1" })
+  for _, change in ipairs({
+    function(m) m.by = "IntrepidManager/0.0\0.19" end,
+    function(m) m.journal = "ForeverDungeonJournal/2.0\0.3" end,
+  }) do
+    local refused = checkedAfter(change)
+    eq(refused.ok, false)
+    eq(refused.code, "E_PAYLOAD")
+  end
+end)
+
 test("a drops string in the awards box says where it belongs; a damaged one is refused", function()
   local _, db = sampleLog()
   local text = Drops.encode((build(db)))
@@ -317,4 +371,84 @@ test("a journal boss with another npc id is another creature, even with the same
   eq(raid.sources[1].journal, nil)
   eq(raid.sources[2].npcId, 990011)
   deep_eq(raid.sources[2].journal, { 900301, 900302 })
+end)
+
+---------------------------------------------------------------------------------------------------------------
+-- The shared fixture docs/spec/fixtures/drops-small (docs/spec/exchange-v0.md, section 14): the addon builds it from a drop log
+-- and a journal, and writes it byte for byte as the reference writer (addon/tools/exchange_fixtures.py) does.
+---------------------------------------------------------------------------------------------------------------
+
+local FIXTURES = SPEC .. "fixtures/"
+local NIGHT2 = T0 + 7 * DAY
+
+local function seen(n, last, via, name, quality, extra)
+  local item = { n = n, last = last, via = via, name = name, quality = quality }
+  for key, value in pairs(extra or {}) do item[key] = value end
+  return item
+end
+
+-- The drop log behind drops-small: a raid zone over two nights and a dungeon run three days before. Invented.
+local function fixtureStore()
+  return { schema = 1, zoneCount = 2, itemCount = 0, corpses = {}, cursor = 0, stats = {}, zones = {
+    ["9901:9"] = { instanceId = 9901, difficultyId = 9, name = "Hollow Test Barrow", kind = "raid", players = 40, first = T0,
+      last = NIGHT2 + 640, count = 7, bosses = {}, guesses = {}, methods = {}, sources = {
+      n990001 = { npcId = 990001, encounterId = 9101, name = "Grimtooth the Test Boss", kind = "boss", kills = 2, first = T0 + 600,
+        last = NIGHT2 + 640, count = 3, items = {
+        [900001] = seen(2, NIGHT2 + 610, "window", "Blade of the Fixture", 4),
+        [900002] = seen(1, T0 + 610, "window", "Zo\195\171's Fixture Mantle", 4),
+        [900007] = seen(1, NIGHT2 + 640, "roll", "Gauntlets of Test Ipsum", 4),
+      } },
+      e9102 = { encounterId = 9102, name = "Lady Test Ipsum", kind = "boss", kills = 1, first = T0 + 1500, last = T0 + 1500, count = 1,
+        items = { [900003] = seen(1, T0 + 1500, "roll", "Ring of Lorem", 4) } },
+      n990003 = { npcId = 990003, encounterId = 9103, name = "Warden of the Test Barrow", kind = "boss", guessed = true, kills = 1,
+        first = T0 + 2400, last = T0 + 2400, count = 1, items = { [900004] = seen(1, T0 + 2400, "window", "Helm of Many Commas", 4) } },
+      n990012 = { npcId = 990012, name = "Lord Lorem", kind = "rare", kills = 1, first = T0 + 900, last = T0 + 900, count = 2, items = {
+        [900006] = seen(1, T0 + 905, "window", "A Torn Test Map", 2, { quest = true }),
+        [900005] = seen(1, T0 + 905, "window", "Lorem Signet", 3),
+      } },
+      n990031 = { npcId = 990031, name = "Dusty Test Sentry", kind = "trash", kills = 4, first = T0 + 300, last = NIGHT2 + 300, count = 1,
+        items = { [900050] = seen(2, NIGHT2 + 300, "window", "Fixture Belt of the Wind", 3, { boe = true }) } },
+      n990032 = { npcId = 990032, name = "Barrow Test Ghoul", kind = "trash", kills = 2, first = T0 + 200, last = T0 + 400, count = 1,
+        items = { [900050] = seen(1, T0 + 400, "window", "Fixture Belt of the Wind", 3, { boe = true }) } },
+      n990033 = { npcId = 990033, name = "Barrow Test Rat", kind = "trash", kills = 6, first = T0 + 100, last = T0 + 700, count = 0, items = {} },
+    } },
+    ["9100:1"] = { instanceId = 9100, difficultyId = 1, name = "Hollow Test Keep", kind = "dungeon", players = 5, first = T0 - 3 * DAY,
+      last = T0 - 3 * DAY + 100, count = 1, bosses = {}, guesses = {}, methods = {}, sources = {
+      n990011 = { npcId = 990011, encounterId = 3001, name = "The Fixture Warden", kind = "boss", kills = 1, first = T0 - 3 * DAY + 60,
+        last = T0 - 3 * DAY + 60, count = 1, items = { [900101] = seen(1, T0 - 3 * DAY + 60, "window", "Fixture Warden's Cleaver", 3) } },
+    } },
+  } }
+end
+
+local function fixtureJournal()
+  return { version = "2.0.3", zoneFor = function(name)
+    if name ~= "Hollow Test Keep" then return nil end
+    return { name = name, kind = "dungeon", players = 5, partial = true, skipped = 2, sources = {
+      { npcId = 990011, name = "The Fixture Warden", kind = "boss", itemIds = { 900101, 900105 } },
+      { npcId = 990015, name = "Quiet Placeholder", kind = "boss", itemIds = { 900107 } },
+    } }
+  end }
+end
+
+test("the drops fixture is what the addon builds from its log and journal, written byte for byte", function()
+  local model, counts = Drops.build(fixtureStore(), {
+    at = NIGHT2 + 3600, id = "d-tq64a0-7k2m", version = "0.1.0", dateOf = dateOf, journal = fixtureJournal(),
+  })
+  eq(Ids.base36(NIGHT2 + 3600), "tq64a0") -- the time part of the fixture's id
+  eq(counts.zones, 2)
+  eq(counts.journal, 3)
+  eq(Drops.encode(model), read_file(FIXTURES .. "drops-small.j.txt"))
+end)
+
+test("the drops fixture's model is written byte for byte, reads back to itself and passes the checks", function()
+  local ok, model = Json.decode(read_file(FIXTURES .. "drops-small.model.json"))
+  is_true(ok)
+  local text = Drops.encode(model)
+  eq(text, read_file(FIXTURES .. "drops-small.j.txt"))
+  local read = Envelope.read(text, "drops")
+  is_true(read.ok)
+  deep_eq(read.model, model)
+  local checked = Drops.check(read.model)
+  is_true(checked.ok)
+  deep_eq(checked.rowErrors, {})
 end)

@@ -2,6 +2,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { id, input, membership } from './access.js'
 import { standingDefinitions } from './standingTeams.js'
+import { isRaidReady } from './readiness.js'
 
 const activeRoles = ['Guild Leader', 'Raid Leader', 'Member']
 const defaultNames = { blue: 'Blue', yellow: 'Yellow', red: 'Red', white: 'White', green: 'Green', pink: 'Pink', brown: 'Brown' }
@@ -32,7 +33,7 @@ function identity(characterId, roster) {
 }
 
 export function eligibleInvitations(roster, members, readiness) {
-  const ready = new Set(readiness.filter((entry) => entry.ready === true).map((entry) => entry.id))
+  const ready = new Set(readiness.filter(isRaidReady).map((entry) => entry.id))
   return members.filter((member) => activeRoles.includes(member.role)
     && ready.has(member.playerId)
     && roster.some((entry) => entry.id === member.playerId && !entry.mainId && entry.linkedUid === member.id))
@@ -148,7 +149,7 @@ export async function changePlacement(db, request) {
       const owner = characterOwner(data.characterId, context.roster, context.members)
       const character = context.roster.find((entry) => entry.id === data.characterId)
       const signup = context.signups.find((entry) => entry.id === owner?.id)
-      if (!owner || !character || !context.readiness.some((entry) => entry.id === character.id && entry.ready === true)) {
+      if (!owner || !character || !context.readiness.some((entry) => entry.id === character.id && isRaidReady(entry))) {
         throw new HttpsError('failed-precondition', 'New placements require a ready character linked to an active guild member.')
       }
       if (data.characterId !== (signup?.characterId ?? owner.playerId)) {

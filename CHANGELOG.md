@@ -6,8 +6,25 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
-- Guild Roster column headers sort the list in either direction, while keeping alts under their mains.
-- The Guild Roster header shows separate totals for mains and alts.
+## 2026-11-14 - 427f745
+
+Refresh open tabs to load the update.
+
+- Guild and Raid Leaders can press **Copy for addon** on Loot priorities to copy the current phase's priority lists, who has already received, the roster and the raid night for the loot master's addon, then paste it in the game with `/im import`. The dialog lists anything the addon will skip before you copy.
+
+Verified production deployment. Source PR: #207. Both Hosting domains served the built assets and sign-in rendered; authenticated production export and in-game import were not tested. The addon must be installed separately.
+
+## 2026-11-14 - 0f75b2f
+
+Refresh open tabs to load the update.
+
+- My dashboard has a Raid Readiness checklist and progress bar for each character. Save progress as you go; all nine checks are required to be Raid Ready. Previously marked characters need to complete the checklist.
+- Guild Roster has tighter rows. Guild Leaders see separate App Access and Raid Readiness columns with compact progress indicators.
+- Guild Roster starts with alts hidden and names sorted A–Z. You can show alts and sort by column; alts stay with their mains.
+- The roster header shows separate totals for mains and alts. An alt's App Access reflects its main's linked account.
+- Unassigned alts have a blank 10-player team cell; unassigned mains show "Unassigned."
+
+Verified cumulative production release. Source PRs: #197, #201, and #204. Roster sorting/counts were deployed November 12, the checklist November 13, and the roster/checklist refinements November 14. Both Hosting domains served the built assets; authenticated production checklist saves were not tested.
 
 ## 2026-11-11 - 6c261bc
 

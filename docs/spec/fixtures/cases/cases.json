@@ -20,6 +20,11 @@
     "expect": "E_MALFORMED"
   },
   {
+    "file": "cases/awards-bad-drops-string.txt",
+    "box": "awards",
+    "expect": "E_KIND"
+  },
+  {
     "file": "cases/awards-bad-empty-payload.txt",
     "box": "awards",
     "expect": "E_PAYLOAD"
@@ -203,6 +208,89 @@
     "box": "awards",
     "expect": "OK",
     "sameAs": "awards-small"
+  },
+  {
+    "file": "cases/drops-bad-altered.txt",
+    "box": "drops",
+    "expect": "E_CHECKSUM"
+  },
+  {
+    "file": "cases/drops-bad-long-by.txt",
+    "box": "drops",
+    "expect": "E_PAYLOAD",
+    "layer": "content"
+  },
+  {
+    "file": "cases/drops-bad-newer-schema.txt",
+    "box": "drops",
+    "expect": "E_SCHEMA"
+  },
+  {
+    "file": "cases/drops-bad-no-zones.txt",
+    "box": "drops",
+    "expect": "E_PAYLOAD",
+    "layer": "content"
+  },
+  {
+    "file": "cases/drops-bad-nul-in-by.txt",
+    "box": "drops",
+    "expect": "E_PAYLOAD",
+    "layer": "content"
+  },
+  {
+    "file": "cases/drops-bad-truncated.txt",
+    "box": "drops",
+    "expect": "E_TRUNCATED"
+  },
+  {
+    "file": "cases/drops-bad-wrong-kind.txt",
+    "box": "drops",
+    "expect": "E_KIND"
+  },
+  {
+    "file": "cases/drops-ok-blank-names.txt",
+    "box": "drops",
+    "expect": "OK",
+    "rowErrors": [
+      "zone:1/source:2"
+    ]
+  },
+  {
+    "file": "cases/drops-ok-code-points-over.txt",
+    "box": "drops",
+    "expect": "OK",
+    "rowErrors": [
+      "zone:1/source:1"
+    ]
+  },
+  {
+    "file": "cases/drops-ok-code-points.txt",
+    "box": "drops",
+    "expect": "OK"
+  },
+  {
+    "file": "cases/drops-ok-nul-in-text.txt",
+    "box": "drops",
+    "expect": "OK",
+    "rowErrors": [
+      "zone:2/source:1"
+    ]
+  },
+  {
+    "file": "cases/drops-ok-row-errors.txt",
+    "box": "drops",
+    "expect": "OK",
+    "rowErrors": [
+      "zone:1/source:2",
+      "zone:1/source:5",
+      "zone:2"
+    ]
+  },
+  {
+    "file": "cases/drops-ok-two-strings.txt",
+    "box": "drops",
+    "expect": "OK",
+    "envelopes": 2
   },
   {
     "file": "cases/night-bad-altered.txt",

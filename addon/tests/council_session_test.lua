@@ -108,16 +108,12 @@ test("shift-clicked links are queued in order with numbers, a bad line says what
   eq(master.events[1][1], "onQueueChanged")
 end)
 
-test("starting needs items, a group, no boss fight, and an unused queue", function()
+test("starting needs items, no boss fight, and an unused queue", function()
   local scene = pair()
   local master = scene.master
   master.council.command("start")
   is_true(said(master, "queue items first"))
   queue(scene, 101)
-  master.joined.inGroup = false
-  master.council.command("start")
-  is_true(said(master, "join a group first"))
-  master.joined.inGroup = true
   master.joined.encounter = true
   master.council.command("start")
   is_true(said(master, "a boss fight is on: the game blocks addon messages until it ends"))
@@ -132,6 +128,97 @@ test("starting needs items, a group, no boss fight, and an unused queue", functi
   is_true(said(master, "a session is running already"))
   master.council.command("add " .. link(555, "Thing 555"))
   is_true(said(master, "a session is running. Type /im session end first."))
+end)
+
+-- A loot master alone: nobody is in a group (the raider's client exists, but is not in the loot master's group).
+local function alone(options)
+  local scene = pair(options)
+  scene.master.joined.inGroup = false
+  scene.raider.joined.inGroup = false
+  return scene
+end
+
+test("outside a group a session is a practice: only the loot master is asked, nothing is sent, and its awards never reach the awards log", function()
+  local scene = alone({ exchange = true })
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101, 102, 103)
+  local sends = scene.world.sends
+  master.council.command("start 30")
+  is_true(said(master, "practice (you are not in a group): 3 items, 30 seconds. Only you are asked and nothing is sent; its awards stay out of the awards log and the export."))
+  eq(said(master, "started:"), false)
+  eq(master.council.session().state, "running")
+  eq(master.council.masterModel().practice, true)
+  -- the loot master's own answer frame has the items; nobody else was offered anything
+  eq(#master.council.offerModel().rows, 3)
+  eq(master.council.offerModel().master, "you")
+  scene.world.advance(6)
+  eq(said(raider, "offers 3 items"), false)
+  eq(said(master, "answered the hello"), false)
+  -- the loot master answers, changes an answer, and sees it as the rows of the item
+  master.council.respond("1 up first try")
+  master.council.respond("1 bis changed my mind")
+  is_true(said(master, "item 1: Best in slot - changed my mind"))
+  master.council.respond("2 pass")
+  eq(master.council.session().responders(), 1)
+  eq(master.council.session().counts(1).b, 1)
+  eq(master.council.rowsModel(1)[1].who, "(you)")
+  -- awards: to themself and to the guild bank; a player who is not there cannot win anything
+  master.council.award(1, "Jorren Ashvale")
+  master.council.award(2, "guild bank")
+  master.council.award(3, "Mirelle Dunmore")
+  is_true(said(master, "Mirelle Dunmore is not in your group and has not answered: there is nobody to award item 3 to."))
+  eq(master.council.session().items()[1].winner, "(you)")
+  eq(master.council.session().items()[2].winner, "Guild bank")
+  eq(master.council.masterModel().pending, 2)
+  master.council.trade("(you)")
+  master.council.trade("guild bank")
+  is_true(said(master, "1 item stays with you: marked as given."))
+  is_true(said(master, "1 item is marked as given to Guild bank: you hand it over yourself."))
+  eq(master.council.masterModel().pending, 0)
+  -- a take-back and a new award change nothing in the log either
+  master.council.award(3, "disenchant")
+  master.council.unaward(3)
+  eq(#master.exchange.log(), 0)
+  eq(master.exchange.exportModel(true).count, 0)
+  eq(master.exchange.exportModel(true).text, nil)
+  -- the end: the results say it was a practice, and the record marks it
+  master.council.command("end")
+  is_true(said(master, "over (you ended it): 1 raider answered."))
+  is_true(said(master, "a practice session: only you were asked, and its awards stay out of the awards log."))
+  eq(said(master, "said hello"), false)
+  eq(master.db.council.sessions[1].practice, true)
+  eq(master.db.council.exchangeErrors, nil)
+  scene.world.advance(5)
+  eq(scene.world.sends, sends)
+  eq(#raider.said, 0)
+end)
+
+test("a practice ends by its timer, and the next session in a group is a real one that is sent and logged", function()
+  local scene = alone({ exchange = true })
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101)
+  master.council.command("start 10")
+  master.council.award(1, "Jorren Ashvale")
+  scene.world.advance(20)
+  is_true(said(master, "over (time is up): 0 raiders answered."))
+  eq(master.council.masterModel().practice, true)
+  eq(#master.exchange.log(), 0)
+  -- the group forms: New session, a new queue, and this one is offered to the raider and recorded
+  master.council.command("new") -- the practice's award was not given: the first press warns
+  master.council.command("new")
+  eq(master.council.session(), nil)
+  master.joined.inGroup = true
+  raider.joined.inGroup = true
+  queue(scene, 102)
+  master.council.command("start 30")
+  is_true(said(master, "started: 1 item, 30 seconds."))
+  eq(master.council.masterModel().practice, nil)
+  scene.world.advance(1)
+  is_true(said(raider, "Jorren Ashvale offers 1 item, 30 seconds to answer."))
+  master.council.award(1, "Mirelle Dunmore")
+  eq(#master.exchange.log(), 1)
+  eq(master.exchange.log()[1].to, "Mirelle Dunmore")
+  eq(master.db.council.sessions[1].practice, true)
 end)
 
 test("a session reaches the raider, who answers, and the loot master sees it, then the time runs out and both sides close", function()
@@ -353,7 +440,7 @@ test("respond and offers say what to do when the words are wrong or nothing is o
   raider.council.offers()
   is_true(said(raider, "nothing is on offer."))
   raider.council.command("whatever")
-  is_true(said(raider, "no session. Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds], results [n], end, new. Then /im award <n> <name> and /im trade <name>."))
+  is_true(said(raider, "no session. Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds] (outside a group: a practice just for you), results [n], end, new. Then /im award <n> <name> and /im trade <name>."))
 end)
 
 test("the windows hear about the queue, the offers, the answers and the end through their hooks", function()
@@ -647,7 +734,7 @@ test("an award can be changed or taken back until the item is given; a given ite
   eq(master.council.session().items()[1].winner, "Mirelle Dunmore")
 end)
 
-test("the answer of a raider sets the spelling of the winner; a winner who did not answer gets a row of their own", function()
+test("the answer of a raider sets the spelling of the winner; a winner who did not answer is marked on their waiting row", function()
   local scene = tradingPair({ ids = { 101, 102 } })
   local master, raider = scene.master, scene.raider
   scene.world.advance(1) -- the offer arrives
@@ -660,9 +747,10 @@ test("the answer of a raider sets the spelling of the winner; a winner who did n
   master.council.award(2, "Mirelle Dunmore") -- she did not answer item 2
   rows = master.council.rowsModel(2)
   eq(#rows, 1)
-  deep_eq({ rows[1].who, rows[1].winner, rows[1].label, rows[1].code }, { "Mirelle Dunmore", true, "No answer", nil })
+  deep_eq({ rows[1].who, rows[1].winner, rows[1].label, rows[1].code, rows[1].missing }, { "Mirelle Dunmore", true, "Waiting", nil, true })
   master.council.unaward(2)
-  eq(#master.council.rowsModel(2), 0)
+  rows = master.council.rowsModel(2)
+  deep_eq({ #rows, rows[1].who, rows[1].winner, rows[1].missing }, { 1, "Mirelle Dunmore", nil, true })
 end)
 
 test("the loot master can keep an item: it is awarded under their own name and marked as given without a trade", function()
@@ -866,4 +954,142 @@ test("without a source lookup the window's items have no source", function()
   local scene = pair()
   queue(scene, 101)
   eq(scene.master.council.masterModel().items[1].source, nil)
+end)
+
+test("the raiders asked: the group at the start; who has not answered an item is Waiting, then No response; the counter counts answers", function()
+  local scene = pair()
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101, 102)
+  master.council.command("start 30")
+  scene.world.advance(1)
+  raider.council.respond("1 up")
+  scene.world.advance(1)
+  local model = master.council.masterModel()
+  eq(model.answers, 1)
+  eq(model.expected, 4) -- two raiders asked (the loot master and the raider), two items
+  eq(model.items[1].asked, 2)
+  local rows = master.council.rowsModel(1)
+  deep_eq({ #rows, rows[1].who, rows[1].label, rows[2].who, rows[2].label, rows[2].missing }, { 2, "Mirelle Dunmore", "Upgrade", "(you)", "Waiting", true })
+  rows = master.council.rowsModel(2)
+  deep_eq({ #rows, rows[1].label, rows[2].label }, { 2, "Waiting", "Waiting" })
+  master.council.respond("2 pass")
+  eq(master.council.masterModel().answers, 2)
+  master.council.command("end")
+  rows = master.council.rowsModel(1)
+  deep_eq({ rows[2].who, rows[2].label }, { "(you)", "No response" })
+  rows = master.council.rowsModel(2)
+  deep_eq({ rows[1].who, rows[1].label, rows[2].who, rows[2].label }, { "(you)", "Pass", "Mirelle Dunmore", "No response" })
+  -- a raider who joins after the start was not asked
+  eq(master.council.masterModel().expected, 4)
+end)
+
+test("a practice asks the loot master alone: an item they did not answer says No response after the end", function()
+  local scene = alone()
+  local master = scene.master
+  queue(scene, 101, 102, 103)
+  master.council.command("start 30")
+  master.council.respond("1 bis lol")
+  eq(master.council.masterModel().answers, 1)
+  eq(master.council.masterModel().expected, 3)
+  deep_eq({ master.council.rowsModel(2)[1].who, master.council.rowsModel(2)[1].label }, { "(you)", "Waiting" })
+  scene.world.advance(40)
+  deep_eq({ #master.council.rowsModel(2), master.council.rowsModel(2)[1].label }, { 1, "No response" })
+  eq(#master.council.rowsModel(1), 1) -- the answered item has only the answer
+  eq(master.council.rowsModel(1)[1].label, "Best in slot")
+end)
+
+test("a note: written before the answer it goes with it; changed after, the answer goes again and the loot master sees the new note", function()
+  local scene = pair()
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101, 102)
+  master.council.command("start 60")
+  scene.world.advance(1)
+  local sid = raider.council.offerList().list()[1].sid
+  -- before the answer: kept, nothing sent
+  local sends = scene.world.sends
+  is_true(raider.council.setNote(sid, 1, "for my off-spec"))
+  eq(scene.world.sends, sends)
+  eq(raider.council.offerModel().rows[1].note, "for my off-spec")
+  -- the answer (from the window: no note given) carries it
+  raider.council.answer(1, "o", nil, sid)
+  scene.world.advance(1)
+  is_true(said(master, "Mirelle Dunmore answered Off-spec on item 1: for my off-spec"))
+  eq(master.council.session().rows(1)[1].note, "for my off-spec")
+  -- changed after the answer: sent again with the same answer
+  is_true(raider.council.setNote(sid, 1, "actually main spec"))
+  is_true(said(raider, "item 1: note changed - actually main spec (sent)"))
+  scene.world.advance(1)
+  is_true(said(master, "Mirelle Dunmore changed the note on item 1: actually main spec"))
+  eq(master.council.session().rows(1)[1].note, "actually main spec")
+  eq(master.council.session().rows(1)[1].code, "o")
+  eq(master.council.session().counts(1).total, 1)
+  -- a new answer keeps the note; /im respond without a note keeps it too
+  raider.council.answer(1, "u", nil, sid)
+  scene.world.advance(1)
+  is_true(said(master, "Mirelle Dunmore changed to Upgrade on item 1: actually main spec"))
+  raider.council.respond("1 bis")
+  scene.world.advance(1)
+  eq(master.council.session().rows(1)[1].note, "actually main spec")
+  -- an empty note takes it out
+  raider.council.setNote(sid, 1, "")
+  scene.world.advance(1)
+  is_true(said(master, "Mirelle Dunmore changed the note on item 1 (no note now)"))
+  eq(master.council.session().rows(1)[1].note, "")
+  eq(raider.council.offerModel().rows[1].note, nil)
+  -- after the time, a note cannot be changed
+  scene.world.advance(70)
+  eq(raider.council.setNote(sid, 1, "too late"), false)
+  is_true(said(raider, "item 1 is not on offer (any more): the note was not changed."))
+end)
+
+test("the loot master's own note in a practice: written, answered, changed", function()
+  local scene = alone()
+  local master = scene.master
+  queue(scene, 101)
+  master.council.command("start 60")
+  local sid = master.council.session().id
+  master.council.setNote(sid, 1, "lol")
+  master.council.answer(1, "b", nil, sid)
+  eq(master.council.session().rows(1)[1].note, "lol")
+  master.council.setNote(sid, 1, "not lol")
+  is_true(said(master, "item 1: note changed - not lol"))
+  eq(master.council.session().rows(1)[1].note, "not lol")
+  eq(master.council.session().rows(1)[1].code, "b")
+end)
+
+test("a note saved as it was sends nothing, and a repeated answer is not told as a changed note", function()
+  local scene = pair()
+  local master, raider = scene.master, scene.raider
+  queue(scene, 101)
+  master.council.command("start 60")
+  scene.world.advance(1)
+  local sid = raider.council.offerList().list()[1].sid
+  raider.council.setNote(sid, 1, "for my off-spec")
+  raider.council.answer(1, "o", nil, sid)
+  scene.world.advance(1)
+  local sends = scene.world.sends
+  is_true(raider.council.setNote(sid, 1, "for my off-spec"))
+  is_true(raider.council.setNote(sid, 1, "  for my off-spec  ")) -- the same once cleaned
+  eq(scene.world.sends, sends)
+  -- the same answer arriving twice (a resend) is not a change
+  raider.council.respond("1 os for my off-spec")
+  scene.world.advance(1)
+  eq(count(master, "changed the note"), 0)
+  eq(count(master, "changed to"), 0)
+end)
+
+test("an item awarded to Disenchant or the guild bank shows Awarded, never a missing answer", function()
+  local scene = alone()
+  local master = scene.master
+  queue(scene, 101, 102)
+  master.council.command("start 30")
+  master.council.award(1, "disenchant")
+  master.council.award(2, "guild bank")
+  for n, label in ipairs({ "Disenchant", "Guild bank" }) do
+    local rows = master.council.rowsModel(n)
+    local last = rows[#rows]
+    deep_eq({ last.who, last.label, last.winner, last.missing }, { label, "Awarded", true, nil })
+  end
+  scene.world.advance(40)
+  eq(master.council.rowsModel(1)[#master.council.rowsModel(1)].label, "Awarded")
 end)

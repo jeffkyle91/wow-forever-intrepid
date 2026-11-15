@@ -14,8 +14,8 @@ follows the spec can read them.
   python3 addon/tools/synthetic.py pack    [--seed N] [--dir DIR] [options of night]
         a whole rehearsal folder: the night, a series of awards strings that walk through every row category of the
         importer preview, broken strings that must be refused, the expected results, and a README
-  python3 addon/tools/synthetic.py check   [FILE | -] [--clipboard] [--expect night|awards] [--night FILE] [--state FILE]
-        read a pasted string (a night, or awards from the addon) with the reference reader, say what it holds, and with
+  python3 addon/tools/synthetic.py check   [FILE | -] [--clipboard] [--expect night|awards|drops] [--night FILE] [--state FILE]
+        read a pasted string (a night, or awards or drops from the addon) with the reference reader, say what it holds, and with
         --state say what the importer's preview would show for each award
   python3 addon/tools/synthetic.py selftest
         make a pack and check everything it says against the reference reader and the reference preview, and that the
@@ -851,7 +851,8 @@ def fixtures(write):
 def kind_message(found, expected):
     """E_KIND as the spec words it (section 1.1)."""
     article = "an" if found[0] in "aeiou" else "a"
-    tail = "Paste night strings into the addon." if found == "night" else "Paste awards strings into the Raid Desk importer."
+    tail = {"night": "Paste night strings into the addon.", "awards": "Paste awards strings into the Raid Desk importer.",
+            "drops": "Paste drops strings into the Raid Desk's drop list import."}[found]
     return f"This is {article} {found} string; this box takes {expected} strings. {tail}"
 
 
@@ -861,7 +862,7 @@ def find_kind(text):
     if start < 0:
         return None
     parts = data[start + 4:].split(":", 2)
-    return parts[0] if parts and parts[0] in ("night", "awards") else None
+    return parts[0] if parts and parts[0] in ("night", "awards", "drops") else None
 
 
 def describe_night(model, errors):
@@ -894,6 +895,28 @@ def describe_awards(model, errors):
             "  delivery: " + ", ".join(f"{k} {v}" for k, v in sorted(delivery.items())) + (f"; removed {removed}" if removed else "")]
 
 
+def describe_drops(model, errors):
+    """What a drops string (spec section 14) holds: its zones, their creatures and items, and where the items come from."""
+    lines = [f"  made by {model.get('by')}, id {model.get('id')}, at {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(model.get('at', 0)))} UTC"
+             + (f", with {model['journal']}" if model.get("journal") else "")]
+    for zone in model["zones"]:
+        if not isinstance(zone, dict) or not isinstance(zone.get("sources"), list):
+            continue
+        sources = [s for s in zone["sources"] if isinstance(s, dict)]
+        kinds = {}
+        for s in sources:
+            kinds[s.get("kind", "?")] = kinds.get(s.get("kind", "?"), 0) + 1
+        seen = sum(len(s.get("seen", [])) for s in sources if isinstance(s.get("seen"), list))
+        journal = sum(len(s.get("journal", [])) for s in sources if isinstance(s.get("journal"), list))
+        lines.append(f"  {zone.get('name')} ({zone.get('kind')}, {zone.get('players')}): "
+                     + ", ".join(f"{v} {k}" for k, v in sorted(kinds.items()))
+                     + f"; items: {seen} seen in the game, {journal} from the journal")
+    return lines
+
+
+DESCRIBE = {"night": describe_night, "awards": describe_awards, "drops": describe_drops}
+
+
 def check_text(text, night_path=None, state_path=None, out=print, expect=None):
     """Returns the number of problems found (0: it reads and has no row errors). `expect` is the kind the box takes."""
     kind = find_kind(text)
@@ -916,7 +939,7 @@ def check_text(text, night_path=None, state_path=None, out=print, expect=None):
     for number, (model, errors) in enumerate(envelopes, 1):
         if len(envelopes) > 1:
             out(f"envelope {number}:")
-        for line in (describe_night if kind == "night" else describe_awards)(model, errors):
+        for line in DESCRIBE[kind](model, errors):
             out(line)
         if errors:
             problems += len(errors)
@@ -1022,6 +1045,14 @@ def selftest():
         said = []
         expect(check_text(one_line(world["night"], "night"), out=said.append, expect="awards") == 1 and "E_KIND" in said[0],
                "check --expect awards accepted a night")
+        # a drops string (spec section 14) reads in its own box and is refused in the awards box
+        drops = ef.string_for("drops", ef.load("drops-small"))
+        said = []
+        expect(check_text(drops, out=said.append, expect="drops") == 0 and said[0].startswith("drops string: 1 envelope"),
+               f"check did not read the drops fixture: {said[:1]}")
+        said = []
+        expect(check_text(drops, out=said.append, expect="awards") == 1 and "drop list import" in said[0],
+               "check --expect awards accepted a drops string")
         wrapped_ok = ef.read_all(wrapped(steps[0]["text"]), "awards")
         expect(len(wrapped_ok[0][0]["awards"]) == 12, "the wrapped string does not read")
         # the night reads, for the box of the addon
@@ -1073,7 +1104,7 @@ def main():
     p.add_argument("--clipboard", action="store_true")
     p.add_argument("--night")
     p.add_argument("--state")
-    p.add_argument("--expect", choices=["night", "awards"], help="the kind of string the box takes: another kind is refused (E_KIND)")
+    p.add_argument("--expect", choices=["night", "awards", "drops"], help="the kind of string the box takes: another kind is refused (E_KIND)")
     sub.add_parser("selftest")
     p = sub.add_parser("fixtures")
     p.add_argument("--write", action="store_true")

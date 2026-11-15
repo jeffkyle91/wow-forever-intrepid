@@ -6,7 +6,9 @@
 --
 --   Loot master:  /im session add [item] [item]     queue the shift-clicked items
 --                 /im session bags                  list the items in your bags that can be traded; /im session bag 1 3 queues them
---                 /im session start [seconds]       offer the queue to the group; the default timer is 60 seconds
+--                 /im session start [seconds]       offer the queue to the group; the default timer is 60 seconds. Outside a
+--                                                   group it is a practice session: only the loot master is asked, nothing is
+--                                                   sent, and its awards never reach the awards log or the export
 --                 /im session results [item]        who answered what;  /im session end  ends it now
 --                 /im award <item> <name>           award an item to a raider (or the Award button next to their answer)
 --                 /im trade <name>                  trade a raider everything that is awarded to them (or the Trade button)
@@ -67,6 +69,8 @@ function CouncilSession.new(context)
   local answersPrinted = 0
   local bagRows = {}
   local lastSid -- the session whose offers came last
+  local practiceIds = {} -- the practice sessions of this load (started outside a group): id -> true
+  local rosters = {} -- who each session asked: id -> { { who, class }, ... } (the group at the start; memory only, never saved)
 
   local function say(text) out("Session: " .. text) end
 
@@ -91,10 +95,11 @@ function CouncilSession.new(context)
     log[#log + 1] = { t = math.floor(GetTime() * 100 + 0.5) / 100, e = kind, n = n, c = extra }
   end
 
-  -- Tell the exchange (the awards for the Raid Desk) of something; a failure there never reaches the loot master's session.
-  local function exchange(method, ...)
-    if not context.exchange then return end
-    local ok, problem = pcall(context.exchange[method], ...)
+  -- Tell the exchange (the awards for the Raid Desk) of something about session `key`; a failure there never reaches the loot master's
+  -- session. Nothing of a practice session is told: its awards never reach the awards log or the export.
+  local function exchange(method, key, ...)
+    if not context.exchange or practiceIds[key] then return end
+    local ok, problem = pcall(context.exchange[method], key, ...)
     if not ok then
       local saved = store()
       saved.exchangeErrors = (saved.exchangeErrors or 0) + 1
@@ -197,12 +202,17 @@ function CouncilSession.new(context)
 
   local function handleAnswer(head, sender)
     if not (session and ownSession(head.sid)) then return end
-    local ok, replaced = session.respond(head.n, sender, head.code, head.note)
+    local ok, replaced, previous = session.respond(head.n, sender, head.code, head.note)
     if not ok then return end
     trace("got", head.n, head.code)
-    if answersPrinted < MAX_PRINTED_ANSWERS then
+    local repeated = previous ~= nil and previous.code == head.code and (previous.note or "") == (head.note or "")
+    if answersPrinted < MAX_PRINTED_ANSWERS and not repeated then
       answersPrinted = answersPrinted + 1
-      say(sender .. " " .. (replaced and "changed to " or "answered ") .. Council.label(head.code) .. " on item " .. head.n .. (head.note ~= "" and (": " .. head.note) or ""))
+      if previous and previous.code == head.code then
+        say(sender .. " changed the note on item " .. head.n .. (head.note ~= "" and (": " .. head.note) or " (no note now)"))
+      else
+        say(sender .. " " .. (replaced and "changed to " or "answered ") .. Council.label(head.code) .. " on item " .. head.n .. (head.note ~= "" and (": " .. head.note) or ""))
+      end
     end
     fire("onResponse", head.n, sender, head)
   end
@@ -641,6 +651,7 @@ function CouncilSession.new(context)
         end
       end
     end
+    if practiceIds[session.id] then return say("a practice session: only you were asked, and its awards stay out of the awards log.") end
     local acksCount = 0
     for _ in pairs(acks) do acksCount = acksCount + 1 end
     say(acksCount .. plural(acksCount, " raider", " raiders") .. " said hello" .. (GetNumGroupMembers and (" of " .. GetNumGroupMembers() .. " in the group") or "") .. ".")
@@ -654,6 +665,7 @@ function CouncilSession.new(context)
     local saved = store()
     saved.sessions[#saved.sessions + 1] = {
       id = session.id, items = ids, timer = session.timer, raiders = session.responders(), hellos = acksCount, how = how,
+      practice = practiceIds[session.id],
     }
   end
 
@@ -663,7 +675,7 @@ function CouncilSession.new(context)
     offers.endSession(session.id)
     if #offers.open() == 0 then fire("onOffersClosed") end
     local chat = groupChat()
-    if chat then ensureOutbox().push(Wire.finish(session.id), chat) end
+    if chat and not practiceIds[session.id] then ensureOutbox().push(Wire.finish(session.id), chat) end
     recordSession(how)
     trace("end", nil, session.responders())
     say("over (" .. how .. "): " .. session.responders() .. plural(session.responders(), " raider", " raiders") .. " answered.")
@@ -709,19 +721,33 @@ function CouncilSession.new(context)
     if not session or session.count() == 0 or session.state ~= "building" then
       return say("queue items first: /im session add [item] or /im session bags.")
     end
+    -- Outside a group nobody else could be asked: the session is a practice, for the loot master alone (the windows, the answers, the
+    -- awards and the countdown), and nothing is sent.
     local chat = groupChat()
-    if not chat then return say("join a group first. The offers go to the group chat.") end
-    -- Ordinary combat is no obstacle (messages go out in it, and the windows are not secure frames); during a boss fight the game blocks
-    -- addon messages, so nobody would get the offer while the timer ran.
-    if IsEncounterInProgress() then
-      return say("a boss fight is on: the game blocks addon messages until it ends, so nobody would get the offer. Start the session after the fight.")
+    local practice = chat == nil
+    if not practice then
+      -- Ordinary combat is no obstacle (messages go out in it, and the windows are not secure frames); during a boss fight the game
+      -- blocks addon messages, so nobody would get the offer while the timer ran.
+      if IsEncounterInProgress() then
+        return say("a boss fight is on: the game blocks addon messages until it ends, so nobody would get the offer. Start the session after the fight.")
+      end
+      if not frame then self.listen() end
+      if not registered then return say("the game would not register the message prefix, so nothing can be sent.") end
     end
-    if not frame then self.listen() end
-    if not registered then return say("the game would not register the message prefix, so nothing can be sent.") end
     local seconds = tonumber(string.match(argument or "", "%d+"))
     local started, why = session.start(seconds)
     if not started then return say(why) end
     local current = session
+    if practice then practiceIds[current.id] = true end
+    -- who is asked: the group as it is now (the loot master as SELF), or the loot master alone in a practice
+    local roster = {}
+    if practice then
+      roster[1] = { who = SELF, class = classToken() }
+    else
+      for _, member in ipairs(groupMembers()) do roster[#roster + 1] = { who = member.me and SELF or member.name, class = member.class } end
+      if #roster == 0 then roster[1] = { who = SELF, class = classToken() } end
+    end
+    rosters[current.id] = roster
     exchange("beginSession", current.id)
     answersPrinted = 0
     -- Our own offers are known here at once; the group's copy of them is ignored when it comes back.
@@ -730,11 +756,16 @@ function CouncilSession.new(context)
       offer.mine = true
       lastSid = current.id
     end
-    trace("start", current.count(), current.timer)
-    for _, entry in ipairs(current.items()) do
-      ensureOutbox().push(Wire.item(current.id, entry.n, current.count(), current.timer, entry.item, entry.quality, entry.name), chat)
+    trace(practice and "practice" or "start", current.count(), current.timer)
+    if practice then
+      say("practice (you are not in a group): " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer
+        .. " seconds. Only you are asked and nothing is sent; its awards stay out of the awards log and the export. Answer in the window or with /im respond.")
+    else
+      for _, entry in ipairs(current.items()) do
+        ensureOutbox().push(Wire.item(current.id, entry.n, current.count(), current.timer, entry.item, entry.quality, entry.name), chat)
+      end
+      say("started: " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer .. " seconds. Raiders with the addon are asked; answer yourself with /im respond.")
     end
-    say("started: " .. current.count() .. plural(current.count(), " item", " items") .. ", " .. current.timer .. " seconds. Raiders with the addon are asked; answer yourself with /im respond.")
     for _, offer in ipairs(offers.list()) do
       if offer.sid == current.id then fire("onOffer", offer) end
     end
@@ -743,7 +774,7 @@ function CouncilSession.new(context)
       if session == current then finishSession("time is up") end
     end)
     C_Timer.After(5, function()
-      if session ~= current then return end
+      if session ~= current or practice then return end
       local count = 0
       for _ in pairs(acks) do count = count + 1 end
       say(count .. plural(count, " raider", " raiders") .. " answered the hello" .. (GetNumGroupMembers and (" of " .. GetNumGroupMembers() .. " in the group") or "") .. ".")
@@ -936,8 +967,9 @@ function CouncilSession.new(context)
     end
   end
 
-  -- Answer item n of the latest offer (or of the session `sid`, which a window knows). note is cleaned by the wire code; gear is for
-  -- later (the items worn in the slot).
+  -- Answer item n of the latest offer (or of the session `sid`, which a window knows). note is cleaned by the wire code; a nil note
+  -- keeps the item's note (the one written before the answer, or the one sent with the last answer). gear is for later (the items
+  -- worn in the slot).
   function self.answer(n, code, note, sid)
     local target
     for _, offer in ipairs(offers.open()) do
@@ -947,7 +979,9 @@ function CouncilSession.new(context)
       say("item " .. tostring(n) .. " is not on offer (any more).")
       return false
     end
+    if note == nil then note = target.draftNote or target.myNote or "" end
     local cleaned = Wire.cleanNote(note)
+    local noteOnly = target.myCode == code and (target.myNote or "") ~= cleaned
     local offer, why = offers.answer(target.sid, n, code, cleaned)
     if not offer then
       say(why)
@@ -963,18 +997,42 @@ function CouncilSession.new(context)
     else
       ensureOutbox().push(Wire.response(offer.sid, n, code, cleaned), "WHISPER", offer.master)
     end
-    trace("answer", n, code)
-    say("item " .. n .. ": " .. Council.label(code) .. (cleaned ~= "" and (" - " .. cleaned) or "") .. (offer.mine and "" or " (sent)"))
+    offer.draftNote = nil
+    trace(noteOnly and "note" or "answer", n, code)
+    if noteOnly then
+      say("item " .. n .. ": note " .. (cleaned ~= "" and ("changed - " .. cleaned) or "taken out") .. (offer.mine and "" or " (sent)"))
+    else
+      say("item " .. n .. ": " .. Council.label(code) .. (cleaned ~= "" and (" - " .. cleaned) or "") .. (offer.mine and "" or " (sent)"))
+    end
     fire("onOfferChanged", offer)
     return true
   end
 
+  -- Write or change the note of item n of the session `sid` (the answer window's Note button). Once the item is answered, the answer
+  -- goes again with the new note; before, the note waits for the answer. Returns true, or false when the item is not on offer.
+  function self.setNote(sid, n, text)
+    local offer = offers.get(sid, n)
+    if not offer or offer.state == "closed" or offers.remaining(offer) <= 0 then
+      say("item " .. tostring(n) .. " is not on offer (any more): the note was not changed.")
+      return false
+    end
+    local cleaned = Wire.cleanNote(text)
+    if offer.myCode then
+      if cleaned == (offer.myNote or "") then return true end -- saved as it was: nothing to send
+      return self.answer(n, offer.myCode, cleaned, sid)
+    end
+    offer.draftNote = cleaned ~= "" and cleaned or nil
+    fire("onOfferChanged", offer)
+    return true
+  end
+
+  -- /im respond <n> <answer> [note]: without a note, the item's note stays as it is.
   function self.respond(argument)
     local n, word, note = string.match(argument or "", "^(%d+)%s+(%S+)%s*(.-)%s*$")
     if not n then return say("use /im respond <item number> <bis, up, os or pass> [note]") end
     local code = Council.codeOf(word)
     if not code then return say("answer with bis, up, os or pass.") end
-    self.answer(tonumber(n), code, note)
+    self.answer(tonumber(n), code, note ~= "" and note or nil)
   end
 
   ---------------------------------------------------------------------------------------------------------------
@@ -990,7 +1048,7 @@ function CouncilSession.new(context)
     else
       text = "no session"
     end
-    say(text .. ". Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds], results [n], end, new. Then /im award <n> <name> and /im trade <name>. Raiders: /im offers, /im respond <n> <bis, up, os or pass> [note].")
+    say(text .. ". Commands: add [item], bags, bag <numbers>, list, remove <n>, start [seconds] (outside a group: a practice just for you), results [n], end, new. Then /im award <n> <name> and /im trade <name>. Raiders: /im offers, /im respond <n> <bis, up, os or pass> [note].")
   end
 
   -- What follows /im session.
@@ -1045,6 +1103,29 @@ function CouncilSession.new(context)
     return nil
   end
 
+  -- Who the session asked, and everybody who answered although they were not asked (a name the roster spelled differently): the
+  -- number the windows count responses against.
+  local function askedCount()
+    local keys, total = {}, 0
+    for _, member in ipairs(rosters[session.id] or {}) do
+      local key = playerKey(member.who)
+      if key and not keys[key] then
+        keys[key] = true
+        total = total + 1
+      end
+    end
+    for _, entry in ipairs(session.items()) do
+      for _, row in ipairs(session.rows(entry.n)) do
+        local key = playerKey(row.who)
+        if key and not keys[key] then
+          keys[key] = true
+          total = total + 1
+        end
+      end
+    end
+    return total
+  end
+
   function self.masterModel()
     local model = {
       state = session and session.state or "none", timer = session and session.timer or Council.DEFAULT_TIMER, items = {},
@@ -1062,30 +1143,66 @@ function CouncilSession.new(context)
       model.responders = session.responders()
       model.pending = session.pending()
       model.notice = resetNotice()
+      model.practice = practiceIds[session.id]
+      if session.state ~= "building" then
+        local asked = askedCount()
+        model.answers = session.answers()
+        model.expected = asked * session.count()
+        for _, item in ipairs(model.items) do item.asked = asked end
+      end
     end
     return model
   end
 
-  -- The answers to one item, best claim first: { { who, code, label, note, class, winner, given }, ... }. The winner of the item has
-  -- winner = true (and given = true once the trade went through); a winner who did not answer is added as a row of their own.
+  -- The answers to one item, best claim first: { { who, code, label, note, class, winner, given, missing }, ... }. After them, every
+  -- raider the session asked who has not answered it: label "Waiting" while it runs, "No response" after, missing = true. The
+  -- winner of the item has winner = true (and given = true once the trade went through); a winner who was not asked and did not
+  -- answer gets a row of their own.
   function self.rowsModel(n)
     local rows = {}
     if session then
       local entry = session.item(n)
       local winnerKey = entry and entry.winner and playerKey(entry.winner) or nil
       local found = false
+      local roster = rosters[session.id] or {}
+      local classes, done = {}, {}
+      for _, member in ipairs(roster) do
+        local key = playerKey(member.who)
+        if key then classes[key] = member.class end
+      end
       for _, row in ipairs(session.rows(n)) do
         local ack = acks[row.key]
-        local isWinner = winnerKey ~= nil and playerKey(row.who) == winnerKey
+        local key = playerKey(row.who)
+        local isWinner = winnerKey ~= nil and key == winnerKey
         found = found or isWinner
+        if key then done[key] = true end
         rows[#rows + 1] = {
-          who = row.who, code = row.code, label = row.label, note = row.note, class = ack and ack.class,
+          who = row.who, code = row.code, label = row.label, note = row.note, class = (ack and ack.class) or (key and classes[key]),
           winner = isWinner or nil, given = (isWinner and entry.given) or nil,
         }
       end
+      local label = session.state == "running" and "Waiting" or "No response"
+      for _, member in ipairs(roster) do
+        local key = playerKey(member.who)
+        if key and not done[key] then
+          done[key] = true
+          local isWinner = winnerKey ~= nil and key == winnerKey
+          found = found or isWinner
+          local ack = acks[ns.Names.key(member.who)]
+          rows[#rows + 1] = {
+            who = member.who, label = label, note = "", class = member.class or (ack and ack.class), missing = true,
+            winner = isWinner or nil, given = (isWinner and entry.given) or nil,
+          }
+        end
+      end
       if winnerKey and not found then
-        local ack = acks[ns.Names.key(entry.winner)]
-        rows[#rows + 1] = { who = entry.winner, label = "No answer", note = "", class = ack and ack.class, winner = true, given = entry.given }
+        if PSEUDO_LABEL[ns.Names.key(entry.winner) or ""] then
+          -- Disenchant or Guild bank: nobody was asked, so it is no missing answer
+          rows[#rows + 1] = { who = entry.winner, label = "Awarded", note = "", winner = true, given = entry.given }
+        else
+          local ack = acks[ns.Names.key(entry.winner)]
+          rows[#rows + 1] = { who = entry.winner, label = label, note = "", class = ack and ack.class, winner = true, given = entry.given, missing = true }
+        end
       end
     end
     return rows
@@ -1102,6 +1219,7 @@ function CouncilSession.new(context)
           name = offer.name or ("item " .. tostring(Council.itemId(offer.item))), quality = offer.quality or 1, icon = iconOf(offer.item),
           remaining = math.floor(offers.remaining(offer)), state = offer.state, myCode = offer.myCode, myNote = offer.myNote,
           myLabel = offer.myCode and Council.label(offer.myCode) or nil,
+          note = offer.draftNote or (offer.myNote ~= "" and offer.myNote) or nil, -- what the Note button edits
         }
       end
     end

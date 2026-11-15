@@ -174,7 +174,8 @@ function Council.newSession(options)
   end
 
   -- Take one raider's answer: item number, the name the game gave, a code of Council.RESPONSES, a note. A raider may change the
-  -- answer until the time is up; the last one counts. Returns true and whether it replaced an earlier answer, or false and why.
+  -- answer (or only its note) until the time is up; the last one counts. Returns true, whether it replaced an earlier answer and
+  -- that earlier answer ({ code, note }), or false and why.
   function self.respond(n, who, code, note)
     if self.state ~= "running" then return false, "There is no session taking answers." end
     if now() > deadline + Council.GRACE then return false, "Time is up." end
@@ -183,10 +184,10 @@ function Council.newSession(options)
     if not BY_CODE[code] then return false, "Unknown answer." end
     if type(who) ~= "string" or who == "" then return false, "No name." end
     local key = ns.Names.key(who)
-    local replaced = entry.responses[key] ~= nil
+    local previous = entry.responses[key]
     entry.responses[key] = { who = who, key = key, code = code, label = BY_CODE[code].label, note = note or "", at = now() - startedAt }
-    if not replaced then entry.order[#entry.order + 1] = key end
-    return true, replaced
+    if not previous then entry.order[#entry.order + 1] = key end
+    return true, previous ~= nil, previous and { code = previous.code, note = previous.note } or nil
   end
 
   -- The answers for an item, best claim first and earlier first within the same claim.
@@ -215,6 +216,13 @@ function Council.newSession(options)
       counts.total = counts.total + 1
     end
     return counts
+  end
+
+  -- How many answers there are, every item together (one raider's answer to one item is one).
+  function self.answers()
+    local total = 0
+    for _, entry in ipairs(items) do total = total + #entry.order end
+    return total
   end
 
   -- The distinct raiders who answered anything.

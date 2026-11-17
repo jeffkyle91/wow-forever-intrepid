@@ -12,7 +12,7 @@ local function member(world, name, version, class)
   local joined = world.join(game, name)
   joined.class = class
   local ns = {}
-  load_core(ns, "Names", "Council", "Version")
+  load_core(ns, "Names", "Council", "Votes", "Version")
   game.load("IntrepidManager/net/CouncilWire.lua", ns)
   game.load("IntrepidManager/net/Outbox.lua", ns)
   game.load("IntrepidManager/game/Bags.lua", ns)

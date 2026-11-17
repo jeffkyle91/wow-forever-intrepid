@@ -2,7 +2,9 @@
 -- about 1 per second, and refuses what is over with AddonMessageThrottle instead of sending it (measured 2026-10-21, Addon-Handoff.md
 -- section 7). Whispers have no such limit. During a boss fight the game refuses every send (AddOnMessageLockdown). This queue
 -- keeps its own count of the allowance so that it rarely asks for more than the game gives, sends in the order pushed, retries a
--- message the game refused for either reason, and drops one the game will never take (wrong chat type, not in a group).
+-- message the game refused for either reason, and drops one the game will never take (wrong chat type, not in a group). A message
+-- may be a function that makes its text when it goes out (an offer then says how many seconds are left); one that returns nil and
+-- why is dropped with that reason.
 --
 --   local box = ns.Net.Outbox.new({
 --     send = function(prefix, text, chat, target) return C_ChatInfo.SendAddonMessage(prefix, text, chat, target) end,
@@ -74,7 +76,16 @@ function Outbox.new(options)
   -- One try. Returns "sent", "throttled", "held" or "dropped".
   local function attempt(entry)
     entry.tries = entry.tries + 1
-    local ok, code = pcall(send, prefix, entry.text, entry.chat, entry.target)
+    local text = entry.text
+    if type(text) == "function" then
+      local made, result, why = pcall(text)
+      if not made or type(result) ~= "string" then
+        drop(entry, made and (why or "nothing to send") or ("error: " .. string.sub(tostring(result), 1, 60)))
+        return "dropped"
+      end
+      text = result
+    end
+    local ok, code = pcall(send, prefix, text, entry.chat, entry.target)
     if not ok then
       drop(entry, "error: " .. string.sub(tostring(code), 1, 60))
       return "dropped"
@@ -134,7 +145,8 @@ function Outbox.new(options)
     if fight and (#group > 0 or #whispers > 0) then later(Outbox.RETRY_HELD) end
   end
 
-  -- Queue a message. chat is "PARTY", "RAID" or another group chat, or "WHISPER" with the name in target.
+  -- Queue a message (its text, or a function that makes the text when it goes out). chat is "PARTY", "RAID" or another group chat,
+  -- or "WHISPER" with the name in target.
   function self.push(text, chat, target)
     local entry = { text = text, chat = chat, target = target, tries = 0 }
     if chat == "WHISPER" then

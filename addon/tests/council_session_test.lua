@@ -20,7 +20,7 @@ local function client(world, name, extra)
   }
   if extra then extra(env, game) end
   local ns = {}
-  load_core(ns, "Names", "Council", "Version")
+  load_core(ns, "Names", "Council", "Votes", "Version")
   if world.exchange then load_core(ns, "Crc32", "Json", "Envelope", "Ids", "Check", "Night", "Awards") end
   game.load("IntrepidManager/net/CouncilWire.lua", ns)
   game.load("IntrepidManager/net/Outbox.lua", ns)
@@ -323,7 +323,7 @@ test("more than ten items go out within the game's allowance and all arrive in o
   for i = 1, 14 do queue(scene, 300 + i) end
   master.council.command("start 120")
   scene.world.advance(1)
-  eq(count(raider, "answer with /im respond"), 10) -- the burst of ten
+  eq(count(raider, "answer with /im respond"), 9) -- the burst of ten: the council, then nine offers
   scene.world.advance(6)
   eq(count(raider, "answer with /im respond"), 14)
   local order = {}
@@ -345,8 +345,8 @@ test("messages that do not come the way our code sends them are ignored", functi
   local function send(game, text, chat, from)
     game.send("CHAT_MSG_ADDON", "IMC1", text, chat, from)
   end
-  -- an answer by group chat, an answer to another session, an answer after a bad code: nothing counts
-  send(master.game, "R~1~ml1~1~u~~~sneaky", "RAID", "Mirelle Dunmore")
+  -- an answer to another session (by whisper or the group chat), an answer after a bad code: nothing counts
+  send(master.game, "R~1~zzzz~1~u~~~other session", "RAID", "Mirelle Dunmore")
   send(master.game, "R~1~zzzz~1~u~~~other session", "WHISPER", "Mirelle Dunmore")
   send(master.game, "R~1~ml1~1~q~~~bad code", "WHISPER", "Mirelle Dunmore")
   send(master.game, "R~1~ml1~9~u~~~no such item", "WHISPER", "Mirelle Dunmore")
@@ -477,7 +477,7 @@ test("the game refusing the prefix stops a session before it starts, and a refus
   master.game.env.C_ChatInfo.SendAddonMessage = function() return 5 end -- NotInGroup
   master.council.command("start")
   is_true(said(master, "a message could not be sent (NotInGroup)"))
-  eq(master.db.council.dropped, 1)
+  eq(master.db.council.dropped, 2) -- the council and the offer
   eq(master.db.council.lastDrop, "NotInGroup")
 end)
 
@@ -497,7 +497,8 @@ test("the record keeps a timeline of the session on each side: when, what, which
     return table.concat(list, " ")
   end
   eq(kinds(master), "start hello got end") -- (its own end coming back is not logged)
-  eq(kinds(raider), "offer hello-sent offer answer ended") -- (the hello goes out with the first offer)
+  -- (the hello goes out with the first offer; the raider's own answer comes back from the group chat as one heard)
+  eq(kinds(raider), "council offer hello-sent offer answer heard ended")
   local log = master.db.council.log
   eq(log[1].n, 2) -- the start: two items
   eq(log[1].c, 30) -- and the timer
@@ -1092,4 +1093,63 @@ test("an item awarded to Disenchant or the guild bank shows Awarded, never a mis
   end
   scene.world.advance(40)
   eq(master.council.rowsModel(1)[#master.council.rowsModel(1)].label, "Awarded")
+end)
+
+test("Trade pressed again while the item is in the window: the trade there still counts, for one item or for two", function()
+  local scene = tradingPair({ exchange = true })
+  local master = scene.master
+  master.council.award(1, "Mirelle Dunmore")
+  master.council.trade("Mirelle Dunmore")
+  scene.world.advance(2)
+  is_true(scene.trade.slots[1] ~= nil)
+  scene.trade.bags[0][2].locked = true -- the game locks a bag slot while its item is in the trade window
+  master.council.trade("Mirelle Dunmore") -- a double click, or the raider is slow to accept
+  is_true(said(master, "the items are in the trade window with Mirelle Dunmore already: both of you press Trade there."))
+  scene.world.advance(2)
+  scene.trade.bags[0][2].locked = nil
+  scene.trade.accept()
+  scene.world.advance(2)
+  eq(master.council.session().items()[1].given, true)
+  local two = tradingPair({ exchange = true, ids = { 101, 102 } })
+  two.master.council.award(1, "Mirelle Dunmore")
+  two.master.council.award(2, "Mirelle Dunmore")
+  two.master.council.trade("Mirelle Dunmore") -- both go in
+  two.world.advance(3)
+  is_true(two.trade.slots[1] ~= nil and two.trade.slots[2] ~= nil)
+  two.trade.bags[0][2].locked, two.trade.bags[0][3].locked = true, true
+  two.master.council.trade("Mirelle Dunmore") -- item 2's row still shows Trade
+  two.world.advance(3)
+  two.trade.bags[0][2].locked, two.trade.bags[0][3].locked = nil, nil
+  two.trade.accept()
+  two.world.advance(2)
+  local items = two.master.council.session().items()
+  deep_eq({ items[1].given, items[2].given }, { true, true })
+end)
+
+test("while an item is in the trade window its award cannot be changed or taken back; the trade then marks the right winner", function()
+  local scene = tradingPair({ exchange = true })
+  local master = scene.master
+  master.council.award(1, "Mirelle Dunmore")
+  master.council.trade("Mirelle Dunmore")
+  scene.world.advance(2)
+  is_true(scene.trade.slots[1] ~= nil)
+  master.council.award(1, "disenchant")
+  is_true(said(master, "item 1 is in the trade with Mirelle Dunmore: finish or close the trade before changing who gets it."))
+  master.council.unaward(1)
+  is_true(said(master, "item 1 is in the trade with Mirelle Dunmore: finish or close the trade before taking the award back."))
+  eq(master.council.session().items()[1].winner, "Mirelle Dunmore")
+  scene.trade.accept()
+  scene.world.advance(2)
+  local log = master.db.awards.log
+  eq(log[#log].to, "Mirelle Dunmore")
+  eq(log[#log].delivery.state, "received")
+end)
+
+test("a session started with a night copied more than 18 hours ago says so before anything is awarded", function()
+  local scene = pair({ exchange = true })
+  scene.master.db.night = { at = 1796867000 - 3 * 86400, raid = { date = "2026-12-02" }, roster = {}, priorities = {} }
+  queue(scene, 101)
+  scene.master.council.command("start 60")
+  is_true(said(scene.master, "the night loaded (2026-12-02) was copied from the Raid Desk "))
+  is_true(said(scene.master, "ago: import tonight's night (Import night) before awarding, or these awards are filed under that night."))
 end)

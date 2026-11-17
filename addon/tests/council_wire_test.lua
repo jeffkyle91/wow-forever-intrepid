@@ -2,7 +2,7 @@
 
 local function load()
   local ns = {}
-  load_core(ns, "Names", "Council")
+  load_core(ns, "Names", "Council", "Votes")
   load_addon_file("IntrepidManager/net/CouncilWire.lua", ns)
   return ns.Net.CouncilWire, ns.Council
 end
@@ -140,7 +140,7 @@ test("a message with a field out of range, an unknown answer or a bad item is re
   refused("I~1~k3f9~1~21~60~1~item:5~x", "bad offer") -- more than twenty
   refused("I~1~k3f9~4~3~60~1~item:5~x", "bad offer") -- item 4 of 3
   refused("I~1~k3f9~0~3~60~1~item:5~x", "bad offer")
-  refused("I~1~k3f9~1~3~4~1~item:5~x", "bad offer") -- timer under 5
+  refused("I~1~k3f9~1~3~0~1~item:5~x", "bad offer") -- no time left
   refused("I~1~k3f9~1~3~601~1~item:5~x", "bad offer")
   refused("I~1~k3f9~1~3~60~6~item:5~x", "bad offer") -- quality over 5
   refused("I~1~abcdefghijklmnop~1~3~60~1~item:5~x", "bad offer") -- session id too long
@@ -178,10 +178,10 @@ test("the edges of an offer, an answer and a hello: exact numbers pass, one over
   local Wire = load()
   local function ok(text) return Wire.decode(text) ~= nil end
   is_true(ok("I~1~k3f9~20~20~600~5~item:5~x"))
-  is_true(ok("I~1~k3f9~1~1~5~0~item:5~x"))
+  is_true(ok("I~1~k3f9~1~1~1~0~item:5~x")) -- the seconds left when the offer went out: 1 at least
   eq(ok("I~1~k3f9~21~20~60~1~item:5~x"), false)
   eq(ok("I~1~k3f9~1~20~601~1~item:5~x"), false)
-  eq(ok("I~1~k3f9~1~20~4~1~item:5~x"), false)
+  eq(ok("I~1~k3f9~1~20~0~1~item:5~x"), false)
   is_true(ok("R~1~k3f9~20~u~~~x"))
   eq(ok("R~1~k3f9~21~u~~~x"), false)
   local twelve, thirteen = string.rep("a", 12), string.rep("a", 13)
@@ -249,4 +249,46 @@ test("an announce of the version and a full version check are made and read back
   refused("Q~1~abcdefghijklmnop", "bad request")
   local decoded = Wire.decode("V~2~0.0.15")
   eq(decoded, nil)
+end)
+
+test("the council travels as names joined by commas, in as many messages as it takes, each within 255 bytes", function()
+  local Wire = load()
+  deep_eq(Wire.council("k3f9", { "Jorren Ashvale", "Bram|Tollet", "", "Ness, Coyle" }), { "C~1~k3f9~Jorren Ashvale,BramTollet,Ness Coyle" })
+  deep_eq(Wire.council("k3f9", {}), { "C~1~k3f9~" })
+  local names = {}
+  for i = 1, 40 do names[i] = "Councilmember" .. i .. " Surnamelong" end
+  local texts = Wire.council("k3f9", names)
+  is_true(#texts > 1)
+  local back = {}
+  for _, text in ipairs(texts) do
+    is_true(#text <= Wire.MAX)
+    local head = Wire.decode(text)
+    eq(head.kind, "C")
+    eq(head.sid, "k3f9")
+    for _, name in ipairs(head.names) do back[#back + 1] = name end
+  end
+  deep_eq(back, names)
+  deep_eq(Wire.decode("C~1~k3f9~"), { kind = "C", sid = "k3f9", names = {} })
+  deep_eq(Wire.decode("C~1~k3f9~Jorren Ashvale,,Bram Tollet,"), { kind = "C", sid = "k3f9", names = { "Jorren Ashvale", "Bram Tollet" } })
+  eq(Wire.decode("C~1~k3f9"), nil)
+  eq(Wire.decode("C~1~" .. string.rep("a", 13) .. "~Jorren"), nil)
+end)
+
+test("a vote and an award carry the item and a name; no name takes it back; bad items are refused", function()
+  local Wire = load()
+  eq(Wire.vote("k3f9", 2, "Mirelle Dunmore"), "W~1~k3f9~2~Mirelle Dunmore")
+  eq(Wire.vote("k3f9", 2, nil), "W~1~k3f9~2~")
+  eq(Wire.award("k3f9", 3, "Guild bank"), "A~1~k3f9~3~Guild bank")
+  eq(Wire.award("k3f9", 3, ""), "A~1~k3f9~3~")
+  deep_eq(Wire.decode("W~1~k3f9~2~Mirelle Dunmore"), { kind = "W", sid = "k3f9", n = 2, name = "Mirelle Dunmore" })
+  deep_eq(Wire.decode("W~1~k3f9~2~"), { kind = "W", sid = "k3f9", n = 2 })
+  deep_eq(Wire.decode("A~1~k3f9~3~Guild bank"), { kind = "A", sid = "k3f9", n = 3, name = "Guild bank" })
+  deep_eq(Wire.decode("A~1~k3f9~3~"), { kind = "A", sid = "k3f9", n = 3 })
+  local _, why = Wire.decode("W~1~k3f9~0~Mirelle Dunmore")
+  eq(why, "bad vote")
+  _, why = Wire.decode("A~1~k3f9~21~Mirelle Dunmore")
+  eq(why, "bad award")
+  eq(Wire.decode("W~1~k3f9~x~Mirelle"), nil)
+  -- a name is cleaned on the way in too
+  deep_eq(Wire.decode("W~1~k3f9~2~ Mirelle|Dunmore "), { kind = "W", sid = "k3f9", n = 2, name = "MirelleDunmore" })
 end)

@@ -6,14 +6,16 @@
 -- assigned when the item is awarded, received when the trade went through, removed (a new revision) when the award is taken
 -- back. An award is never changed in recipient or item: that is a removal and a new award with a new id. The ids are made from the
 -- session's start time and four random characters chosen when the addon loads, so a crash never reuses one (section 6.1).
--- Each award also keeps `place`, the dungeon or raid the loot master was in, for the loot history (core/History.lua). It is not in
--- the spec, so the export leaves it out. The log keeps the last Exchange.MAX_LOG awards: the history's "everything".
+-- Each award also keeps `place`, the dungeon or raid the loot master was in, for the loot history (core/History.lua), and `votes`,
+-- who on the council voted for whom ({ { to, by = { names } }, ... }, the most votes first) when the session had votes. Neither is in
+-- the spec, so the export leaves them out: who voted for whom stays in the game until the Raid Desk has a place for it. The log keeps the last Exchange.MAX_LOG awards: the history's "everything".
 --
 --   local exchange = ns.Game.Exchange.new({ db = IntrepidManagerDB, version = "0.0.17" })
 --   exchange.importNight(result)            -- the loot master pressed Import: result is what ns.Night.read made of the string
 --   exchange.nightText()                    -- "Night of 2026-12-09, copied 2 hours ago: 24 players, 24 priorities." or nil
 --   exchange.beginSession(key)              -- a loot session starts (key tells it from the others of this load)
---   exchange.awarded(key, entry, winner)    -- item `entry` ({ n, item, name }) goes to `winner` (a full name, or "Disenchant" or "Guild bank")
+--   exchange.awarded(key, entry, winner, votes) -- item `entry` ({ n, item, name }) goes to `winner` (a full name, or "Disenchant" or
+--                                               "Guild bank"); votes is the session's votes on it (core/Votes snapshot), or nil
 --   exchange.unawarded(key, entry)          -- the award is taken back
 --   exchange.given(key, entry, how)         -- the item reached the winner: how is "trade", "master-loot" or "manual"
 --   exchange.exportModel(everything)        -- the view-model of ui/ExportWindow
@@ -32,7 +34,7 @@ ns.Game.Exchange = Exchange
 local MAX_LOG = 10000
 Exchange.MAX_LOG = MAX_LOG
 -- The fields an award keeps for the addon alone: the export leaves them out (the spec has no such field).
-local LOCAL_FIELDS = { place = true }
+local LOCAL_FIELDS = { place = true, votes = true }
 Exchange.PSEUDO_LABEL = { disenchant = "Disenchant", ["guild-bank"] = "Guild bank" }
 
 -- "disenchant" or "guild-bank" for the labels of the pseudo recipients (any case, "guild bank" or "guild-bank"), else nil.
@@ -144,6 +146,21 @@ function Exchange.new(context)
     return Night.summary(stand, now(), nil).text
   end
 
+  -- A line for the start of a session when the night loaded was copied from the Raid Desk more than 18 hours ago: every award is
+  -- filed under that night's raid, phase and priorities, so last week's night would take tonight's awards. Nil when it is fresh, or
+  -- when no night is loaded (then the awards carry none of it).
+  function self.nightWarning()
+    local night = db.night
+    if not night or type(night.at) ~= "number" then return nil end
+    local age = now() - night.at
+    if age <= Night.OLD_AFTER then return nil end
+    local day = night.raid and night.raid.date
+    local days = math.floor(age / 86400)
+    local when = days >= 1 and (days .. (days == 1 and " day" or " days")) or (math.floor(age / 3600) .. " hours")
+    return "the night loaded" .. (day and (" (" .. day .. ")") or "") .. " was copied from the Raid Desk " .. when
+      .. " ago: import tonight's night (Import night) before awarding, or these awards are filed under that night."
+  end
+
   if db.night then indexNight() end
 
   ---------------------------------------------------------------------------------------------------------------
@@ -184,7 +201,7 @@ function Exchange.new(context)
     return candidates[1]
   end
 
-  local function newRecord(key, entry, winner)
+  local function newRecord(key, entry, winner, votes)
     local info = sessionInfo(key)
     local number = info.next
     info.next = number + 1
@@ -219,6 +236,14 @@ function Exchange.new(context)
     record.delivery = { state = "assigned" }
     local where = place()
     if type(where) == "string" and where ~= "" then record.place = cut(where, 120) end
+    if type(votes) == "table" and #votes > 0 then
+      record.votes = {}
+      for i, vote in ipairs(votes) do
+        local by = {}
+        for j, voter in ipairs(vote.by or {}) do by[j] = cut(voter, 121) end
+        record.votes[i] = { to = cut(vote.to, 121), by = by }
+      end
+    end
     local entries = log()
     entries[#entries + 1] = record
     while #entries > MAX_LOG do table.remove(entries, 1) end
@@ -232,10 +257,10 @@ function Exchange.new(context)
     record.rev = Ids.nextRev(record.rev, now())
   end
 
-  function self.awarded(key, entry, winner)
+  function self.awarded(key, entry, winner, votes)
     local previous = current[key .. "/" .. entry.n]
     if previous then removeRecord(previous) end
-    return newRecord(key, entry, winner)
+    return newRecord(key, entry, winner, votes)
   end
 
   function self.unawarded(key, entry)

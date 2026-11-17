@@ -197,9 +197,9 @@ local function getCouncil()
   return council
 end
 
--- The council windows (ui/SessionPanel, ui/BagPicker, ui/ResponseFrame) sit on the session above. They are made when first needed:
--- the session tells them through its hooks, an offer from the loot master opens the raider's frame by itself, and /im session
--- (with no word) opens the loot master's window.
+-- The council windows (ui/SessionPanel, ui/BagPicker, ui/ResponseFrame, ui/VotingWindow) sit on the session above. They are made when
+-- first needed: the session tells them through its hooks, an offer from the loot master opens the raider's frame by itself (and the
+-- voting window, in a session with a council), and /im session (with no word) opens the loot master's window.
 local councilWindows
 local dropsChoice, dropsModel -- the drops window's choice and view-model (/im drops, below)
 local function getCouncilWindows()
@@ -221,7 +221,7 @@ local function getCouncilWindows()
     bags = function() windows.picker.show() end,
     remove = session.removeItem, start = function(seconds) session.start(tostring(seconds)) end,
     finish = session.finish, reset = session.reset, award = session.award, unaward = session.unaward, trade = session.trade,
-    versions = session.versions,
+    versions = session.versions, vote = function(n, who) session.vote(n, who, nil, true) end,
     importNight = function() windows.import.open(importModel()) end,
     exportAwards = function()
       exportPick = nil
@@ -230,6 +230,9 @@ local function getCouncilWindows()
     history = function() windows.history.open(historyModel()) end,
   })
   windows.versions = ns.UI.VersionWindow.new(kit, { model = session.versionsModel, check = session.checkVersions })
+  windows.voting = ns.UI.VotingWindow.new(kit, {
+    model = session.votingModel, rows = session.votingRows, vote = function(n, who) session.vote(n, who, nil, true) end,
+  })
   -- The night from the Raid Desk, and the awards back to it (docs/spec/exchange-v0.md). The import window shows the new night at once.
   windows.import = ns.UI.ImportWindow.new(kit, {
     import = function(_, result)
@@ -285,6 +288,17 @@ local function wireCouncilWindows()
     windows.offers.show()
   end
   hooks.onOfferChanged = repaintOffers
+  -- A session with a council: the voting window opens with the answer window, and every answer, vote or award repaints the windows
+  -- that show votes.
+  hooks.onVotingOpen = function()
+    local windows = getCouncilWindows()
+    windows.voting.update(session.votingModel())
+    windows.voting.show()
+  end
+  hooks.onVotes = function()
+    repaintPanel()
+    if councilWindows and councilWindows.voting.isShown() then councilWindows.voting.update(session.votingModel()) end
+  end
   hooks.onQueueChanged = repaintPanel
   hooks.onSessionStarted = repaintPanel
   hooks.onResponse = repaintPanel
@@ -521,6 +535,12 @@ local function handle(input)
     getCouncil().versions()
   elseif command == "respond" then
     getCouncil().respond(argument)
+  elseif command == "vote" then
+    getCouncil().voteCommand(argument)
+  elseif command == "votes" then
+    getCouncil().openVoting()
+  elseif command == "council" then
+    getCouncil().councilCommand(argument)
   elseif command == "import" then
     getCouncilWindows().import.open(importModel())
   elseif command == "export" then
@@ -544,7 +564,7 @@ local function handle(input)
     windows.offers.update(getCouncil().offerModel())
     windows.offers.show()
   else
-    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, history, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list], /im drops [list, all, <numbers> or dj <dungeon>], /im history [words or stats]")
+    out("version " .. addonVersion() .. ". Commands: /im version, /im selftest [label], /im window [session, import, export, history, icons, picker or confirm] [roomy] [flat], /im facts [label], /im inspect, /im msgtest [run, stop or clear], /im loot [give, sweep or stop], /im session [add, bags, start, results or end], /im respond, /im offers, /im vote <item> <name>, /im votes, /im council [rank <name>], /im award <item> <name>, /im trade <name>, /im versions, /im import, /im export, /im dj [list], /im drops [list, all, <numbers> or dj <dungeon>], /im history [words or stats]")
   end
 end
 

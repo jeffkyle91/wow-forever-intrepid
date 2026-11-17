@@ -94,6 +94,17 @@ function HistoryWindow.details(row)
   return lines, row.note
 end
 
+-- Who voted for whom on an award, one line per raider voted for, the most votes first: "Mirelle Dunmore (2): Bram Tollet, Ness
+-- Coyle". Empty when the session had no votes on it. The votes stay in the game (the export leaves them out).
+function HistoryWindow.votesLines(row)
+  local lines = {}
+  for _, vote in ipairs(row.votes or {}) do
+    local by = vote.by or {}
+    lines[#lines + 1] = tostring(vote.to) .. " (" .. #by .. "): " .. table.concat(by, ", ")
+  end
+  return lines
+end
+
 -- Does the game know the item? An item it doesn't know (the demo's invented ones, an id the game never had) gets the award's own
 -- title instead of the game's item tooltip, which would be empty.
 function HistoryWindow.knownItem(itemId)
@@ -121,6 +132,11 @@ function HistoryWindow.showTooltip(tip, owner, row, colors)
     tip:AddDoubleLine(pair[1], pair[2], label[1], label[2], label[3], right[1], right[2], right[3])
   end
   if note then tip:AddLine(note, value[1], value[2], value[3], true) end
+  local votes = HistoryWindow.votesLines(row)
+  if #votes > 0 then
+    tip:AddLine("Votes", label[1], label[2], label[3])
+    for _, line in ipairs(votes) do tip:AddLine(line, value[1], value[2], value[3], true) end
+  end
   tip:Show()
 end
 

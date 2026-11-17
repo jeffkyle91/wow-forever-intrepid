@@ -1,7 +1,7 @@
 -- The entry point (IntrepidManager/IntrepidManager.lua) with a stand-in for the game: /im, /im selftest and the
 -- saved variables. Invented names only. See AGENTS.md.
 
-local MODULES = { "Crc32", "Json", "Envelope", "Names", "Ids", "Check", "Night", "Marks", "Awards", "Council", "Version", "SelfTestSamples", "SelfTest", "DropLog", "Drops", "History" }
+local MODULES = { "Crc32", "Json", "Envelope", "Names", "Ids", "Check", "Night", "Marks", "Awards", "Council", "Votes", "Version", "SelfTestSamples", "SelfTest", "DropLog", "Drops", "History" }
 
 -- Loads the entry point the way the client does, with its own global environment made of stand-ins.
 -- `options` can set inCombat, noTimer, noBuildInfo and a stand-in `bit`.
@@ -270,4 +270,28 @@ test("the help line names /im history", function()
   local game = newGame()
   game.say("")
   is_true(game.output():find("/im history [words or stats]", 1, true) ~= nil)
+end)
+
+test("/im vote, /im votes and /im council go to the council session; the help line names them", function()
+  local game = newGame()
+  local calls = {}
+  game.ns.Game = {
+    Exchange = { new = function() return {} end },
+    CouncilSession = {
+      new = function()
+        return {
+          voteCommand = function(argument) calls[#calls + 1] = { "vote", argument } end,
+          openVoting = function() calls[#calls + 1] = { "votes" } end,
+          councilCommand = function(argument) calls[#calls + 1] = { "council", argument } end,
+        }
+      end,
+    },
+  }
+  game.say("vote 2 Mirelle Dunmore")
+  game.say("votes")
+  game.say("council rank Officer Alt")
+  game.say("council")
+  deep_eq(calls, { { "vote", "2 Mirelle Dunmore" }, { "votes" }, { "council", "rank Officer Alt" }, { "council", "" } })
+  game.say("")
+  is_true(game.output():find("/im vote <item> <name>, /im votes, /im council [rank <name>]", 1, true) ~= nil)
 end)

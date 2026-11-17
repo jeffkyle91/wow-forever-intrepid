@@ -121,7 +121,7 @@ local function rowOf(award, clock)
   local row = {
     id = award.id, at = award.at, date = award.date, item = award.item or "?", itemId = award.itemId, to = award.to or "?",
     pseudo = award.pseudo, place = award.place, removed = award.status == "removed", received = delivery.state == "received",
-    encounter = filled(award.encounter), note = filled(award.note),
+    encounter = filled(award.encounter), note = filled(award.note), votes = type(award.votes) == "table" and award.votes or nil,
   }
   row.placeText = row.place or History.NO_PLACE
   row.how = DECISIONS[award.decision] or ""

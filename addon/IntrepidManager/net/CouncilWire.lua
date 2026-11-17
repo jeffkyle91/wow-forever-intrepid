@@ -1,11 +1,18 @@
--- Intrepid Manager: the wire format of the council session, pure (no client calls). Version 1 is a TEST protocol: it carries only what
--- the first in-game sessions need (an item on offer, a raider's answer, the end, a hello), and the spec of ADDON-002/003 replaces or
--- extends it before votes and tallies are added. Every message is plain text of at most 255 bytes (the game cuts longer ones without
--- a word), made of fields joined by "~" (a character that ForeverLoot's working messages already use; "|" starts an escape code in
--- chat text and is never sent). The prefix carries the version, so a client with another version never sees these messages.
+-- Intrepid Manager: the wire format of the council session, pure (no client calls). Version 1 is a TEST protocol: it carries what the
+-- in-game sessions need (an item on offer, a raider's answer, the end, a hello, and since build 0.0.26 the council, its votes and the
+-- awards), until a spec of ADDON-002/003 replaces it (docs/spec/exchange-v0.md leaves the council messages to a later spec). Every
+-- message is plain text of at most 255 bytes (the game cuts longer ones without a word), made of fields joined by "~" (a character
+-- that ForeverLoot's working messages already use; "|" starts an escape code in chat text and is never sent). The prefix carries the
+-- version, so a client with another version never sees these messages.
 --
---   I~1~sid~n~count~timer~quality~item~name   the loot master offers item n of count, for timer seconds   (group chat)
---   R~1~sid~n~code~gear1~gear2~note     a raider's answer to item n; gear1 and gear2 are what they wear     (whisper to the loot master)
+--   I~1~sid~n~count~timer~quality~item~name   the loot master offers item n of count; timer is the seconds left when the offer went
+--                                       out (from build 0.0.27; the whole timer before), so every countdown ends together   (group chat)
+--   R~1~sid~n~code~gear1~gear2~note     a raider's answer to item n; gear1 and gear2 are what they wear     (whisper to the loot master,
+--                                       who counts it; in a session with a council also a copy on the group chat for the voting windows)
+--   C~1~sid~name,name,...               the council of the session, sent before the offers, in as many parts as it takes (group chat)
+--   W~1~sid~n~name                      a council member's vote on item n for `name`; no name takes the vote back (whisper to the loot
+--                                       master, who counts it, and a copy on the group chat for the voting windows)
+--   A~1~sid~n~name                      the loot master awarded item n to `name`; no name takes the award back           (group chat)
 --   X~1~sid                             the loot master ends the session                                   (group chat)
 --   K~1~sid~version~class               a raider's hello: the addon is here, in this version, of this class (whisper to the loot master)
 --   V~1~version~class                   "I am here, in this version": an announce when joining a group (group chat); a client with another
@@ -105,7 +112,7 @@ end
 
 Wire.MAX_NAME = 40 -- bytes in an item's name
 
--- The offer of item n (of count) for timer seconds, with the item's quality (0 to 5, 1 when unknown) and name. Returns the text, or
+-- The offer of item n (of count) with timer seconds left, with the item's quality (0 to 5, 1 when unknown) and name. Returns the text, or
 -- nil and why.
 function Wire.item(sid, n, count, timer, item, quality, name)
   if not ns.Council.isItem(item) then return nil, "not an item" end
@@ -131,6 +138,39 @@ function Wire.response(sid, n, code, note, gear1, gear2)
 end
 
 function Wire.finish(sid) return join("X", Wire.PROTO, sid) end
+
+-- The council of a session as messages: the names (cleaned by Votes.cleanName, the empty ones left out) joined by "," in as many
+-- messages as it takes to keep each one within Wire.MAX. Returns a list of texts (one with no names for an empty council).
+function Wire.council(sid, names)
+  local head = join("C", Wire.PROTO, sid, "")
+  local texts, current = {}, {}
+  local length = #head
+  for _, name in ipairs(names or {}) do
+    local clean = ns.Votes.cleanName(name)
+    if clean ~= "" then
+      local extra = #clean + (#current > 0 and 1 or 0)
+      if length + extra > Wire.MAX and #current > 0 then
+        texts[#texts + 1] = head .. table.concat(current, ",")
+        current, length = {}, #head
+        extra = #clean
+      end
+      current[#current + 1] = clean
+      length = length + extra
+    end
+  end
+  if #current > 0 or #texts == 0 then texts[#texts + 1] = head .. table.concat(current, ",") end
+  return texts
+end
+
+-- A council member's vote on item n for `target` (nil or "" takes it back).
+function Wire.vote(sid, n, target)
+  return join("W", Wire.PROTO, sid, n, ns.Votes.cleanName(target))
+end
+
+-- The loot master awarded item n to `winner` (nil or "" takes the award back).
+function Wire.award(sid, n, winner)
+  return join("A", Wire.PROTO, sid, n, ns.Votes.cleanName(winner))
+end
 
 function Wire.hello(sid, version, class)
   local text = join("K", Wire.PROTO, sid, version)
@@ -164,7 +204,7 @@ function Wire.decode(text)
     local sid, n, count, timer, quality, item, name = string.match(text, "^I~%d+~(%w+)~(%d+)~(%d+)~(%d+)~(%d)~([^~]+)~(.*)$")
     if not sid then return nil, "bad offer" end
     n, count, timer, quality = tonumber(n), tonumber(count), tonumber(timer), tonumber(quality)
-    if #sid > 12 or not inRange(count, 1, Council.MAX_ITEMS) or not inRange(n, 1, count) or not inRange(timer, Council.MIN_TIMER, Council.MAX_TIMER)
+    if #sid > 12 or not inRange(count, 1, Council.MAX_ITEMS) or not inRange(n, 1, count) or not inRange(timer, 1, Council.MAX_TIMER)
       or not inRange(quality, 0, 5) then
       return nil, "bad offer"
     end
@@ -184,6 +224,21 @@ function Wire.decode(text)
     local sid = string.match(text, "^X~%d+~(%w+)$")
     if not sid or #sid > 12 then return nil, "bad end" end
     return { kind = "X", sid = sid }
+  elseif kind == "C" then
+    local sid, list = string.match(text, "^C~%d+~(%w+)~(.*)$")
+    if not sid or #sid > 12 then return nil, "bad council" end
+    local names = {}
+    for part in string.gmatch(list, "[^,]+") do
+      local name = ns.Votes.cleanName(part)
+      if name ~= "" then names[#names + 1] = name end
+    end
+    return { kind = "C", sid = sid, names = names }
+  elseif kind == "W" or kind == "A" then
+    local sid, n, name = string.match(text, "^%a~%d+~(%w+)~(%d+)~(.*)$")
+    n = tonumber(n)
+    if not sid or #sid > 12 or not inRange(n, 1, Council.MAX_ITEMS) then return nil, kind == "W" and "bad vote" or "bad award" end
+    name = ns.Votes.cleanName(name)
+    return { kind = kind, sid = sid, n = n, name = name ~= "" and name or nil }
   elseif kind == "K" then
     local sid, version, class = string.match(text, "^K~%d+~(%w+)~([%w%.%-]+)~?(%a*)$")
     if not sid or #sid > 12 or #version > 20 or #class > 20 then return nil, "bad hello" end

@@ -411,3 +411,16 @@ test("an export of one night or raid of the loot history: those awards only, wha
   -- the usual export has no name
   eq(exchange.exportModel(true).session, nil)
 end)
+
+test("a night copied more than 18 hours ago gets a warning line before awards are filed under it; a fresh one, or none, gets none", function()
+  local exchange, _, clock = imported()
+  eq(exchange.nightWarning(), nil) -- copied 13 minutes ago
+  clock.t = clock.t + 17 * 3600
+  eq(exchange.nightWarning(), nil)
+  clock.t = clock.t + 2 * 3600
+  is_true(string.find(exchange.nightWarning(), "the night loaded (2026-12-09) was copied from the Raid Desk 19 hours ago", 1, true) == 1)
+  clock.t = clock.t + 7 * 86400
+  is_true(string.find(exchange.nightWarning(), "7 days ago: import tonight's night (Import night) before awarding", 1, true) ~= nil)
+  local empty = engine()
+  eq(empty.nightWarning(), nil)
+end)

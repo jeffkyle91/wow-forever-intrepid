@@ -14,12 +14,18 @@
 --     practice = true (a practice session, started outside a group: nothing was sent, and its awards are not logged) or nil,
 --     answers = 7, expected = 9 (once started: answers so far, and raiders asked times items),
 --     items = { { n, item, name, quality, icon, counts = { b, u, o, p, total }, asked = 3 (once started), winner = "who it was
---                 awarded to", given = true, source = "where it drops: Boss, Dungeon" (or nil) }, ... },
+--                 awarded to", given = true, source = "where it drops: Boss, Dungeon" (or nil), voted = 1 (council members in the
+--                 group who voted on it, once started), votingOpen = true (votes are still taken) }, ... },
+--     councilSize = 2 (the council members in the group, once started: the loot master always votes),
 --   }
 --
 -- The callbacks (each in pcall):
 --   model()               the model as it is now (called every second while the window is shown)
---   rows(n)               the answers to item n: { { who, code, label, note, class, winner, given }, ... }
+--   rows(n)               the answers to item n: { { who, code, label, note, class, winner, given, votes, voters, mine, leader,
+--                         canVote }, ... } (votes: how many; voters: who, shown when the count is hovered; mine: the loot master's
+--                         vote; leader: the most votes, the row is tinted gold; canVote: the Vote button shows)
+--   vote(n, who)          the Vote button of an answer: the loot master's vote on item n goes to this raider (pressed again, it is
+--                         taken back)
 --   bags()                the button "Add from bags" was pressed
 --   remove(n)             take item n out of the queue
 --   start(seconds)        Start was pressed with this timer
@@ -33,7 +39,10 @@
 --   exportAwards()        the Export awards button: open the window with the awards string for the Raid Desk
 --   history()             the History button: open the loot history
 --
--- Above the answers, one line says how the picked item was answered once the session runs, and where it drops when that is known.
+-- Above the answers, one line says how the picked item was answered once the session runs, how many of the council voted on it, and
+-- where it drops when that is known. The answers have a VOTES column: the count (hover for who voted) and the loot master's Vote
+-- button while votes are taken; the row with the most votes is tinted gold (on a tie, each of them). The votes are advice: the loot
+-- master still presses Award.
 --
 -- SessionPanel.statusText(model), SessionPanel.countsText(counts) and SessionPanel.detailText(counts, source) are the sentences, for the tests.
 
@@ -94,13 +103,32 @@ function SessionPanel.countsText(counts)
   return "BiS " .. (counts.b or 0) .. "   Upgrade " .. (counts.u or 0) .. "   Off-spec " .. (counts.o or 0) .. "   Pass " .. (counts.p or 0)
 end
 
--- The line above the answers: the counts (or nothing before the start), then where the item drops.
-function SessionPanel.detailText(counts, source)
+-- "Votes 1 of 2": how many of the council in the group voted on an item; nil without a council.
+function SessionPanel.votesText(voted, size)
+  if type(size) ~= "number" or size <= 0 then return nil end
+  return "Votes " .. (voted or 0) .. " of " .. size
+end
+
+-- The line above the answers: the counts (or nothing before the start), how many of the council voted, then where the item drops.
+function SessionPanel.detailText(counts, source, voted, size)
   local text = counts and SessionPanel.countsText(counts) or ""
+  local votes = counts and SessionPanel.votesText(voted, size)
+  if votes then text = text .. "   " .. votes end
   if type(source) == "string" and source ~= "" then
     text = (text ~= "" and (text .. "   ") or "") .. "From " .. source
   end
   return text
+end
+
+-- The tooltip of a vote count: who voted for this raider, or that nobody did.
+function SessionPanel.showVoters(tip, owner, answer, colors)
+  if not answer or answer.missing then return end
+  tip:SetOwner(owner, "ANCHOR_RIGHT")
+  local voters = answer.voters or {}
+  local gold, text = colors.gold, colors.text
+  tip:SetText(#voters == 0 and "No votes yet" or ("Votes for " .. tostring(answer.who) .. ": " .. #voters), gold[1], gold[2], gold[3])
+  for _, voter in ipairs(voters) do tip:AddLine(voter, text[1], text[2], text[3]) end
+  tip:Show()
 end
 
 function SessionPanel.new(kit, callbacks)
@@ -115,7 +143,7 @@ function SessionPanel.new(kit, callbacks)
 
   -- the numbers everything else is placed by
   local pad, gap, header = m.pad, m.gap, m.header
-  local width = 700
+  local width = 780
   local inner = width - 10 - pad * 2
   local leftWidth = 250
   local rightX = pad + leftWidth + gap * 2
@@ -141,7 +169,9 @@ function SessionPanel.new(kit, callbacks)
   local classSize = m.icon
   local whoWidth, claimWidth = 130, 84
   local actionWidth, undoWidth = 52, 18
-  local noteWidth = rightRowWidth - whoWidth - claimWidth - actionWidth - undoWidth - gap * 5
+  local votesWidth, voteWidth = 28, 44
+  local noteWidth = rightRowWidth - whoWidth - claimWidth - votesWidth - voteWidth - actionWidth - undoWidth - gap * 7
+  local votesX = gap + whoWidth + gap + claimWidth + gap + noteWidth + gap
 
   local window = kit.window({
     name = NAME, title = "Loot session", width = width, height = height, chrome = "clear", anchor = { point = "TOPLEFT", x = 40, y = -90 },
@@ -173,6 +203,8 @@ function SessionPanel.new(kit, callbacks)
   headClaim:SetPoint("TOPLEFT", rightX + gap + whoWidth + gap, -headsTop)
   local headNote = kit.label(body, "NOTE", { color = colors.muted, width = noteWidth })
   headNote:SetPoint("TOPLEFT", rightX + gap + whoWidth + gap + claimWidth + gap, -headsTop)
+  local headVotes = kit.label(body, "VOTES", { color = colors.muted, width = votesWidth + gap * 2 })
+  headVotes:SetPoint("TOPLEFT", rightX + votesX, -headsTop)
   -- "Hide no response", at the right of the column heads: the raiders who have not answered the item are listed unless it is ticked
   -- (it stays as it is for the login)
   local hideWidth = 122
@@ -257,6 +289,11 @@ function SessionPanel.new(kit, callbacks)
     frame:SetSize(rightRowWidth, rowHeight)
     frame:SetPoint("TOPLEFT", 0, -(index - 1) * rowHeight)
     kit.fill(frame, index % 2 == 1 and colors.panel or colors.panelAlt)
+    -- the most votes: a gold tint (under the winner's mark, which takes its place once the item is awarded)
+    row.leaderBg = frame:CreateTexture(nil, "ARTWORK")
+    row.leaderBg:SetAllPoints()
+    row.leaderBg:SetColorTexture(colors.gold[1], colors.gold[2], colors.gold[3], 0.14)
+    row.leaderBg:Hide()
     row.winnerBg = frame:CreateTexture(nil, "ARTWORK")
     row.winnerBg:SetAllPoints()
     row.winnerBg:SetColorTexture(colors.selected[1], colors.selected[2], colors.selected[3], 1)
@@ -270,6 +307,16 @@ function SessionPanel.new(kit, callbacks)
     row.claim:SetPoint("LEFT", frame, "LEFT", gap + whoWidth + gap, 0)
     row.note = kit.label(frame, "", { width = noteWidth, color = colors.muted })
     row.note:SetPoint("LEFT", row.claim, "RIGHT", gap, 0)
+    -- the vote count, with who voted on hover, and the loot master's Vote button
+    row.votesHit = CreateFrame("Frame", nil, frame)
+    row.votesHit:SetSize(votesWidth, rowHeight)
+    row.votesHit:SetPoint("LEFT", frame, "LEFT", votesX, 0)
+    row.votesHit:EnableMouse(true)
+    row.votes = kit.label(row.votesHit, "", { width = votesWidth })
+    row.votes:SetPoint("LEFT", 0, 0)
+    row.vote = kit.button(frame, "Vote", { width = voteWidth })
+    row.vote:SetHeight(rowHeight - 2)
+    row.vote:SetPoint("LEFT", row.votesHit, "RIGHT", gap, 0)
     row.undo = kit.button(frame, "x", { width = undoWidth })
     row.undo:SetHeight(rowHeight - 2)
     row.undo:SetPoint("RIGHT", -gap, 0)
@@ -296,6 +343,13 @@ function SessionPanel.new(kit, callbacks)
       local fresh = call("model")
       if fresh then self.update(fresh) end
     end))
+    row.vote:SetScript("OnClick", kit.safe(function()
+      if row.answer and selected then call("vote", selected, row.answer.who) end
+      local fresh = call("model")
+      if fresh then self.update(fresh) end
+    end))
+    row.votesHit:SetScript("OnEnter", kit.safe(function(hit) SessionPanel.showVoters(GameTooltip, hit, row.answer, colors) end))
+    row.votesHit:SetScript("OnLeave", kit.safe(function() GameTooltip:Hide() end))
     row.frame = frame
     rightRows[index] = row
     return row
@@ -324,6 +378,10 @@ function SessionPanel.new(kit, callbacks)
     leftList.setContentHeight(#current.items * itemRow)
   end
 
+  -- The order of the answers last painted (the selected item's), kept while the pointer is over the list.
+  local heldOrder, heldFor
+  local function rowKey(answer) return string.lower(tostring(answer.who)) end
+
   function self.paintRight()
     local data
     for _, item in ipairs(current.items) do
@@ -333,7 +391,8 @@ function SessionPanel.new(kit, callbacks)
     hint:SetShown(#current.items == 0)
     answersHead:SetText(data and ("ANSWERS - " .. kit.fit(data.name or "?", answersHeadWidth - 70)) or "ANSWERS")
     local started = current.state ~= "none" and current.state ~= "building"
-    countsLine:SetText(data and kit.fit(SessionPanel.detailText(started and (data.counts or {}) or nil, data.source), rightWidth) or "")
+    countsLine:SetText(data and kit.fit(SessionPanel.detailText(started and (data.counts or {}) or nil, data.source, data.voted,
+      current.councilSize), rightWidth) or "")
     hideMissing:SetShown(started)
     hideMissing.label:SetShown(started)
     -- with the box ticked, the rows of raiders who have not answered are left out (never the winner's)
@@ -344,6 +403,21 @@ function SessionPanel.new(kit, callbacks)
       end
       rows = shown
     end
+    -- While the pointer is over the answers every raider keeps their row and a new answer joins at the bottom, so a click on Award
+    -- never lands on someone who moved up under it (answers sort best claim first, and arrive at any moment). The order catches up
+    -- when the pointer leaves.
+    if heldOrder and heldFor == selected and rightList.frame:IsMouseOver() then
+      local place, kept, added = {}, {}, {}
+      for i, key in ipairs(heldOrder) do place[key] = i end
+      for _, answer in ipairs(rows) do
+        if place[rowKey(answer)] then kept[#kept + 1] = answer else added[#added + 1] = answer end
+      end
+      table.sort(kept, function(a, b) return place[rowKey(a)] < place[rowKey(b)] end)
+      for _, answer in ipairs(added) do kept[#kept + 1] = answer end
+      rows = kept
+    end
+    heldFor, heldOrder = selected, {}
+    for i, answer in ipairs(rows) do heldOrder[i] = rowKey(answer) end
     local tradable = current.state == "running" or current.state == "closed"
     local itemGiven = data ~= nil and data.given
     for i, answer in ipairs(rows) do
@@ -356,6 +430,13 @@ function SessionPanel.new(kit, callbacks)
       row.undo:SetShown(tradable and answer.winner and not answer.given or false)
       row.given:SetShown(answer.winner and answer.given or false)
       row.winnerBg:SetShown(answer.winner or false)
+      row.leaderBg:SetShown((answer.leader and not answer.winner) or false)
+      local votes = answer.votes or 0
+      row.votes:SetText(answer.missing and "" or tostring(votes))
+      local voteShade = votes > 0 and colors.gold or colors.muted
+      row.votes:SetTextColor(voteShade[1], voteShade[2], voteShade[3])
+      row.vote:SetShown(answer.canVote or false)
+      row.vote:SetText(answer.mine and "Voted" or "Vote")
       local color = ns.UI.Kit.classColor(answer.class)
       row.who:SetText(kit.fit(answer.who, whoWidth - classSize - gap))
       local file = ns.UI.Kit.classIconFile(answer.class)
@@ -447,7 +528,7 @@ function SessionPanel.new(kit, callbacks)
   function self.selected() return selected end
   self.frame = window.frame
   self.parts = {
-    window = window, itemsHead = itemsHead, answersHead = answersHead, status = status, countsLine = countsLine, hint = hint, hideMissing = hideMissing,
+    window = window, itemsHead = itemsHead, answersHead = answersHead, headVotes = headVotes, status = status, countsLine = countsLine, hint = hint, hideMissing = hideMissing,
     add = addButton, versions = versionsButton, importNight = importButton, exportAwards = exportButton, history = historyButton, start = startButton, finish = endButton, new = newButton, timer = timerBox, leftList = leftList,
     rightList = rightList, leftRows = leftRows, rightRows = rightRows,
   }

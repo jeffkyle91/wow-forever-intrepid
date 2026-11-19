@@ -7,10 +7,19 @@ import { raidStartDate } from '../src/shared/lib/raidStart.ts'
 import { seedRoster } from './seedRoster.ts'
 import { createRequire } from 'node:module'
 import { initializePlanning } from '../functions/raidPlanning.js'
+import { emptyReadinessChecklist, readinessChecks } from '../src/shared/members/readiness.ts'
 
-if (process.env.FIRESTORE_EMULATOR_HOST !== '127.0.0.1:18080' || process.env.FIREBASE_AUTH_EMULATOR_HOST !== '127.0.0.1:19099') {
+const readiness = (ready = true) => ({
+  schemaVersion: 1, ready,
+  checklist: { ...emptyReadinessChecklist(), ...Object.fromEntries(readinessChecks.map(({ key }) => [key, ready])) },
+})
+
+const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST
+if (!/^127\.0\.0\.1:\d+$/.test(firestoreEmulatorHost ?? '') || !/^127\.0\.0\.1:\d+$/.test(authEmulatorHost ?? '')) {
   throw new Error('Seeding requires the local review emulators. Run npm run dev:emulator; never point this script at a cloud project.')
 }
+const firestorePort = Number(firestoreEmulatorHost.split(':')[1])
 
 const PROJECT_ID = 'demo-intrepid'
 const GUILD = 'guild-local'
@@ -20,10 +29,11 @@ const USERS = [
   { email: 'raider@example.test', displayName: 'Local Raider', role: 'Raid Leader', playerId: 'player-3' },
   { email: 'member@example.test', displayName: 'Local Member', role: 'Member', playerId: 'player-1' },
   { email: 'reserve@example.test', displayName: 'Local Reserve', role: 'Member', playerId: 'player-reserve' },
+  { email: 'firstmain@example.test', displayName: 'Local New Member', role: 'Member', playerId: null },
 ]
 
 async function createUser(email) {
-  const response = await fetch('http://127.0.0.1:19099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key', {
+  const response = await fetch(`http://${authEmulatorHost}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password: PASSWORD, returnSecureToken: false }),
@@ -33,7 +43,7 @@ async function createUser(email) {
   return body.localId
 }
 
-const env = await initializeTestEnvironment({ projectId: PROJECT_ID, firestore: { host: '127.0.0.1', port: 18080 } })
+const env = await initializeTestEnvironment({ projectId: PROJECT_ID, firestore: { host: '127.0.0.1', port: firestorePort } })
 const accountByCharacter = new Map()
 let leaderUid
 await env.withSecurityRulesDisabled(async (context) => {
@@ -46,7 +56,7 @@ await env.withSecurityRulesDisabled(async (context) => {
     const uid = await createUser(user.email)
     if (user.role === 'Guild Leader') leaderUid = uid
     uids[user.email] = uid
-    accountByCharacter.set(user.playerId, uid)
+    if (user.playerId) accountByCharacter.set(user.playerId, uid)
     await set(`${g}/members/${uid}`, { email: user.email, displayName: user.displayName, role: user.role, playerId: user.playerId })
   }
   for (const [i, player] of seedRoster.entries()) {
@@ -57,15 +67,15 @@ await env.withSecurityRulesDisabled(async (context) => {
     accountByCharacter.set(id, uid)
     if (!USERS.some((user) => user.playerId === id)) await set(`${g}/members/${uid}`, { email: `raider${i + 1}@example.test`, displayName: player.name, role: 'Member', playerId: id })
     await set(`${g}/roster/${id}`, { name: player.name, className: player.className, specialization: player.specialization, role, linkedUid: uid })
-    await set(`${g}/characterReadiness/${id}`, { ready: ![4, 5].includes(i + 1), updatedBy: leaderUid, updatedAt: serverTimestamp() })
+    await set(`${g}/characterReadiness/${id}`, { ...readiness(![4, 5].includes(i + 1)), updatedBy: leaderUid, updatedAt: serverTimestamp() })
     await set(`${g}/teamAssignments/${id}`, { team: player.team })
   }
   await set(`${g}/roster/player-alt`, { name: 'Elowen', className: 'Druid', specialization: 'Restoration', role: 'Healer', mainId: 'player-1' })
-  await set(`${g}/characterReadiness/player-alt`, { ready: true, updatedBy: leaderUid, updatedAt: serverTimestamp() })
+  await set(`${g}/characterReadiness/player-alt`, { ...readiness(), updatedBy: leaderUid, updatedAt: serverTimestamp() })
   await set(`${g}/roster/player-5-alt`, { name: 'Thistle', className: 'Priest', specialization: 'Holy', role: 'Healer', mainId: 'player-5' })
-  await set(`${g}/characterReadiness/player-5-alt`, { ready: true, updatedBy: leaderUid, updatedAt: serverTimestamp() })
+  await set(`${g}/characterReadiness/player-5-alt`, { ...readiness(), updatedBy: leaderUid, updatedAt: serverTimestamp() })
   await set(`${g}/roster/player-reserve`, { name: 'Briar', className: 'Paladin', specialization: 'Holy', role: 'Healer', linkedUid: accountByCharacter.get('player-reserve') })
-  await set(`${g}/characterReadiness/player-reserve`, { ready: true, updatedBy: leaderUid, updatedAt: serverTimestamp() })
+  await set(`${g}/characterReadiness/player-reserve`, { ...readiness(), updatedBy: leaderUid, updatedAt: serverTimestamp() })
   await set(`${g}/roster/player-not-ready`, { name: 'Moss', className: 'Rogue', specialization: 'Combat', role: 'Melee' })
   const date = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
   const zones = [{ id: 'zone-a', name: 'Test Deeps', size: 10 }, { id: 'zone-b', name: 'Test Summit', size: 20 }, { id: 'zone-c', name: 'Test Lair', size: 40 }]

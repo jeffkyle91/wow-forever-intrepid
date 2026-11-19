@@ -14,20 +14,21 @@ export function CharacterRequestReviewModal({ requestId, review, close, live }: 
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const request = live.data.characterRequests.find((entry) => entry.id === requestId)
-  const canReview = review && live.identity.canEditRoster
-  const canWithdraw = !review && request?.userId === live.identity.uid
+  const canReview = review && live.identity.canEditRoster && !live.identity.isPreviewing
+  const canWithdraw = !review && !live.identity.isPreviewing && request?.userId === live.identity.uid
   const pending = request?.status === 'pending'
-  const mainName = request ? live.data.roster.find((character) => character.id === request.mainId)?.name ?? request.mainId : ''
+  const mainName = request ? request.kind === 'create-main' ? 'No linked main' : live.data.roster.find((character) => character.id === request.mainId)?.name ?? request.mainId : ''
   const requestedName = request?.proposed.name ?? request?.before?.name ?? ''
   const requestedClass = request?.proposed.className ?? request?.before?.className ?? ''
   const requestedSpec = request?.proposed.specialization ?? request?.before?.specialization ?? ''
   async function resolve(action: 'approve' | 'reject' | 'withdraw') {
+    if (live.identity.isPreviewing) { setError('Requests cannot be changed while VIEW AS is active.'); return }
     if (live.feedback.busy || !request || !pending) return
     live.feedback.setBusy(true)
     try {
       await resolveCharacterRequest(request.id, action, action === 'withdraw' ? '' : note.trim())
       live.feedback.setMutationError('')
-      live.feedback.setNotice(`Character-change request ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'withdrawn'}.`)
+      live.feedback.setNotice(`${request.kind === 'create-main' ? 'First-main' : 'Character-change'} request ${action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'withdrawn'}.`)
       close()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Could not resolve the character request.')
@@ -35,22 +36,22 @@ export function CharacterRequestReviewModal({ requestId, review, close, live }: 
       live.feedback.setBusy(false)
     }
   }
-  return <Modal title="Character-change request" onClose={close}>
+  return <Modal title={request?.kind === 'create-main' ? 'First-main request' : 'Character-change request'} onClose={close}>
     <div className="modal-form character-request-detail">
       {request ? <>
         <div className="character-request-summary"><span className="character-request-kicker">Roster change</span><span className={`character-request-status character-request-status-${request.status}`}>{pending ? <Clock3 size={12} /> : <ShieldCheck size={12} />}{request.status}</span><h3>{characterRequestLabels[request.kind]}</h3><p>{request.displayName || 'Guild member'} <span aria-hidden="true">·</span> {request.requestedAt.toDate().toLocaleString()}</p></div>
         <section className="character-request-section" aria-label="Current at submission"><h4>Current at submission</h4>
-          {request.before ? <CharacterRequestCharacter {...request.before} label={request.before.mainId ? 'Alt character' : 'Main character'} /> : <p className="character-request-placeholder">New character · not yet on the roster</p>}
+          {request.before ? <CharacterRequestCharacter {...request.before} label={request.before.mainId ? 'Alt character' : 'Main character'} /> : <p className="character-request-placeholder">{request.kind === 'create-main' ? 'No character linked to this account.' : 'New character · not yet on the roster'}</p>}
           <p className="character-request-caption">Main at submission: {mainName}</p>
         </section>
         <section className="character-request-section character-request-proposed" aria-label="Requested change"><h4>Requested change</h4>
-          <CharacterRequestCharacter name={requestedName || requestCharacterName(request)} surname={request.proposed.surname ?? request.before?.surname} className={requestedClass} specialization={requestedSpec} role={request.proposed.role ?? request.before?.role} label={request.kind === 'promote-main' ? 'New main character' : request.kind === 'create-alt' || request.kind === 'link-alt' ? 'Alt character' : 'On approval'} />
+          <CharacterRequestCharacter name={requestedName || requestCharacterName(request)} surname={request.proposed.surname ?? request.before?.surname} className={requestedClass} specialization={requestedSpec} role={request.proposed.role ?? request.before?.role} label={request.kind === 'promote-main' || request.kind === 'create-main' ? 'Main character' : request.kind === 'create-alt' || request.kind === 'link-alt' ? 'Alt character' : 'On approval'} />
           <dl className="character-request-changes">{proposalFields.filter((key) => request.proposed[key] !== undefined && (!request.before || request.before[key] !== request.proposed[key])).map((key) => <div key={key}><dt>{proposalLabels[key]}</dt><dd>{request.before && <span className="character-request-old">{request.before[key] || 'None'} <span aria-label="changes to">→</span> </span>}<span>{request.proposed[key] || 'None'}</span></dd></div>)}</dl>
           {request.kind === 'promote-main' && <p>Moves the account link and makes {mainName} and its other direct alts alts of this character. IDs, team assignments and historical snapshots stay unchanged.</p>}
           {request.kind === 'link-alt' && <p>Links this character as a direct alt of {mainName}. It must still be unlinked and have no alts of its own.</p>}
         </section>
         <section className="character-request-section" aria-label="Member note"><h4><MessageSquare size={13} /> Member note</h4><p className="character-request-note">{request.note || 'No note provided.'}</p></section>
-        {pending ? <p className="character-request-safety"><ShieldCheck size={15} /> Approval rechecks ownership and submitted details. Stale requests must be rejected or withdrawn and submitted again.</p> : <section className="character-request-section" aria-label="Decision"><h4><ShieldCheck size={13} /> Decision</h4><p>{request.resolvedByName || 'Guild member'} · {request.resolvedAt?.toDate().toLocaleString()}</p><p className="character-request-note">{request.resolutionNote || 'No resolution note.'}</p></section>}
+        {pending ? <p className="character-request-safety"><ShieldCheck size={15} /> Approval rechecks {request.kind === 'create-main' ? 'active membership and that no main is already linked' : 'ownership and submitted details'}. Stale requests must be rejected or withdrawn and submitted again.</p> : <section className="character-request-section" aria-label="Decision"><h4><ShieldCheck size={13} /> Decision</h4><p>{request.resolvedByName || 'Guild member'} · {request.resolvedAt?.toDate().toLocaleString()}</p><p className="character-request-note">{request.resolutionNote || 'No resolution note.'}</p></section>}
         {pending && canReview && <section className="character-request-section" aria-label="Guild Leader review"><h4><ShieldCheck size={13} /> Guild Leader review</h4><label>Review note <span className="field-hint">Optional; visible to the requester</span><textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} disabled={live.feedback.busy} placeholder="Add context for your decision..." /></label></section>}
       </> : <p role="alert">This request is no longer available.</p>}
       {error && <p role="alert" className="character-request-error">{error}</p>}

@@ -11,6 +11,19 @@ const maxRecordBytes = 700 * 1024
 const maxCatchupMillis = 7 * 24 * 60 * 60 * 1000
 const jobPageSize = 100
 const easternTimeZone = 'America/New_York'
+// RAID-014: the sweep runs every five minutes and treats a raid as started only once its start is this far in the past. Every writer refuses a change at or after the
+// start, but a change the server accepted just before it can finish saving a moment later, and a raid created just before its start becomes visible a moment later:
+// the delay lets both land before the sweep reads, so the checkpoint never passes a start the sweep could not yet see.
+export const sweepSettleMillis = 2 * 60 * 1000
+// A sign-up or working roster saved up to a minute after the start still counts (loot owner, 2026-11-08): every writer checks the start inside its transaction and
+// refuses a change once it has passed, so such a save was accepted before the start and was still finishing; a transaction finishes in seconds, so a minute is a
+// generous bound. The same minute lets a raid created just before its start count from its creation. The allowance ends sooner at the raid's first edit after its
+// start, because moving a started raid later reopens sign-ups. It must stay shorter than sweepSettleMillis.
+export const lateSaveMillis = 60 * 1000
+const retryBaseMillis = 5 * 60 * 1000
+const retryMaxMillis = 6 * 60 * 60 * 1000
+// Runs can overlap (a late or hand-started run). A capture another run began less than this long ago is still being written, not abandoned (the run times out at 240 s).
+const runOverlapMillis = 5 * 60 * 1000
 
 class PermanentAuditError extends Error {
   constructor(message, scheduledStartAt) {
@@ -65,14 +78,21 @@ function easternBoundary(date) {
   throw new Error(`Could not resolve the 9:00 PM Eastern boundary for ${date}.`)
 }
 
+// The time a sweep runs as: when Cloud Scheduler meant to run it (its X-CloudScheduler-ScheduleTime), so runs five minutes apart work five minutes apart whatever the
+// delivery delay, and a retry set for the next run is never missed by a few seconds. Never later than the clock, so the settle delay still holds; the clock if it is missing.
+export function sweepRunAt(scheduleTime, clock = Timestamp.now()) {
+  const scheduled = Date.parse(scheduleTime ?? '')
+  return Number.isFinite(scheduled) && scheduled <= clock.toMillis() ? Timestamp.fromMillis(scheduled) : clock
+}
+
 export function initialSnapshotCheckpoint(now) {
   return Timestamp.fromMillis(easternBoundary(dateOffset(easternDate(now), -1)).toMillis() - 1)
 }
 
-export function nextSnapshotExecution(now) {
-  const date = easternDate(now)
-  const today = easternBoundary(date)
-  return today.toMillis() > now.toMillis() ? today : easternBoundary(dateOffset(date, 1))
+// After a transient failure, a raid's capture is retried 5 minutes later, then after twice as long each time, at most 6 hours apart, until it succeeds or fails for good.
+export function transientRetryAt(now, attempts) {
+  const delay = Math.min(retryBaseMillis * 2 ** Math.max(0, attempts - 1), retryMaxMillis)
+  return Timestamp.fromMillis(now.toMillis() + delay)
 }
 
 function normalize(value) {
@@ -149,21 +169,25 @@ function dueRaidVersion(raid, audits, now) {
 
   const intervals = []
   let state = initial
-  let from = raid.createdAt instanceof Timestamp ? raid.createdAt.toMillis() : 0
+  // A raid created just before its start can commit just after it (createdAt is the commit time), so its first version counts from lateSaveMillis earlier.
+  let from = raid.createdAt instanceof Timestamp ? raid.createdAt.toMillis() - lateSaveMillis : 0
   for (const audit of audits) {
     const at = audit.at.toMillis()
     intervals.push({ state, from, to: at })
     state = applyAudit(state, audit, changedFields(audit))
     from = at
   }
-  intervals.push({ state, from, to: now.toMillis() + 1 })
+  // The current version has no end: only a real edit ends an interval (and the allowance in `savedBy`); whether its start is due is decided by `now` below.
+  intervals.push({ state, from, to: Infinity })
 
+  // The version in effect at its start is due unless it was cancelled. A raid marked complete (RAID-019) was started, so it is captured like any started raid: the rules
+  // allow 'complete' only once the start has passed, so the version at the start is normally still 'scheduled', and a 'complete' one (written outside the app) counts too.
   const candidates = intervals.flatMap(({ state: version, from: start, to: end }) => {
     const scheduledStartAt = version.startsAt
     const millis = toMillis(scheduledStartAt)
     if (millis === undefined || millis > now.toMillis() || start > millis || millis > end
-      || (version.status && version.status !== 'scheduled')) return []
-    return [{ version, scheduledStartAt }]
+      || (version.status && !['scheduled', 'complete'].includes(version.status))) return []
+    return [{ version, scheduledStartAt, savedBy: Timestamp.fromMillis(Math.min(millis + lateSaveMillis, end)) }]
   })
   candidates.sort((left, right) => left.scheduledStartAt.toMillis() - right.scheduledStartAt.toMillis())
   return candidates[0]
@@ -242,12 +266,13 @@ function validatePlan(plan, raidVersion, scheduledStartAt) {
   return { lineups, invitations }
 }
 
-function buildSnapshotSource({ raidId, raidVersion, scheduledStartAt, plan, signups, roster, members }) {
+// `savedBy` is the latest save time that still counts as before the start (see lateSaveMillis).
+function buildSnapshotSource({ raidId, raidVersion, scheduledStartAt, savedBy, plan, signups, roster, members }) {
   const validated = validatePlan(plan, raidVersion, scheduledStartAt)
   if (!(plan.updatedAt instanceof Timestamp)) {
     throw new PermanentCaptureError('invalid-working-roster', 'RAID-011 working roster has no trusted update timestamp.', scheduledStartAt)
   }
-  if (plan.updatedAt.toMillis() > scheduledStartAt.toMillis()) {
+  if (plan.updatedAt.toMillis() > savedBy.toMillis()) {
     throw new PermanentCaptureError('working-roster-changed-after-start', 'RAID-011 working roster changed after its scheduled start; the original lineup cannot be reconstructed safely.', scheduledStartAt)
   }
   const rosterById = new Map(roster.docs.map((entry) => [entry.id, entry.data()]))
@@ -260,7 +285,7 @@ function buildSnapshotSource({ raidId, raidVersion, scheduledStartAt, plan, sign
       || (response.benchKind !== undefined && response.benchKind !== 'self')) {
       throw new PermanentCaptureError('invalid-signup-data', `Signup data for ${entry.id || '(unknown account)'} is invalid.`, scheduledStartAt)
     }
-    if (response.updatedAt instanceof Timestamp && response.updatedAt.toMillis() > scheduledStartAt.toMillis()) {
+    if (response.updatedAt instanceof Timestamp && response.updatedAt.toMillis() > savedBy.toMillis()) {
       throw new PermanentCaptureError('signup-changed-after-start', `Signup for ${entry.id} changed after the scheduled start and cannot be reconstructed safely.`, scheduledStartAt)
     }
     signupsByUid.set(entry.id, {
@@ -421,17 +446,38 @@ async function queueCandidate(db, guildRef, raidId, now) {
 }
 
 async function markJob(db, ref, state, now, detail) {
-  const update = {
-    state,
-    updatedAt: FieldValue.serverTimestamp(),
-    ...(state === 'pending'
-      ? { nextAttemptAt: nextSnapshotExecution(now), lastAttemptAt: FieldValue.serverTimestamp(), lastError: detail.slice(0, 500) }
-      : { completedAt: FieldValue.serverTimestamp() }),
+  if (state === 'pending') {
+    await db.runTransaction(async (tx) => {
+      const current = (await tx.get(ref)).data()
+      const attempts = (Number.isSafeInteger(current?.attempts) && current.attempts > 0 ? current.attempts : 0) + 1
+      tx.set(ref, {
+        state, attempts, nextAttemptAt: transientRetryAt(now, attempts),
+        updatedAt: FieldValue.serverTimestamp(), lastAttemptAt: FieldValue.serverTimestamp(), lastError: detail.slice(0, 500),
+      }, { merge: true })
+    })
+    return
   }
-  await ref.set(update, { merge: true })
+  await ref.set({ state, updatedAt: FieldValue.serverTimestamp(), completedAt: FieldValue.serverTimestamp() }, { merge: true })
 }
 
-async function recordFailure(db, guildRef, raidRef, raidId, scheduledStartAt, error, workRef) {
+// RAID-015: a capture that fails before it wrote anything would leave members nothing to see, so it also writes this small failed record at the snapshot's own path:
+// the raid's name and date as they were at the start, the scheduled start, the failure code and when it failed. Never `detail`, which stays in the server-only failure
+// record because it can contain ids. It has no child records and `failureNotice` marks it, so a later retry (RAID-014) can tell it from a capture that failed after
+// writing records and remove it before capturing again: the capture creates its manifest with create() and never overwrites one.
+function failureNotice(raidId, raidVersion, scheduledStartAt, code) {
+  return {
+    schemaVersion: 1,
+    status: 'failed',
+    failureNotice: true,
+    raidId,
+    raid: { id: raidId, name: stringOrNull(raidVersion.name), date: stringOrNull(raidVersion.date) },
+    scheduledStartAt,
+    failureCode: code,
+    failedAt: FieldValue.serverTimestamp(),
+  }
+}
+
+async function recordFailure(db, guildRef, raidRef, raidId, scheduledStartAt, error, workRef, raidVersion) {
   const failureKey = scheduledStartAt instanceof Timestamp ? scheduledStartAt.toMillis() : 'audit-history'
   const ref = failureRef(guildRef, raidId, failureKey)
   const detail = error.message.slice(0, 500)
@@ -455,6 +501,10 @@ async function recordFailure(db, guildRef, raidRef, raidId, scheduledStartAt, er
       && manifest.data().scheduledStartAt?.isEqual(scheduledStartAt)) {
       tx.update(snapshotRef(raidRef), { status: 'failed', failureCode: error.code ?? 'snapshot-capture-failed', failedAt: FieldValue.serverTimestamp() })
     }
+    // Only for a raid that still exists and has a scheduled start: a legacy raid with none could never be captured, so it is not shown as failed.
+    if (!manifest.exists && scheduledStartAt instanceof Timestamp && raidVersion) {
+      tx.create(snapshotRef(raidRef), failureNotice(raidId, raidVersion, scheduledStartAt, error.code ?? 'snapshot-capture-failed'))
+    }
   })
   logger.error('Raid start snapshot capture failed permanently.', {
     guildId: guildRef.id,
@@ -465,7 +515,8 @@ async function recordFailure(db, guildRef, raidRef, raidId, scheduledStartAt, er
   })
 }
 
-async function prepareCapture(db, guildRef, raidRef, raidId, now) {
+// `attempt.raidVersion` keeps the raid as the capture last saw it (the version due at the start once that is known), for the failed record of RAID-015.
+async function prepareCapture(db, guildRef, raidRef, raidId, now, attempt) {
   return db.runTransaction(async (tx) => {
     const manifest = await tx.get(snapshotRef(raidRef))
     if (manifest.exists && manifest.data().status === 'complete') return { status: 'complete' }
@@ -473,9 +524,11 @@ async function prepareCapture(db, guildRef, raidRef, raidId, now) {
     const [raidDoc, planDoc] = await Promise.all([tx.get(raidRef), tx.get(raidRef.collection('planning').doc('working'))])
     if (!raidDoc.exists) throw new PermanentAuditError('Raid referenced by the snapshot work record no longer exists.')
     const raid = raidDoc.data()
+    attempt.raidVersion = raid
     const audits = await raidAudits(tx, guildRef, raidId, raid)
     const due = dueRaidVersion(raid, audits, now)
     if (!due) return { status: 'not-due' }
+    attempt.raidVersion = due.version
     const scheduledStartAt = due.scheduledStartAt
     const failure = await tx.get(failureRef(guildRef, raidId, scheduledStartAt.toMillis()))
     if (failure.exists) return { status: 'terminal-failure' }
@@ -489,6 +542,7 @@ async function prepareCapture(db, guildRef, raidRef, raidId, now) {
       raidId,
       raidVersion: due.version,
       scheduledStartAt,
+      savedBy: due.savedBy,
       plan: planDoc.data(),
       signups,
       roster,
@@ -497,6 +551,11 @@ async function prepareCapture(db, guildRef, raidRef, raidId, now) {
     const hash = contentHash(source)
     const existing = manifest.data()
     if (existing) {
+      // RAID-014: another run may still be writing this capture; if its source changed meanwhile, that run decides, and this one retries later.
+      if (existing.status === 'capturing' && existing.scheduledStartAt?.isEqual(scheduledStartAt) && existing.contentHash !== hash
+        && existing.createdAt instanceof Timestamp && Timestamp.now().toMillis() - existing.createdAt.toMillis() < runOverlapMillis) {
+        throw new Error('Another run started this capture moments ago; retrying later.')
+      }
       if (existing.status !== 'capturing' || !existing.scheduledStartAt?.isEqual(scheduledStartAt) || existing.contentHash !== hash) {
         throw new PermanentCaptureError('snapshot-source-changed', 'Snapshot source changed while an incomplete capture was being retried.', scheduledStartAt)
       }
@@ -520,8 +579,9 @@ async function prepareCapture(db, guildRef, raidRef, raidId, now) {
 
 export async function captureRaidStartSnapshot(db, guildRef, raidRef, raidId, now = Timestamp.now(), workRef) {
   let scheduledStartAt
+  const attempt = {}
   try {
-    const prepared = await prepareCapture(db, guildRef, raidRef, raidId, now)
+    const prepared = await prepareCapture(db, guildRef, raidRef, raidId, now, attempt)
     if (['complete', 'terminal-failure', 'missing-raid', 'not-due'].includes(prepared.status)) return prepared.status === 'terminal-failure' ? 'skipped' : prepared.status
     scheduledStartAt = prepared.source?.scheduledStartAt
       ?? prepared.manifest?.scheduledStartAt
@@ -545,7 +605,7 @@ export async function captureRaidStartSnapshot(db, guildRef, raidRef, raidId, no
   } catch (error) {
     if (error instanceof PermanentCaptureError || error instanceof PermanentAuditError) {
       const start = error.scheduledStartAt ?? scheduledStartAt
-      await recordFailure(db, guildRef, raidRef, raidId, start, error, workRef)
+      await recordFailure(db, guildRef, raidRef, raidId, start, error, workRef, attempt.raidVersion)
       return 'failed'
     }
     logger.error('Raid start snapshot capture will be retried by a later sweep.', {
@@ -570,7 +630,7 @@ async function processJob(db, ref, now) {
   } else if (result === 'failed' || result === 'skipped') {
     await markJob(db, ref, 'failed', now, '')
   } else {
-    await markJob(db, ref, 'pending', now, 'Transient failure; retrying on the next scheduled execution.')
+    await markJob(db, ref, 'pending', now, 'Transient failure; retrying after a delay.')
     logger.error('Raid snapshot work remains pending after a transient failure.', { guildId: guildRef.id, raidId })
   }
   return result
@@ -610,9 +670,17 @@ async function pendingJobs(db, now, process, onResult) {
   }
 }
 
-export async function runRaidStartSnapshotSweep(db, now = Timestamp.now()) {
+// `runAt` is when the scheduler ran the sweep; everything below works as of `now`, sweepSettleMillis earlier (see sweepSettleMillis).
+export async function runRaidStartSnapshotSweep(db, runAt = Timestamp.now()) {
+  const now = Timestamp.fromMillis(runAt.toMillis() - sweepSettleMillis)
   const checkpoint = await getCheckpoint(db, now)
-  if (now.toMillis() < checkpoint.toMillis()) throw new Error('Raid snapshot sweep clock is earlier than its checkpoint.')
+  if (now.toMillis() < checkpoint.toMillis()) {
+    // Only right after the switch from the daily 9 PM run, whose checkpoint had no delay, or if the server clock moved backwards: wait for a later run.
+    logger.warn('Raid snapshot sweep is earlier than its checkpoint; nothing to do until a later run.', {
+      asOf: now.toDate().toISOString(), coveredThrough: checkpoint.toDate().toISOString(),
+    })
+    return { captured: 0, failed: 0, retry: 0, skipped: 0, candidates: 0, checkpointAdvanced: false }
+  }
   const scanEnd = Timestamp.fromMillis(Math.min(now.toMillis(), checkpoint.toMillis() + maxCatchupMillis))
   const [raidsInWindow, auditsInWindow] = await Promise.all([
     db.collectionGroup('raids').where('startsAt', '>', checkpoint).where('startsAt', '<=', scanEnd).get(),
@@ -662,7 +730,9 @@ export async function runRaidStartSnapshotSweep(db, now = Timestamp.now()) {
   await pendingJobs(db, now, processed, countResult)
   if (allCandidatesDurable) await advanceCheckpoint(db, checkpoint, scanEnd)
 
-  logger.info('Raid start snapshot daily sweep finished.', {
+  // Every five minutes, so a run that found nothing logs at debug level only.
+  const idle = !candidates.size && !processed.size && allCandidatesDurable
+  logger[idle ? 'debug' : 'info']('Raid start snapshot sweep finished.', {
     candidates: candidates.size,
     ...results,
     checkpointAdvanced: allCandidatesDurable,

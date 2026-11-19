@@ -2,6 +2,7 @@ import { Timestamp } from 'firebase/firestore'
 import type { PlayerRecord } from '../game/players.ts'
 
 export const characterRequestLabels = {
+  'create-main': 'Request a first main character',
   'create-alt': 'Add a new alt',
   'link-alt': 'Link an existing character as an alt',
   rename: 'Rename a character',
@@ -13,6 +14,7 @@ export type CharacterSnapshot = Pick<PlayerRecord, 'name' | 'className' | 'speci
   surname: string; role: string; mainId: string | null; linkedUid: string | null
 }
 export type CharacterProposal =
+  | { kind: 'create-main'; characterId: null; proposed: Pick<CharacterSnapshot, 'name' | 'surname' | 'className' | 'specialization'> }
   | { kind: 'create-alt'; characterId: null; proposed: Pick<CharacterSnapshot, 'name' | 'surname' | 'className' | 'specialization'> }
   | { kind: 'link-alt' | 'promote-main'; characterId: string; proposed: Record<string, never> }
   | { kind: 'rename'; characterId: string; proposed: Pick<CharacterSnapshot, 'name' | 'surname'> }
@@ -52,9 +54,9 @@ export function normalizeCharacterRequest(id: string, data: Record<string, unkno
     || typeof data.kind !== 'string' || !isCharacterRequestKind(data.kind)
     || typeof data.status !== 'string' || !['pending', 'approved', 'rejected', 'withdrawn'].includes(data.status)
     || !(data.requestedAt instanceof Timestamp)
-    || (data.kind === 'create-alt' ? data.before !== null : !isSnapshot(data.before))
+    || (['create-main', 'create-alt'].includes(data.kind) ? data.before !== null : !isSnapshot(data.before))
     || !data.proposed || typeof data.proposed !== 'object' || Array.isArray(data.proposed)) return null
-  const fields = data.kind === 'create-alt' ? ['name', 'surname', 'className', 'specialization', 'role']
+  const fields = ['create-main', 'create-alt'].includes(data.kind) ? ['name', 'surname', 'className', 'specialization', 'role']
     : data.kind === 'rename' ? ['name', 'surname'] : data.kind === 'change-spec' ? ['className', 'specialization', 'role'] : []
   const proposed = data.proposed as Record<string, unknown>
   if (Object.keys(proposed).length !== fields.length || fields.some((key) => typeof proposed[key] !== 'string')) return null
@@ -68,6 +70,7 @@ export function requestCharacterName(request: CharacterRequest) {
 }
 
 export function requestMainName(request: CharacterRequest, roster: PlayerRecord[]) {
+  if (request.kind === 'create-main') return request.proposed.name ?? 'First main request'
   const currentMain = roster.find((character) => character.linkedUid === request.userId && !character.mainId)
   if (currentMain) return currentMain.name
   const submittedMain = roster.find((character) => character.id === request.mainId)

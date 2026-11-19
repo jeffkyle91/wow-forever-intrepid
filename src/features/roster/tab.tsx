@@ -4,6 +4,7 @@ import { RosterFooter } from './RosterFooter'
 import { RosterHeadingActions } from './RosterHeadingActions'
 import { RosterTab } from './RosterTab'
 import { RosterToolbar } from './RosterToolbar'
+import { rosterCounts } from './filter'
 
 export const rosterTab = {
   id: 'roster',
@@ -13,7 +14,10 @@ export const rosterTab = {
   panelTitle: 'Guild roster',
   search: { placeholder: 'Find a member...' },
   navCount: (ctx) => ctx.data.roster.length,
-  recordCount: (ctx) => `${ctx.data.roster.length} members`,
+  recordCount: (ctx) => {
+    const { mains, alts } = rosterCounts(ctx.data.roster)
+    return `Mains: ${mains} | Alts: ${alts}`
+  },
   footer: (ctx) => <RosterFooter ctx={ctx} />,
   HeadingActions: RosterHeadingActions,
   Toolbar: RosterToolbar,

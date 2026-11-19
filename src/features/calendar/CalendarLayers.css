@@ -1,0 +1,16 @@
+/* The Show: toggles in the Guild Calendar heading row, and the line above the grid when both are off (UX-007). */
+.toolbar-controls:has(.calendar-layers) { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.calendar-layers { display: flex; align-items: center; gap: 7px; }
+.calendar-layers-label { color: #4a6075; font-size: 10px; font-weight: 700; }
+.calendar-layers .segment { gap: 4px; }
+/* The check mark keeps its width when off, so the buttons do not change size as they are toggled. */
+.calendar-layer-check { flex: none; }
+.calendar-layers .segment:not(.selected) .calendar-layer-check { visibility: hidden; }
+.calendar-layers-note { margin: 0 0 10px; color: #4a6075; font-size: 11px; line-height: 1.4; }
+
+:root[data-theme='dark'] .calendar-layers-label, :root[data-theme='dark'] .calendar-layers-note { color: #b7c7d6; }
+
+@media (max-width: 600px) {
+  .toolbar-controls:has(.calendar-layers) { justify-content: flex-start; }
+  .calendar-layers .segment { min-height: 44px; padding-inline: 12px; font-size: 11px; }
+}

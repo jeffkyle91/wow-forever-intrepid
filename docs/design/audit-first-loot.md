@@ -2,7 +2,7 @@
 
 Status: stage 1 and stage 3 of the rules are implemented. Awards can be edited only with an audit entry, a new award and every priority create, edit and delete need one too (`validPriorityAward`, `validManualAward`, `validPriorityCreate`, `validPriorityEdit`, `validPriorityDelete`), and audit entries are append-only. The client side (the audited helpers, the audit log screen inside Loot priorities, and fixing a mistaken receipt from the item on Loot priorities, LOOT-004) is built.
 
-Rollout follows [the roadmap](../ROADMAP.md): target recording loot from the first raid on December 9, 2026, independently of priority listings; adopt priorities around December 15; target full audits and all remaining functionality by December 22. If recording is not ready for December 9, use need-before-greed rolls and a spreadsheet, followed by a validated upload. That upload and priority-independent recording path still need implementation; do not fabricate a candidate-order or council-note snapshot for an award decided by rolls. Preserve the actual raid/award date separately from later entry/audit timestamps.
+Rollout follows [the roadmap](../ROADMAP.md): priority-independent manual award recording is deployed, priorities are targeted around December 15, and remaining functionality is targeted for December 22. If the app cannot record loot on December 9, use need-before-greed rolls and a spreadsheet; the validated upload remains planned and is not available yet. Do not fabricate a candidate-order or council-note snapshot for an award decided by rolls. Preserve the actual raid/award date separately from later entry/audit timestamps.
 
 ## What it must do
 

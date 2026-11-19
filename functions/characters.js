@@ -4,7 +4,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import classes from './characterClasses.json' with { type: 'json' }
 import { id, input, membership } from './access.js'
 
-const kinds = ['create-alt', 'link-alt', 'rename', 'change-spec', 'promote-main']
+const kinds = ['create-main', 'create-alt', 'link-alt', 'rename', 'change-spec', 'promote-main']
 const fail = (message) => { throw new HttpsError('failed-precondition', message) }
 const snapshot = (character) => ({
   name: character.name, surname: character.surname ?? '', className: character.className,
@@ -20,7 +20,7 @@ function text(value, max, required = false) {
 }
 
 function proposal(kind, value) {
-  const keys = kind === 'create-alt' ? ['name', 'surname', 'className', 'specialization']
+  const keys = ['create-main', 'create-alt'].includes(kind) ? ['name', 'surname', 'className', 'specialization']
     : kind === 'rename' ? ['name', 'surname'] : kind === 'change-spec' ? ['className', 'specialization'] : []
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) {
@@ -80,26 +80,43 @@ export async function submitCharacterRequest(db, request) {
   if (!kinds.includes(data.kind)) throw new HttpsError('invalid-argument', 'Choose a supported character change.')
   const proposed = proposal(data.kind, data.proposed)
   const note = text(data.note, 500)
-  if (data.kind === 'create-alt' ? data.characterId !== null : typeof data.characterId !== 'string') {
-    throw new HttpsError('invalid-argument', 'Choose a character, or leave the id empty for a new alt.')
+  if (['create-main', 'create-alt'].includes(data.kind) ? data.characterId !== null : typeof data.characterId !== 'string') {
+    throw new HttpsError('invalid-argument', 'Choose a character, or leave the id empty for a new character.')
   }
   const guild = db.collection('guilds').doc(data.guildId)
   const ref = guild.collection('characterRequests').doc(data.requestId)
-  const characterId = data.kind === 'create-alt' ? guild.collection('roster').doc().id : id(data.characterId)
+  const characterId = ['create-main', 'create-alt'].includes(data.kind) ? guild.collection('roster').doc().id : id(data.characterId)
   await db.runTransaction(async (tx) => {
     const member = await membership(tx, guild, data.uid)
-    const mainRef = await linkedMain(tx, guild, member, data.uid)
     const existing = await tx.get(ref)
     if (existing.exists) throw new HttpsError('already-exists', 'This request was already submitted. Check your request history.')
-    const { character } = await eligibleTarget(tx, guild, data.kind, characterId, mainRef, data.uid)
-    const changedFields = data.kind === 'rename' ? ['name', 'surname'] : ['className', 'specialization']
-    if (character && ['rename', 'change-spec'].includes(data.kind)
-      && changedFields.every((key) => (character[key] ?? '') === proposed[key])) {
-      fail('The proposed character details are unchanged.')
+    let mainId
+    let before = null
+    if (data.kind === 'create-main') {
+      const lockRef = guild.collection('pendingFirstMainRequests').doc(data.uid)
+      const [lock, linkedCharacters] = await Promise.all([
+        tx.get(lockRef),
+        tx.get(guild.collection('roster').where('linkedUid', '==', data.uid)),
+      ])
+      if (member.playerId !== undefined && member.playerId !== null && member.playerId !== '') fail('Your account already has a linked character.')
+      if (lock.exists) fail('You already have a pending first-main request. Withdraw it before submitting another.')
+      if (!linkedCharacters.empty) fail('A character is already linked to your account. Ask a Guild Leader to check the roster.')
+      mainId = characterId
+      tx.create(lockRef, { requestId: data.requestId })
+    } else {
+      const mainRef = await linkedMain(tx, guild, member, data.uid)
+      const { character } = await eligibleTarget(tx, guild, data.kind, characterId, mainRef, data.uid)
+      const changedFields = data.kind === 'rename' ? ['name', 'surname'] : ['className', 'specialization']
+      if (character && ['rename', 'change-spec'].includes(data.kind)
+        && changedFields.every((key) => (character[key] ?? '') === proposed[key])) {
+        fail('The proposed character details are unchanged.')
+      }
+      mainId = mainRef.id
+      before = character ? snapshot(character) : null
     }
     tx.create(ref, {
       userId: data.uid, displayName: typeof member.displayName === 'string' ? member.displayName : '',
-      kind: data.kind, characterId, mainId: mainRef.id, before: character ? snapshot(character) : null,
+      kind: data.kind, characterId, mainId, before,
       proposed, note, status: 'pending', requestedAt: FieldValue.serverTimestamp(),
     })
   })
@@ -123,28 +140,50 @@ export async function resolveCharacterRequest(db, request) {
     if (change.status !== 'pending') fail('This request has already been resolved.')
     if (data.action === 'approve') {
       const owner = await membership(tx, guild, change.userId)
-      const mainRef = await linkedMain(tx, guild, owner, change.userId)
-      if (mainRef.id !== change.mainId) fail('The main character changed after submission. Reject or withdraw this request and submit a new one.')
-      const { ref: characterRef, character } = await eligibleTarget(tx, guild, change.kind, change.characterId, mainRef, change.userId)
-      if (!isDeepStrictEqual(character ? snapshot(character) : null, change.before)) {
-        fail('Character details changed after submission. Reject or withdraw this request and submit a new one.')
-      }
-      if (change.kind === 'promote-main') {
-        const alts = await tx.get(guild.collection('roster').where('mainId', '==', mainRef.id))
-        if (alts.docs.some((alt) => alt.data().linkedUid)) fail('An alt has an account link. Ask a Guild Leader to correct the roster first.')
-        tx.update(characterRef, { mainId: FieldValue.delete(), linkedUid: change.userId })
-        tx.update(mainRef, { mainId: characterRef.id, linkedUid: FieldValue.delete() })
-        for (const alt of alts.docs) {
-          if (alt.id !== characterRef.id) tx.update(alt.ref, { mainId: characterRef.id })
-        }
+      if (change.kind === 'create-main') {
+        const lockRef = guild.collection('pendingFirstMainRequests').doc(change.userId)
+        const characterRef = guild.collection('roster').doc(id(change.characterId))
+        const [lock, linkedCharacters, character] = await Promise.all([
+          tx.get(lockRef),
+          tx.get(guild.collection('roster').where('linkedUid', '==', change.userId)),
+          tx.get(characterRef),
+        ])
+        if (!lock.exists || lock.data().requestId !== ref.id) fail('This first-main request is no longer active.')
+        if (owner.playerId !== undefined && owner.playerId !== null && owner.playerId !== '') fail('The requester already has a linked character. Reject or withdraw this request.')
+        if (!linkedCharacters.empty) fail('A character is already linked to the requester. Reject or withdraw this request.')
+        if (character.exists || change.before !== null) fail('The requested character is no longer available. Reject or withdraw this request.')
+        tx.create(characterRef, { ...change.proposed, linkedUid: change.userId })
         tx.update(guild.collection('members').doc(change.userId), { playerId: characterRef.id })
-      } else if (change.kind === 'create-alt') {
-        tx.create(characterRef, { ...change.proposed, mainId: mainRef.id })
-      } else if (change.kind === 'link-alt') {
-        tx.update(characterRef, { mainId: mainRef.id })
+        tx.delete(lockRef)
       } else {
-        tx.update(characterRef, change.proposed)
+        const mainRef = await linkedMain(tx, guild, owner, change.userId)
+        if (mainRef.id !== change.mainId) fail('The main character changed after submission. Reject or withdraw this request and submit a new one.')
+        const { ref: characterRef, character } = await eligibleTarget(tx, guild, change.kind, change.characterId, mainRef, change.userId)
+        if (!isDeepStrictEqual(character ? snapshot(character) : null, change.before)) {
+          fail('Character details changed after submission. Reject or withdraw this request and submit a new one.')
+        }
+        if (change.kind === 'promote-main') {
+          const alts = await tx.get(guild.collection('roster').where('mainId', '==', mainRef.id))
+          if (alts.docs.some((alt) => alt.data().linkedUid)) fail('An alt has an account link. Ask a Guild Leader to correct the roster first.')
+          tx.update(characterRef, { mainId: FieldValue.delete(), linkedUid: change.userId })
+          tx.update(mainRef, { mainId: characterRef.id, linkedUid: FieldValue.delete() })
+          for (const alt of alts.docs) {
+            if (alt.id !== characterRef.id) tx.update(alt.ref, { mainId: characterRef.id })
+          }
+          tx.update(guild.collection('members').doc(change.userId), { playerId: characterRef.id })
+        } else if (change.kind === 'create-alt') {
+          tx.create(characterRef, { ...change.proposed, mainId: mainRef.id })
+        } else if (change.kind === 'link-alt') {
+          tx.update(characterRef, { mainId: mainRef.id })
+        } else {
+          tx.update(characterRef, change.proposed)
+        }
       }
+    } else if (change.kind === 'create-main') {
+      const lockRef = guild.collection('pendingFirstMainRequests').doc(change.userId)
+      const lock = await tx.get(lockRef)
+      if (!lock.exists || lock.data().requestId !== ref.id) fail('This first-main request is no longer active.')
+      tx.delete(lockRef)
     }
     tx.update(ref, {
       status: { approve: 'approved', reject: 'rejected', withdraw: 'withdrawn' }[data.action],

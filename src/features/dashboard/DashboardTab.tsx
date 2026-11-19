@@ -3,20 +3,24 @@ import { useState, type ReactNode } from 'react'
 import { deleteAfkEntry, formatRaidTime, isRaidCancelled, raidTimeOf, type TenManTeam } from '../../guildApi'
 import { priorityLookup } from '../../shared/game/completion'
 import { encounterLabel } from '../../shared/game/encounter'
-import { currentPhaseNo, phaseName } from '../../shared/game/phases'
+import { currentPhaseNo } from '../../shared/game/phases'
 import { localDateKey } from '../../shared/lib/dates'
 import type { TabContext } from '../../shared/tabs/types'
 import { classAccent } from '../../shared/game/classes'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { RolePill } from '../../shared/ui/RolePill'
 import { HelpPopover } from '../../shared/ui/HelpPopover'
+import { RaidBanner } from '../../shared/raids/RaidBanner'
 import { RaidSignupButton } from './RaidSignupButton'
 import { AbsenceModal } from '../../shared/availability/AbsenceModal'
 import { CommentsPanel } from './CommentsPanel'
+import { DashboardPhaseSelect } from './DashboardPhaseSelect'
+import { dashboardPhases, shownPhase, type PhaseChoice } from './dashboardPhase'
 import { findMyCharacters, inPhase, myAbsences, myAwards, myPriorities, upcomingRaids } from './myCharacters'
 import { CharacterRequestsPanel } from '../../shared/characters/CharacterRequestsPanel'
 import './Dashboard.css'
-import { RaidReadyToggle } from '../../shared/members/RaidReadyToggle'
+import './DashboardRaidArt.css'
+import { RaidReadinessControl } from '../../shared/members/RaidReadinessControl'
 
 const dateLabel = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
@@ -28,28 +32,34 @@ function Panel({ icon, title, help, action, children }: { icon: ReactNode; title
 export function DashboardTab({ ctx }: { ctx: TabContext }) {
   const { roster, assignments, assignments20, assignments40, allPriorities, hiddenPriorities, awards, raids, afkEntries, settings } = ctx.data
   const [today] = useState(() => localDateKey(new Date()))
+  const [priosChoice, setPriosChoice] = useState<PhaseChoice | null>(null)
+  const [lootChoice, setLootChoice] = useState<PhaseChoice | null>(null)
   const { linked, characters } = findMyCharacters(roster, ctx.identity.uid)
 
   if (!linked) {
-    return <><div className="dash-empty">
+    return <><CharacterRequestsPanel ctx={ctx} /><div className="dash-empty">
       <Shield size={26} />
       <h3>No character linked to your account yet</h3>
-      <p>Ask a Guild Leader to link your character in Member Access. Your characters, raid team, loot priorities and upcoming raids will appear here once they do.</p>
+      <p>Request a first main character for Guild Leader approval, or ask a Guild Leader to link your character in Member Access. Your characters, raid team, loot priorities and upcoming raids will appear here once linked.</p>
       <p>Everything else in the app still works. You can look at the roster, raid teams, calendar and loot in the meantime.</p>
       <div className="dash-actions">
         <button className="button button-secondary" onClick={() => ctx.navigate('afk')}>Guild Calendar</button>
-        <button className="button button-secondary" onClick={() => ctx.navigate('teams')}>Raid teams</button>
-        <button className="button button-secondary" onClick={() => ctx.navigate('priorities')}>Loot priorities</button>
+        <button className="button button-secondary" onClick={() => ctx.navigate('teams')}>Raid Teams</button>
+        <button className="button button-secondary" onClick={() => ctx.navigate('priorities')}>Loot Priorities</button>
       </div>
-    </div><CharacterRequestsPanel ctx={ctx} /></>
+    </div></>
   }
 
   const raidList = upcomingRaids(raids, afkEntries, ctx.identity.uid, today)
-  // The phase the guild is in, and nothing else: the next phase is for leaders to prepare, and what an earlier phase still owed moves forward with Carry over (the Log keeps the rest).
+  // Each card shows one phase at a time, the one the guild is in until a member picks a finished one with the card's own choice (a choice ends on reload and when the guild starts a new phase). The next phase is for leaders to prepare and is not offered, and what an earlier phase still owed moves forward with Carry over.
   const currentNo = currentPhaseNo(settings)
-  const nowName = phaseName(settings, currentNo)
-  const prios = myPriorities(inPhase(allPriorities, currentNo), characters, awards, priorityLookup([...allPriorities, ...hiddenPriorities]))
-  const loot = myAwards(inPhase(awards, currentNo), characters)
+  const phases = dashboardPhases(settings)
+  const priosPhase = shownPhase(settings, priosChoice)
+  const lootPhase = shownPhase(settings, lootChoice)
+  const priosLookingBack = priosPhase.kind === 'past'
+  const lootLookingBack = lootPhase.kind === 'past'
+  const prios = myPriorities(inPhase(allPriorities, priosPhase.no), characters, awards, priorityLookup([...allPriorities, ...hiddenPriorities]))
+  const loot = myAwards(inPhase(awards, lootPhase.no), characters)
   const absences = myAbsences(afkEntries, ctx.identity.uid, today)
   const teamName = (team: TenManTeam) => settings.teamNames[team]
   const groupLabel = (characterId: string) => {
@@ -75,14 +85,14 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
   return <div className="dash-grid">
     <Panel icon={<Swords size={15} />} title="My Characters" help={<HelpPopover label="About My Characters" trigger={<CircleHelp size={16} aria-hidden="true" />}>
       <p>Used to manage your main and alt characters.</p>
-      <p>Raid ready means properly talented, geared, and keys/attunements are completed.</p>
+      <p>Open each character's readiness checklist to record preparation and see progress. Save all nine checks to mark that character raid ready.</p>
     </HelpPopover>}>
       <ul className="dash-list">{characters.map((character, index) => <li key={character.id} className={`${classAccent(character.className)} dash-ready-character`}>
         <span className="dash-character">{index > 0 && <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" />}<ClassAvatar player={character} /><span><strong>{character.name}{character.surname ? ` ${character.surname}` : ''}</strong><small>{character.specialization} {character.className} · {index === 0 ? 'Main' : 'Alt'}</small></span></span>
         <RolePill role={character.role} />
-        <RaidReadyToggle characterId={character.id} name={character.name} ctx={ctx} />
+        <RaidReadinessControl characterId={character.id} name={character.name} ctx={ctx} />
       </li>)}</ul>
-      <p className="dash-note">Mark each character ready independently. This helps leaders check raid responses; it does not reserve a spot or restrict sign-ups.</p>
+      <p className="dash-note">Save each character's preparation checklist independently. All nine steps are required to be raid ready; this does not reserve a spot or restrict sign-ups.</p>
       {ctx.data.readinessError && <p role="alert">{ctx.data.readinessError}</p>}
     </Panel>
 
@@ -101,6 +111,7 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
         <span><strong>{raid.name}</strong><small>{dateLabel(raid.date)} · {formatRaidTime(raidTimeOf(raid))} · {raid.zones?.length ? raid.zones.map((zone) => `${zone.name} (${zone.size})`).join(', ') : `${raid.size}-player`}{isRaidCancelled(raid) && raid.cancelReason ? ` · ${raid.cancelReason}` : ''}</small>{raid.description && <small>{raid.description}</small>}<button type="button" className="dash-link" onClick={() => ctx.navigate('afk', raid.id)}>View on calendar</button></span>
         <RaidSignupButton raidId={raid.id} unavailable={unavailable} ctx={ctx} />
         {isRaidCancelled(raid) ? <span className="dash-tag dash-tag-warn">Cancelled</span> : unavailable && <span className="dash-tag dash-tag-warn">You marked unavailable</span>}
+        <div className="dash-raid-art"><RaidBanner zones={raid.zones ?? []} zoneArt={ctx.data.zoneArt} zoneColors={ctx.data.zoneColors} /></div>
       </li>)}</ul> : <p className="dash-muted">No upcoming raids are scheduled.</p>}
       <p className="dash-note">Choose a character under Sign-up / roster, or click your response to change it or view details. Responses close at raid start. Unavailable dates set your response to Absent; edit or remove overlapping events before choosing another response.</p>
     </Panel>
@@ -113,18 +124,18 @@ export function DashboardTab({ ctx }: { ctx: TabContext }) {
       </li>)}</ul> : <p className="dash-muted">No upcoming absences.</p>}
     </Panel>
 
-    <Panel icon={<Gem size={15} />} title="My loot priorities">
+    <Panel icon={<Gem size={15} />} title="My loot priorities" action={phases.length > 1 ? <DashboardPhaseSelect label="Phase of my loot priorities" options={phases} value={priosPhase.no} onChange={(no) => setPriosChoice({ no, whenCurrent: currentNo })} /> : undefined}>
       {prios.length ? <ul className="dash-list">{prios.map(({ priority, position, character, received }) => <li key={`${priority.id}-${character.id}`}>
         <span><strong>{priority.item}</strong><small>{priority.encounter || 'No encounter'} · {character.name}</small></span>
         <span className="dash-tag">#{position}{received ? ' \u00b7 received' : ''}</span>
-      </li>)}</ul> : <p className="dash-muted">None of your characters are on a loot priority list in {nowName} yet.</p>}
+      </li>)}</ul> : <p className="dash-muted">{priosLookingBack ? `None of your characters were on a loot priority list in ${priosPhase.name}.` : `None of your characters are on a loot priority list in ${priosPhase.name} yet.`}</p>}
     </Panel>
 
-    <Panel icon={<Award size={15} />} title="My awarded loot">
-      {loot.length ? <ul className="dash-list">{loot.slice(0, 5).map((award) => <li key={award.id}>
+    <Panel icon={<Award size={15} />} title="My awarded loot" action={phases.length > 1 ? <DashboardPhaseSelect label="Phase of my awarded loot" options={phases} value={lootPhase.no} onChange={(no) => setLootChoice({ no, whenCurrent: currentNo })} /> : undefined}>
+      {loot.length ? <ul className="dash-list">{(lootLookingBack ? loot : loot.slice(0, 5)).map((award) => <li key={award.id}>
         <span><strong>{award.item}</strong><small>{encounterLabel(award.encounter) || 'No encounter'} · {award.awardedAt}</small></span>
         <span className="dash-tag">{award.recipient}</span>
-      </li>)}</ul> : <p className="dash-muted">No loot has been awarded to your characters in {nowName} yet.</p>}
+      </li>)}</ul> : <p className="dash-muted">{lootLookingBack ? `No loot was awarded to your characters in ${lootPhase.name}.` : `No loot has been awarded to your characters in ${lootPhase.name} yet.`}</p>}
     </Panel>
 
     <Panel icon={<MessageSquare size={15} />} title="Comments">

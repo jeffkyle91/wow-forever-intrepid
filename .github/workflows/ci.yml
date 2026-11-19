@@ -50,3 +50,63 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm ci --prefix functions --ignore-scripts
       - run: npm run test:rules
+
+  addon:
+    name: Addon lint and tests (Lua)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: addon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Lua 5.1 and luacheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1 liblua5.1-0-dev luarocks
+          sudo luarocks install luacheck
+      - name: Addon and test sources are plain ASCII
+        # A backslash-u escape in a source file can be turned into the character itself by an editor or a tool, and then
+        # a test tests nothing. Write bytes as decimal escapes (\195\171) or JSON escapes with doubled backslashes.
+        run: |
+          if grep -rnP '[^\x00-\x7F]' IntrepidManager tests IntrepidProbe/*.lua IntrepidProbe/*.toc tools/exchange_fixtures.py tools/make-probe-items.py tools/api_lint.py tools/api-known.json tools/api-widgets.json tools/measured_fonts.py tools/synthetic.py; then
+            echo "Non-ASCII characters in the files above."
+            exit 1
+          fi
+      - name: Lint
+        run: luacheck IntrepidManager tests
+      - name: Unit tests
+        run: lua5.1 tests/run.lua
+      - name: Window pictures render (tests/storyboards/)
+        run: lua5.1 tests/storyboards.lua
+      - name: Keep the window pictures for review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: window-pictures
+          path: addon/build/pictures
+          retention-days: 14
+      - name: Exchange fixtures match the spec (docs/spec/exchange-v0.md)
+        run: python3 -B tools/exchange_fixtures.py check
+      - name: The synthetic data tool checks itself and its fixtures (tools/synthetic.py)
+        run: python3 -B tools/synthetic.py selftest
+      - name: Client API names have evidence (tools/api-known.json)
+        run: python3 -B tools/api_lint.py check
+      - name: The API lint and its list check themselves
+        run: python3 -B tools/api_lint.py selftest
+      - name: The font data generator checks itself (tools/measured_fonts.py)
+        run: python3 -B tools/measured_fonts.py --selftest
+      - name: Probe and addon files compile (Lua 5.1 syntax)
+        run: |
+          for f in IntrepidProbe/*.lua IntrepidManager/IntrepidManager.lua IntrepidManager/core/*.lua IntrepidManager/game/*.lua IntrepidManager/net/*.lua IntrepidManager/ui/*.lua; do
+            luac5.1 -p "$f" || exit 1
+          done
+      - name: TOC files exist (case-sensitive)
+        run: |
+          cd IntrepidManager
+          grep -E '^[^#].*\.lua$' IntrepidManager.toc | tr -d '\r' | tr '\\' '/' | while read -r f; do
+            test -f "$f" || { echo "TOC lists $f but it does not exist"; exit 1; }
+          done
+      - name: TOC has no AllowLoadGameType
+        run: "! grep -i AllowLoadGameType IntrepidManager/IntrepidManager.toc IntrepidProbe/IntrepidProbe.toc"

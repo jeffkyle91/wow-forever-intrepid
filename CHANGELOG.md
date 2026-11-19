@@ -2,15 +2,83 @@
 
 Member-facing changes, grouped by verified production release. See [contribution rules](CONTRIBUTING.md#backlog-patch-notes-and-publishing) for maintenance and [the backlog](docs/backlog.json) for remaining work.
 
-Earlier releases have not been reconstructed here. These entries do not assert that Discord patch notes were published.
+These entries reconcile changes present in verified production releases. They do not assert that Discord patch notes were published.
 
 ## Unreleased
 
-- Raid Teams and Scheduled Raids list Faerie Fire and Curse of Recklessness separately from Sunder Armor / Expose Armor.
 - Raids are announced in the guild's Discord channel (DISCORD-002): scheduling, changing or cancelling a raid posts or updates one message showing the start in each reader's own time zone, and reminders follow 24 hours and 1 hour before it starts.
-- Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
-- On a desktop window (1101px wide or more), Loot priorities puts the item first (UX-008): the item is twice as large, with its icon, alone at the left; where it drops and the council note come next, then the council order with the Award loot and Edit Prio buttons under it. The boss heading is a little larger. Narrower windows and phones look as before.
-- Scheduled Raids is now a list of collapsed rows (RAID-016): each shows a banner of the raid's zone pictures side by side, each fading into the next, with its name, date, time and zones. Open a row to see that raid's roster, sign-ups and buff coverage; a raid stays in the list for 5 hours after it starts and then leaves it (Raid History keeps it). Add Raid and Edit Raid show each zone's picture and a preview of the banner.
+
+## 2026-11-14 - 427f745
+
+Refresh open tabs to load the update.
+
+- Guild and Raid Leaders can press **Copy for addon** on Loot priorities to copy the current phase's priority lists, who has already received, the roster and the raid night for the loot master's addon, then paste it in the game with `/im import`. The dialog lists anything the addon will skip before you copy.
+
+Verified production deployment. Source PR: #207. Both Hosting domains served the built assets and sign-in rendered; authenticated production export and in-game import were not tested. The addon must be installed separately.
+
+## 2026-11-14 - 0f75b2f
+
+Refresh open tabs to load the update.
+
+- My dashboard has a Raid Readiness checklist and progress bar for each character. Save progress as you go; all nine checks are required to be Raid Ready. Previously marked characters need to complete the checklist.
+- Guild Roster has tighter rows. Guild Leaders see separate App Access and Raid Readiness columns with compact progress indicators.
+- Guild Roster starts with alts hidden and names sorted A–Z. You can show alts and sort by column; alts stay with their mains.
+- The roster header shows separate totals for mains and alts. An alt's App Access reflects its main's linked account.
+- Unassigned alts have a blank 10-player team cell; unassigned mains show "Unassigned."
+
+Verified cumulative production release. Source PRs: #197, #201, and #204. Roster sorting/counts were deployed November 12, the checklist November 13, and the roster/checklist refinements November 14. Both Hosting domains served the built assets; authenticated production checklist saves were not tested.
+
+## 2026-11-11 - 6c261bc
+
+Refresh open tabs to load the update.
+
+- The guild overview appears on My dashboard instead of every page.
+- Guild Roster shows each linked account's Casual or Raider selection, including on its alts.
+
+Verified production deployment. Source PR: #191. Both Hosting domains served the built assets and sign-in rendered; authenticated production behavior was not exercised.
+
+## 2026-11-08 - 635f8bf
+
+Refresh open tabs to load the update.
+
+- Members without a linked character can request their first main from My dashboard, including an optional note to Guild Leaders. A Guild Leader must approve before the character is created and linked.
+- A member can have one pending first-main request and may withdraw it before submitting another.
+
+Verified production deployment. Source PR: #187. The deployment receipt records the public smoke checks; the authenticated production request and approval flow has not been exercised end to end.
+
+## 2026-11-08 - 6721a31
+
+Refresh open tabs to load the update.
+
+- A raid's starting roster is captured every five minutes instead of waiting until 9 PM Eastern, so later raids get a snapshot the same night. Sign-ups and roster changes saved within one minute after the start can still count.
+
+Verified production deployment. Source PR: #184. This is the first step of RAID-014; the backlog item remains in progress.
+
+## 2026-11-02 - bb1a2d2
+
+Refresh open tabs to load the update.
+
+- Raid Teams and Scheduled Raids distinguish Faerie Fire and Curse of Recklessness from Sunder Armor / Expose Armor. Coverage uses consistent status labels and icons, with details about eligible providers, talents, party limits and conflicting effects.
+
+- On a desktop window (1101px wide or more), Loot priorities puts the item first, with its icon, beside where it drops and the council note; the council order and leader buttons follow. Narrower windows and phones look as before.
+
+- Scheduled Raids is a list of collapsed rows with zone-picture banners. Open a row to see that raid's roster and sign-ups; the raid leaves the list five hours after its start. Add Raid and Edit Raid show zone pictures and a banner preview.
+
+- My dashboard can look back at earlier loot phases, with independent phase choices for priorities and awarded loot.
+
+- The Guild Calendar has a **Show:** choice to hide raids or unavailable dates, or both. Counts remain guild totals, and opening the calendar from a raid turns Raids back on.
+
+- Upcoming raids on My dashboard show a strip of their zone pictures above their details.
+
+- Guild and Raid Leaders can open **Recent awards** on Loot priorities to review this phase's awards and move one to another character or remove it with a reason, including loot recorded without a priority list. The Log keeps the history.
+
+- An opened raid on Scheduled Raids has **Signups** and **Groups** tabs: Signups shows responses by role and class, with Bench, Tentative, Late, Absent and Not responded below. Members start on Signups; Guild and Raid Leaders start on Groups.
+
+- Raid History opens on **All raids**, listing raids by category with month and loot-phase filters. Guild and Raid Leaders can mark a started raid complete and undo it; an unmarked raid becomes complete five hours after its start.
+
+- Raid History's **Audit Info** shows a starting snapshot while it is being captured and after it fails, not only after completion. It labels each snapshot Complete, In progress or Failed and explains incomplete and failed captures.
+
+Verified cumulative production release, including changes already present in the previous production deployment. Source PRs: #161, #164, #166, #171, #172, #173, #174, #175, #177 and #178. PR #180 changes test automation and PR #181 adds an award-import design; neither adds a member-facing feature. Discord publication is not implied.
 
 ## 2026-10-25 - ce1a288
 

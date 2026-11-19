@@ -1,6 +1,6 @@
 # Design: the one-time launch reset (OPS-005)
 
-Status: built and rehearsed on the local emulator with invented data; not run on any real project. The maintainer runs it, once, on launch day, with the loot owner on a call who reads the dry run's three numbers against what they expect before the typed confirmation. Agreed on issue #142: a one-time maintainer-run script, the scope below, and the AGENTS.md sentence; the backup is a full Firestore export plus the script's own private file (not a table in the database).
+Status: built and rehearsed with invented data in the local emulator and a separate real Firestore test project; production has not been reset. The test-project rehearsal did not cover interruption/resume or the Log display. On #142 the maintainer preferred Jeff to run it while the maintainer monitors and supports; the date remains to be coordinated. The dry-run numbers must be reviewed before the typed confirmation. The backup is a full Firestore export plus the script's own private file (not a table in the database).
 
 ## Why
 

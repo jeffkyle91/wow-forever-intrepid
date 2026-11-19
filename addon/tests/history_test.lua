@@ -1,0 +1,376 @@
+-- The loot history (IntrepidManager/core/History.lua): rows from the awards log, raids by place and time, the wording of dates and
+-- times, and the search. Invented names, items and places only. See AGENTS.md.
+local ns = load_core({}, "History")
+local History = ns.History
+
+-- The clock of the tests: UTC, so a test gives the same answer in every time zone.
+local function clock(at) return os.date("!*t", at) end
+
+-- 2026-12-09 20:05 UTC is a Wednesday.
+local WED = 1796846700 -- 2026-12-09 20:05:00 UTC
+local HOUR, DAY = 3600, 86400
+
+local function award(n, options)
+  options = options or {}
+  local a = {
+    id = "s-tpt2u0-q4tz-" .. n, rev = 1, at = options.at or WED, date = options.date or os.date("!%Y-%m-%d", options.at or WED),
+    itemId = options.itemId or 900000 + n,
+    item = options.item or ("Test Blade " .. n), to = options.to or "Jorren Ashvale", decision = "council",
+    delivery = { state = options.received and "received" or "assigned" }, place = options.place,
+  }
+  if options.at == false then a.at = nil end
+  if options.removed then a.status = "removed" end
+  if options.pseudo then
+    a.pseudo, a.to = options.pseudo, options.pseudo == "disenchant" and "Disenchant" or "Guild bank"
+  end
+  return a
+end
+
+test("the clock of the tests: WED is Wednesday, December 9, 2026, 8:05 PM", function()
+  local t = clock(WED)
+  eq(t.year, 2026)
+  eq(t.month, 12)
+  eq(t.day, 9)
+  eq(t.hour, 20)
+  eq(t.min, 5)
+  eq(t.wday, 4)
+end)
+
+test("the day of the week without the client's clock agrees with the clock", function()
+  for days = -800, 800, 37 do
+    local t = clock(WED + days * DAY)
+    eq(History.weekday(t.year, t.month, t.day), t.wday)
+  end
+  eq(History.weekday(2026, 12, 9), 4) -- Wednesday
+  eq(History.weekday(2024, 2, 29), 5) -- Thursday
+  eq(History.weekday(2000, 1, 1), 7) -- Saturday
+end)
+
+test("dates and times are written the American way, without leading zeros", function()
+  eq(History.dayText(clock(WED)), "Wed, Dec 9, 2026")
+  eq(History.timeText(clock(WED)), "8:05 PM")
+  eq(History.whenText(clock(WED)), "Wed, Dec 9, 2026, 8:05 PM")
+  eq(History.timeText({ hour = 0, min = 7 }), "12:07 AM")
+  eq(History.timeText({ hour = 12, min = 0 }), "12:00 PM")
+  eq(History.timeText({ hour = 9, min = 42 }), "9:42 AM")
+  eq(History.dayText({ year = 2027, month = 1, day = 15 }), "Fri, Jan 15, 2027") -- no wday: worked out
+end)
+
+test("a date as YYYY-MM-DD is read, anything else is not", function()
+  deep_eq(History.parseDate("2026-12-09"), { year = 2026, month = 12, day = 9 })
+  eq(History.parseDate("2026-13-09"), nil)
+  eq(History.parseDate("12/09/2026"), nil)
+  eq(History.parseDate(nil), nil)
+end)
+
+test("a row says when, what, who, where and whether it was given or taken back", function()
+  local history = History.build({
+    award(1, { place = "Molten Test Core", received = true }),
+    award(2, { place = "Molten Test Core", at = WED + 600, removed = true }),
+    award(3, { place = "Molten Test Core", at = WED + 900, pseudo = "disenchant" }),
+  }, clock)
+  local rows = history.rows
+  eq(#rows, 3)
+  -- newest first
+  eq(rows[1].id, "s-tpt2u0-q4tz-3")
+  eq(rows[1].to, "Disenchant")
+  eq(rows[1].state, "Awarded")
+  eq(rows[2].state, "Taken back")
+  eq(rows[2].removed, true)
+  eq(rows[3].state, "Given")
+  eq(rows[3].day, "Wed, Dec 9, 2026")
+  eq(rows[3].time, "8:05 PM")
+  eq(rows[3].placeText, "Molten Test Core")
+  eq(rows[3].how, "Council")
+end)
+
+test("a row keeps the boss, the note, and how and when the item was given (the time alone on the award's day)", function()
+  local given = award(1, { place = "Molten Test Core" })
+  given.delivery = { state = "received", at = WED + 30 * 60, how = "master-loot" }
+  given.encounter, given.note = "Test Lord of Embers", "For the off-tank."
+  local later = award(2, { at = WED + 600 })
+  later.delivery = { state = "received", at = WED + DAY, how = "trade" }
+  local undated = award(3, { at = false, date = "2026-12-10" })
+  undated.encounter, undated.note = "", ""
+  local rows = History.build({ given, later, undated }, clock).rows
+  local byId = {}
+  for _, row in ipairs(rows) do byId[row.id] = row end
+  local row = byId["s-tpt2u0-q4tz-1"]
+  eq(row.when, "Wed, Dec 9, 2026, 8:05 PM")
+  eq(row.givenHow, "by master loot")
+  eq(row.givenWhen, "8:35 PM")
+  eq(row.encounter, "Test Lord of Embers")
+  eq(row.note, "For the off-tank.")
+  row = byId["s-tpt2u0-q4tz-2"]
+  eq(row.givenHow, "in a trade")
+  eq(row.givenWhen, "Thu, Dec 10, 2026, 8:05 PM")
+  row = byId["s-tpt2u0-q4tz-3"]
+  eq(row.when, "Thu, Dec 10, 2026")
+  eq(row.givenHow, nil)
+  eq(row.encounter, nil)
+  eq(row.note, nil)
+end)
+
+test("a raid is one place, each award within 6 hours of the one before; the raids come newest first", function()
+  local log = {
+    award(1, { place = "Molten Test Core", at = WED }),
+    award(2, { place = "Molten Test Core", at = WED + 2 * HOUR }),
+    award(3, { place = "Onyx Test Lair", at = WED + 2 * HOUR + 60 }), -- another place the same night
+    award(4, { place = "Molten Test Core", at = WED + 7 * HOUR + 60 }), -- 5 hours after award 2: the same raid
+    award(5, { place = "Molten Test Core", at = WED + 7 * DAY }), -- a week later: another raid
+    award(6, { at = WED + 7 * DAY + 60 }), -- no place
+  }
+  local history = History.build(log, clock)
+  local raids = history.raids
+  eq(#raids, 4)
+  eq(raids[1].placeText, History.NO_PLACE)
+  eq(raids[2].label, "Molten Test Core - Wed, Dec 16, 2026, 8:05 PM")
+  eq(raids[2].count, 1)
+  eq(raids[3].label, "Onyx Test Lair - Wed, Dec 9, 2026, 10:06 PM")
+  eq(raids[4].label, "Molten Test Core - Wed, Dec 9, 2026, 8:05 PM")
+  eq(raids[4].count, 3)
+  -- every row knows its raid
+  for _, row in ipairs(history.rows) do is_true(row.raid ~= nil) end
+  eq(history.rows[#history.rows].raid, raids[4])
+  -- more than 6 hours apart: two raids
+  local apart = History.build({ award(1, { place = "Molten Test Core" }), award(2, { place = "Molten Test Core", at = WED + 6 * HOUR + 1 }) }, clock)
+  eq(#apart.raids, 2)
+end)
+
+test("a raid keeps its key when the history is built again with more awards", function()
+  local log = { award(1, { place = "Molten Test Core" }) }
+  local before = History.build(log, clock).raids[1].key
+  log[2] = award(2, { place = "Molten Test Core", at = WED + 600 })
+  local after = History.build(log, clock).raids[1]
+  eq(after.key, before)
+  eq(after.count, 2)
+end)
+
+test("awards in the same second keep the order they were made in", function()
+  local history = History.build({ award(1, {}), award(2, {}), award(3, {}) }, clock)
+  eq(history.rows[1].id, "s-tpt2u0-q4tz-3")
+  eq(history.rows[3].id, "s-tpt2u0-q4tz-1")
+end)
+
+test("an award with a date and no time still has its day, and joins the raid of its place and day", function()
+  local history = History.build({
+    award(1, { at = false, date = "2026-12-09", place = "Molten Test Core" }),
+    award(2, { at = false, date = "2026-12-09", place = "Molten Test Core" }),
+    award(3, { at = false, date = "2026-12-10", place = "Molten Test Core" }),
+  }, clock)
+  eq(history.rows[1].day, "Thu, Dec 10, 2026")
+  eq(history.rows[1].time, nil)
+  eq(#history.raids, 2)
+  eq(history.raids[2].count, 2)
+  eq(history.raids[2].label, "Molten Test Core - Wed, Dec 9, 2026")
+end)
+
+test("an empty log, a missing log and a broken entry give an empty history without an error", function()
+  eq(#History.build({}, clock).rows, 0)
+  eq(#History.build(nil, clock).raids, 0)
+  eq(#History.build({ "not an award" }, clock).rows, 0)
+end)
+
+test("the words of a search: lower case, cut at spaces and punctuation, accents kept", function()
+  deep_eq(History.words("Dec 9, 2026"), { "dec", "9", "2026" })
+  deep_eq(History.words("  2026-12-09 "), { "2026", "12", "09" })
+  deep_eq(History.words("Zo\195\171"), { "zo\195\171" })
+  deep_eq(History.words(""), {})
+end)
+
+local function searchLog()
+  return History.build({
+    award(1, { place = "Molten Test Core", to = "Jorren Ashvale", item = "Cloak of Fixtures" }),
+    award(2, { place = "Molten Test Core", to = "Mirabel Quint", item = "Test Blade of Ages", at = WED + 600 }),
+    award(3, { place = "Onyx Test Lair", to = "Jorren Ashvale", item = "Helm of Samples", at = WED + 10 * DAY }), -- Dec 19
+    award(4, { place = "Molten Test Core", to = "Zo\195\171 \195\134rinwald", item = "Cloak of Fixtures", at = WED + 365 * DAY }),
+  }, clock)
+end
+
+local function ids(rows)
+  local list = {}
+  for _, row in ipairs(rows) do list[#list + 1] = tonumber(string.match(row.id, "(%d+)$")) end
+  return list
+end
+
+test("a search finds a player, an item, a place, and words of two of them", function()
+  local history = searchLog()
+  deep_eq(ids(History.search(history, "jorren", nil)), { 3, 1 })
+  deep_eq(ids(History.search(history, "cloak", nil)), { 4, 1 })
+  deep_eq(ids(History.search(history, "onyx", nil)), { 3 })
+  deep_eq(ids(History.search(history, "Jorren CLOAK", nil)), { 1 })
+  deep_eq(ids(History.search(history, "jor", nil)), { 3, 1 }) -- the start of a word
+  deep_eq(ids(History.search(history, "orren", nil)), {}) -- not the middle of one
+  deep_eq(ids(History.search(history, "zo\195\171", nil)), { 4 })
+  deep_eq(ids(History.search(history, "", nil)), { 4, 3, 2, 1 })
+  deep_eq(ids(History.search(history, "   ", nil)), { 4, 3, 2, 1 })
+end)
+
+test("a search finds a date: dec 9 is not dec 19, and a date as 2026-12-09 or 12/9 works too", function()
+  local history = searchLog()
+  deep_eq(ids(History.search(history, "dec 9", nil)), { 4, 2, 1 }) -- award 4 is Dec 9, 2027
+  deep_eq(ids(History.search(history, "dec 9 2026", nil)), { 2, 1 })
+  deep_eq(ids(History.search(history, "dec 19", nil)), { 3 })
+  deep_eq(ids(History.search(history, "2026-12-09", nil)), { 2, 1 })
+  deep_eq(ids(History.search(history, "2027", nil)), { 4 })
+  deep_eq(ids(History.search(history, "sat", nil)), { 3 }) -- Saturday, Dec 19
+  -- the time of day is not searched: "8" finds no award made at 8 PM
+  deep_eq(ids(History.search(history, "8", nil)), {})
+end)
+
+test("a search in one raid, and the counts of the raids that have a match", function()
+  local history = searchLog()
+  local first = history.raids[#history.raids] -- Molten Test Core, Dec 9, 2026
+  deep_eq(ids(History.search(history, "", first)), { 2, 1 })
+  deep_eq(ids(History.search(history, "cloak", first)), { 1 })
+  local counts = History.raidCounts(History.search(history, "cloak", nil))
+  eq(counts[first], 1)
+  eq(counts[history.raids[1]], 1)
+  eq(counts[history.raids[2]], nil)
+end)
+
+test("the WHEN column: the time for this year, the year for an older award", function()
+  local history = searchLog()
+  local row = history.rows[#history.rows]
+  eq(History.shortWhen(row, 2026), "Dec 9, 8:05 PM")
+  eq(History.shortWhen(row, 2027), "Dec 9, 2026")
+  eq(History.shortWhen({ }, 2026), "?")
+  local undated = History.build({ award(1, { at = false }) }, clock).rows[1]
+  eq(History.shortWhen(undated, 2026), "Dec 9")
+end)
+
+test("ten thousand awards build and search in well under a second here", function()
+  local log = {}
+  for n = 1, 10000 do
+    log[n] = award(n, { place = (n % 3 == 0) and "Onyx Test Lair" or "Molten Test Core", at = WED + n * 300, to = "Player " .. (n % 40) })
+  end
+  local started = os.clock()
+  local history = History.build(log, clock)
+  local found = History.search(history, "player 7", nil)
+  local spent = os.clock() - started
+  eq(#history.rows, 10000)
+  is_true(#found > 0)
+  is_true(spent < 2)
+end)
+
+test("the number of a date counts days from January 1, 1970, and agrees with the clock across leap years", function()
+  eq(History.dayNumber(1970, 1, 1), 0)
+  eq(History.dayNumber(2026, 12, 9), math.floor(WED / DAY))
+  for days = -1500, 1500, 29 do
+    local t = clock(WED + days * DAY)
+    eq(History.dayNumber(t.year, t.month, t.day), math.floor((WED + days * DAY) / DAY))
+  end
+  eq(History.dayNumber(2024, 3, 1) - History.dayNumber(2024, 2, 28), 2) -- 2024 has February 29
+  eq(History.dayNumber(2100, 3, 1) - History.dayNumber(2100, 2, 28), 1) -- 2100 has not
+end)
+
+-- Two evenings: Molten Test Core then Onyx Test Lair on Dec 9, and Hollow Test Keep alone a week later.
+local function twoNights()
+  return History.build({
+    award(1, { place = "Molten Test Core", at = WED, to = "Jorren Ashvale" }),
+    award(2, { place = "Molten Test Core", at = WED + 30 * 60, to = "mirabel Quint" }),
+    award(3, { place = "Onyx Test Lair", at = WED + 2 * HOUR, to = "Bram Tollet" }),
+    award(4, { place = "Molten Test Core", at = WED + 2 * HOUR + 600, to = "Jorren Ashvale" }), -- back in the first place
+    award(5, { place = "Hollow Test Keep", at = WED + 7 * DAY, pseudo = "disenchant" }),
+    award(6, { place = "Hollow Test Keep", at = WED + 7 * DAY + 600, to = "Zo\195\171 \195\134rinwald" }),
+  }, clock)
+end
+
+test("a night is an evening wherever it was: its raids in the order they happened, and no raid in two nights", function()
+  local history = twoNights()
+  eq(#history.nights, 2)
+  local dec9, dec16 = history.nights[2], history.nights[1]
+  eq(dec9.kind, "night")
+  eq(dec9.count, 4)
+  eq(#dec9.raids, 2)
+  eq(dec9.raids[1].placeText, "Molten Test Core")
+  eq(dec9.raids[2].placeText, "Onyx Test Lair")
+  eq(dec9.raids[1].count, 3) -- award 4 is the same Molten Test Core raid, within 6 hours
+  eq(dec9.raids[1].lastTime, "10:15 PM")
+  eq(dec9.label, "Wed, Dec 9, 2026: Molten Test Core, Onyx Test Lair")
+  eq(dec16.label, "Hollow Test Keep - Wed, Dec 16, 2026, 8:05 PM") -- a night of one raid is named as the raid
+  for _, row in ipairs(history.rows) do
+    eq(row.raid.night, row.night)
+    is_true(row.night.key ~= nil)
+  end
+  eq(history.raids[1].kind, "raid")
+  -- the keys stay when the history is built again
+  eq(twoNights().nights[2].key, dec9.key)
+  -- awards with a date and no time: a night per day, in date order whatever the log's order
+  local undated = History.build({
+    award(1, { at = false, date = "2026-12-10", place = "Molten Test Core" }),
+    award(2, { at = false, date = "2026-12-09", place = "Molten Test Core" }),
+    award(3, { at = false, date = "2026-12-10", place = "Onyx Test Lair" }),
+  }, clock)
+  eq(#undated.nights, 2)
+  eq(undated.nights[1].day, "Thu, Dec 10, 2026")
+  eq(#undated.nights[1].raids, 2)
+  eq(undated.nights[2].count, 1)
+end)
+
+test("the filters: one winner, the last days, a month, a night, a raid, and the words, all together", function()
+  local history = twoNights()
+  local today = History.dayNumber(2026, 12, 16)
+  deep_eq(ids(History.filter(history, { to = "Jorren Ashvale" })), { 4, 1 })
+  deep_eq(ids(History.filter(history, { period = { days = 7 }, today = today })), { 6, 5 }) -- Dec 10 to Dec 16
+  deep_eq(ids(History.filter(history, { period = { days = 8 }, today = today })), { 6, 5, 4, 3, 2, 1 })
+  deep_eq(ids(History.filter(history, { period = { year = 2026, month = 12 } })), { 6, 5, 4, 3, 2, 1 })
+  deep_eq(ids(History.filter(history, { period = { year = 2026, month = 11 } })), {})
+  deep_eq(ids(History.filter(history, { period = { days = 7 } })), {}) -- no today: no row is in the last days
+  deep_eq(ids(History.filter(history, { night = history.nights[2] })), { 4, 3, 2, 1 })
+  deep_eq(ids(History.filter(history, { raid = history.nights[2].raids[2] })), { 3 })
+  deep_eq(ids(History.filter(history, { night = history.nights[2], to = "Jorren Ashvale", text = "onyx" })), {})
+  deep_eq(ids(History.filter(history, { night = history.nights[2], to = "Jorren Ashvale", text = "molten" })), { 4, 1 })
+  deep_eq(ids(History.filter(history, nil)), { 6, 5, 4, 3, 2, 1 })
+  -- the counts have the nights too
+  local counts = History.raidCounts(History.filter(history, { to = "Jorren Ashvale" }))
+  eq(counts[history.nights[2]], 2)
+  eq(counts[history.nights[1]], nil)
+end)
+
+test("the winners: every one once with a count, A to Z whatever the case, Disenchant and Guild bank last", function()
+  local list = History.winners(twoNights())
+  local names = {}
+  for _, winner in ipairs(list) do names[#names + 1] = winner.name .. " " .. winner.count end
+  deep_eq(names, { "Bram Tollet 1", "Jorren Ashvale 2", "mirabel Quint 1", "Zo\195\171 \195\134rinwald 1", "Disenchant 1" })
+  eq(list[5].pseudo, "disenchant")
+  deep_eq(History.winners({ rows = {} }), {})
+end)
+
+test("the choices of the date filter: any date, the last 7, 30 and 90 days, then each month with an award, newest first", function()
+  local history = History.build({
+    award(1, { at = WED - 30 * DAY }), -- November 9
+    award(2, { at = WED }),
+    award(3, { at = WED + 30 * DAY }), -- January 8, 2027
+    award(4, { at = false, date = "2026-10-01" }),
+  }, clock)
+  local labels = {}
+  for _, choice in ipairs(History.periods(history)) do labels[#labels + 1] = choice.label end
+  deep_eq(labels, {
+    "Any date", "Last 7 days", "Last 30 days", "Last 90 days", "January 2027", "December 2026", "November 2026", "October 2026",
+  })
+  local periods = History.periods(history)
+  eq(periods[1].days, nil)
+  eq(periods[3].days, 30)
+  eq(periods[5].year, 2027)
+  eq(periods[5].month, 1)
+end)
+
+test("the award ids of a night or a raid, found by its key, for Export; a key the history no longer has gives none", function()
+  local history = twoNights()
+  local dec9 = history.nights[2]
+  local function sorted(set)
+    local list = {}
+    for id in pairs(set) do list[#list + 1] = tonumber(string.match(id, "(%d+)$")) end
+    table.sort(list)
+    return list
+  end
+  local set, picked = History.idsOf(history, "night", dec9.key)
+  eq(picked, dec9)
+  deep_eq(sorted(set), { 1, 2, 3, 4 })
+  deep_eq(sorted(History.idsOf(history, "raid", dec9.raids[1].key)), { 1, 2, 4 })
+  deep_eq(sorted(History.idsOf(twoNights(), "night", dec9.key)), { 1, 2, 3, 4 }) -- built again: the same key
+  set, picked = History.idsOf(history, "night", "night@0")
+  deep_eq(set, {})
+  eq(picked, nil)
+end)

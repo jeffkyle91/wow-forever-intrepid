@@ -12,6 +12,12 @@ const snapshot = (character) => ({
   mainId: character.mainId ?? null, linkedUid: character.linkedUid ?? null,
 })
 
+function unchangedForApproval(kind, current, before) {
+  if (!current || !before || !['rename', 'change-spec'].includes(kind)) return isDeepStrictEqual(current, before)
+  const fields = kind === 'rename' ? ['name', 'surname'] : ['className', 'specialization', 'role']
+  return fields.every((key) => isDeepStrictEqual(current[key], before[key]))
+}
+
 function text(value, max, required = false) {
   if (typeof value !== 'string' || value.length > max || (required && !value.trim())) {
     throw new HttpsError('invalid-argument', `Enter ${required ? 'non-empty ' : ''}text of at most ${max} characters.`)
@@ -159,8 +165,8 @@ export async function resolveCharacterRequest(db, request) {
         const mainRef = await linkedMain(tx, guild, owner, change.userId)
         if (mainRef.id !== change.mainId) fail('The main character changed after submission. Reject or withdraw this request and submit a new one.')
         const { ref: characterRef, character } = await eligibleTarget(tx, guild, change.kind, change.characterId, mainRef, change.userId)
-        if (!isDeepStrictEqual(character ? snapshot(character) : null, change.before)) {
-          fail('Character details changed after submission. Reject or withdraw this request and submit a new one.')
+        if (!unchangedForApproval(change.kind, character ? snapshot(character) : null, change.before)) {
+          fail('Details relevant to this request changed after submission. Reject or withdraw this request and submit a new one.')
         }
         if (change.kind === 'promote-main') {
           const alts = await tx.get(guild.collection('roster').where('mainId', '==', mainRef.id))

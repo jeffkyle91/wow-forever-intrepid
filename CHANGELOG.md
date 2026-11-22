@@ -6,6 +6,8 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- Guild Leaders can approve independent name and class/specialization requests for the same character without requiring the member to resubmit one after the other. Conflicting changes still need a new request. (MEMBER-012)
+
 ## 2026-11-14 - 427f745
 
 Refresh open tabs to load the update.

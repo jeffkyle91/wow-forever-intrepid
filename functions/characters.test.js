@@ -305,8 +305,7 @@ describe('request lifecycle, stale approvals and concurrent decisions', () => {
   })
   for (const [path, fields, code] of [
     ['roster/main', { name: 'Leader renamed' }, 'failed-precondition'],
-    ['roster/main', { role: 'Ranged' }, 'failed-precondition'],
-    ['roster/main', { specialization: 'Fury' }, 'failed-precondition'],
+    ['roster/main', { surname: 'Leader surname' }, 'failed-precondition'],
     ['roster/main', { linkedUid: 'other' }, 'failed-precondition'],
     ['members/member', { playerId: 'other-main' }, 'failed-precondition'],
     ['members/member', { role: 'Removed' }, 'permission-denied'],
@@ -317,6 +316,71 @@ describe('request lifecycle, stale approvals and concurrent decisions', () => {
       await rejected(resolve(), code)
       assert.equal((await stored('characterRequests/change')).status, 'pending')
       await resolve('reject')
+    })
+  }
+  for (const [key, value] of [['className', 'Druid'], ['specialization', 'Fury'], ['role', 'Ranged']]) {
+    test(`a spec request cannot overwrite a changed ${key}`, async () => {
+      await submit({ kind: 'change-spec', proposed: { className: 'Mage', specialization: 'Frost' } })
+      await record('roster/main').update({ [key]: value })
+      await rejected(resolve(), 'failed-precondition')
+      assert.equal((await stored('roster/main'))[key], value)
+      assert.equal((await stored('characterRequests/change')).status, 'pending')
+    })
+  }
+  for (const characterId of ['main', 'alt']) {
+    for (const first of ['rename', 'spec']) {
+      test(`independent pending changes to ${characterId} can be approved ${first} first`, async () => {
+        await submit({ requestId: 'rename', characterId })
+        await submit({ requestId: 'spec', kind: 'change-spec', characterId, proposed: { className: 'Mage', specialization: 'Frost' } })
+        const beforeRename = await stored('characterRequests/rename')
+        const beforeSpec = await stored('characterRequests/spec')
+        await resolve('approve', { requestId: first })
+        await resolve('approve', { requestId: first === 'rename' ? 'spec' : 'rename' })
+        const character = await stored(`roster/${characterId}`)
+        assert.equal(character.name, 'Starweaver')
+        assert.equal(character.surname, 'Brightwater')
+        assert.equal(character.className, 'Mage')
+        assert.equal(character.specialization, 'Frost')
+        assert.equal(character.role, classes.Mage.find((entry) => entry.name === 'Frost').role)
+        assert.deepEqual((await stored('characterRequests/rename')).before, beforeRename.before)
+        assert.deepEqual((await stored('characterRequests/spec')).before, beforeSpec.before)
+      })
+    }
+  }
+  test('concurrent independent approvals preserve both changes', async () => {
+    await submit({ requestId: 'rename' })
+    await submit({ requestId: 'spec', kind: 'change-spec', proposed: { className: 'Mage', specialization: 'Frost' } })
+    await Promise.all([resolve('approve', { requestId: 'rename' }), resolve('approve', { requestId: 'spec' })])
+    const character = await stored('roster/main')
+    assert.equal(character.name, 'Starweaver')
+    assert.equal(character.className, 'Mage')
+    assert.equal(character.specialization, 'Frost')
+    assert.equal((await stored('characterRequests/rename')).status, 'approved')
+    assert.equal((await stored('characterRequests/spec')).status, 'approved')
+  })
+  test('competing spec requests cannot overwrite a newer approved spec', async () => {
+    await submit({ requestId: 'first', kind: 'change-spec', proposed: { className: 'Mage', specialization: 'Frost' } })
+    await submit({ requestId: 'second', kind: 'change-spec', proposed: { className: 'Druid', specialization: 'Guardian' } })
+    await resolve('approve', { requestId: 'first' })
+    await rejected(resolve('approve', { requestId: 'second' }), 'failed-precondition')
+    assert.equal((await stored('roster/main')).className, 'Mage')
+    assert.equal((await stored('characterRequests/second')).status, 'pending')
+  })
+  test('main promotion makes an earlier spec request stale without changing the new main', async () => {
+    await submit({ requestId: 'spec', kind: 'change-spec', characterId: 'alt', proposed: { className: 'Mage', specialization: 'Frost' } })
+    await submit({ requestId: 'promotion', kind: 'promote-main', characterId: 'alt', proposed: {} })
+    await resolve('approve', { requestId: 'promotion' })
+    await rejected(resolve('approve', { requestId: 'spec' }), 'failed-precondition')
+    assert.equal((await stored('roster/alt')).className, 'Warrior')
+    assert.equal((await stored('characterRequests/spec')).status, 'pending')
+  })
+  for (const kind of ['link-alt', 'promote-main']) {
+    test(`${kind} still refuses changed character details`, async () => {
+      const characterId = kind === 'link-alt' ? 'free' : 'alt'
+      await submit({ kind, characterId, proposed: {} })
+      await record(`roster/${characterId}`).update({ name: 'Changed since submission' })
+      await rejected(resolve(), 'failed-precondition')
+      assert.equal((await stored('characterRequests/change')).status, 'pending')
     })
   }
   test('a deleted character cannot be resurrected by approval', async () => {

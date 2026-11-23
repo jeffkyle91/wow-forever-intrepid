@@ -1,7 +1,7 @@
 import { namedTeams } from '../../shared/game/teams'
 import type { TabContext } from '../../shared/tabs/types'
 import { useHideAlts } from './altVisibility'
-import { filterRoster } from './filter'
+import { filterRoster, rosterCharacterName } from './filter'
 import { PlayerModal } from './PlayerModal'
 import { sortRoster } from './sort'
 import { useSortChoice } from './sortChoice'
@@ -41,5 +41,5 @@ export function RosterTab({ ctx }: { ctx: TabContext }) {
     if (key === 'leadershipComment') return player.linkedUid ? leadershipComments.get(player.linkedUid) : undefined
     return undefined
   })
-  return <>{ctx.data.readinessError && <p role="alert">{ctx.data.readinessError}</p>}{raiderTypes.error && <p role="alert">{raiderTypes.error}</p>}<RosterTable raiderTypes={raiderTypes} sortUnavailable={sortUnavailable} readinessControl={ctx.identity.canEditRoster ? (player) => <RaidReadinessControl characterId={player.id} name={player.name} ctx={ctx} compact /> : undefined} teams={teams} players={players} allPlayers={roster} hideAlts={hideAlts} keepAltsTogether assignments={assignments} canEdit={ctx.identity.canEditRoster} comments={ctx.data.comments} showLeadership={ctx.identity.canEditRaidData && ctx.data.comments.leadership !== null} onEdit={(player) => ctx.openModal(({ close, live }) => <PlayerModal existing={player} close={close} live={live} />)} /></>
+  return <>{ctx.data.readinessError && <p role="alert">{ctx.data.readinessError}</p>}{raiderTypes.error && <p role="alert">{raiderTypes.error}</p>}<RosterTable raiderTypes={raiderTypes} sortUnavailable={sortUnavailable} readinessControl={ctx.identity.canEditRoster ? (player) => <RaidReadinessControl characterId={player.id} name={rosterCharacterName(player)} ctx={ctx} compact /> : undefined} teams={teams} players={players} allPlayers={roster} hideAlts={hideAlts} keepAltsTogether assignments={assignments} canEdit={ctx.identity.canEditRoster} comments={ctx.data.comments} showLeadership={ctx.identity.canEditRaidData && ctx.data.comments.leadership !== null} onEdit={(player) => ctx.openModal(({ close, live }) => <PlayerModal existing={player} close={close} live={live} />)} /></>
 }

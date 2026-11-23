@@ -6,7 +6,7 @@ import type { TeamOption } from '../../shared/game/teams'
 import { ClassAvatar } from '../../shared/ui/ClassAvatar'
 import { EmptyRow } from '../../shared/ui/EmptyRow'
 import { RolePill } from '../../shared/ui/RolePill'
-import { groupAlts } from './filter'
+import { groupAlts, rosterCharacterName } from './filter'
 import type { CommentFeed } from '../../rosterComments'
 import { RosterCommentCell } from './RosterCommentCell'
 import { useShowComments } from './commentVisibility'
@@ -37,8 +37,9 @@ export function RosterTable({ teams, players, allPlayers, hideAlts, keepAltsToge
     {rows.map(({ player, isAlt, altCount }, index) => {
       const assignedTeam = teams.find((team) => team.key === assignments[player.id])
       const owner = rosterAccountUid(player, rosterById)
+      const name = rosterCharacterName(player)
       return <tr key={player.id} className={`${isAlt ? 'stagger-row alt-row' : 'stagger-row'} class-accent-row class-color-${classColorKey(player.className)}`} style={{ '--row-index': index } as CSSProperties}>
-        <td><span className="character-cell">{altCount && !hideAlts && keepAltsTogether ? <button type="button" className="alt-toggle" onClick={() => toggle(player.id)} aria-expanded={!collapsed.has(player.id)} aria-label={`${collapsed.has(player.id) ? 'Show' : 'Hide'} alts of ${player.name}`}>{collapsed.has(player.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</button> : isAlt ? <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" /> : <span className="alt-toggle-spacer" />}<ClassAvatar player={player} /><span className="character-name-stack"><strong title={[player.name, player.surname].filter(Boolean).join(' ')}>{player.name}</strong>{altCount ? <small className="table-subtext">{altCount} {altCount === 1 ? 'alt' : 'alts'}{hideAlts ? ' hidden' : ''}</small> : !isAlt && mainNames.get(player.id) && <small className="table-subtext">Alt of {mainNames.get(player.id)}</small>}</span></span></td>
+        <td><span className="character-cell">{altCount && !hideAlts && keepAltsTogether ? <button type="button" className="alt-toggle" onClick={() => toggle(player.id)} aria-expanded={!collapsed.has(player.id)} aria-label={`${collapsed.has(player.id) ? 'Show' : 'Hide'} alts of ${name}`}>{collapsed.has(player.id) ? <ChevronRight size={14} /> : <ChevronDown size={14} />}</button> : isAlt ? <CornerDownRight className="alt-link-icon" size={14} aria-hidden="true" /> : <span className="alt-toggle-spacer" />}<ClassAvatar player={player} /><span className="character-name-stack"><strong title={name}>{name}</strong>{altCount ? <small className="table-subtext">{altCount} {altCount === 1 ? 'alt' : 'alts'}{hideAlts ? ' hidden' : ''}</small> : !isAlt && mainNames.get(player.id) && <small className="table-subtext">Alt of {mainNames.get(player.id)}</small>}</span></span></td>
         {!showComments && <><td><span className={`class-name class-color-${classColorKey(player.className)}`}>{player.className}</span></td>
         <td><span className={`specialization-name class-color-${classColorKey(player.className)}`}>{player.specialization || 'Not set'}</span></td>
         <td><RolePill role={player.role} /></td>
@@ -46,9 +47,9 @@ export function RosterTable({ teams, players, allPlayers, hideAlts, keepAltsToge
         <td>{!owner ? 'Not set' : raiderTypes.loading ? 'Loading...' : raiderTypes.error ? 'Unavailable' : raiderTypeLabel(typesByUid.get(owner))}</td>
         <td><span className={owner ? 'linked-account-status linked' : 'linked-account-status'}>{owner ? 'Linked' : 'No account'}</span></td>
         {readinessControl && <td>{readinessControl(player)}</td>}
-        {canEdit && <td><button className="row-action" onClick={() => onEdit(player)} title={`Edit ${player.name}`} aria-label={`Edit ${player.name}`}><Pencil size={15} /></button></td>}</>}
-        {showComments && <><RosterCommentCell feed={comments.public} uid={player.linkedUid} audience="Public" name={player.name} />
-        {showLeadership && comments.leadership && <RosterCommentCell feed={comments.leadership} uid={player.linkedUid} audience="Leadership" name={player.name} />}</>}
+        {canEdit && <td><button className="row-action" onClick={() => onEdit(player)} title={`Edit ${name}`} aria-label={`Edit ${name}`}><Pencil size={15} /></button></td>}</>}
+        {showComments && <><RosterCommentCell feed={comments.public} uid={player.linkedUid} audience="Public" name={name} />
+        {showLeadership && comments.leadership && <RosterCommentCell feed={comments.leadership} uid={player.linkedUid} audience="Leadership" name={name} />}</>}
       </tr>
     })}
     {!rows.length && <EmptyRow colSpan={showComments ? 2 + Number(showLeadership) : 7 + Number(!!readinessControl) + Number(canEdit)} title="No members found" detail="Try a different search or add a guild member." />}

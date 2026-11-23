@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { filterRoster, groupAlts, rosterCounts } from '../../src/features/roster/filter.ts'
+import { filterRoster, groupAlts, rosterCharacterName, rosterCounts } from '../../src/features/roster/filter.ts'
 import { sortRoster } from '../../src/features/roster/sort.ts'
 
 // Every name here is invented: this repository is public.
@@ -13,6 +13,14 @@ const finn = player('f', 'Finn', 'Mage', 'a')
 const garrick = player('g', 'Garrick', 'Hunter', 'b')
 const roster = [aldric, brienne, corvin, elowen, finn, garrick]
 const layout = (rows: ReturnType<typeof groupAlts>['rows']) => rows.map(({ player, isAlt }) => `${isAlt ? '  ' : ''}${player.name}`)
+
+describe('rosterCharacterName', () => {
+  it('shows the surname when present without adding a trailing space otherwise', () => {
+    assert.equal(rosterCharacterName({ name: 'Aldric', surname: 'Brightwater' }), 'Aldric Brightwater')
+    assert.equal(rosterCharacterName({ name: 'Aldric' }), 'Aldric')
+    assert.equal(rosterCharacterName({ name: 'Aldric', surname: '' }), 'Aldric')
+  })
+})
 
 describe('rosterCounts', () => {
   it('counts valid direct alts and all other characters as mains', () => {
@@ -85,6 +93,13 @@ describe('filterRoster', () => {
 
   it('finds a main and its alts when searching for the main by name', () => {
     assert.deepEqual(filterRoster(roster, 'aldric').map((entry) => entry.name), ['Aldric', 'Elowen', 'Finn'])
+  })
+
+  it('finds a main and its alts by the main surname or full name', () => {
+    const withSurname = [{ ...aldric, surname: 'Brightwater' }, elowen, corvin]
+    assert.equal(groupAlts(withSurname, withSurname, new Set(), false).mainNames.get('e'), 'Aldric Brightwater')
+    assert.deepEqual(filterRoster(withSurname, 'brightwater').map((entry) => entry.name), ['Aldric', 'Elowen'])
+    assert.deepEqual(filterRoster(withSurname, 'aldric brightwater').map((entry) => entry.name), ['Aldric', 'Elowen'])
   })
 
   it('searches class, specialization and role case-insensitively', () => {

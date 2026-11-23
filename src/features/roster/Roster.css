@@ -25,6 +25,8 @@
 .roster-with-comments .roster-col-character { width: 26%; }
 .roster-with-comments .roster-col-comment { width: auto; }
 .roster-with-comments .roster-comment-cell { white-space: normal; vertical-align: top; }
+.roster-table .character-cell .character-name-stack strong,
+.roster-table .character-cell .character-name-stack small { white-space: normal; overflow-wrap: anywhere; }
 .roster-comment-trigger {
   display: block;
   width: 100%;

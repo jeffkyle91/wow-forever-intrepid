@@ -1,9 +1,13 @@
-// Structural, so this file has no imports and the unit tests can run it directly. PlayerRecord (guildApi.ts) satisfies it.
+// Structural, so the unit tests can run this file directly. PlayerRecord (guildApi.ts) satisfies it.
 type Player = { id: string; name: string; surname?: string; className: string; specialization?: string; role: string; mainId?: string }
+
+export function rosterCharacterName(player: Pick<Player, 'name' | 'surname'>) {
+  return [player.name, player.surname].filter(Boolean).join(' ')
+}
 
 // Alt id -> main name. A link to a missing character, or to another alt, is ignored.
 export function mainNameByPlayer(roster: Player[]) {
-  const mains = new Map(roster.filter((player) => !player.mainId).map((player) => [player.id, player.name]))
+  const mains = new Map(roster.filter((player) => !player.mainId).map((player) => [player.id, rosterCharacterName(player)]))
   return new Map(roster.flatMap((player) => {
     const name = player.mainId ? mains.get(player.mainId) : undefined
     return name && player.mainId !== player.id ? [[player.id, name] as const] : []

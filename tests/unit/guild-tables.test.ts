@@ -244,6 +244,30 @@ describe('parseItemIds', () => {
   it('gives nothing for nothing', () => {
     assert.deepEqual(parseItemIds('  \n '), { ids: [], ignored: [] })
   })
+  // docs/design/drop-list-import.md section 9. Invented item names and numbers.
+  it('reads the game\'s item strings, with or without more fields after the number', () => {
+    assert.deepEqual(parseItemIds('item:90001 item:90002:0:0:0:0:0:0:0:0:60, item:90003::::::::60:::::\nitem:90004;'), { ids: [90001, 90002, 90003, 90004], ignored: [] })
+  })
+  it('reads whole in-game item links, whose names can hold spaces and commas, and leaves nothing of them over', () => {
+    const pasted = [
+      '|cffa335ee|Hitem:90011::::::::60:::::|h[Test Blade, of the Quiet Hollow]|h|r',
+      '|Hitem:90012:0:0:0|h[Plain Ring]|h', // no color, no |r
+      '|cnIQ4:|Hitem:90013::|h[Newer Client Cloak]|h|r', // a newer client's color
+      '||cff0070dd||Hitem:90014:0||h[Copied From An Edit Box]||h||r', // every | doubled
+      '|Hitem:90015|h[First]|h|Hitem:90016|h[Second]|h', // two links with nothing between them
+    ].join('\n')
+    assert.deepEqual(parseItemIds(pasted), { ids: [90011, 90012, 90013, 90014, 90015, 90016], ignored: [] })
+    assert.deepEqual(parseItemIds('Loot: |cff1eff00|Hitem:90021:0|h[Green Thing]|h|r and 90022').ids, [90021, 90022])
+  })
+  it('reads every form once, mixed in one paste, and keeps what it read before as it was', () => {
+    assert.deepEqual(parseItemIds('872 item:872 |Hitem:872:0|h[Same Item]|h https://www.wowhead.com/forever/item=872/same-item').ids, [872])
+    assert.deepEqual(parseItemIds('item=55 55 item:56 https://www.wowhead.com/item=57').ids, [55, 56, 57])
+  })
+  it('ignores what only looks like an item string, and a number out of range', () => {
+    const { ids, ignored } = parseItemIds('item: item:abc item:90031abc xitem:90032 item:0 item:1234567890 |Hitem:1234567890|h[Too Long]|h item:90033')
+    assert.deepEqual(ids, [90033])
+    assert.deepEqual(ignored, ['item:', 'item:abc', 'item:90031abc', 'xitem:90032', 'item:0', 'item:1234567890', 'item:1234567890'])
+  })
 })
 
 describe('keys and numbers', () => {

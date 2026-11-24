@@ -338,12 +338,22 @@ export function describePreparedTables(docs: LootTableDoc[], phaseNo: number, ph
 
 // ---- Reading what a leader pastes
 
-/** Item numbers from pasted text: plain numbers and Wowhead item links (`.../item=872/name`), separated by spaces, commas or lines. */
+// An in-game item link, as the chat or an addon writes it: |cffa335ee|Hitem:19019:0:0:0|h[Name]|h|r. The color in front (newer clients write |cnIQ4:)
+// and the |r after it are optional, and a link copied out of an edit box has every | doubled. Its name can hold spaces and commas, so whole links are
+// read before the text is split.
+const GAME_LINK = /(?:\|\|?c[^|]*)?\|\|?Hitem:(\d+)[^|]*\|\|?h(?:\[[^\]]*\])?\|\|?h(?:\|\|?r)?/g
+// The game's own item string (item:19019, or item:19019:0:0:... with more fields), alone or what is left of a link.
+const ITEM_STRING = /(?:^|\|H)item:(\d{1,9})(?=$|[:|])/
+
+/**
+ * Item numbers from pasted text: plain numbers, Wowhead item links (`.../item=872/name`), the game's item strings (`item:872`, with or without more
+ * fields after it) and in-game item links (`|Hitem:872:...|h[Name]|h`), separated by spaces, commas or lines (docs/design/drop-list-import.md section 9).
+ */
 export function parseItemIds(text: string): { ids: number[]; ignored: string[] } {
   const ids: number[] = []
   const ignored: string[] = []
-  for (const token of text.split(/[\s,;]+/).filter(Boolean)) {
-    const link = /item=(\d{1,9})/.exec(token)
+  for (const token of text.replace(GAME_LINK, (_, id: string) => ` item:${id} `).split(/[\s,;]+/).filter(Boolean)) {
+    const link = /item=(\d{1,9})/.exec(token) ?? ITEM_STRING.exec(token)
     const id = link ? Number(link[1]) : /^\d{1,9}$/.test(token) ? Number(token) : NaN
     if (Number.isInteger(id) && id > 0 && id <= GAME_ID_MAX) { if (!ids.includes(id)) ids.push(id) }
     else ignored.push(token)

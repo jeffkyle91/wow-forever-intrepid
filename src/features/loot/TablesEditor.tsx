@@ -53,7 +53,7 @@ function AddItems({ zone, source, busy, run }: { zone: MergedZone; source: Merge
       <textarea value={pasted} onChange={(event) => { setPasted(event.target.value); setUnsure(false) }} rows={2} placeholder="872, https://www.wowhead.com/forever/item=273804/..." aria-label={`Items to add to ${source.name}`} />
     </label>
     {parsed.ignored.length > 0 && <p className="tables-note">Could not read as an item: {parsed.ignored.join(', ')}</p>}
-    {parsed.ids.length > 0 && <ul className="tables-preview">{parsed.ids.map((id) => <PastedItem key={id} id={id} heldBy={holders.get(id) && !source.hiddenItemIds.includes(id) ? holders.get(id) : undefined} />)}</ul>}
+    {parsed.ids.length > 0 && <ul className="tables-preview">{parsed.ids.map((id) => <PastedItem key={id} id={id} heldBy={holders.get(id)} />)}</ul>}
     {result.tooMany && <p className="tables-note tables-bad">A creature can add at most 80 items in one phase.</p>}
     {unknown.length > 0 && <label className="tables-confirm"><input type="checkbox" checked={unsure} onChange={(event) => setUnsure(event.target.checked)} /> Add the {unknown.length} number{unknown.length === 1 ? '' : 's'} Wowhead did not recognize anyway</label>}
     <div className="tables-row-actions">
@@ -106,7 +106,8 @@ function Creature({ zone, source, index, count, phase, busy, run }: { zone: Merg
       })}
       {source.hiddenItemIds.map((id) => <li key={`hidden-${id}`} className="tables-item tables-item-hidden">
         <ItemTooltip itemId={id} />
-        <button type="button" className="tables-chip-button" aria-label={`Bring ${itemName(id)} back to ${source.name}`} title={`Taken off in ${phase}. Bring it back.`} disabled={busy} onClick={() => { const write = restoreItem(zone, source, id); if (write) void run([write], `${itemName(id)} is back on ${source.name}.`) }}>Bring back</button>
+        <button type="button" className="tables-chip-button" aria-label={`Bring ${itemName(id)} back to ${source.name}`} title={`Taken off in ${phase}. Bring it back.`} disabled={busy}
+          onClick={() => { const write = restoreItem(zone, source, id); const holder = itemHolders(zone).get(id); void run(write ? [write] : [], `${itemName(id)} is back on ${source.name}.`, holder ? `${itemName(id)} is already on ${holder}, so it stays there.` : `${itemName(id)} could not be brought back: ${source.name} already adds the most items it can in ${phase} (${TABLE_ITEMS_MAX}).`) }}>Bring back</button>
       </li>)}
       {source.itemIds.length === 0 && source.hiddenItemIds.length === 0 && <li className="tables-empty">Nothing yet.</li>}
     </ul>

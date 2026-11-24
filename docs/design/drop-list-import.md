@@ -259,6 +259,12 @@ The module writes only its own allow-listed fields.
 
 Restoring such an item then works from the hidden list as for any other. These are builder changes, not rules changes. `ARCHITECTURE.md`'s note that hidden items "were there before" changes with them.
 
+**What remembering costs (found in review, 2026-11-24).** A take-off is now the same whether it undoes the phase's own add or takes off an item it inherited, so two cases change:
+- **An undone typo in a following phase.** Phase 2 follows phase 1. A leader adds an item in phase 2, takes it off again, and later the same item is added in phase 1. Phase 2 then hides it, where it used to inherit it. It shows in phase 2 as taken off, and Bring back restores it.
+- **A follow link taken away.** A take-off of an inherited item stays in the phase's hidden list. The editor then offers Bring back for an item the phase no longer has, which adds it.
+
+Both are rare and visible in the editor, and keeping every take-off is what lets an import tell a leader's choice from a new drop. A finer record (which take-offs undo an add) would need a new field and a rules change.
+
 ## 7. The preview and saving
 
 **Where.** The import is an **Import a drop list** panel in Browse drops, under **Edit the drop lists**, above the zones. Guild and Raid Leaders see it. It writes into the phase picked there (current or next).

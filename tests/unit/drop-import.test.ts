@@ -121,7 +121,7 @@ describe('the drop list import, worked examples', () => {
     const preview = buildPreview(pasted, setup(docs), pickBarrow)
     const [warden, grimtooth] = zoneOf(preview.zones, `z${BARROW}`).creatures
     assert.deepEqual([warden?.status, warden?.optIn, warden?.saved], ['takenOut', 'takenOut', false])
-    assert.deepEqual(grimtooth?.items.map((item) => [item.status, item.where]), [['elsewhere', 'Warden of the Test Barrow']])
+    assert.deepEqual(grimtooth?.items.map((item) => [item.status, item.where]), [['elsewhere', 'Warden of the Test Barrow (taken out)']])
     const ticked = buildPreview(pasted, setup(docs), { ...pickBarrow, ticks: { [`z${BARROW}|kn990003`]: true } })
     const write = buildImportSave(ticked, setup(docs)).first.find((candidate) => candidate.id === sourceDocId(BARROW, 'n990003', 0))
     assert.deepEqual(write && 'existing' in write && write.changes, { itemIds: [900008, 900009], removed: false })

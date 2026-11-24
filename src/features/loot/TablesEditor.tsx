@@ -51,7 +51,7 @@ function AddItems({ zone, source, busy, run }: { zone: MergedZone; source: Merge
   const blocked = !result.write || result.tooMany || (unknown.length > 0 && !unsure)
   if (!open) return <button type="button" className="button button-secondary tables-small" onClick={() => setOpen(true)} disabled={busy}>Add items</button>
   return <div className="tables-add">
-    <label>Item numbers or Wowhead links, one or several
+    <label>Item numbers, Wowhead links or item links from the game, one or several
       <textarea value={pasted} onChange={(event) => { setPasted(event.target.value); setUnsure(false) }} rows={2} placeholder="872, https://www.wowhead.com/forever/item=273804/..." aria-label={`Items to add to ${source.name}`} />
     </label>
     {parsed.ignored.length > 0 && <p className="tables-note">Could not read as an item: {parsed.ignored.join(', ')}</p>}

@@ -166,7 +166,8 @@ const minDate = (a?: string, b?: string) => (a === undefined ? b : b === undefin
 const maxDate = (a?: string, b?: string) => (a === undefined ? b : b === undefined ? a : a > b ? a : b)
 const maxOf = (a?: number, b?: number) => (a === undefined ? b : b === undefined ? a : Math.max(a, b))
 
-function mergeEvidence(into: ItemEvidence, from: ItemEvidence): ItemEvidence {
+/** One item's evidence from two rows: the larger count, the later date, a loot window over a roll, any flag either has. */
+export function mergeEvidence(into: ItemEvidence, from: ItemEvidence): ItemEvidence {
   const seen = into.seen && from.seen
     ? {
       n: Math.max(into.seen.n, from.seen.n),

@@ -178,7 +178,11 @@ export function describeEntry(entry: AuditEntry, phaseName: (no: number) => stri
   const idsLine = idsOnly(entry)
   const reason = entry.reason ? [`Reason: ${clip(entry.reason)}`] : []
 
-  if (entry.targetType === 'table') return describeTableEntry(entry, lookups, phaseName, change)
+  // A drop list entry can carry where its change came from, such as an import (docs/design/drop-list-import.md section 7): last, as for the others.
+  if (entry.targetType === 'table') {
+    const said = describeTableEntry(entry, lookups, phaseName, change)
+    return { ...said, details: [...said.details, ...reason] }
+  }
   // The one-time launch reset (docs/design/launch-reset.md): written by the maintainer's script, not by the app, when the pre-launch phase's test data was
   // erased. The numbers are what was erased; nothing else about it can be read from the Log, which is the point of the entry.
   if (entry.targetType === 'ledger') {

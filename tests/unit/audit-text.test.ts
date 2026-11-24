@@ -282,6 +282,21 @@ describe('describeEntry for a drop list', () => {
     assert.deepEqual(stopped.details, ['It followed Phase 2'])
   })
 
+  it('says where a change came from, after everything else, when the entry has a reason (an import gives one), and nothing more when it has none', () => {
+    const imported = table({ action: 'create', changed: ['type', 'zoneId', 'key', 'phaseNo', 'itemIds', 'hiddenItemIds'], after: { type: 'source', zoneId: 900, key: 'npc11', phaseNo: 2, itemIds: [104], hiddenItemIds: [] }, reason: 'Imported from the addon (d-test1)' })
+    assert.equal(imported.title, `Added 1 item to ${warden}`)
+    assert.deepEqual(imported.details, ['Added: Iron Ring (104)', 'Reason: Imported from the addon (d-test1)'])
+    const made = table({ targetId: `s${LAIR}_cabc_2`, item: 'Lair Boss', action: 'create', changed: ['name', 'kind', 'itemIds'], after: { name: 'Lair Boss', kind: 'boss', itemIds: [601] }, reason: 'Imported from a capture file' })
+    assert.deepEqual(made.details, ['Kind: boss', 'Items: 601', 'Reason: Imported from a capture file'])
+    const ticked = table({ targetId: 'z900_2', item: '', action: 'create', changed: ['type', 'zoneId', 'phaseNo', 'removed'], after: { type: 'zone', zoneId: 900, phaseNo: 2, removed: false }, reason: 'Imported from the addon (d-test1)' })
+    assert.deepEqual(ticked.details, ['Reason: Imported from the addon (d-test1)'])
+    const follows = table({ targetId: 'p3', item: '', changed: ['follows'], before: { follows: 1 }, after: { follows: 2 }, reason: 'Set up for the next phase' })
+    assert.deepEqual(follows.details, ['It followed Second', 'Reason: Set up for the next phase'])
+    assert.deepEqual(table({ changed: ['itemIds'], before: { itemIds: [101] }, after: { itemIds: [101, 104] } }).details, ['Added: Iron Ring (104)'])
+    const long = table({ changed: ['itemIds'], before: { itemIds: [] }, after: { itemIds: [104] }, reason: 'y'.repeat(300) })
+    assert.equal(long.details.at(-1)?.length, 'Reason: '.length + 160) // shortened like any other text
+  })
+
   it('a zone it cannot name is called "a zone"', () => {
     assert.equal(table({ targetId: 's777_c1_2', changed: ['name'], before: { name: 'Old' }, after: { name: 'First Warden' } }).title, 'Changed \u201cFirst Warden\u201d in \u201ca zone\u201d (Phase 2)')
   })

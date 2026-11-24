@@ -1,0 +1,261 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import { applyWrites, buildImportSave, buildPreview, importReason, journalReason, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
+import { captureCandidate, mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
+import { mergeTables, sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type TableWrite, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
+import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
+
+// The worked examples of docs/design/drop-list-import.md section 8. Every name and id is invented; "the phase" is the one picked in the editor (0 here).
+
+const BARROW = 50_000_123 // "Test Barrow", a raid of 10 made in Settings (a random id)
+const zoneDoc = (zoneId: number, phaseNo: number, extra: Partial<ZoneTableDoc> = {}): ZoneTableDoc => ({ id: zoneDocId(zoneId, phaseNo), type: 'zone', zoneId, phaseNo, rev: 1, ...extra })
+const sourceDoc = (zoneId: number, key: string, phaseNo: number, extra: Partial<SourceTableDoc> = {}): SourceTableDoc =>
+  ({ id: sourceDocId(zoneId, key, phaseNo), type: 'source', zoneId, key, phaseNo, itemIds: [], hiddenItemIds: [], rev: 1, ...extra })
+const barrowMade = (phaseNo = 0, extra: Partial<ZoneTableDoc> = {}) => zoneDoc(BARROW, phaseNo, { name: 'Test Barrow', kind: 'raid', players: 10, ...extra })
+
+const abbey: LootTableCapture = {
+  format: 1, zoneId: 4321, name: 'Test Abbey', kind: 'dungeon', players: 5, source: 'https://example.invalid/abbey', capturedAt: '2026-10-16',
+  sources: [{ npcId: 990100, name: 'Abbot of Fixtures', kind: 'boss', itemIds: [900100] }, { npcId: 990101, name: 'Prior Lorem', kind: 'boss', itemIds: [900101] }], zoneWideItemIds: [],
+}
+
+const setup = (docs: LootTableDoc[], extra: Partial<ImportSetup> = {}): ImportSetup => ({ captures: [abbey], docs, catalog: [], currentPhase: 0, phaseNo: 0, journalSaving: false, canMakeZones: true, ...extra })
+const seen = (itemId: number, n = 1, last = '2026-12-10', extra = {}) => ({ itemId, n, last, via: 'window' as const, ...extra })
+const boss = (npcId: number, name: string, itemIds: number[], extra: Partial<DropsSource> = {}): DropsSource => ({ npcId, name, kind: 'boss', itemIds, seen: itemIds.map((id) => seen(id)), ...extra })
+const hollow = (sources: DropsSource[], extra: Partial<DropsZone> = {}): DropsZone => ({ name: 'Hollow Test Barrow', kind: 'raid', players: 40, instanceId: 9901, difficultyId: 9, sources, ...extra })
+const candidates = (...zones: DropsZone[]) => mergeDrops([{ schema: 1, id: 'd-test-0001', at: 1797474600, by: 'IntrepidManager/test', zones }])
+const answers = (patch: Partial<ImportAnswers> = {}): ImportAnswers => ({ ...noAnswers(), ...patch })
+const pickBarrow = answers({ zones: { u9901: { pick: BARROW } } })
+const zoneOf = (rows: ZoneRow[], id: string) => rows.find((row) => row.id === id) as ZoneRow
+const created = (writes: TableWrite[]) => writes.filter((write) => 'create' in write).map((write) => write.id)
+const edited = (writes: TableWrite[]) => writes.filter((write) => 'existing' in write).map((write) => write.id)
+
+// The save as the panel runs it: the first call, then the second from the documents after it.
+function save(docs: LootTableDoc[], rows: ReturnType<typeof buildPreview>, extra: Partial<ImportSetup> = {}) {
+  const plan = buildImportSave(rows, setup(docs, extra))
+  const after = applyWrites(docs, plan.first)
+  const second = plan.second(after)
+  return { first: plan.first, second, after: applyWrites(applyWrites(after, second.ticks), second.journal) }
+}
+
+describe('the drop list import, worked examples', () => {
+  const night1 = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001, 900002]), boss(990002, 'Lady Test Ipsum', [900003])]))
+
+  it('1. asks which zone, then adds two creatures and ticks the zone in', () => {
+    const docs = [barrowMade()]
+    const unanswered = buildPreview(night1, setup(docs), noAnswers())
+    assert.equal(unanswered.zones[0]?.status, 'unmatched')
+    assert.equal(unanswered.zones[0]?.unmatchedWhy, 'none')
+    assert.equal(unanswered.counts.unanswered, 1)
+    const preview = buildPreview(night1, setup(docs), pickBarrow)
+    const zone = zoneOf(preview.zones, `z${BARROW}`)
+    assert.deepEqual(zone.creatures.map((row) => [row.status, row.key, row.items.map((item) => [item.status, item.ticked])]), [
+      ['new', 'n990001', [['new', true], ['new', true]]],
+      ['new', 'n990002', [['new', true]]],
+    ])
+    assert.deepEqual(preview.counts, { zones: 1, newZones: 0, creatures: 2, newCreatures: 2, items: 3, journalItems: 0, unanswered: 0 })
+    const { first, second } = save(docs, preview)
+    assert.deepEqual(created(first), [sourceDocId(BARROW, 'n990001', 0), sourceDocId(BARROW, 'n990002', 0)])
+    assert.deepEqual(second.ticks.map((write) => [write.id, 'existing' in write ? write.changes : write.create]), [[zoneDocId(BARROW, 0), { removed: false }]])
+  })
+
+  it('2. the same paste again: everything is already listed, nothing to save', () => {
+    const docs = save([barrowMade()], buildPreview(night1, setup([barrowMade()]), pickBarrow)).after
+    const again = buildPreview(night1, setup(docs), pickBarrow)
+    const zone = zoneOf(again.zones, `z${BARROW}`)
+    assert.deepEqual(zone.creatures.map((row) => [row.status, row.how, row.items.map((item) => item.status)]), [['matched', 'npc', ['already', 'already']], ['matched', 'npc', ['already']]])
+    assert.deepEqual(save(docs, again).first, [])
+    assert.deepEqual(save(docs, again).second.ticks, [])
+  })
+
+  it("3. a second night adds the new item to the boss's document", () => {
+    const docs = save([barrowMade()], buildPreview(night1, setup([barrowMade()]), pickBarrow)).after
+    const night2 = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001, 900004])]))
+    const { first } = save(docs, buildPreview(night2, setup(docs), pickBarrow))
+    assert.deepEqual(edited(first), [sourceDocId(BARROW, 'n990001', 0)])
+    assert.deepEqual((first[0] as { changes: unknown }).changes, { itemIds: [900001, 900002, 900004] })
+  })
+
+  it('4. a Guild Leader makes the zone: its id is fixed from the instance, and a retry only ticks it in', () => {
+    const make = answers({ zones: { u9901: { make: true } } })
+    const preview = buildPreview(night1, setup([]), make)
+    const zone = zoneOf(preview.zones, 'u9901')
+    assert.equal(zone.status, 'new')
+    assert.equal(zone.zoneId, 50_009_901)
+    const plan = buildImportSave(preview, setup([]))
+    assert.deepEqual(created(plan.first), [zoneDocId(50_009_901, 0), sourceDocId(50_009_901, 'n990001', 0), sourceDocId(50_009_901, 'n990002', 0)])
+    assert.deepEqual((plan.first[0] as { create: unknown }).create, { type: 'zone', zoneId: 50_009_901, phaseNo: 0, name: 'Hollow Test Barrow', kind: 'raid', players: 40 })
+    const afterFirst = applyWrites([], plan.first)
+    const tick = plan.second(afterFirst).ticks
+    assert.deepEqual(tick.map((write) => [write.id, 'existing' in write && write.existing.rev, 'existing' in write && write.changes]), [[zoneDocId(50_009_901, 0), 1, { removed: false }]])
+    // The second call never landed: pasting again finds the zone by its fixed id and the creatures by npc id, so only the tick is left.
+    const retry = buildPreview(night1, setup(afterFirst), noAnswers())
+    assert.equal(retry.zones[0]?.how, 'instance')
+    const again = save(afterFirst, retry)
+    assert.deepEqual(again.first, [])
+    assert.deepEqual(again.second.ticks.map((write) => write.id), [zoneDocId(50_009_901, 0)])
+  })
+
+  it('4b. only a Guild Leader can make a zone', () => {
+    const preview = buildPreview(night1, setup([], { canMakeZones: false }), answers({ zones: { u9901: { make: true } } }))
+    assert.equal(preview.zones[0]?.status, 'unmatched')
+  })
+
+  it('5. an item a leader took off in an earlier phase is offered unticked', () => {
+    const follows: LootTableDoc = { id: 'p1', type: 'phase', phaseNo: 1, follows: 0, rev: 1 }
+    const docs = [follows, barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900002, 900005] }), sourceDoc(BARROW, 'n990001', 1, { hiddenItemIds: [900002] }), zoneDoc(BARROW, 1, { removed: false })]
+    const preview = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900002, 900005])])), setup(docs, { phaseNo: 1 }), pickBarrow)
+    const items = zoneOf(preview.zones, `z${BARROW}`).creatures[0]?.items
+    assert.deepEqual(items?.map((item) => [item.itemId, item.status, item.tickable, item.ticked]), [[900002, 'takenOff', true, false], [900005, 'already', false, false]])
+  })
+
+  it('6. an item on another creature stays there', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900003] })]
+    const preview = buildPreview(candidates(hollow([boss(990002, 'Lady Test Ipsum', [900003])])), setup(docs), pickBarrow)
+    const item = zoneOf(preview.zones, `z${BARROW}`).creatures[0]?.items[0]
+    assert.deepEqual([item?.status, item?.where, item?.tickable], ['elsewhere', 'Grimtooth the Test Boss', false])
+  })
+
+  it('7 and 21. a creature a leader took out: unticked, and ticking it brings it back with its items in one write; its items stay its own', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990003', 0, { name: 'Warden of the Test Barrow', kind: 'boss', npcId: 990003, itemIds: [900008], removed: true })]
+    const pasted = candidates(hollow([boss(990003, 'Warden of the Test Barrow', [900008, 900009]), boss(990001, 'Grimtooth the Test Boss', [900008])]))
+    const preview = buildPreview(pasted, setup(docs), pickBarrow)
+    const [warden, grimtooth] = zoneOf(preview.zones, `z${BARROW}`).creatures
+    assert.deepEqual([warden?.status, warden?.optIn, warden?.saved], ['takenOut', 'takenOut', false])
+    assert.deepEqual(grimtooth?.items.map((item) => [item.status, item.where]), [['elsewhere', 'Warden of the Test Barrow']])
+    const ticked = buildPreview(pasted, setup(docs), { ...pickBarrow, ticks: { [`z${BARROW}|kn990003`]: true } })
+    const write = buildImportSave(ticked, setup(docs)).first.find((candidate) => candidate.id === sourceDocId(BARROW, 'n990003', 0))
+    assert.deepEqual(write && 'existing' in write && write.changes, { itemIds: [900008, 900009], removed: false })
+  })
+
+  it('8. a guessed boss is unticked until a leader ticks it', () => {
+    const preview = buildPreview(candidates(hollow([boss(990004, 'Maybe Test Boss', [900010], { guessed: true })])), setup([barrowMade()]), pickBarrow)
+    const row = zoneOf(preview.zones, `z${BARROW}`).creatures[0]
+    assert.deepEqual([row?.optIn, row?.saved, row?.items[0]?.ticked], ['guessed', false, false])
+  })
+
+  it('9. trash: an item two trash creatures dropped is offered for the zone-wide list, unticked', () => {
+    const trash = (npcId: number, name: string, itemIds: number[]): DropsSource => ({ npcId, name, kind: 'trash', itemIds, seen: itemIds.map((id) => seen(id, 1, '2026-12-10', { boe: true })) })
+    const preview = buildPreview(candidates(hollow([trash(990051, 'Test Ghoul', [900050, 900051]), trash(990052, 'Test Wight', [900050])])), setup([barrowMade()]), pickBarrow)
+    const rows = zoneOf(preview.zones, `z${BARROW}`).creatures
+    assert.deepEqual(rows.map((row) => [row.name, row.items.map((item) => [item.itemId, item.status, item.ticked])]), [
+      ['Test Ghoul', [[900050, 'zoneWide', false], [900051, 'new', false]]],
+      ['Test Wight', [[900050, 'zoneWide', false]]],
+      ['Any creature in the zone', [[900050, 'new', false]]],
+    ])
+  })
+
+  it('10. more items than the room left: the rest are for the next phase', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: Array.from({ length: 70 }, (_, i) => 910000 + i) })]
+    const pasted = Array.from({ length: 15 }, (_, i) => 920000 + i)
+    const preview = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', pasted)])), setup(docs), pickBarrow)
+    const statuses = zoneOf(preview.zones, `z${BARROW}`).creatures[0]?.items.map((item) => item.status)
+    assert.deepEqual(statuses, [...Array(10).fill('new'), ...Array(5).fill('noRoom')])
+  })
+
+  it('11. two wings of one built-in dungeon are one zone', () => {
+    const wing = (name: string, npcId: number, itemId: number): DropsZone => ({ name, kind: 'dungeon', players: 5, sources: [boss(npcId, `Boss of ${name}`, [itemId])] })
+    const preview = buildPreview(candidates(wing('Test Abbey: Library', 990110, 900110), wing('Test Abbey: Chapel', 990111, 900111)), setup([]), noAnswers())
+    assert.equal(preview.zones.length, 1)
+    assert.deepEqual([preview.zones[0]?.id, preview.zones[0]?.how, preview.zones[0]?.creatures.length], ['z4321', 'name', 2])
+  })
+
+  it('12. a zone a leader took out of the phase: nothing under it is ticked until it is', () => {
+    const docs = [zoneDoc(4321, 0, { removed: true })]
+    const pasted = candidates({ name: 'The Test Abbey', kind: 'dungeon', players: 5, sources: [boss(990100, 'Abbot of Fixtures', [900102])] })
+    const preview = buildPreview(pasted, setup(docs), noAnswers())
+    assert.deepEqual([preview.zones[0]?.takenOut, preview.zones[0]?.zoneTicked, preview.zones[0]?.creatures[0]?.items[0]?.ticked], [true, false, false])
+    assert.deepEqual(buildImportSave(preview, setup(docs)).first, [])
+    const ticked = buildPreview(pasted, setup(docs), answers({ ticks: { z4321: true } }))
+    assert.equal(ticked.zones[0]?.creatures[0]?.items[0]?.ticked, true)
+  })
+
+  it("13. a capture file's Wowhead zone id is never an app zone id: the zone is matched by name", () => {
+    const capture = captureCandidate({ format: 1, zoneId: 5555, name: 'Test Barrow', kind: 'raid', players: 10, source: 'https://example.invalid/barrow', capturedAt: '2026-12-10', sources: [{ npcId: 990001, name: 'Grimtooth the Test Boss', kind: 'boss', itemIds: [900001] }], zoneWideItemIds: [900060] })
+    const preview = buildPreview([capture], setup([barrowMade()]), noAnswers())
+    const zone = preview.zones[0] as ZoneRow
+    assert.deepEqual([zone.status, zone.how, zone.zoneId], ['matched', 'name', BARROW])
+    assert.deepEqual(zone.creatures.map((row) => [row.name, row.items.map((item) => item.ticked)]), [['Grimtooth the Test Boss', [true]], ['Any creature in the zone', [true]]])
+    assert.equal(importReason('capture', []), 'Imported from a capture file')
+  })
+
+  it("14. an item Wowhead doesn't know yet is still new and ticked, with the game's name", () => {
+    const preview = buildPreview(candidates(hollow([{ npcId: 990001, name: 'Grimtooth the Test Boss', kind: 'boss', itemIds: [900099], seen: [seen(900099, 2, '2026-12-17', { name: 'Unknown Test Relic', quality: 4 })] }])), setup([barrowMade()]), pickBarrow)
+    const item = zoneOf(preview.zones, `z${BARROW}`).creatures[0]?.items[0]
+    assert.deepEqual([item?.status, item?.ticked, item?.evidence.seen?.name], ['new', true, 'Unknown Test Relic'])
+  })
+
+  it('15. a near name asks "same as" or "new"; "same as" stores the npc id on the app\'s creature', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'cgrim1', 0, { name: 'Grimtooth', kind: 'boss', itemIds: [900001] })]
+    const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001, 900011])]))
+    const asked = zoneOf(buildPreview(pasted, setup(docs), pickBarrow).zones, `z${BARROW}`).creatures[0]
+    assert.deepEqual([asked?.status, asked?.near, asked?.saved], ['unmatched', [{ key: 'cgrim1', name: 'Grimtooth' }], false])
+    const same = buildPreview(pasted, setup(docs), { ...pickBarrow, creatures: { [`z${BARROW}|cn990001`]: { same: 'cgrim1' } } })
+    const row = zoneOf(same.zones, `z${BARROW}`).creatures[0]
+    assert.deepEqual([row?.status, row?.how, row?.storeNpcId, row?.differs], ['matched', 'answer', 990001, { name: 'Grimtooth the Test Boss' }])
+    const write = buildImportSave(same, setup(docs)).first[0]
+    assert.deepEqual(write && 'existing' in write && write.changes, { itemIds: [900001, 900011], npcId: 990001 })
+    const renamed = buildPreview(pasted, setup(docs), { ...pickBarrow, creatures: { [`z${BARROW}|cn990001`]: { same: 'cgrim1' } }, renames: { [`z${BARROW}|kcgrim1`]: true } })
+    const renameWrite = buildImportSave(renamed, setup(docs)).first[0]
+    assert.deepEqual(renameWrite && 'existing' in renameWrite && renameWrite.changes, { itemIds: [900001, 900011], npcId: 990001, name: 'Grimtooth the Test Boss' })
+  })
+
+  it("16. DungeonJournal's items are information until D6 allows saving them, and then a second write with their own reason", () => {
+    const journalDungeon: DropsZone = { name: 'Hollow Test Keep', kind: 'dungeon', players: 5, journalPartial: true, sources: [{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], journal: [900101, 900102] }] }
+    const pasted = mergeDrops([{ schema: 1, id: 'd-test-0002', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [journalDungeon] }])
+    const make = answers({ zones: { 'uhollow test keep': { make: true, zoneId: 61_234_567 } } })
+    const info = buildPreview(pasted, setup([]), make)
+    const row = info.zones[0]?.creatures[0]
+    assert.deepEqual(row?.items.map((item) => [item.status, item.tickable]), [['journal', false], ['journal', false]])
+    assert.deepEqual([row?.optIn, row?.saved], ['noItems', false])
+    assert.equal(info.zones[0]?.journal, 'ForeverDungeonJournal/2.0.3')
+
+    const allowed = { journalSaving: true }
+    const offered = buildPreview(pasted, setup([], allowed), make)
+    assert.deepEqual(offered.zones[0]?.creatures[0]?.items.map((item) => [item.status, item.tickable, item.ticked]), [['new', true, false], ['new', true, false]])
+    const zoneId = offered.zones[0]?.zoneId as number
+    assert.equal(zoneId, 61_234_567)
+    const rowId = `uhollow test keep|cn990011`
+    const ticked = buildPreview(pasted, setup([], allowed), { ...make, ticks: { [`${rowId}|900101`]: true, [`${rowId}|900102`]: true } })
+    assert.deepEqual(ticked.counts, { zones: 1, newZones: 1, creatures: 1, newCreatures: 1, items: 0, journalItems: 2, unanswered: 0 })
+    const { first, second } = save([], ticked, allowed)
+    assert.deepEqual(created(first), [zoneDocId(zoneId, 0), sourceDocId(zoneId, 'n990011', 0)])
+    assert.deepEqual((first[1] as { create: { itemIds: number[] } }).create.itemIds, [])
+    assert.deepEqual(second.journal.map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900101, 900102] }]])
+    assert.equal(journalReason('ForeverDungeonJournal/2.0.3'), 'From DungeonJournal 2.0.3, not seen in the game')
+  })
+
+  it("19. a creature known by its encounter learns its npc id in the same write", () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'e9102', 0, { name: 'Lady Test Ipsum', kind: 'boss', itemIds: [900003] })]
+    const preview = buildPreview(candidates(hollow([boss(990002, 'Lady Test Ipsum', [900003], { encounterId: 9102 })])), setup(docs), pickBarrow)
+    const row = zoneOf(preview.zones, `z${BARROW}`).creatures[0]
+    assert.deepEqual([row?.how, row?.storeNpcId], ['encounter', 990002])
+    const write = buildImportSave(preview, setup(docs)).first[0]
+    assert.deepEqual(write && 'existing' in write && write.changes, { npcId: 990002 })
+  })
+
+  it('20. a zone first named in the next phase: the current phase write repeats its name, kind and size', () => {
+    const docs = [barrowMade(1)]
+    const preview = buildPreview(night1, setup(docs), pickBarrow)
+    const zone = zoneOf(preview.zones, `z${BARROW}`)
+    assert.equal(zone.repeatIdentity, true)
+    const { first, after } = save(docs, preview)
+    assert.deepEqual((first[0] as { create: unknown }).create, { type: 'zone', zoneId: BARROW, phaseNo: 0, name: 'Test Barrow', kind: 'raid', players: 10 })
+    const merged = mergeTables([abbey], after, 0).find((candidate) => candidate.zoneId === BARROW)
+    assert.deepEqual([merged?.name, merged?.inPhase, merged?.sources.length], ['Test Barrow', true, 2])
+  })
+
+  it('places a new creature right after the creature it follows in the paste, else after the last one', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] }), sourceDoc(BARROW, 'n990009', 0, { name: 'Last Test Boss', kind: 'boss', npcId: 990009, order: 20, itemIds: [900090] })]
+    const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001]), boss(990002, 'Lady Test Ipsum', [900003]), boss(990009, 'Last Test Boss', [900090]), boss(990010, 'After Test Boss', [900091])]))
+    const rows = zoneOf(buildPreview(pasted, setup(docs), pickBarrow).zones, `z${BARROW}`).creatures
+    assert.deepEqual(rows.filter((row) => row.status === 'new').map((row) => [row.name, row.order]), [['Lady Test Ipsum', 11], ['After Test Boss', 21]])
+  })
+
+  it('names a zone of the older raid list as one that cannot hold drop lists, and offers same-kind zones first', () => {
+    const preview = buildPreview(night1, setup([barrowMade()], { catalog: [{ id: 'old1', name: 'Hollow Test Barrow', size: 40 }] }), noAnswers())
+    assert.equal(preview.zones[0]?.unmatchedWhy, 'catalog')
+    assert.deepEqual(preview.zones[0]?.options.map((zone) => zone.name), ['Test Abbey', 'Test Barrow'])
+    const raids = buildPreview(candidates(hollow([], { players: 10 })), setup([barrowMade()]), noAnswers())
+    assert.deepEqual(raids.zones[0]?.options.map((zone) => zone.name), ['Test Barrow', 'Test Abbey'])
+  })
+})

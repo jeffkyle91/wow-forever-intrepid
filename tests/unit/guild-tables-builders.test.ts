@@ -143,8 +143,11 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         check(!sourceAfter.itemIds.includes(id), `item ${id} is still there after it was taken off`)
         same(source.itemIds.filter((candidate) => candidate !== id), sourceAfter.itemIds, 'the other items did not stay as they were')
         const wasBefore = source.beforeItemIds.includes(id)
-        check(sourceAfter.hiddenItemIds.includes(id) === wasBefore, wasBefore ? 'an item of the earlier phases taken off is not reported as taken off by this phase' : 'an item this phase added is reported as taken off')
-        if (wasBefore) check(!sourceAfter.goneItemIds.includes(id), 'an item this phase took off is listed as gone')
+        // An item this phase added and takes off again is remembered as taken off too (docs/design/drop-list-import.md section 6), so it can be brought back.
+        check(sourceAfter.hiddenItemIds.includes(id), wasBefore ? 'an item of the earlier phases taken off is not reported as taken off by this phase' : 'an item this phase added and took off again is not reported as taken off')
+        check(!sourceAfter.addedItemIds.includes(id), 'an item taken off is still reported as added by this phase')
+        same(source.hiddenItemIds.filter((candidate) => candidate !== id), sourceAfter.hiddenItemIds.filter((candidate) => candidate !== id), 'the items taken off before did not stay taken off')
+        check(!sourceAfter.goneItemIds.includes(id), 'an item this phase took off is listed as gone')
         // the phase it follows keeps it
         const followed = chainOf(state.docs, phase).at(-2)
         if (wasBefore && followed !== undefined) check(sourceOf(zoneIn(state, followed, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} is gone from phase ${followed} too`)
@@ -172,7 +175,10 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         const sourceAfter = sourceOf(zoneIn(state, phase, zone.zoneId), source.key)!
         check(sourceAfter.itemIds.includes(id), `item ${id} is not back`)
         check(!sourceAfter.hiddenItemIds.includes(id), `item ${id} is still reported as taken off`)
+        // one this phase added and took off again comes back as added in this phase; one it had before comes back as it was
+        check(sourceAfter.addedItemIds.includes(id) === !source.beforeItemIds.includes(id), `item ${id} is back ${sourceAfter.addedItemIds.includes(id) ? 'as added' : 'as not added'} by this phase`)
         same(source.itemIds, sourceAfter.itemIds.filter((candidate) => candidate !== id), 'the other items did not stay as they were')
+        same(source.hiddenItemIds.filter((candidate) => candidate !== id), sourceAfter.hiddenItemIds, 'the other items taken off did not stay taken off')
         same(attributesOf(sdoc(before.docs, zone.zoneId, source.key, phase)), attributesOf(sdoc(state.docs, zone.zoneId, source.key, phase)), 'putting an item back wrote an attribute into the document')
         const next = sdoc(state.docs, zone.zoneId, source.key, phase + 1)
         if (reaches() && !next?.itemIds.includes(id) && !next?.hiddenItemIds.includes(id)) check(sourceOf(zoneIn(state, phase + 1, zone.zoneId), source.key)!.itemIds.includes(id), `item ${id} put back in phase ${phase} is not in phase ${phase + 1}`)
@@ -185,16 +191,20 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
       run: () => {
         const zone = pickZone()
         const source = pickItemSource(zone)
-        const candidates = source.itemIds.filter((id) => source.beforeItemIds.includes(id))
-        if (candidates.length === 0) return false
-        const id = rng.pick(candidates)
+        if (source.itemIds.length === 0) return false
+        // an item it had before, or (since docs/design/drop-list-import.md section 6) one this phase added
+        const id = rng.pick(source.itemIds)
+        const addedHere = !source.beforeItemIds.includes(id)
         trail.push(`takeOffItem then restoreItem zone ${zone.zoneId} ${source.key} ${id} at ${phase}`)
         commit([takeOffItem(zone, source, id)!])
         const taken = zoneIn(state, phase, zone.zoneId)!
         const back = restoreItem(taken, sourceOf(taken, source.key)!, id)
         check(back !== null, `no write to put back ${id} right after it was taken off`)
         commit([back!])
-        same(withoutDoc(source), withoutDoc(sourceOf(zoneIn(state, phase, zone.zoneId), source.key)!), `taking ${id} off and putting it back does not leave the creature as it was`)
+        const after = sourceOf(zoneIn(state, phase, zone.zoneId), source.key)!
+        // An item this phase added comes back at the end of what the phase adds, so only the order of the added items may differ.
+        const settled = (merged: MergedSource) => (addedHere ? { ...withoutDoc(merged), itemIds: [...merged.itemIds].sort(), addedItemIds: [...merged.addedItemIds].sort() } : withoutDoc(merged))
+        same(settled(source), settled(after), `taking ${id} off and putting it back does not leave the creature as it was`)
         return true
       },
     },

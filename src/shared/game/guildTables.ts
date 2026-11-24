@@ -72,7 +72,8 @@ export type MergedSource = {
   introducedAt?: number // the phase a creature the guild added starts to exist in: that of its first document that names it
   beforeItemIds: number[] // what it drops entering this phase: the capture's and what earlier phases' documents added, less what they took off
   addedItemIds: number[] // added by this phase's document (never one it already had)
-  hiddenItemIds: number[] // taken off by this phase's document (always ones it had)
+  // taken off by this phase's document: ones it had before, and ones this phase added and took off again (never one it drops in this phase)
+  hiddenItemIds: number[]
   goneItemIds: number[] // items it dropped at some point (the capture's or an earlier phase's) that it does not now, and this phase did not take off
   itemIds: number[] // what it drops in this phase: before, less the taken off, plus the added
   removed: boolean // out of the lists in this phase
@@ -96,11 +97,14 @@ export type MergedZone = {
 type Base = { name: string; kind: TableSourceKind; npcId?: number; itemIds: number[]; order: number }
 
 // The items after one document: the ones it takes off must have been there, the ones it adds must not be (an item it both takes off and adds is there).
+// What it reports as taken off is every item it takes off that is not there afterwards: one it had before, and also one its phase added and took off
+// again, which leaves no other trace (docs/design/drop-list-import.md section 6). The editor can bring that one back, and an import leaves it unticked.
 function applyItems(items: number[], doc: { itemIds: number[]; hiddenItemIds: number[] }) {
-  const hidden = unique(doc.hiddenItemIds).filter((id) => items.includes(id))
-  const kept = items.filter((id) => !hidden.includes(id))
+  const off = unique(doc.hiddenItemIds)
+  const kept = items.filter((id) => !off.includes(id))
   const added = unique(doc.itemIds).filter((id) => !kept.includes(id))
-  return { hidden, added, items: [...kept, ...added] }
+  const after = [...kept, ...added]
+  return { hidden: off.filter((id) => !after.includes(id)), added, items: after }
 }
 
 const latest = <T>(docs: T[], has: (doc: T) => boolean): T | undefined => [...docs].reverse().find(has)
@@ -379,6 +383,10 @@ function itemWrite(zone: MergedZone, source: MergedSource, nextAdded: number[], 
   return Object.keys(fields).length ? writeSource(zone, source, fields) : null
 }
 
+// What stays on the document's taken off list after a write, less the items in `drop`: everything it takes off, also an item this phase added and took
+// off again (docs/design/drop-list-import.md section 6), but never one the next added list has (the rules keep the two lists apart).
+const hiddenKept = (source: MergedSource, nextAdded: number[], drop: number[]) => unique(source.doc?.hiddenItemIds ?? []).filter((id) => !drop.includes(id) && !nextAdded.includes(id))
+
 /** Items the zone has in this phase, by the creature that drops them (the zone's list counts as a creature). One creature per item in a zone. */
 export function itemHolders(zone: MergedZone): Map<number, string> {
   const holders = new Map<number, string>()
@@ -390,7 +398,8 @@ export type AddItemsResult = { write: TableWrite | null; added: number[]; alread
 
 /**
  * Add items to a creature (or the zone-wide list) in this phase. An item the zone already has stays where it is and is reported; one this phase took
- * off comes back; one an earlier phase took off is added again.
+ * off comes back (one it had before by leaving the taken off list, one this phase added before by being added again); one an earlier phase took off is
+ * added again.
  */
 export function addItems(zone: MergedZone, source: MergedSource, wanted: number[]): AddItemsResult {
   const ids = unique(wanted)
@@ -399,27 +408,35 @@ export function addItems(zone: MergedZone, source: MergedSource, wanted: number[
   const fresh = ids.filter((id) => !holders.has(id) && !source.hiddenItemIds.includes(id))
   const alreadyIn = ids.filter((id) => holders.has(id)).map((id) => ({ id, where: holders.get(id) ?? '' }))
   const touched = [...restore, ...fresh]
-  const nextAdded = [...unique(source.doc?.itemIds ?? []).filter((id) => !touched.includes(id)), ...fresh]
-  const nextHidden = unique(source.doc?.hiddenItemIds ?? []).filter((id) => !touched.includes(id) && source.beforeItemIds.includes(id))
+  const nextAdded = [...unique(source.doc?.itemIds ?? []).filter((id) => !touched.includes(id)), ...ids.filter((id) => touched.includes(id) && !source.beforeItemIds.includes(id))]
+  const nextHidden = hiddenKept(source, nextAdded, touched)
   if (nextAdded.length > TABLE_ITEMS_MAX) return { write: null, added: [], alreadyIn, tooMany: true }
   if (!touched.length) return { write: null, added: [], alreadyIn, tooMany: false }
   return { write: itemWrite(zone, source, nextAdded, nextHidden), added: touched, alreadyIn, tooMany: false }
 }
 
-/** Take an item off a creature from this phase on: earlier phases keep it, and an item this phase added is simply not added any more. */
+/**
+ * Take an item off a creature from this phase on: earlier phases keep it. An item this phase added is no longer added, and is kept on the taken off
+ * list too, so it can be brought back and an import knows a leader took it off (docs/design/drop-list-import.md section 6). Nothing (null) when that
+ * list already holds as many items as a document can take off.
+ */
 export function takeOffItem(zone: MergedZone, source: MergedSource, id: number): TableWrite | null {
   if (!source.itemIds.includes(id)) return null
   const nextAdded = unique(source.doc?.itemIds ?? []).filter((candidate) => candidate !== id)
-  const rawHidden = unique(source.doc?.hiddenItemIds ?? []).filter((candidate) => source.beforeItemIds.includes(candidate))
-  const nextHidden = source.beforeItemIds.includes(id) ? [...rawHidden.filter((candidate) => candidate !== id), id] : rawHidden
+  const nextHidden = [...hiddenKept(source, nextAdded, [id]), id]
   if (nextHidden.length > TABLE_ITEMS_MAX) return null
   return itemWrite(zone, source, nextAdded, nextHidden)
 }
 
-/** Bring back an item this phase took off. */
+/**
+ * Bring back an item this phase took off: one it had before leaves the taken off list, and one this phase added and took off again is added again.
+ * Nothing (null) when that would add more items than a document can.
+ */
 export function restoreItem(zone: MergedZone, source: MergedSource, id: number): TableWrite | null {
   if (!source.hiddenItemIds.includes(id)) return null
-  return itemWrite(zone, source, unique(source.doc?.itemIds ?? []).filter((candidate) => candidate !== id), unique(source.doc?.hiddenItemIds ?? []).filter((candidate) => candidate !== id && source.beforeItemIds.includes(candidate)))
+  const nextAdded = [...unique(source.doc?.itemIds ?? []).filter((candidate) => candidate !== id), ...(source.beforeItemIds.includes(id) ? [] : [id])]
+  if (nextAdded.length > TABLE_ITEMS_MAX) return null
+  return itemWrite(zone, source, nextAdded, hiddenKept(source, nextAdded, [id]))
 }
 
 /** A new creature the guild adds to a zone from this phase on, met after the others. The first document of a creature says everything about it. */

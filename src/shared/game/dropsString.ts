@@ -245,13 +245,37 @@ function candidateSource(source: DropsSource): CandidateSource {
 }
 
 /**
+ * One creature per key across rows already turned into candidates (npc id, else encounter id, else name), then the rolls of an encounter joined to the
+ * one corpse of that encounter. mergeDrops does this per zone; the preview does it again when it groups several candidates under one app zone (two
+ * difficulties of one instance, two wings of one dungeon).
+ */
+export function mergeCandidateSources(rows: CandidateSource[]): CandidateSource[] {
+  const byKey = new Map<string, CandidateSource>()
+  for (const row of rows) {
+    const key = sourceKey(row)
+    const there = byKey.get(key)
+    byKey.set(key, there ? mergeSources(there, row) : row)
+  }
+  const list = [...byKey.values()]
+  const joined = new Set<CandidateSource>()
+  for (const rolls of list.filter((source) => source.npcId === undefined && source.encounterId !== undefined)) {
+    const corpses = list.filter((source) => source.npcId !== undefined && source.encounterId === rolls.encounterId)
+    if (corpses.length !== 1) continue
+    const corpse = corpses[0] as CandidateSource
+    list[list.indexOf(corpse)] = mergeSources(corpse, rolls)
+    joined.add(rolls)
+  }
+  return list.filter((source) => !joined.has(source))
+}
+
+/**
  * The candidate zones of one or more drops strings (section 14.4): zones merged by their key (the app's zone id, else the instance with its
  * difficulty, else the name), creatures by theirs (npc id, else encounter id, else name), and then a creature known only by its encounter (from rolls)
  * joins the one creature of the zone that has that encounter and an npc id (the loot master's corpse), so one boss seen both ways is one creature. When
  * two corpses share the encounter (a fight of several bosses), the rolls stay apart: which corpse dropped them isn't known.
  */
 export function mergeDrops(strings: DropsModel[]): CandidateZone[] {
-  const zones = new Map<string, { zone: CandidateZone; sources: Map<string, CandidateSource> }>()
+  const zones = new Map<string, { zone: CandidateZone; sources: CandidateSource[] }>()
   for (const model of strings) {
     for (const zone of model.zones) {
       const key = zoneKey(zone)
@@ -262,7 +286,7 @@ export function mergeDrops(strings: DropsModel[]): CandidateZone[] {
             name: zone.name.trim(), kind: zone.kind, players: zone.players, ...(zone.zoneId !== undefined ? { zoneId: zone.zoneId } : {}),
             ...(zone.instanceId !== undefined ? { instanceId: zone.instanceId } : {}), difficultyIds: [], from: 'addon', sources: [], zoneWide: [],
           },
-          sources: new Map(),
+          sources: [],
         }
         zones.set(key, entry)
       }
@@ -271,26 +295,10 @@ export function mergeDrops(strings: DropsModel[]): CandidateZone[] {
       if (zone.journalPartial) target.journalPartial = true
       if (zone.journalSkipped !== undefined) target.journalSkipped = Math.max(target.journalSkipped ?? 0, zone.journalSkipped)
       if (model.journal && zone.sources.some((source) => (source.journal ?? []).length > 0)) target.journal ??= model.journal
-      for (const source of zone.sources) {
-        const candidate = candidateSource(source)
-        const sourceKeyOf = sourceKey(candidate)
-        const there = entry.sources.get(sourceKeyOf)
-        entry.sources.set(sourceKeyOf, there ? mergeSources(there, candidate) : candidate)
-      }
+      entry.sources.push(...zone.sources.map(candidateSource))
     }
   }
-  return [...zones.values()].map(({ zone, sources }) => {
-    const list = [...sources.values()]
-    const joined = new Set<CandidateSource>()
-    for (const rolls of list.filter((source) => source.npcId === undefined && source.encounterId !== undefined)) {
-      const corpses = list.filter((source) => source.npcId !== undefined && source.encounterId === rolls.encounterId)
-      if (corpses.length !== 1) continue
-      const corpse = corpses[0] as CandidateSource
-      list[list.indexOf(corpse)] = mergeSources(corpse, rolls)
-      joined.add(rolls)
-    }
-    return { ...zone, sources: list.filter((source) => !joined.has(source)) }
-  })
+  return [...zones.values()].map(({ zone, sources }) => ({ ...zone, sources: mergeCandidateSources(sources) }))
 }
 
 // ---- Capture files (format 1): a hand-made capture from Wowhead, read as a candidate so the same preview takes it

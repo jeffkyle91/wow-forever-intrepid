@@ -6,6 +6,7 @@ These entries reconcile changes present in verified production releases. They do
 
 ## Unreleased
 
+- Guild and Raid Leaders can import drop lists in **Edit the drop lists**: paste the addon's drops string (`/im drops` in the game) or a capture file, check what it adds and where, answer what isn't clear, and save it in one step. A Guild Leader can make a new zone from it. Every change is in the Log, with where it came from.
 - Guild Leaders can approve independent name and class/specialization requests for the same character without requiring the member to resubmit one after the other. Conflicting changes still need a new request. (MEMBER-012)
 - Guild Roster displays each character's first name and surname when available.
 

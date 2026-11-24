@@ -1,6 +1,6 @@
 # Design: drop lists from the game (LOOT-008)
 
-Status: the maintainer approved #202 as proposed (2026-11-14). The addon side, the drop log and its `drops` string, merged in #203 (2026-11-14). The app import is not built.
+Status: the maintainer approved #202 as proposed (2026-11-14). The addon side, the drop log and its `drops` string, merged in #203 (2026-11-14). The app import is `features/loot/dropImport.ts` and the Import a drop list panel of Edit the drop lists, reading with `shared/lib/exchangeString.ts` and `shared/game/dropsString.ts`.
 
 This design covers:
 - the import LOOT-008 still lists as remaining ("full capture-file import with validated preview"). It doesn't cover LOOT-008's other remaining item, moving or replacing an item.
@@ -120,10 +120,9 @@ The module writes only its own allow-listed fields.
 
 ## 3. The Encounter Journal
 
-The game's own journal (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncounterInfo`) exists on the live client but listed no instances at level 18. `loot-addon.md` keeps it as an open question. If it lists the raids and their loot at level 60 or once raids open, it is the only source of whole tables before any kill.
-- **A probe step:** a level-60 character, and again on December 9.
-- **If it lists loot:** the export adds those items with the evidence `ej`, under the encounter, with the encounter id. The preview shows them as "the game's Encounter Journal lists it". They start ticked, since the game itself says so.
-- **If it never does:** this section is dropped.
+**Forever has none to read (checked 2026-11-24).** The journal's functions (`C_EncounterJournal`, `EJ_GetInstanceInfo`, `EJ_GetEncounterInfo`) exist on the live client, and listed no instances at level 18. That isn't a level gate: the client (1.60.1, build 71037) ships none of the journal's data tables (wago.tools lists no `Journal*` table for that build), and Blizzard's journal window is not built to load on Forever (its TOC allows only the standard and classic game types).
+- **So the game gives no whole tables before a kill.** Whole lists come from DungeonJournal (section 4, under D6) or a capture typed in from Wowhead; what drops comes from the drop log.
+- **The `ej` field stays reserved.** If a later client adds the tables, the export adds those items with the evidence `ej`, under the encounter, and the import already ticks them as items the game itself lists.
 
 ## 4. DungeonJournal hints
 

@@ -212,6 +212,18 @@ describe('describeEntry for a drop list', () => {
     assert.equal(back.title, `Brought back 1 item of ${warden}`)
   })
 
+  it('an item the phase added and takes off again (it moves to the taken off list), and one brought back from there, are each counted once', () => {
+    const off = table({ changed: ['itemIds', 'hiddenItemIds'], before: { itemIds: [104, 105], hiddenItemIds: [] }, after: { itemIds: [105], hiddenItemIds: [104] } })
+    assert.equal(off.title, `Took 1 item off ${warden}`)
+    assert.deepEqual(off.details, ['Taken off from here on: Iron Ring (104)'])
+    const back = table({ changed: ['itemIds', 'hiddenItemIds'], before: { itemIds: [105], hiddenItemIds: [104] }, after: { itemIds: [105, 104], hiddenItemIds: [] } })
+    assert.equal(back.title, `Brought back 1 item of ${warden}`)
+    assert.deepEqual(back.details, ['Brought back: Iron Ring (104)'])
+    const pasted = table({ changed: ['itemIds', 'hiddenItemIds'], before: { itemIds: [105], hiddenItemIds: [104] }, after: { itemIds: [105, 104, 106], hiddenItemIds: [] } })
+    assert.equal(pasted.title, `Added 1 item to ${warden}`)
+    assert.deepEqual(pasted.details, ['Added: 106', 'Brought back: Iron Ring (104)'])
+  })
+
   it('one edit that brings an item back and adds another says both, with the other fields after', () => {
     const both = table({ changed: ['itemIds', 'hiddenItemIds', 'order'], before: { itemIds: [], hiddenItemIds: [102], order: 10 }, after: { itemIds: [900], hiddenItemIds: [], order: 20 } })
     assert.equal(both.title, `Added 1 item to ${warden}`)

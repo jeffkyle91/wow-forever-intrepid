@@ -149,8 +149,10 @@ function describeTableEntry(entry: AuditEntry, lookups: TableLookups, phaseName:
   const after = numbers(entry.after.itemIds)
   const hiddenBefore = numbers(entry.before.hiddenItemIds)
   const hiddenAfter = numbers(entry.after.hiddenItemIds)
-  const added = after.filter((id) => !before.includes(id))
-  const taken = [...before.filter((id) => !after.includes(id)), ...hiddenAfter.filter((id) => !hiddenBefore.includes(id))]
+  // An item the phase added and takes off again moves from the added list to the taken off list in one edit, and moves back when it is brought back
+  // (docs/design/drop-list-import.md section 6): each is one item taken off, or one brought back, not also one added.
+  const added = after.filter((id) => !before.includes(id) && !hiddenBefore.includes(id))
+  const taken = [...new Set([...before.filter((id) => !after.includes(id)), ...hiddenAfter.filter((id) => !hiddenBefore.includes(id))])]
   const back = hiddenBefore.filter((id) => !hiddenAfter.includes(id))
   const details = [
     ...(added.length ? [`Added: ${ids(added)}`] : []),

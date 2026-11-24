@@ -1154,6 +1154,15 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       await storeTable(SOURCE_TABLE, sourceTableDoc({ npcId: 4887, removed: false }))
       await expectAllowed(edit({ name: GONE, kind: GONE, npcId: GONE, order: GONE, removed: GONE }))
     })
+
+    // The drop list import (LOOT-008) writes a reason on every entry, such as "Imported from the addon (d-...)": the widest writes still fit with the longest one.
+    test('the widest creature document and the widest edit, each with a reason of 300 characters', async () => {
+      const fields = sourceTableDoc({ zoneId: 100_000_000, key: 'k'.repeat(30), phaseNo: 1, name: 'x'.repeat(100), kind: 'trash', npcId: 100_000_000, order: 100_000, itemIds: ids(80), hiddenItemIds: ids(80, 5000), removed: true })
+      await expectAllowed(createTable(dbFor(who), who, { fields, audit: { reason: 'r'.repeat(300) } }))
+      assert.equal((await stored(`auditLog/${entryId('table', tableIdOf(fields), 1)}`))?.reason, 'r'.repeat(300))
+      await storeTable(SOURCE_TABLE, sourceTableDoc({ npcId: 4887, removed: false }))
+      await expectAllowed(edit({ name: 'x'.repeat(100), kind: 'trash', npcId: 100_000_000, order: 100_000, itemIds: ids(80), hiddenItemIds: ids(80, 5000), removed: true }, { audit: { reason: 'r'.repeat(300) } }))
+    })
   })
 }
 

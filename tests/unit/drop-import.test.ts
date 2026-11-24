@@ -134,14 +134,15 @@ describe('the drop list import, worked examples', () => {
   })
 
   it('9. trash: an item two trash creatures dropped is offered for the zone-wide list, unticked', () => {
-    const trash = (npcId: number, name: string, itemIds: number[]): DropsSource => ({ npcId, name, kind: 'trash', itemIds, seen: itemIds.map((id) => seen(id, 1, '2026-12-10', { boe: true })) })
-    const preview = buildPreview(candidates(hollow([trash(990051, 'Test Ghoul', [900050, 900051]), trash(990052, 'Test Wight', [900050])])), setup([barrowMade()]), pickBarrow)
+    const trash = (npcId: number, name: string, itemIds: number[], n = 1): DropsSource => ({ npcId, name, kind: 'trash', itemIds, seen: itemIds.map((id) => seen(id, n, '2026-12-10', { boe: true })) })
+    const preview = buildPreview(candidates(hollow([trash(990051, 'Test Ghoul', [900050, 900051], 3), trash(990052, 'Test Wight', [900050])])), setup([barrowMade()]), pickBarrow)
     const rows = zoneOf(preview.zones, `z${BARROW}`).creatures
     assert.deepEqual(rows.map((row) => [row.name, row.items.map((item) => [item.itemId, item.status, item.ticked])]), [
       ['Test Ghoul', [[900050, 'zoneWide', false], [900051, 'new', false]]],
       ['Test Wight', [[900050, 'zoneWide', false]]],
       ['Any creature in the zone', [[900050, 'new', false]]],
     ])
+    assert.deepEqual(rows[2]?.items[0]?.evidence.seen, { n: 3, last: '2026-12-10', via: 'window', boe: true }) // both creatures' counts, the larger kept
   })
 
   it('10. more items than the room left: the rest are for the next phase', () => {
@@ -249,6 +250,9 @@ describe('the drop list import, worked examples', () => {
     const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001]), boss(990002, 'Lady Test Ipsum', [900003]), boss(990009, 'Last Test Boss', [900090]), boss(990010, 'After Test Boss', [900091])]))
     const rows = zoneOf(buildPreview(pasted, setup(docs), pickBarrow).zones, `z${BARROW}`).creatures
     assert.deepEqual(rows.filter((row) => row.status === 'new').map((row) => [row.name, row.order]), [['Lady Test Ipsum', 11], ['After Test Boss', 21]])
+    // New creatures that follow each other at the end are 10 apart, so a leader can still place one between them.
+    const fresh = zoneOf(buildPreview(candidates(hollow([boss(990031, 'First New Boss', [900301]), boss(990032, 'Second New Boss', [900302])])), setup(docs), pickBarrow).zones, `z${BARROW}`).creatures
+    assert.deepEqual(fresh.map((row) => row.order), [30, 40])
   })
 
   it('names a zone of the older raid list as one that cannot hold drop lists, and offers same-kind zones first', () => {

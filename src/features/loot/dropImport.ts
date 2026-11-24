@@ -11,7 +11,7 @@ import {
   type ZoneTableDoc,
 } from '../../shared/game/guildTables.ts'
 import type { LootSourceKind, LootTableCapture } from '../../shared/game/lootTables.ts'
-import { mergeCandidateSources, type CandidateItem, type CandidateSource, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString.ts'
+import { mergeCandidateSources, mergeEvidence, type CandidateItem, type CandidateSource, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString.ts'
 import { RAID_ZONE_NAME_MAX, listZones, zoneNameKey, type CatalogZone, type ListedZone } from '../../shared/game/zoneList.ts'
 
 /** What the import is matched against and written into. `phaseNo` is the phase picked in the editor (the current one or the next). */
@@ -356,7 +356,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     const items = new Map<number, CandidateItem>()
     for (const item of isZoneWide ? zoneWideItems : draft.candidates.flatMap((candidate) => candidate.items)) {
       const there = items.get(item.itemId)
-      items.set(item.itemId, there ? { itemId: item.itemId, evidence: { ...there.evidence, ...item.evidence } } : item)
+      items.set(item.itemId, there ? { itemId: item.itemId, evidence: mergeEvidence(there.evidence, item.evidence) } : item)
     }
     const creature = draft.existing
     let room = TABLE_ITEMS_MAX - (creature?.doc?.itemIds.length ?? 0)
@@ -419,9 +419,10 @@ function placeNewCreatures(zone: MergedZone, drafts: Draft[]) {
     draft.row.key = key
     const nextUp = after === undefined ? undefined : Math.min(...orders.filter((order) => order > (after as number)), TABLE_ORDER_MAX + 1)
     if (after !== undefined && nextUp !== undefined && after + 1 < nextUp && !used.has(after + 1)) after += 1
-    else { end = Math.min(TABLE_ORDER_MAX, end + 10); after = end }
-    used.add(after)
-    draft.row.order = after
+    else { end = Math.min(TABLE_ORDER_MAX, end + 10); after = undefined }
+    const order = after ?? end
+    used.add(order)
+    draft.row.order = order
   }
 }
 

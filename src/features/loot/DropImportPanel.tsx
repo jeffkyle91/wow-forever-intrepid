@@ -99,7 +99,7 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
   return <section className={`import-creature${row.saved ? '' : ' import-creature-off'}`}>
     <header>
       {row.creatureTickable
-        ? <label className="import-creature-name"><input type="checkbox" checked={row.saved} disabled={set.busy} onChange={(event) => set.ticks(row.id, event.target.checked)} /><strong>{row.name}</strong></label>
+        ? <label className="import-creature-name"><input type="checkbox" checked={row.saved} disabled={set.busy} aria-label={row.status === 'takenOut' ? `Bring back ${row.name}` : `Add ${row.name}`} onChange={(event) => set.ticks(row.id, event.target.checked)} /><strong>{row.name}</strong></label>
         : <strong className="import-creature-name">{row.name}</strong>}
       {chips.map((chip) => <span key={chip} className="drops-kind">{chip}</span>)}
     </header>

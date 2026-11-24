@@ -387,10 +387,16 @@ function itemWrite(zone: MergedZone, source: MergedSource, nextAdded: number[], 
 // off again (docs/design/drop-list-import.md section 6), but never one the next added list has (the rules keep the two lists apart).
 const hiddenKept = (source: MergedSource, nextAdded: number[], drop: number[]) => unique(source.doc?.hiddenItemIds ?? []).filter((id) => !drop.includes(id) && !nextAdded.includes(id))
 
-/** Items the zone has in this phase, by the creature that drops them (the zone's list counts as a creature). One creature per item in a zone. */
+/**
+ * Items the zone has in this phase, by the creature that drops them (the zone's list counts as a creature). One creature per item in a zone. A creature
+ * a leader took out of the lists keeps its items, and bringing it back brings them back, so its items count too, after the creatures in the lists and
+ * the zone-wide list: an item listed there is not added to another creature (docs/design/drop-list-import.md section 6).
+ */
 export function itemHolders(zone: MergedZone): Map<number, string> {
   const holders = new Map<number, string>()
-  for (const source of [...zone.sources.filter((candidate) => !candidate.removed), zone.zoneWide]) for (const id of source.itemIds) if (!holders.has(id)) holders.set(id, source.name)
+  const inLists = zone.sources.filter((candidate) => !candidate.removed)
+  const takenOut = zone.sources.filter((candidate) => candidate.removed)
+  for (const source of [...inLists, zone.zoneWide, ...takenOut]) for (const id of source.itemIds) if (!holders.has(id)) holders.set(id, source.name)
   return holders
 }
 
@@ -430,10 +436,11 @@ export function takeOffItem(zone: MergedZone, source: MergedSource, id: number):
 
 /**
  * Bring back an item this phase took off: one it had before leaves the taken off list, and one this phase added and took off again is added again.
- * Nothing (null) when that would add more items than a document can.
+ * Nothing (null) when another creature of the zone has the item now (it stays there, as with addItems), or when that would add more items than a
+ * document can.
  */
 export function restoreItem(zone: MergedZone, source: MergedSource, id: number): TableWrite | null {
-  if (!source.hiddenItemIds.includes(id)) return null
+  if (!source.hiddenItemIds.includes(id) || itemHolders(zone).has(id)) return null
   const nextAdded = [...unique(source.doc?.itemIds ?? []).filter((candidate) => candidate !== id), ...(source.beforeItemIds.includes(id) ? [] : [id])]
   if (nextAdded.length > TABLE_ITEMS_MAX) return null
   return itemWrite(zone, source, nextAdded, hiddenKept(source, nextAdded, [id]))

@@ -30,7 +30,8 @@ const json = (value: unknown) => JSON.stringify(sortKeys(value))
 const sdoc = (docs: LootTableDoc[], zoneId: number, key: string, phaseNo: number) => docs.find((doc): doc is SourceTableDoc => doc.type === 'source' && doc.zoneId === zoneId && doc.key === key && doc.phaseNo === phaseNo)
 const zdoc = (docs: LootTableDoc[], zoneId: number, phaseNo: number) => docs.find((doc): doc is ZoneTableDoc => doc.type === 'zone' && doc.zoneId === zoneId && doc.phaseNo === phaseNo)
 const sourceOf = (zone: MergedZone | undefined, key: string) => (key === 'zonewide' ? zone?.zoneWide : zone?.sources.find((candidate) => candidate.key === key))
-const holderOf = (zone: MergedZone, id: number) => [...zone.sources.filter((candidate) => !candidate.removed), zone.zoneWide].find((candidate) => candidate.itemIds.includes(id))
+// The creature an item of the zone is on: one in the lists, then the zone-wide list, then one a leader took out (it keeps its items; drop-list-import.md section 6).
+const holderOf = (zone: MergedZone, id: number) => [...zone.sources.filter((candidate) => !candidate.removed), zone.zoneWide, ...zone.sources.filter((candidate) => candidate.removed)].find((candidate) => candidate.itemIds.includes(id))
 const withoutDoc = ({ doc: _doc, ...rest }: MergedSource) => rest
 const attributesOf = (doc: SourceTableDoc | undefined) => json(ATTRIBUTES.map((field) => doc?.[field]))
 
@@ -169,6 +170,7 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         const write = restoreItem(zone, source, id)
         trail.push(`restoreItem zone ${zone.zoneId} ${source.key} ${id} at ${phase}`)
         if (!source.hiddenItemIds.includes(id)) { check(write === null, 'a write to put back an item this phase did not take off'); return true }
+        if (holderOf(zone, id)) { check(write === null, `a write to put back ${id}, which ${holderOf(zone, id)!.name} has now`); return true }
         check(write !== null, `no write to put back ${id}`)
         const before = state
         commit([write!])
@@ -199,6 +201,8 @@ function makeRun(seed: number, initial: State, base: number, rng: Rng, findings:
         commit([takeOffItem(zone, source, id)!])
         const taken = zoneIn(state, phase, zone.zoneId)!
         const back = restoreItem(taken, sourceOf(taken, source.key)!, id)
+        // (an item two creatures came to have stays with the other one: putting it back would make it two again)
+        if (holderOf(taken, id)) { check(back === null, `a write to put back ${id}, which ${holderOf(taken, id)!.name} has too`); return true }
         check(back !== null, `no write to put back ${id} right after it was taken off`)
         commit([back!])
         const after = sourceOf(zoneIn(state, phase, zone.zoneId), source.key)!

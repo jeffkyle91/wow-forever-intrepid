@@ -319,12 +319,25 @@ describe('adding items in a phase', () => {
     assert.equal(addItems(zone, zone.sources[0], []).write, null)
   })
 
-  it('counts an item of another creature, and of the zone-wide list, as held, but not one of a removed creature', () => {
+  it('counts an item of another creature, of the zone-wide list and of a creature a leader took out as held', () => {
     const holders = itemHolders(zoneOf([], 1))
     assert.equal(holders.get(201), 'Second Warden')
     assert.equal(holders.get(901), 'Any creature in the zone')
+    // A creature taken out keeps its items, so bringing it back must not put one of them on two creatures (drop-list-import.md section 6).
     const removed = source(900, 'cabc', 1, { name: 'Gone', order: 40, itemIds: [700], removed: true })
-    assert.equal(itemHolders(zoneOf([removed], 1)).has(700), false)
+    assert.equal(itemHolders(zoneOf([removed], 1)).get(700), 'Gone')
+    const zone = zoneOf([removed], 1)
+    const result = addItems(zone, zone.sources[1], [700, 701])
+    assert.deepEqual(result.alreadyIn, [{ id: 700, where: 'Gone' }])
+    assert.deepEqual(result.added, [701])
+  })
+
+  it('names a creature in the lists, then the zone-wide list, before a creature taken out, for an item more than one of them came to have', () => {
+    const removed = source(900, 'cabc', 1, { name: 'Gone', order: 5, itemIds: [201, 901, 700], removed: true })
+    const holders = itemHolders(zoneOf([removed], 1))
+    assert.equal(holders.get(201), 'Second Warden')
+    assert.equal(holders.get(901), 'Any creature in the zone')
+    assert.equal(holders.get(700), 'Gone')
   })
 })
 
@@ -358,6 +371,16 @@ describe('taking items off in a phase', () => {
     const back = restoreItem(zone, zone.sources[0], 102)
     assert.ok(back && 'existing' in back)
     if (back && 'existing' in back) assert.deepEqual(back.changes, { hiddenItemIds: [] })
+  })
+
+  it('an item taken off that another creature has now, also one a leader took out, stays there: it is not brought back, as addItems would not add it', () => {
+    const moved = [overlay('11', 2, { hiddenItemIds: [102] }), overlay('12', 2, { itemIds: [102] })]
+    const zone = zoneOf(moved, 2)
+    assert.equal(restoreItem(zone, zone.sources[0], 102), null)
+    assert.deepEqual(addItems(zone, zone.sources[0], [102]).alreadyIn, [{ id: 102, where: 'Second Warden' }])
+    const out = [overlay('11', 2, { hiddenItemIds: [102] }), source(900, 'cabc', 2, { name: 'Gone', order: 40, itemIds: [102], removed: true })]
+    const outZone = zoneOf(out, 2)
+    assert.equal(restoreItem(outZone, outZone.sources[0], 102), null)
   })
 })
 

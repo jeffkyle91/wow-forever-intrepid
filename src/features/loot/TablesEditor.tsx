@@ -6,7 +6,7 @@ import {
 } from '../../shared/game/guildTables'
 import { lootSourceKinds, type LootSourceKind } from '../../shared/game/lootTables'
 import { phaseOptions } from '../../shared/game/phases'
-import { peekItem, useItemInfo, useItemInfoVersion } from '../../shared/lib/itemInfo'
+import { isMissingItem, peekItem, useItemInfo, useItemInfoVersion } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import '../../shared/ui/spacing.css'
@@ -30,11 +30,12 @@ type Who = { uid: string; displayName: string }
 // `whyNot` is what to say when there is nothing to write (a builder answers nothing when a limit is reached or the thing is already so).
 type Run = (writes: TableWrite[], done: string, whyNot?: string) => Promise<boolean>
 
-// One pasted item number, looked up live, so a wrong number shows before it is saved.
+// One pasted item number, looked up live, so a wrong number shows before it is saved. Only a number Wowhead has no item for is marked wrong: when
+// Wowhead could not be reached or was busy the item may well exist, so it shows why, and its tooltip offers Try again.
 function PastedItem({ id, heldBy }: { id: number; heldBy?: string }) {
   const state = useItemInfo(id)
-  if (state?.status === 'error') return <li className="tables-pasted tables-bad"><span>{id}</span> {state.message}</li>
-  return <li className={heldBy ? 'tables-pasted tables-held' : 'tables-pasted'}><ItemTooltip itemId={id} />{heldBy && <span> already on {heldBy}, so it stays there</span>}</li>
+  if (isMissingItem(state)) return <li className="tables-pasted tables-bad"><span>{id}</span> {state.message}</li>
+  return <li className={heldBy ? 'tables-pasted tables-held' : 'tables-pasted'}><ItemTooltip itemId={id} />{state?.status === 'error' && <span> {state.message}</span>}{heldBy && <span> already on {heldBy}, so it stays there</span>}</li>
 }
 
 function AddItems({ zone, source, busy, run }: { zone: MergedZone; source: MergedSource; busy: boolean; run: Run }) {
@@ -45,7 +46,7 @@ function AddItems({ zone, source, busy, run }: { zone: MergedZone; source: Merge
   const parsed = parseItemIds(pasted)
   const result = addItems(zone, source, parsed.ids)
   const holders = itemHolders(zone)
-  const unknown = parsed.ids.filter((id) => { const state = peekItem(id); return state?.status === 'error' })
+  const unknown = parsed.ids.filter((id) => isMissingItem(peekItem(id)))
   const blocked = !result.write || result.tooMany || (unknown.length > 0 && !unsure)
   if (!open) return <button type="button" className="button button-secondary tables-small" onClick={() => setOpen(true)} disabled={busy}>Add items</button>
   return <div className="tables-add">

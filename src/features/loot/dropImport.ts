@@ -87,6 +87,7 @@ export type CreatureRow = {
   near: { key: string; name: string }[] // for an unmatched creature: the near names it may be
   differs?: { name?: string; kind?: LootSourceKind } // a matched guild creature whose name or kind differs from the paste's
   rename: boolean
+  answerKey?: string // the answer to its near names ("same as …" or "new"), to change it
   storeNpcId?: number // the npc id the save writes onto the app's creature (same as …, or a creature known by its encounter)
   saved: boolean // the creature is written (new, brought back, or something under it is)
   optIn?: 'noItems' | 'guessed' | 'takenOut' // why the creature itself is unticked until a leader ticks it
@@ -107,6 +108,7 @@ export type ZoneRow = {
   how?: 'capture' | 'zoneId' | 'instance' | 'name' | 'pick'
   unmatchedWhy?: 'none' | 'tie' | 'catalog'
   options: ListedZone[] // zones a leader can pick for it: those of the same kind and size first
+  answerKeys: string[] // the zone answers that put candidates here (to change or take back a pick)
   zoneId?: number
   appName?: string // the matched zone's name, when it differs
   inPhase: boolean
@@ -174,6 +176,12 @@ function takenOutOf(docs: LootTableDoc[], zoneId: number, phaseNo: number): bool
   return latest?.removed === true
 }
 
+/** Every zone number in use: the built-in captures' and every document's, so a zone the import makes gets a free one. */
+export const takenZoneIds = (setup: Pick<ImportSetup, 'captures' | 'docs'>) => new Set<number>([
+  ...setup.captures.map((capture) => capture.zoneId),
+  ...setup.docs.flatMap((doc) => (doc.type === 'phase' ? [] : [doc.zoneId])),
+])
+
 /** The zone id an import gives a zone it makes: fixed from the game's instance id when it can be (a retry finds it), else a new random one. */
 export function zoneIdFor(candidate: { instanceId?: number }, taken: Set<number>): number {
   if (candidate.instanceId !== undefined && candidate.instanceId <= FIXED_ZONE_SPAN && !taken.has(CUSTOM_ZONE_MIN + candidate.instanceId)) return CUSTOM_ZONE_MIN + candidate.instanceId
@@ -189,16 +197,13 @@ const nearName = (a: string, b: string) => {
   return short.length > 0 && (long.startsWith(`${short} `) || long.endsWith(` ${short}`))
 }
 
-type Group = { id: string; candidates: CandidateZone[]; hit: ZoneHit; picked?: number; make?: boolean; madeId?: number }
+type Group = { id: string; candidates: CandidateZone[]; hit: ZoneHit; picked?: number; make?: boolean; madeId?: number; answerKeys: string[] }
 
 /** The preview: every zone, creature and item of the paste, matched, with its category and whether it is ticked (the answers, else the default). */
 export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, answers: ImportAnswers): ImportPreview {
   const listed = listZones(setup.captures, setup.docs, setup.catalog, setup.currentPhase)
   const merged = mergeTables(setup.captures, setup.docs, setup.phaseNo)
-  const taken = new Set<number>([
-    ...setup.captures.map((capture) => capture.zoneId),
-    ...setup.docs.flatMap((doc) => (doc.type === 'phase' ? [] : [doc.zoneId])),
-  ])
+  const taken = takenZoneIds(setup)
 
   // Group the candidates by the zone they land in: two difficulties of one instance, two wings of one dungeon, or a zone a leader picked.
   const groups = new Map<string, Group>()
@@ -210,8 +215,9 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     const id = picked !== undefined ? `z${picked}` : ownId
     const make = answer !== undefined && 'make' in answer && setup.canMakeZones
     const madeId = answer && 'make' in answer ? answer.zoneId : undefined
-    const group = groups.get(id) ?? { id, candidates: [], hit: picked !== undefined ? { zoneId: picked, how: 'pick' } : hit, ...(picked !== undefined ? { picked } : {}), ...(make ? { make } : {}), ...(madeId !== undefined ? { madeId } : {}) }
+    const group = groups.get(id) ?? { id, candidates: [], hit: picked !== undefined ? { zoneId: picked, how: 'pick' } : hit, ...(picked !== undefined ? { picked } : {}), ...(make ? { make } : {}), ...(madeId !== undefined ? { madeId } : {}), answerKeys: [] }
     group.candidates.push(candidate)
+    if (answer && !group.answerKeys.includes(ownId)) group.answerKeys.push(ownId)
     groups.set(id, group)
   }
 
@@ -223,6 +229,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
       ...(group.candidates.find((candidate) => candidate.journal)?.journal ? { journal: group.candidates.find((candidate) => candidate.journal)?.journal as string } : {}),
       ...(group.candidates.some((candidate) => candidate.journalPartial) ? { journalPartial: true as const } : {}),
       options: sameKindFirst(listed.filter((zone) => zone.zoneId !== undefined), first.kind, first.players),
+      answerKeys: group.answerKeys,
     }
     const sources = mergeCandidateSources(group.candidates.flatMap((candidate) => candidate.sources))
     const zoneWide = group.candidates.flatMap((candidate) => candidate.zoneWide)
@@ -295,12 +302,15 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     let found: MergedSource | undefined
     let how: CreatureRow['how']
     let near: { key: string; name: string }[] = []
-    if (answer && 'same' in answer) { found = existing.find((creature) => creature.key === answer.same); how = found ? 'answer' : undefined }
-    if (!found && !(answer && 'make' in answer)) {
-      if (source.npcId !== undefined) { found = existing.find((creature) => creature.npcId === source.npcId); how = 'npc' }
-      if (!found && source.encounterId !== undefined) { found = existing.find((creature) => creature.key === `e${source.encounterId}`); how = 'encounter' }
-      if (!found) { found = existing.find((creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }
-      if (!found) near = existing.filter((creature) => !creature.builtIn && creature.kind === source.kind && creature.npcId === undefined && nearName(creatureKeyOf(creature.name), creatureKeyOf(source.name))).map((creature) => ({ key: creature.key, name: creature.name }))
+    let answered = false
+    if (source.npcId !== undefined) { found = existing.find((creature) => creature.npcId === source.npcId); how = 'npc' }
+    if (!found && source.encounterId !== undefined) { found = existing.find((creature) => creature.key === `e${source.encounterId}`); how = 'encounter' }
+    if (!found) { found = existing.find((creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }
+    if (!found) {
+      // A near name is asked (worked example 15): the answer says which creature it is, or that it is a new one.
+      near = existing.filter((creature) => !creature.builtIn && creature.kind === source.kind && creature.npcId === undefined && nearName(creatureKeyOf(creature.name), creatureKeyOf(source.name))).map((creature) => ({ key: creature.key, name: creature.name }))
+      if (near.length && answer && 'same' in answer && near.some((option) => option.key === answer.same)) { found = existing.find((creature) => creature.key === answer.same); how = 'answer'; answered = true }
+      else if (near.length && answer && 'make' in answer) answered = true
     }
     if (found) {
       const there = byExisting.get(found.key)
@@ -312,8 +322,9 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       }
       const draft: Draft = {
         row: {
-          id: `${groupId}|k${found.key}`, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(how ? { how } : {}), key: found.key, near: [],
+          id: `${groupId}|k${found.key}`, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(how ? { how } : {}), key: found.key, near,
           ...(Object.keys(differs).length ? { differs } : {}), rename: Object.keys(differs).length > 0 && answers.renames[`${groupId}|k${found.key}`] === true,
+          ...(answered ? { answerKey: candidateId } : {}),
           ...(source.npcId !== undefined && found.npcId === undefined && !found.builtIn ? { storeNpcId: source.npcId } : {}),
           saved: false, creatureTickable: false, items: [],
         },
@@ -322,7 +333,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       byExisting.set(found.key, draft)
       drafts.push(draft)
     } else {
-      drafts.push({ row: { id: candidateId, name: source.name, kind: source.kind, ...sourceFacts(source), status: near.length ? 'unmatched' : 'new', near, rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source] })
+      drafts.push({ row: { id: candidateId, name: source.name, kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(answered ? { answerKey: candidateId } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source] })
     }
   }
 

@@ -131,7 +131,8 @@ function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: Import
     const next = value === '' ? undefined : value === 'new' ? { make: true as const, zoneId: zoneIdFor(zone, takenZoneIds(setup)) } : { pick: Number(value) }
     set.update({ ...set.answers, zones: { ...set.answers.zones, [ownAnswer]: next } })
   }
-  const anything = zone.creatures.some((creature) => creature.saved)
+  // Open when there is something to save or decide; a zone whose rows are all already listed starts closed.
+  const anything = zone.creatures.some((creature) => creature.saved || creature.creatureTickable || creature.status === 'unmatched' || creature.differs || creature.items.some((item) => item.tickable))
   const unmatchedWhy = zone.unmatchedWhy === 'tie' ? 'More than one zone has this name.' : zone.unmatchedWhy === 'catalog' ? "It's in the older raid list, which can't hold drop lists." : undefined
   return <details className={`import-zone import-${zone.status}`} open={zone.status !== 'matched' || anything}>
     <summary>

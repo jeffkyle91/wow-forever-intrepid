@@ -11,6 +11,7 @@ import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import '../../shared/ui/spacing.css'
 import '../../shared/ui/zoneColor.css'
+import { DropImportPanel } from './DropImportPanel'
 import { useMergedTables } from './useDropTables'
 import { useZoneColors, zoneStyle } from './useZoneColors'
 import { groupZones, openGroupKeys, zonesStartOpen, type ZoneGroup } from '../../shared/game/zoneGroups'
@@ -249,6 +250,7 @@ export function TablesEditor({ live, phaseNo, onPhaseNo }: { live: TabContext; p
 
   return <div className="tables-editor">
     <p className="tables-intro">Drop lists are chosen per phase. A phase starts with no zones: tick the zones it has, or make it follow an earlier phase to have that phase&rsquo;s lists. What you change below is in the phase you pick and in any phase that follows it, and never reaches a finished phase. The built-in lists are not changed, every change is in the Log, and nothing is ever deleted.</p>
+    <DropImportPanel live={live} phaseNo={selected.no} phase={phase} />
     <ZonesSection phases={phases} selected={selected} onPhase={changePhase} zones={zones} docs={live.data.lootTables} earlier={everyPhase.filter((candidate) => candidate.no < selected.no)} colorOf={zoneColors.ofZone} busy={busy} run={run} />
     {message && <p className={message.error ? 'tables-message tables-bad' : 'tables-message'} role={message.error ? 'alert' : 'status'}>{message.text}</p>}
     <h3 className="tables-heading">Creatures and items</h3>

@@ -631,6 +631,11 @@ describe('the drop list import, worked examples', () => {
     // A zone a Guild Leader makes keeps its answers under the id its make answer carries.
     const made = buildPreview(pasted, setup(docs), answers({ zones: { u9901: { make: true, zoneId: 61_234_567 } } }))
     assert.deepEqual([made.zones[0]?.id, made.zones[0]?.tickKey, made.zones[0]?.creatures.map((row) => row.id)], ['u9901', 'z61234567', ['z61234567|cn990001', 'z61234567|cn990002']])
+
+    // Answers stay with their zone: changing the pick to another zone shows that zone's own, and changing it back shows these again.
+    const unticked = { ...pickBarrow, ticks: { [`z${BARROW}|cn990002|900003`]: false } }
+    const lady = (given: ImportAnswers) => buildPreview(pasted, setup(docs), given).zones[0]?.creatures.find((row) => row.npcId === 990002)?.items[0]?.ticked
+    assert.deepEqual([lady(unticked), lady({ ...unticked, zones: { u9901: { pick: 4321 } } }), lady(unticked)], [false, true, false])
   })
 
   it('a pick into a zone another pasted zone matched by itself keeps that zone\'s keys, and names the pick', () => {

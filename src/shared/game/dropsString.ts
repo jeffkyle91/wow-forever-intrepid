@@ -197,9 +197,14 @@ function mergeItems(into: CandidateItem[], from: CandidateItem[]): CandidateItem
   return out
 }
 
-/** Two rows that are one creature: the larger counts, the wider dates, every item once. A guess stays a guess only while every row guesses. */
+// A row that names its npc a boss without guessing: the game's, or DungeonJournal's (design 2.2 step 3). A trash row, or the rolls of an encounter
+// (no npc id), says nothing about which npc is the boss.
+const sureBoss = (source: CandidateSource) => source.kind === 'boss' && !source.guessed && source.npcId !== undefined
+
+/** Two rows that are one creature: the larger counts, the wider dates, every item once. A guess stays a guess until a sure boss row confirms it. */
 function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSource {
   const kind = KIND_RANK[from.kind] > KIND_RANK[into.kind] ? from.kind : into.kind
+  const guessed = (into.guessed || from.guessed) && !sureBoss(into) && !sureBoss(from)
   const npcId = into.npcId ?? from.npcId
   const encounterId = into.encounterId ?? from.encounterId
   const kills = maxOf(into.kills, from.kills)
@@ -211,7 +216,7 @@ function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSo
     // A corpse's name beats a name known only from rolls (the encounter's): keep the row with the npc id's name.
     name: into.npcId === undefined && from.npcId !== undefined ? from.name : into.name,
     kind,
-    ...(into.guessed && from.guessed ? { guessed: true as const } : {}),
+    ...(guessed ? { guessed: true as const } : {}),
     ...(kills !== undefined ? { kills } : {}),
     ...(first !== undefined ? { first } : {}),
     ...(last !== undefined ? { last } : {}),

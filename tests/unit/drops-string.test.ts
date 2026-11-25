@@ -181,13 +181,62 @@ describe('mergeDrops', () => {
     assert.deepEqual(mergeDrops([one])[0]?.sources.map((source) => source.name), ['Test Twin One', 'Test Twin Two', 'The Test Twins'])
   })
 
-  it('keeps a guess only while every row guesses, and a boss stays a boss', () => {
-    const guessed = model([raid([{ npcId: 990005, encounterId: 9105, name: 'Guessed Test Boss', kind: 'boss', guessed: true, itemIds: [900020], seen: [seen(900020, 1, '2026-12-10')] }])])
-    const sure = model([raid([{ npcId: 990005, name: 'Guessed Test Boss', kind: 'trash', itemIds: [900021], seen: [seen(900021, 1, '2026-12-10')] }])])
-    assert.equal(mergeDrops([guessed])[0]?.sources[0]?.guessed, true)
-    const merged = mergeDrops([guessed, sure])[0]?.sources[0]
-    assert.equal(merged?.guessed, undefined)
-    assert.equal(merged?.kind, 'boss')
+  // Design 2.2 step 3: a guess is confirmed only by a sure boss row for the same npc (the game's, or DungeonJournal naming it as a boss).
+  describe('a guessed boss', () => {
+    const guessedRow: DropsSource = { npcId: 990005, encounterId: 9105, name: 'Guessed Test Boss', kind: 'boss', guessed: true, kills: 1, itemIds: [900020], seen: [seen(900020, 1, '2026-12-10')] }
+    const guessed = model([raid([guessedRow])])
+    const only = (zones: ReturnType<typeof mergeDrops>) => {
+      assert.equal(zones.length, 1)
+      assert.equal(zones[0]?.sources.length, 1)
+      return zones[0]?.sources[0]
+    }
+
+    it('stays guessed alone, and with another guess of the same kill', () => {
+      assert.equal(only(mergeDrops([guessed]))?.guessed, true)
+      assert.equal(only(mergeDrops([guessed, guessed]))?.guessed, true)
+    })
+
+    it("stays guessed, and a boss, when a raider's string has the same npc as trash, in either order", () => {
+      const raider = model([raid([{ npcId: 990005, name: 'Guessed Test Boss', kind: 'trash', kills: 1, itemIds: [900020, 900021], seen: [seen(900020, 1, '2026-12-10'), seen(900021, 1, '2026-12-10')] }])])
+      for (const strings of [[guessed, raider], [raider, guessed]]) {
+        const merged = only(mergeDrops(strings))
+        assert.equal(merged?.guessed, true)
+        assert.equal(merged?.kind, 'boss')
+        assert.deepEqual(merged?.items.map((item) => item.itemId).sort(), [900020, 900021])
+      }
+    })
+
+    it("stays guessed when the encounter's rolls join the corpse, in one string or two", () => {
+      const rollsRow: DropsSource = { encounterId: 9105, name: 'Guessed Test Encounter', kind: 'boss', kills: 1, itemIds: [900040], seen: [seen(900040, 1, '2026-12-17', 'roll')] }
+      for (const strings of [[model([raid([guessedRow, rollsRow])])], [guessed, model([raid([rollsRow])])], [model([raid([rollsRow])]), guessed]]) {
+        const merged = only(mergeDrops(strings))
+        assert.equal(merged?.npcId, 990005)
+        assert.equal(merged?.guessed, true)
+        assert.deepEqual(merged?.items.map((item) => item.itemId), [900020, 900040])
+      }
+    })
+
+    it('is confirmed by a sure boss row for the same npc, in either order', () => {
+      const sure = model([raid([{ npcId: 990005, encounterId: 9105, name: 'Guessed Test Boss', kind: 'boss', kills: 1, itemIds: [900020], seen: [seen(900020, 1, '2026-12-17')] }])])
+      for (const strings of [[guessed, sure], [sure, guessed]]) assert.equal(only(mergeDrops(strings))?.guessed, undefined)
+    })
+
+    it('is confirmed by DungeonJournal naming the same npc as a boss', () => {
+      const journal = model([raid([{ npcId: 990005, name: 'Guessed Test Boss', kind: 'boss', itemIds: [900020, 900022], journal: [900020, 900022] }])], 'ForeverDungeonJournal/2.0.3')
+      for (const strings of [[guessed, journal], [journal, guessed]]) {
+        const merged = only(mergeDrops(strings))
+        assert.equal(merged?.guessed, undefined)
+        assert.equal(merged?.kind, 'boss')
+      }
+    })
+
+    it('stays guessed when a trash row and the rolls both join it, and a sure boss row still confirms it after them', () => {
+      const raider = { npcId: 990005, name: 'Guessed Test Boss', kind: 'trash' as const, itemIds: [900021], seen: [seen(900021, 1, '2026-12-10')] }
+      const rolls = { encounterId: 9105, name: 'Guessed Test Encounter', kind: 'boss' as const, itemIds: [900040], seen: [seen(900040, 1, '2026-12-17', 'roll')] }
+      assert.equal(only(mergeDrops([model([raid([raider, rolls, guessedRow])])]))?.guessed, true)
+      const sure = { npcId: 990005, name: 'Guessed Test Boss', kind: 'boss' as const, itemIds: [900020], seen: [seen(900020, 1, '2026-12-17')] }
+      assert.equal(only(mergeDrops([model([raid([raider, rolls, guessedRow, sure])])]))?.guessed, undefined)
+    })
   })
 
   it("marks DungeonJournal's items and carries its version and notes on the zone", () => {

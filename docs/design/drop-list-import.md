@@ -312,7 +312,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 - **Every other answer is about the app zone it lands in**, once that zone is decided (matched by itself, picked, or made), and is kept under that zone's id. A made zone's id is the one its answer carries, fixed when "make" is chosen, so it's the same before the save and after a first call that made the zone. A zone that isn't decided has nothing to tick or answer under it.
   - Put it back is kept by the zone.
   - A creature's tick and rename are kept by the zone and the creature's identity: its npc id, else its encounter id, else its name's key. Whether the creature exists in the app yet doesn't change it.
-  - An item's tick is kept by its creature's key and the item. The zone-wide list's are kept by the zone.
+  - An item's tick is kept by its creature row's key and the item. The zone-wide list's ticks are kept by the zone.
 - **"Same as …"** is about the pasted creature: it's kept by its pasted zone and its identity. An answer that names a creature that isn't in the zone it lands in is ignored.
 - **Sources that land on one creature** share one row. A source that found the creature by itself (npc id, encounter, name) heads it before one placed by "same as …"; among those, the lowest identity in sort order does. A "same as …" question on the row stays there, so it can be changed.
 

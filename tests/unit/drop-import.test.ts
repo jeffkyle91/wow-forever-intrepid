@@ -655,6 +655,7 @@ describe('the drop list import, worked examples', () => {
       const both = buildPreview(pasted, setup(docs), { ...given, zones: { ...given.zones, u7003: { pick: 4321 } } })
       const zone = both.zones.find((one) => one.zoneId === 4321) as ZoneRow
       assert.deepEqual([zone.picks.length, zone.zoneTicked, zone.tickKey], [2, true, 'z4321'])
+      assert.deepEqual([alone.id, zone.id], ['u7002', 'u7003']) // the block's own key follows its head: the known focus limit
       assert.deepEqual(zone.creatures.find((row) => row.name === 'Crypt Lord')?.items.map((item) => [item.itemId, item.ticked]), [[900205, false], [900206, true]])
       const write = buildImportSave(both, setup(docs)).first.find((one) => one.id === sourceDocId(4321, 'n990200', 0))
       assert.deepEqual(write && 'create' in write && 'itemIds' in write.create && write.create.itemIds, [900206])

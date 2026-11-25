@@ -239,6 +239,15 @@ describe('mergeDrops', () => {
     })
   })
 
+  it("names a creature as the game does, not as DungeonJournal does, whichever string comes first", () => {
+    const game = model([raid([{ npcId: 990011, name: 'The Fixture Warden', kind: 'boss', kills: 1, itemIds: [900101], seen: [seen(900101, 1, '2026-12-01')] }])])
+    const journal = model([raid([{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], journal: [900101, 900102] }])], 'ForeverDungeonJournal/2.0.3')
+    const noItemsYet = model([raid([{ npcId: 990011, name: 'The Fixture Warden', kind: 'boss', kills: 1, itemIds: [] }])])
+    for (const strings of [[game, journal], [journal, game], [noItemsYet, journal], [journal, noItemsYet]]) {
+      assert.deepEqual(mergeDrops(strings)[0]?.sources.map((source) => source.name), ['The Fixture Warden'])
+    }
+  })
+
   it("marks DungeonJournal's items and carries its version and notes on the zone", () => {
     const journal = model([{ name: 'Hollow Test Keep', kind: 'dungeon', players: 5, journalPartial: true, journalSkipped: 2, sources: [
       { npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], seen: [seen(900101, 1, '2026-12-01')], journal: [900101, 900102] },

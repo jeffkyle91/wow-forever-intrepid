@@ -200,6 +200,9 @@ function mergeItems(into: CandidateItem[], from: CandidateItem[]): CandidateItem
 // A row that names its npc a boss without guessing: the game's, or DungeonJournal's (design 2.2 step 3). A trash row, or the rolls of an encounter
 // (no npc id), says nothing about which npc is the boss.
 const sureBoss = (source: CandidateSource) => source.kind === 'boss' && !source.guessed && source.npcId !== undefined
+// Whose name a merged creature keeps: a corpse's (an npc id) over an encounter's (rolls), and the game's (a kill or an item seen) over DungeonJournal's.
+const nameRank = (source: CandidateSource) =>
+  (source.npcId !== undefined ? 2 : 0) + (source.kills !== undefined || source.items.some((item) => item.evidence.seen) ? 1 : 0)
 
 /** Two rows that are one creature: the larger counts, the wider dates, every item once. A guess stays a guess until a sure boss row confirms it. */
 function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSource {
@@ -213,8 +216,7 @@ function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSo
   return {
     ...(npcId !== undefined ? { npcId } : {}),
     ...(encounterId !== undefined ? { encounterId } : {}),
-    // A corpse's name beats a name known only from rolls (the encounter's): keep the row with the npc id's name.
-    name: into.npcId === undefined && from.npcId !== undefined ? from.name : into.name,
+    name: nameRank(from) > nameRank(into) ? from.name : into.name,
     kind,
     ...(guessed ? { guessed: true as const } : {}),
     ...(kills !== undefined ? { kills } : {}),

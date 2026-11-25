@@ -388,6 +388,10 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(fresh.map((row) => row.order), [30, 40])
   })
 
+  it("the Log reason names each pasted string once", () => {
+    assert.equal(importReason('addon', ['d-test-0001', 'd-test-0002', 'd-test-0001']), 'Imported from the addon (d-test-0001, d-test-0002)')
+  })
+
   it('names a zone of the older raid list as one that cannot hold drop lists, and offers same-kind zones first', () => {
     const preview = buildPreview(night1, setup([barrowMade()], { catalog: [{ id: 'old1', name: 'Hollow Test Barrow', size: 40 }] }), noAnswers())
     assert.equal(preview.zones[0]?.unmatchedWhy, 'catalog')

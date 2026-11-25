@@ -557,8 +557,9 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
 /** The Log reason of an import's writes (the rules allow up to 300 characters). */
 export function importReason(from: 'addon' | 'capture', stringIds: string[]): string {
   if (from === 'capture') return 'Imported from a capture file'
-  const text = `Imported from the addon (${stringIds.join(', ')})`
-  return text.length <= 300 ? text : `Imported from the addon (${stringIds.length} strings)`
+  const ids = [...new Set(stringIds)] // the same string pasted twice is named once
+  const text = `Imported from the addon (${ids.join(', ')})`
+  return text.length <= 300 ? text : `Imported from the addon (${ids.length} strings)`
 }
 
 /** The Log reason of DungeonJournal's items, saved in their own write (design section 4). */

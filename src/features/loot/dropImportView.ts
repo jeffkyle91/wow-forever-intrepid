@@ -1,7 +1,7 @@
 // What the drop list import panel (DropImportPanel.tsx, LOOT-008) shows and does with the leader's clicks, as pure functions so Node tests them.
 // dropImport.ts does the matching and builds the writes; this holds only the panel's own choices. Only types and pure functions are imported.
 import type { CandidateZone } from '../../shared/game/dropsString.ts'
-import { importZoneKey, zoneIdFor, type ImportCounts, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
+import { importZoneKey, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ItemRow, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
@@ -75,4 +75,18 @@ export const answerSubject = (answerKey: string, candidates: CandidateZone[]): P
 export function zoneAnswer(value: string, subject: { instanceId?: number }, taken: Set<number>): ZoneAnswer | undefined {
   if (value === '') return undefined
   return value === 'new' ? { make: true, zoneId: zoneIdFor(subject, taken) } : { pick: Number(value) }
+}
+
+/**
+ * The items "Tick DungeonJournal's items" ticks under a creature: its new DungeonJournal items, never one a leader took off (that stays a tick of its
+ * own). None under a creature a leader took out: the leader ticks Bring back first.
+ */
+export const journalToTick = (row: CreatureRow): ItemRow[] => (row.status === 'takenOut' ? [] : row.items.filter((item) => item.journalOnly && item.tickable && item.status === 'new'))
+
+/** The answers after "Tick DungeonJournal's items": those items ticked, and a new creature with them, so a guessed or unticked one is saved too. */
+export function tickJournal(answers: ImportAnswers, row: CreatureRow): ImportAnswers {
+  const ticks = { ...answers.ticks }
+  for (const item of journalToTick(row)) ticks[item.id] = true
+  if (row.status === 'new') ticks[row.id] = true
+  return { ...answers, ticks }
 }

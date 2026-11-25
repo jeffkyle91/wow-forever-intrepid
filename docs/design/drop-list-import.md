@@ -139,6 +139,7 @@ The module writes only its own allow-listed fields.
   - Storing a journal list in the guild's Firestore, where every member reads it, is more than one player reading it on their own screen. Whether it may be saved at all is decision [D6](#open-questions).
 - **Saving (D6, changed by the loot owner, 2026-11-24).** Journal items can be saved. The maintainer's first answer (2026-11-14) kept them as information in the preview; the loot owner changed it so the site's dungeons can be made from the journal.
   - They start unticked, and are ticked one creature at a time, never for a whole paste.
+  - A creature's "Tick DungeonJournal's items" ticks its new ones only, never one a leader took off. It isn't offered under a creature a leader took out: Bring back comes first.
   - They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from.
   - Strings from two versions of the journal are saved in one call per version, each zone with its own string's version. Two versions in one zone keep the first string's.
   - A dungeon the journal calls incomplete shows that note in the preview.

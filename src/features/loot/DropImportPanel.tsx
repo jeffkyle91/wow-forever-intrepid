@@ -10,7 +10,9 @@ import {
   JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, countsText, nothingToSave, plural, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor } from './dropImportView'
+import {
+  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+} from './dropImportView'
 import './DropImport.css'
 
 // "Import a drop list" (LOOT-008, docs/design/drop-list-import.md section 7), at the top of Edit the drop lists. A leader pastes the addon's drops
@@ -76,7 +78,7 @@ function ItemLine({ row, trash, set }: { row: ItemRow; trash: boolean; set: Answ
 }
 
 function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; set: Answering }) {
-  const journal = row.items.filter((item) => item.journalOnly && item.tickable)
+  const journal = journalToTick(row)
   const chips = [
     row.kind === 'zonewide' ? 'zone-wide' : row.kind,
     ...(row.npcId !== undefined ? [`NPC ${row.npcId}`] : []),
@@ -106,11 +108,7 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
     {row.differs && <label className="import-answer import-check"><input type="checkbox" checked={row.rename} disabled={set.busy} onChange={(event) => set.update({ ...set.answers, renames: { ...set.answers.renames, [row.id]: event.target.checked } })} />
       Rename to {row.differs.name ?? row.name}{row.differs.kind ? ` (${row.differs.kind})` : ''}</label>}
     <ul className="import-items">{row.items.map((item) => <ItemLine key={item.id} row={item} trash={row.kind === 'trash'} set={set} />)}</ul>
-    {journal.length > 0 && <button type="button" className="button button-secondary tables-small" disabled={set.busy} onClick={() => {
-      const ticks = { ...set.answers.ticks }
-      for (const item of journal) ticks[item.id] = true
-      set.update({ ...set.answers, ticks: { ...ticks, [row.id]: true } })
-    }}>Tick DungeonJournal&rsquo;s {plural(journal.length, 'item', 'items')}</button>}
+    {journal.length > 0 && <button type="button" className="button button-secondary tables-small" disabled={set.busy} onClick={() => set.update(tickJournal(set.answers, row))}>Tick DungeonJournal&rsquo;s {plural(journal.length, 'item', 'items')}</button>}
   </section>
 }
 

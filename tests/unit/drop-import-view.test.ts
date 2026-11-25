@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, nothingToSave, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -138,5 +138,36 @@ describe('the import panel: answering keeps the block the leader is in', () => {
     assert.deepEqual(keys(same), keys(asked))
     assert.deepEqual(keys(fresh), keys(asked))
     assert.deepEqual([zoneOpen(same.zones[0] as NonNullable<typeof same.zones[0]>), zoneOpen(fresh.zones[0] as NonNullable<typeof fresh.zones[0]>)], [true, true])
+  })
+})
+
+describe("the import panel: Tick DungeonJournal's items", () => {
+  const BARROW = 50_000_123
+  const barrow = zoneDoc(BARROW, 0, { name: 'Test Barrow', kind: 'raid', players: 10, removed: false })
+  const keep = (sources: DropsSource[]) => mergeDrops([{ schema: 1, id: 'd-test-0002', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [{ name: 'Test Barrow', kind: 'raid', players: 10, sources }] }])
+  const warden = (extra: Partial<SourceTableDoc> = {}) => sourceDoc(BARROW, 'n990011', 0, { name: 'Warden of Fixtures', kind: 'boss', npcId: 990011, itemIds: [900100], ...extra })
+  const night = keep([{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], journal: [900101, 900102] }])
+
+  it('ticks only the new ones, never an item a leader took off', () => {
+    const docs = [barrow, warden({ hiddenItemIds: [900102] })]
+    const row = buildPreview(night, setup(docs), noAnswers()).zones[0]?.creatures[0] as NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
+    assert.deepEqual(row.items.map((item) => [item.itemId, item.status, item.tickable]), [[900101, 'new', true], [900102, 'takenOff', true]])
+    assert.deepEqual(journalToTick(row).map((item) => item.itemId), [900101])
+    const after = buildPreview(night, setup(docs), tickJournal(noAnswers(), row)).zones[0]?.creatures[0]
+    assert.deepEqual(after?.items.map((item) => [item.itemId, item.ticked]), [[900101, true], [900102, false]])
+  })
+
+  it('is not offered under a creature a leader took out: Bring back comes first', () => {
+    const docs = [barrow, warden({ removed: true })]
+    const row = buildPreview(night, setup(docs), noAnswers()).zones[0]?.creatures[0] as NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
+    assert.deepEqual([row.status, row.saved], ['takenOut', false])
+    assert.deepEqual(journalToTick(row), [])
+  })
+
+  it('a new creature with only DungeonJournal items is ticked with them', () => {
+    const row = buildPreview(night, setup([barrow]), noAnswers()).zones[0]?.creatures[0] as NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
+    assert.deepEqual([row.status, row.saved, journalToTick(row).length], ['new', false, 2])
+    const after = buildPreview(night, setup([barrow]), tickJournal(noAnswers(), row))
+    assert.deepEqual([after.zones[0]?.creatures[0]?.saved, after.counts.journalItems], [true, 2])
   })
 })

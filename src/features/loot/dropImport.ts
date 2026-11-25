@@ -226,6 +226,16 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     if (unit) unit.candidates.push(candidate)
     else units.push({ id, candidates: [candidate], hit: { unmatched: 'none' } })
   }
+  // A DungeonJournal list (no zone or instance id) joins a pasted zone that has one and the same name key, so one dungeon is one zone, made once.
+  const hasGameId = (candidate: CandidateZone) => candidate.zoneId !== undefined || candidate.instanceId !== undefined
+  for (const unit of [...units]) {
+    if (unit.candidates.some(hasGameId)) continue
+    const key = importZoneKey((unit.candidates[0] as CandidateZone).name)
+    const joins = units.find((other) => other !== unit && other.candidates.some((candidate) => hasGameId(candidate) && importZoneKey(candidate.name) === key))
+    if (!joins) continue
+    joins.candidates.push(...unit.candidates)
+    units.splice(units.indexOf(unit), 1)
+  }
   // Each placed by its first candidate the lists match (else its first candidate's miss), or by the leader's answer: a pick, or a zone to make.
   const groups = new Map<string, Unit[]>()
   for (const unit of units) {

@@ -446,6 +446,18 @@ describe('the drop list import, worked examples', () => {
     }
   })
 
+  it("a DungeonJournal list pasted with the game's string for the same dungeon is one zone, made once", () => {
+    const pasted = mergeDrops([
+      { schema: 1, id: 'd-test-0007', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [{ name: 'Hollow Test Keep', kind: 'dungeon', players: 5, sources: [{ npcId: 990012, name: 'Prior of Fixtures', kind: 'boss', itemIds: [900201], journal: [900201] }] }] },
+      { schema: 1, id: 'd-test-0008', at: 1797474600, by: 'IntrepidManager/test', zones: [{ name: 'Hollow Test Keep', kind: 'dungeon', players: 5, instanceId: 9100, difficultyId: 1, sources: [boss(990011, 'Warden of Fixtures', [900100])] }] },
+    ])
+    assert.equal(pasted.length, 2)
+    const unanswered = buildPreview(pasted, setup([]), noAnswers())
+    assert.deepEqual(unanswered.zones.map((zone) => [zone.id, zone.status, zone.creatures.length]), [['u9100', 'unmatched', 2]])
+    const made = buildPreview(pasted, setup([]), answers({ zones: { u9100: { make: true } } }))
+    assert.deepEqual(created(buildImportSave(made, setup([])).first), [zoneDocId(50_009_100, 0), sourceDocId(50_009_100, 'n990011', 0)])
+  })
+
   it("the Log reason names each pasted string once", () => {
     assert.equal(importReason('addon', ['d-test-0001', 'd-test-0002', 'd-test-0001']), 'Imported from the addon (d-test-0001, d-test-0002)')
   })

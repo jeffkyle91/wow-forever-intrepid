@@ -228,7 +228,7 @@ The module writes only its own allow-listed fields.
 
 **A zone matched in another phase.** `listZones` also lists zones first named in the next phase. When the matched guild zone has no named document at or before the picked phase, the zone write in the picked phase repeats its name, kind and size, so the merge sees it there.
 
-**Several candidates for one app zone** (two wings of one bundled dungeon, or two strings) are grouped before anything is built.
+**Several candidates for one app zone** (two wings of one bundled dungeon, or two strings) are grouped before anything is built. The difficulties of one instance take one answer. A DungeonJournal list, which has no instance id, joins a zone of the same paste that has one and the same name key, so a dungeon pasted from both is made once.
 
 **Creatures in a matched zone**, removed ones included (when two fit, the one in the lists wins over one a leader took out):
 1. The npc id: a bundled creature `npc{id}`, or a guild creature with that `npcId`.

@@ -114,7 +114,7 @@ export type ZoneRow = {
   inPhase: boolean
   takenOut: boolean // a leader took it out of this phase: unticked, opt-in, and nothing under it is ticked until it is
   zoneTicked: boolean
-  tickIn: boolean // the second call puts the zone in the phase: it isn't, and the import saves something under it or finds its items already there
+  tickIn: boolean // the second call puts the zone in the phase: it isn't, and the import saves something under it, finds its items already there, or a leader ticked it back
   repeatIdentity: boolean // a guild zone first named in a later phase: its write here repeats its name, kind and size (worked example 20)
   creatures: CreatureRow[] // in the paste's order; the zone-wide list last
 }
@@ -265,8 +265,9 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     const takenOut = status === 'matched' && !target.inPhase && takenOutOf(setup.docs, target.zoneId, setup.phaseNo)
     const zoneTicked = takenOut ? answers.ticks[group.id] === true : true
     const creatures = creatureRows(group.id, target, sources, zoneWide, setup, answers, zoneTicked)
-    // A retry after a first call that landed finds everything already there: the tick is what's left (worked example 4).
-    const tickIn = !target.inPhase && zoneTicked && creatures.some((creature) => creature.saved || creature.items.some((item) => item.status === 'already'))
+    // A retry after a first call that landed finds everything already there: the tick is what's left (worked example 4). A zone a leader took out and a
+    // leader ticks is put back by that tick alone.
+    const tickIn = !target.inPhase && zoneTicked && (takenOut || creatures.some((creature) => creature.saved || creature.items.some((item) => item.status === 'already')))
     zones.push({
       ...base, status, ...(status === 'matched' ? { how: (group.hit as { how: NonNullable<ZoneRow['how']> }).how } : {}), zoneId: target.zoneId,
       ...(status === 'matched' && target.name !== first.name ? { appName: target.name } : {}),

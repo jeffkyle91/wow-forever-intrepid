@@ -219,6 +219,18 @@ describe('the drop list import, worked examples', () => {
     assert.equal(ticked.zones[0]?.creatures[0]?.items[0]?.ticked, true)
   })
 
+  it('12b. ticking a zone a leader took out puts it back, also when nothing under it is saved', () => {
+    const docs = [zoneDoc(4321, 0, { removed: true })]
+    const pasted = candidates({ name: 'The Test Abbey', kind: 'dungeon', players: 5, sources: [boss(990101, 'Prior Lorem', [900100])] })
+    const unticked = buildPreview(pasted, setup(docs), noAnswers())
+    assert.deepEqual([unticked.zones[0]?.tickIn, unticked.counts.zones], [false, 0])
+    const ticked = buildPreview(pasted, setup(docs), answers({ ticks: { [unticked.zones[0]?.id as string]: true } }))
+    assert.deepEqual([ticked.zones[0]?.creatures[0]?.items[0]?.status, ticked.zones[0]?.tickIn, ticked.counts.zones], ['elsewhere', true, 1])
+    const { first, second } = save(docs, ticked)
+    assert.deepEqual(first, [])
+    assert.deepEqual(second.ticks.map((write) => [write.id, 'existing' in write && write.changes]), [[zoneDocId(4321, 0), { removed: false }]])
+  })
+
   it("13. a capture file's Wowhead zone id is never an app zone id: the zone is matched by name", () => {
     const capture = captureCandidate({ format: 1, zoneId: 5555, name: 'Test Barrow', kind: 'raid', players: 10, source: 'https://example.invalid/barrow', capturedAt: '2026-12-10', sources: [{ npcId: 990001, name: 'Grimtooth the Test Boss', kind: 'boss', itemIds: [900001] }], zoneWideItemIds: [900060] })
     const preview = buildPreview([capture], setup([barrowMade()]), noAnswers())

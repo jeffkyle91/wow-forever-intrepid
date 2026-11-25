@@ -286,7 +286,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | --- | --- |
 | **Unmatched zone** | Unanswered. Pick a zone, or (Guild Leader) make a new one. |
 | **Zone never in this phase** | Ticked into the phase only if something under it is saved. |
-| **Zone a leader took out of this phase** | Unticked, opt-in. |
+| **Zone a leader took out of this phase** | Unticked, opt-in. Ticked, it's put back even when nothing under it is saved. |
 | **New creature** | Ticked. A guessed boss is unticked, and says so. |
 | **Unmatched creature** | Unanswered: "same as …" or "new". |
 | **Differs** (a matched guild creature's name or kind) | Unanswered: keep the app's, or rename. |

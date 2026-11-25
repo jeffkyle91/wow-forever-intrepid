@@ -53,7 +53,7 @@ export function crc32(text: string): string {
 /** What a string holds once it reads: its payload with section 3's reader rules applied, and the rows the content check rejected. */
 export type ReadEnvelope = { kind: ExchangeKind; model: Record<string, unknown>; rowErrors: string[] }
 /**
- * The content check of one kind (step 9): the sorted row errors, or ExchangeReadError E_PAYLOAD for a broken top level. The importers pass their own;
+ * The content check of one kind (step 9): the row errors in the order met, or ExchangeReadError E_PAYLOAD for a broken top level. The importers pass their own;
  * without one, a string that passes steps 1 to 8 reads with no row errors.
  */
 export type ContentCheck = (model: Record<string, unknown>) => string[]

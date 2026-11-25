@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { writeLootTables } from '../../guildApi'
+import { saveZoneColors, writeLootTables } from '../../guildApi'
 import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString'
 import type { TableWrite } from '../../shared/game/guildTables'
 import { dropTables as builtIn } from '../../shared/lib/dropTables'
@@ -7,7 +7,7 @@ import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
-  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
+  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, madeZoneColors, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
   type ImportCounts, type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import './DropImport.css'
@@ -180,7 +180,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
   const set: Answering = { answers, update, busy, phase, ticks: (id, value) => update({ ...answers, ticks: { ...answers.ticks, [id]: value } }) }
 
   async function save() {
-    if (!preview || !paste || !('zones' in paste)) return
+    if (!preview || !paste || !('zones' in paste) || live.identity.isPreviewing) return // VIEW AS never saves
     const plan = buildImportSave(preview, setup)
     const who = { uid: live.identity.uid, displayName: live.identity.displayName }
     const reason = importReason(paste.from, paste.ids)
@@ -191,11 +191,16 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
       const count = (ids: string[]) => { written += ids.length }
       const write = (writes: TableWrite[], why: string) => (writes.length ? writeLootTables(writes, who, count, why) : Promise.resolve())
       await write(plan.first, reason)
+      // A zone the import made gets a suggested color, as one made in Settings does (Guild Leaders); if that fails, it keeps the automatic color.
+      let colored = true
+      if (plan.made.length && setup.canMakeZones) {
+        try { await saveZoneColors(madeZoneColors(plan.made, setup, live.data.zoneColors), { uid: live.identity.uid }) } catch { colored = false }
+      }
       const second = plan.second(applyWrites(docs, plan.first))
       await write(second.ticks, reason)
       for (const call of second.journal) await write(call.writes, journalReason(call.version)) // each version of DungeonJournal with its own reason
       setMutationError('')
-      setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.`, error: false })
+      setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.${colored ? '' : ` ${plural(plan.made.length, 'new zone keeps its', 'new zones keep their')} automatic color.`}`, error: false })
       setText('')
       setAnswers(noAnswers())
     } catch (error) {

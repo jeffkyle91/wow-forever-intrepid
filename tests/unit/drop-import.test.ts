@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
+import { JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, madeZoneColors, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
 import { captureCandidate, mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { mergeTables, sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type TableWrite, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
+import { zoneColor } from '../../src/shared/game/zoneColors.ts'
 
 // The worked examples of docs/design/drop-list-import.md section 8. Every name and id is invented; "the phase" is the one picked in the editor (0 here).
 
@@ -93,6 +94,20 @@ describe('the drop list import, worked examples', () => {
     const again = save(afterFirst, retry)
     assert.deepEqual(again.first, [])
     assert.deepEqual(again.second.ticks.map((write) => write.id), [zoneDocId(50_009_901, 0)])
+  })
+
+  it('4c. a zone the import makes gets a color no listed zone has, as Settings gives one; a color already chosen stays', () => {
+    const make = answers({ zones: { u9901: { make: true } } })
+    const docs = [barrowMade()]
+    const plan = buildImportSave(buildPreview(night1, setup(docs), make), setup(docs))
+    assert.deepEqual(plan.made, [50_009_901])
+    const chosen = { [String(BARROW)]: '#d05065', '50009903': '#278794' }
+    const colors = madeZoneColors([50_009_901, 50_009_902, 50_009_903], setup(docs), chosen)
+    assert.deepEqual(Object.keys(colors), ['50009901', '50009902'])
+    const inUse = ['#d05065', zoneColor(4321)]
+    assert.ok(Object.values(colors).every((color) => !inUse.includes(color)))
+    assert.notEqual(colors['50009901'], colors['50009902'])
+    assert.deepEqual(madeZoneColors([], setup(docs), chosen), {})
   })
 
   it('4b. only a Guild Leader can make a zone', () => {

@@ -12,6 +12,7 @@ import {
 } from '../../shared/game/guildTables.ts'
 import type { LootSourceKind, LootTableCapture } from '../../shared/game/lootTables.ts'
 import { dropsNameKey, mergeCandidateSources, mergeEvidence, type CandidateItem, type CandidateSource, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString.ts'
+import { suggestColor, zoneColor } from '../../shared/game/zoneColors.ts'
 import { RAID_ZONE_NAME_MAX, listZones, zoneNameKey, type CatalogZone, type ListedZone } from '../../shared/game/zoneList.ts'
 
 /** What the import is matched against and written into. `phaseNo` is the phase picked in the editor (the current one or the next). */
@@ -519,6 +520,8 @@ function existingCreatureWrite(zone: MergedZone, creature: MergedSource, itemIds
 export type JournalCall = { version: string | undefined; writes: TableWrite[] }
 export type ImportSave = {
   first: TableWrite[]
+  /** The zones the first call makes: a Guild Leader's save gives each a suggested color (madeZoneColors). */
+  made: number[]
   /** The second call, from the documents after the first (applyWrites): the zones' ticks, and DungeonJournal's items in their own writes, by version. */
   second: (after: LootTableDoc[]) => { ticks: TableWrite[]; journal: JournalCall[] }
 }
@@ -529,6 +532,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
   const merged = mergeTables(setup.captures, setup.docs, setup.phaseNo)
   const listed = listZones(setup.captures, setup.docs, setup.catalog, setup.currentPhase)
   const plans: { zone: ZoneRow; journal: Map<string, number[]> }[] = []
+  const made: number[] = []
   for (const zone of preview.zones) {
     if (zone.status === 'unmatched' || zone.zoneId === undefined || !zone.zoneTicked) continue
     const saved = zone.creatures.filter((creature) => creature.saved)
@@ -536,7 +540,10 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
     // A zone with no document at this phase: one the import makes (its own name), or a guild zone first named later (its name, kind and size as listed).
     const identity = zone.status === 'new' ? zone : listed.find((candidate) => candidate.zoneId === zone.zoneId) ?? zone
     const target = merged.find((candidate) => candidate.zoneId === zone.zoneId) ?? blankZone(zone.zoneId, setup.phaseNo, identity.name, identity.kind, identity.players)
-    if (zone.status === 'new') first.push({ id: zoneDocId(zone.zoneId, setup.phaseNo), create: { type: 'zone', zoneId: zone.zoneId, phaseNo: setup.phaseNo, name: zone.name, kind: zone.kind, players: zone.players } })
+    if (zone.status === 'new') {
+      first.push({ id: zoneDocId(zone.zoneId, setup.phaseNo), create: { type: 'zone', zoneId: zone.zoneId, phaseNo: setup.phaseNo, name: zone.name, kind: zone.kind, players: zone.players } })
+      made.push(zone.zoneId)
+    }
     else if (zone.repeatIdentity) first.push({ id: zoneDocId(zone.zoneId, setup.phaseNo), create: { type: 'zone', zoneId: zone.zoneId, phaseNo: setup.phaseNo, name: target.name, kind: target.kind, players: target.players } })
     const journal = new Map<string, number[]>()
     for (const row of saved) {
@@ -587,7 +594,24 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
     }
     return { ticks, journal }
   }
-  return { first, second }
+  return { first, made, second }
+}
+
+/**
+ * The colors of the zones a save makes (design section 6, "Its color"): each gets suggestColor's pick among the colors the listed zones have, as a zone
+ * made in Settings does, and the next one counts the colors given before it. A zone that has a color chosen already keeps it. Saved with saveZoneColors,
+ * which writes only these zones.
+ */
+export function madeZoneColors(zoneIds: number[], setup: Pick<ImportSetup, 'captures' | 'docs' | 'catalog' | 'currentPhase'>, chosen: Readonly<Record<string, string>>): Record<string, string> {
+  const inUse = listZones(setup.captures, setup.docs, setup.catalog, setup.currentPhase).map((zone) => zoneColor(zone.key, chosen))
+  const colors: Record<string, string> = {}
+  for (const zoneId of zoneIds) {
+    const key = String(zoneId)
+    if (chosen[key] !== undefined || colors[key] !== undefined) continue
+    colors[key] = suggestColor(inUse)
+    inUse.push(colors[key])
+  }
+  return colors
 }
 
 /** The Log reason of an import's writes (the rules allow up to 300 characters). */

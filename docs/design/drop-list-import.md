@@ -238,7 +238,7 @@ The module writes only its own allow-listed fields.
 2. The encounter id, through the key `e{encounterId}` of a creature the import made from rolls. When the source also has an npc id, the same write stores it on that creature.
    - A corpse joins it only when that creature has no npc id or the same one, and the zone's paste has no other corpse of that encounter (a fight of several bosses). Otherwise the corpse goes on to step 3.
    - Rolls (no npc id) always join it, also after it has learned its npc id or been renamed.
-3. The name key.
+3. The name key. A source known only by its name is also found by the key `t{hash}` the import made its creature with (step 5), so Save again finds it when it was written under another name ("Unnamed creature" for a blank one, or cut to 100 characters) or a leader renamed it.
 4. **A near name.** A guild creature of the same kind, with no npc id, whose name key starts or ends with the source's name key at a word boundary, or the other way round ("Grimtooth" and "Grimtooth the Test Boss"). The creature is **Unmatched**, and the leader picks "same as …" (the write stores the npc id on that creature) or "new".
 5. Otherwise it's new.
 
@@ -326,7 +326,7 @@ A counts line shows zones, creatures and items. Saving takes one confirm that na
    - **A zone the import makes:** its zone document, not in the phase yet.
    - **A matched zone** that needs its name repeated in this phase, or (under D2) its instance id stored, and is already in the phase: one edit carrying both.
    - **Creatures:**
-     - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or a random key when there's neither or the key is taken. The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
+     - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or `t` and a hash of its name's key when there's neither (at most 13 more letters and digits). It's the same on every build, so the preview's rows keep their ids and Save again finds the creature. When that key is another creature's, or its document exists, the key gets `x2` added (else `x3`, up to `x99`, and only then a random key). The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
      - **A creature whose document is there with no name** (a leader changed its items while the phase followed another, and the link was then taken away) keeps its key, and gets one edit of that document instead of a create: its name, kind, npc id and order, `removed:false` if it was taken out, and the new items added to what the document holds. Those count toward its room, and what it takes off shows as Taken off. The items it holds are that creature's, so no other creature of the import gets one of them. It's saved by default (a guessed boss still waits for a tick), also when every pasted item is on that document already: those items show as Already listed, and naming the creature is what makes them show.
      - **An existing creature** gets one edit of its document for this phase, or one create when the phase has none yet, carrying everything at once: new items, `removed:false` for a creature a leader took out, the npc id from "same as …", a rename from Differs.
      - **The zone-wide list** is the source document with the key `zonewide`, with no npc id or order. It's created or edited the same way, at most 80 items per phase. A creature beats the zone-wide list when both would hold an item in this import.
@@ -344,8 +344,8 @@ If the second call fails, the zone stays out of the phase (nothing shows), and a
 - the one reason the refused batch gives.
 
 The text and the answers stay in the panel, so pressing Save again finishes the job: the preview is built again from the stored documents, and what was saved shows as Already listed. Pasting the same string again later works the same way:
-- **Fixed ids:** `n…` and `e…` keys, and a fixed zone id, are found by id.
-- **Random ids:** a random creature key, or a random zone id, is found by name. A zone made by the import has its name from its first write. A zone written as "Unnamed zone", or with its raid name cut, isn't found by name in a later paste: the leader picks it.
+- **Fixed ids:** an `n…` creature is found by its npc id, an `e…` one by its encounter, a `t…` one by its name or its key, and a fixed zone id by id.
+- **Random ids:** a random zone id, or a creature's random key (only when its own key and `x2` to `x99` are all taken), is found by name. A zone made by the import has its name from its first write. A zone written as "Unnamed zone", or with its raid name cut, isn't found by name in a later paste: the leader picks it.
 
 For a zone already in a live phase, the creatures saved before a failure are visible at once.
 

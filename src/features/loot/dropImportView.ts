@@ -81,6 +81,12 @@ export function zoneAnswer(value: string, subject: { instanceId?: number }, take
   return value === 'new' ? { make: true, zoneId: zoneIdFor(subject, taken) } : { pick: Number(value) }
 }
 
+/**
+ * A creature block's React key. A row's id is the key of the creature it writes to, so answering "same as …" moves it to that creature: a row with a
+ * question is keyed by the question's first answer key instead, so answering keeps its block, and the select in it, mounted.
+ */
+export const creatureBlockKey = (row: CreatureRow): string => row.answerKeys?.[0] ?? row.id
+
 /** A creature's "Same as" select: the creature its answer names, "new" for a new creature, or "" (Choose) when it has no answer that applies here. */
 export const sameAsValue = (row: CreatureRow): string => (row.answer ? ('same' in row.answer ? row.answer.same : 'new') : '')
 

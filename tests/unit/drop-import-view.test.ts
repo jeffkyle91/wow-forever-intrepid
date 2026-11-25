@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, previewOf, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, colorMadeZones, creatureBlockKey, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, previewOf, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -110,8 +110,8 @@ describe('the import panel: answering keeps the block the leader is in', () => {
   const BARROW = 50_000_123 // "Test Barrow", a raid of 10 made in Settings
   const barrow = zoneDoc(BARROW, 0, { name: 'Test Barrow', kind: 'raid', players: 10, removed: false })
   const hollow = (sources: DropsSource[]): DropsZone => ({ name: 'Hollow Test Barrow', kind: 'raid', players: 40, instanceId: 9901, sources })
-  // React keys: a zone block by its row id, a creature block by its row id. The same key keeps the block, and the select in it, mounted.
-  const keys = (preview: ReturnType<typeof buildPreview>) => preview.zones.map((zone) => [zone.id, zone.creatures.map((row) => row.id)])
+  // React keys: a zone block by its row id, a creature block by creatureBlockKey. The same key keeps the block, and the select in it, mounted.
+  const keys = (preview: ReturnType<typeof buildPreview>) => preview.zones.map((zone) => [zone.id, zone.creatures.map((row) => creatureBlockKey(row))])
 
   it('a Zone pick or "Make a new zone" keeps the zone block, and the block stays open', () => {
     const docs = [barrow, sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900001] })]
@@ -137,6 +137,9 @@ describe('the import panel: answering keeps the block the leader is in', () => {
     const fresh = buildPreview(night, setup(docs), answers({ ...pick, creatures: { 'u9901|ctgrimtooth the test boss': { make: true } } }))
     assert.equal(asked.zones[0]?.creatures[0]?.status, 'unmatched')
     assert.deepEqual([same.zones[0]?.creatures[0]?.status, fresh.zones[0]?.creatures[0]?.status], ['matched', 'new'])
+    // The row moves to the creature "same as" names (its id is that creature's key), but its block keeps its key: the question's first answer key.
+    assert.notEqual(same.zones[0]?.creatures[0]?.id, asked.zones[0]?.creatures[0]?.id)
+    assert.deepEqual(keys(asked), [['u9901', ['u9901|ctgrimtooth the test boss']]])
     assert.deepEqual(keys(same), keys(asked))
     assert.deepEqual(keys(fresh), keys(asked))
     assert.deepEqual([zoneOpen(same.zones[0] as NonNullable<typeof same.zones[0]>), zoneOpen(fresh.zones[0] as NonNullable<typeof fresh.zones[0]>)], [true, true])

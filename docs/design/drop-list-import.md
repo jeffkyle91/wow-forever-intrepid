@@ -307,7 +307,7 @@ A counts line shows zones, creatures and items. Saving takes one confirm that re
    - **A zone the import makes:** its zone document, not in the phase yet.
    - **A matched zone** that needs its name repeated in this phase, or (under D2) its instance id stored, and is already in the phase: one edit carrying both.
    - **Creatures:**
-     - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or a random key when there's neither. The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
+     - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or a random key when there's neither or when the phase already has a document with that key (one the merge leaves out, such as a document with no name outside the phase's follow chain). The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
      - **An existing creature** gets one edit of its document for this phase, or one create when the phase has none yet, carrying everything at once: new items, `removed:false` for a creature a leader took out, the npc id from "same as …", a rename from Differs.
      - **The zone-wide list** is the source document with the key `zonewide`, with no npc id or order. It's created or edited the same way, at most 80 items per phase. A creature beats the zone-wide list when both would hold an item in this import.
 2. **Second call, after the first has landed**, built from the stored documents:

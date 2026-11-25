@@ -408,14 +408,15 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     // Only what is saved claims its item: an unticked item, or one under a creature that isn't saved, leaves it to the rows after (the first saved row wins).
     if (draft.row.saved) for (const item of draft.row.items) if (item.ticked) claims.set(item.itemId, draft.row.name)
   }
-  placeNewCreatures(zone, drafts)
+  placeNewCreatures(zone, drafts, new Set(setup.docs.map((doc) => doc.id)))
   const rows = drafts.map((draft) => draft.row)
   return zoneWideDraft.row.items.length ? [...rows, zoneWideDraft.row] : rows
 }
 
 // The keys and places of new creatures (design section 6, "Order"): one right after the matched creature it follows in the paste when there's room,
-// else after the zone's last creature, in the paste's order.
-function placeNewCreatures(zone: MergedZone, drafts: Draft[]) {
+// else after the zone's last creature, in the paste's order. A key whose document is there already, also one the merge leaves out (outside the phase's
+// follow chain, or never named), gets a random key instead: the save never creates a document that exists (section 7).
+function placeNewCreatures(zone: MergedZone, drafts: Draft[], docIds: Set<string>) {
   const orders = zone.sources.map((creature) => creature.order)
   const used = new Set(orders)
   let end = Math.max(0, ...orders)
@@ -425,7 +426,7 @@ function placeNewCreatures(zone: MergedZone, drafts: Draft[]) {
     if (draft.existing) { after = draft.existing.order; continue }
     const source = draft.candidates[0] as CandidateSource
     let key = source.npcId !== undefined ? `n${source.npcId}` : source.encounterId !== undefined ? `e${source.encounterId}` : newCreatureKey()
-    if (keys.has(key)) key = newCreatureKey()
+    if (keys.has(key) || docIds.has(sourceDocId(zone.zoneId, key, zone.phaseNo))) key = newCreatureKey()
     keys.add(key)
     draft.row.key = key
     const nextUp = after === undefined ? undefined : Math.min(...orders.filter((order) => order > (after as number)), TABLE_ORDER_MAX + 1)

@@ -335,6 +335,21 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual([merged?.name, merged?.inPhase, merged?.sources.length], ['Test Barrow', true, 2])
   })
 
+  it('never creates a creature document that is there already, also one outside the follow chain the merge leaves out', () => {
+    // Phase 1 followed phase 0 when a leader added an item to Grimtooth there (a document with no name); the link was then taken away.
+    const docs: LootTableDoc[] = [
+      { id: 'p1', type: 'phase', phaseNo: 1, rev: 2 }, barrowMade(), zoneDoc(BARROW, 1, { removed: false }),
+      sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900001] }),
+      sourceDoc(BARROW, 'n990001', 1, { itemIds: [900002] }),
+    ]
+    const preview = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900003])])), setup(docs, { phaseNo: 1 }), pickBarrow)
+    const row = preview.zones[0]?.creatures[0]
+    assert.equal(row?.status, 'new')
+    assert.notEqual(row?.key, 'n990001')
+    const first = buildImportSave(preview, setup(docs, { phaseNo: 1 })).first
+    assert.deepEqual(first.filter((write) => docs.some((doc) => doc.id === write.id) && 'create' in write), [])
+  })
+
   it('places a new creature right after the creature it follows in the paste, else after the last one', () => {
     const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] }), sourceDoc(BARROW, 'n990009', 0, { name: 'Last Test Boss', kind: 'boss', npcId: 990009, order: 20, itemIds: [900090] })]
     const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001]), boss(990002, 'Lady Test Ipsum', [900003]), boss(990009, 'Last Test Boss', [900090]), boss(990010, 'After Test Boss', [900091])]))

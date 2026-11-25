@@ -404,7 +404,31 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
   // Each source finds its creature (or none); sources that find one creature are placed on one row.
   const slots: { found?: MergedSource; placed: Placed[] }[] = []
   const byExisting = new Map<string, Placed[]>()
+  // A new creature's row by its name (the merge's name key): a source that finds no creature and isn't answered "same as …" joins the new creature of the same name, as it would join
+  // that creature once it is in the lists (found by name). Two difficulties of a new boss, or a corpse and DungeonJournal's entry without an npc id, so
+  // make one creature, and Save again finds the same one. Sources known by an id are placed first, so the row is a corpse's or rolls'.
+  const newByName = new Map<string, Placed[]>()
+  const nameOnly = (source: CandidateSource) => source.npcId === undefined && source.encounterId === undefined
+  // The npc ids this paste brings: a creature this import's own first call gave one of them is still the creature a "same as …" answer named.
+  // The "same as …" answers this paste's corpses carry, by the creature they name: a creature this import's own first call gave one of those npc ids is
+  // still the creature the answers named, so Save again asks and answers as before (two difficulties of one boss, or a corpse and DungeonJournal's entry).
+  const sameOf = (source: CandidateSource) => {
+    const given = ids.answerKeys(source).map((key) => answers.creatures[key]).find((one) => one !== undefined && 'same' in one)
+    return given && 'same' in given ? given.same : undefined
+  }
+  const answeredNpcIds = new Map<string, Set<number>>()
   for (const source of sources) {
+    const same = sameOf(source)
+    if (same !== undefined && source.npcId !== undefined) answeredNpcIds.set(same, (answeredNpcIds.get(same) ?? new Set<number>()).add(source.npcId))
+  }
+  // A near name is asked (worked example 15). A creature with an npc id isn't a near name, except one whose npc id a "same as …" answer of this paste
+  // put there.
+  const nearOf = (source: CandidateSource) => existing.filter((creature) => !creature.builtIn && creature.kind === source.kind
+    && (creature.npcId === undefined || (creature.npcId !== source.npcId && answeredNpcIds.get(creature.key)?.has(creature.npcId) === true))
+    && nearName(creatureKeyOf(creature.name), creatureKeyOf(source.name))).map((creature) => ({ key: creature.key, name: creature.name }))
+  // The first of a source's keys that holds an answer that applies: "new", or "same as" one of its near names (one that isn't is ignored).
+  const answerOf = (answerKeys: string[], near: { key: string }[]) => (near.length ? answerKeys.map((key) => answers.creatures[key]).find((one) => one !== undefined && ('make' in one || near.some((option) => option.key === one.same))) : undefined)
+  for (const source of [...sources.filter((one) => !nameOnly(one)), ...sources.filter(nameOnly)]) {
     const answerKeys = ids.answerKeys(source)
     let found: MergedSource | undefined
     let how: CreatureRow['how']
@@ -418,15 +442,27 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
       found = existing.find((creature) => creature.key === `e${source.encounterId}` && (source.npcId === undefined || creature.npcId === undefined || creature.npcId === source.npcId))
       how = 'encounter'
     }
+    // A "same as …" the leader gave still applies before a name match: on Save again, a creature the first call made with this source's name is another
+    // source's, not the one the leader named.
+    if (!found && sameOf(source) !== undefined) {
+      near = nearOf(source)
+      answer = answerOf(answerKeys, near)
+      if (answer && 'same' in answer) { const same = answer.same; found = existing.find((creature) => creature.key === same); how = 'answer' }
+      else { near = []; answer = undefined }
+    }
     if (!found) { found = liveFirst(existing, (creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }
     // A creature known by its name alone is also found by the key the import made it with, so Save again finds it when it was written under another name
     // (a blank one "Unnamed creature", a long one cut to fit) or a leader renamed it.
     if (!found && source.npcId === undefined && source.encounterId === undefined) { const key = plannedKey(source); found = existing.find((creature) => creature.key === key); how = 'name' }
+    // Not answered "same as …": it joins the new creature of its name, if there is one (asked about or not, or answered "A new creature": one answer
+    // covers them all, and "A new creature" keeps them one creature).
+    if (!found && hasText(source.name) && sameOf(source) === undefined) {
+      const sameName = newByName.get(dropsNameKey(source.name))
+      if (sameName) { sameName.push({ source, near: [], answerKeys }); continue }
+    }
     if (!found) {
-      // A near name is asked (worked example 15): the answer says which creature it is, or that it is a new one.
-      near = existing.filter((creature) => !creature.builtIn && creature.kind === source.kind && creature.npcId === undefined && nearName(creatureKeyOf(creature.name), creatureKeyOf(source.name))).map((creature) => ({ key: creature.key, name: creature.name }))
-      // The first of its keys that holds an answer that applies here: "new", or "same as" a creature that is a near name in this zone (one that isn't is ignored).
-      answer = near.length ? answerKeys.map((key) => answers.creatures[key]).find((one) => one !== undefined && ('make' in one || near.some((option) => option.key === one.same))) : undefined
+      near = nearOf(source)
+      answer = answerOf(answerKeys, near)
       if (answer && 'same' in answer) { const same = answer.same; found = existing.find((creature) => creature.key === same); how = 'answer' }
     }
     const placed: Placed = { source, ...(found && how ? { how } : {}), near, ...(answer ? { answer } : {}), answerKeys }
@@ -434,8 +470,14 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
     if (there) { there.push(placed); continue }
     const slot = { ...(found ? { found } : {}), placed: [placed] }
     if (found) byExisting.set(found.key, slot.placed)
+    else if (hasText(source.name) && !newByName.has(dropsNameKey(source.name))) newByName.set(dropsNameKey(source.name), slot.placed)
     slots.push(slot)
   }
+  // Back in the paste's order: rows, and the sources on each row.
+  const pasteOrder = new Map(sources.map((source, index) => [source, index]))
+  const at = (one: Placed) => pasteOrder.get(one.source) ?? 0
+  for (const slot of slots) slot.placed.sort((a, b) => at(a) - at(b))
+  slots.sort((a, b) => at(a.placed[0] as Placed) - at(b.placed[0] as Placed))
 
   const drafts: Draft[] = []
   for (const { found, placed } of slots) {
@@ -446,6 +488,8 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
       const source = head.source
       const id = ids.creature(found.key)
       const asked = placed.find((one) => one.near.length)
+      // The question's keys: every pasted creature on this row that was asked, so one answer changes them all (two answered sources share one select).
+      const askedKeys = [...new Set(placed.filter((one) => one.near.length).flatMap((one) => one.answerKeys))]
       const npcId = [head, ...placed].find((one) => one.source.npcId !== undefined)?.source.npcId
       const differs: CreatureRow['differs'] = {}
       if (!found.builtIn) {
@@ -456,7 +500,7 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
         row: {
           id, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(head.how ? { how: head.how } : {}), key: found.key, near: asked?.near ?? [],
           ...(Object.keys(differs).length ? { differs } : {}), rename: Object.keys(differs).length > 0 && answers.renames[id] === true,
-          ...(asked ? { answerKeys: asked.answerKeys, ...(asked.answer ? { answer: asked.answer } : {}) } : {}),
+          ...(asked ? { answerKeys: askedKeys, ...(asked.answer ? { answer: asked.answer } : {}) } : {}),
           ...(npcId !== undefined && found.npcId === undefined && !found.builtIn ? { storeNpcId: npcId } : {}),
           saved: false, creatureTickable: false, items: [],
         },
@@ -464,11 +508,13 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
       })
     } else {
       // A new creature (or one asked about): its row's id is the key it is made with, given with its place below (placeNewCreatures).
-      const { source, near, answer, answerKeys } = placed[0] as Placed
+      // A source known by its name alone may have joined it (newByName): the row is the corpse's or the rolls', and its question is asked for both.
+      const { source, near, answer } = placed.find((one) => !nameOnly(one.source)) ?? (placed[0] as Placed)
+      const answerKeys = [...new Set(placed.flatMap((one) => one.answerKeys))]
       const planned = plannedKey(source)
       const unnamed = !existing.some((creature) => creature.key === planned) ? unnamedCreature(setup, zone.zoneId, planned, creatureName(source)) : undefined
       const question = near.length ? { answerKeys, ...(answer ? { answer } : {}) } : {}
-      drafts.push({ row: { id: '', name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answer ? 'unmatched' : 'new', near, ...question, rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source], ...(unnamed ? { unnamed } : {}) })
+      drafts.push({ row: { id: '', name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answer ? 'unmatched' : 'new', near, ...question, rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source, ...placed.map((one) => one.source).filter((one) => one !== source)], ...(unnamed ? { unnamed } : {}) })
     }
   }
 

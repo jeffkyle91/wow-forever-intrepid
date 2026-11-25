@@ -1,37 +1,26 @@
 import { useMemo, useState } from 'react'
-import { writeLootTables } from '../../guildApi'
-import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString'
+import { saveZoneColors, writeLootTables } from '../../guildApi'
+import type { CandidateZone, ItemEvidence } from '../../shared/game/dropsString'
 import type { TableWrite } from '../../shared/game/guildTables'
 import { dropTables as builtIn } from '../../shared/lib/dropTables'
 import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
-  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
-  type ImportCounts, type ImportSetup, type ItemRow, type ZoneRow,
+  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
+  type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
+import {
+  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nextPhaseHint, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+} from './dropImportView'
 import './DropImport.css'
 
 // "Import a drop list" (LOOT-008, docs/design/drop-list-import.md section 7), at the top of Edit the drop lists. A leader pastes the addon's drops
 // strings (/im drops) or a capture file, answers what isn't clear, and saves into the phase picked in the editor, in one confirm. The browser reads the
 // text itself and never stores it. dropImport.ts does the matching and builds the writes; this holds the answers and runs the save.
 
-type Paste = { from: 'addon' | 'capture'; zones: CandidateZone[]; ids: string[]; skipped: number } | { errors: string[] } | null
-
-function readPaste(text: string): Paste {
-  if (!text.trim()) return null
-  if (looksLikeCapture(text)) {
-    const read = readCapturePaste(text)
-    return read.ok ? { from: 'capture', zones: read.zones, ids: [], skipped: 0 } : { errors: read.errors }
-  }
-  const read = readDropsPaste(text)
-  if (!read.ok) return { errors: [read.message] }
-  return { from: 'addon', zones: mergeDrops(read.strings.map((one) => one.model)), ids: read.strings.map((one) => one.model.id), skipped: read.strings.reduce((count, one) => count + one.rowErrors.length, 0) }
-}
-
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const shortDate = (date: string) => `${MONTHS[Number(date.slice(5, 7)) - 1] ?? ''} ${Number(date.slice(8, 10))}`
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
 function evidenceText(evidence: ItemEvidence, trash: boolean): string[] {
   const parts: string[] = []
@@ -57,26 +46,16 @@ function statusText(row: ItemRow, phase: string): string | undefined {
   }
 }
 
-function countsText(counts: ImportCounts): string {
-  const parts = [
-    counts.newZones ? `${plural(counts.zones, 'zone', 'zones')} (${counts.newZones} new)` : plural(counts.zones, 'zone', 'zones'),
-    counts.newCreatures ? `${plural(counts.creatures, 'creature', 'creatures')} (${counts.newCreatures} new)` : plural(counts.creatures, 'creature', 'creatures'),
-    plural(counts.items, 'item', 'items'),
-    ...(counts.journalItems ? [`${counts.journalItems} from DungeonJournal`] : []),
-  ]
-  return parts.join(', ')
-}
-
 type Answering = { ticks: (id: string, value: boolean) => void; answers: ImportAnswers; update: (next: ImportAnswers) => void; busy: boolean; phase: string }
 
-function ItemLine({ row, trash, set }: { row: ItemRow; trash: boolean; set: Answering }) {
+function ItemLine({ row, creature, trash, set }: { row: ItemRow; creature: CreatureRow; trash: boolean; set: Answering }) {
   const state = useItemInfo(row.itemId)
   const gameName = row.evidence.seen?.name
   const status = statusText(row, set.phase)
   const notes = [...evidenceText(row.evidence, trash), ...(status ? [status] : [])]
   return <li className={`import-item${row.tickable ? '' : ' import-item-off'}`}>
     {row.tickable
-      ? <input type="checkbox" checked={row.ticked} disabled={set.busy} aria-label={`Add item ${gameName ?? row.itemId}`} onChange={(event) => set.ticks(row.id, event.target.checked)} />
+      ? <input type="checkbox" checked={row.ticked} disabled={set.busy} aria-label={`Add item ${gameName ?? row.itemId}`} onChange={(event) => set.update(tickItem(set.answers, creature, row, event.target.checked))} />
       : <span className="import-tick-space" aria-hidden="true" />}
     <ItemTooltip itemId={row.itemId} {...(gameName ? { fallbackName: gameName } : {})} />
     {isMissingItem(state) && <small className="import-note">not on Wowhead yet</small>}
@@ -86,7 +65,7 @@ function ItemLine({ row, trash, set }: { row: ItemRow; trash: boolean; set: Answ
 }
 
 function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; set: Answering }) {
-  const journal = row.items.filter((item) => item.journalOnly && item.tickable)
+  const journal = journalToTick(row)
   const chips = [
     row.kind === 'zonewide' ? 'zone-wide' : row.kind,
     ...(row.npcId !== undefined ? [`NPC ${row.npcId}`] : []),
@@ -115,41 +94,34 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
     </label>}
     {row.differs && <label className="import-answer import-check"><input type="checkbox" checked={row.rename} disabled={set.busy} onChange={(event) => set.update({ ...set.answers, renames: { ...set.answers.renames, [row.id]: event.target.checked } })} />
       Rename to {row.differs.name ?? row.name}{row.differs.kind ? ` (${row.differs.kind})` : ''}</label>}
-    <ul className="import-items">{row.items.map((item) => <ItemLine key={item.id} row={item} trash={row.kind === 'trash'} set={set} />)}</ul>
-    {journal.length > 0 && <button type="button" className="button button-secondary tables-small" disabled={set.busy} onClick={() => {
-      const ticks = { ...set.answers.ticks }
-      for (const item of journal) ticks[item.id] = true
-      set.update({ ...set.answers, ticks: { ...ticks, [row.id]: true } })
-    }}>Tick DungeonJournal&rsquo;s {plural(journal.length, 'item', 'items')}</button>}
+    <ul className="import-items">{row.items.map((item) => <ItemLine key={item.id} row={item} creature={row} trash={row.kind === 'trash'} set={set} />)}</ul>
+    {journal.length > 0 && <button type="button" className="button button-secondary tables-small" disabled={set.busy} onClick={() => set.update(tickJournal(set.answers, row))}>Tick DungeonJournal&rsquo;s {plural(journal.length, 'item', 'items')}</button>}
   </section>
 }
 
-function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: ImportSetup; set: Answering; canMake: boolean }) {
-  const ownAnswer = zone.answerKeys[0] ?? zone.id
-  const answer = set.answers.zones[ownAnswer]
-  const choose = (value: string) => {
-    const next = value === '' ? undefined : value === 'new' ? { make: true as const, zoneId: zoneIdFor(zone, takenZoneIds(setup)) } : { pick: Number(value) }
-    set.update({ ...set.answers, zones: { ...set.answers.zones, [ownAnswer]: next } })
-  }
-  // Open when there is something to save or decide; a zone whose rows are all already listed starts closed.
-  const anything = zone.creatures.some((creature) => creature.saved || creature.creatureTickable || creature.status === 'unmatched' || creature.differs || creature.items.some((item) => item.tickable))
+function ZoneBlock({ zone, candidates, setup, set, canMake }: { zone: ZoneRow; candidates: CandidateZone[]; setup: ImportSetup; set: Answering; canMake: boolean }) {
+  const choose = (answerKey: string, value: string) =>
+    set.update({ ...set.answers, zones: { ...set.answers.zones, [answerKey]: zoneAnswer(value, answerSubject(answerKey, candidates), takenZoneIds(setup)) } })
+  const chip = zoneChip(zone, set.phase)
   const unmatchedWhy = zone.unmatchedWhy === 'tie' ? 'More than one zone has this name.' : zone.unmatchedWhy === 'catalog' ? "It's in the older raid list, which can't hold drop lists." : undefined
-  return <details className={`import-zone import-${zone.status}`} open={zone.status !== 'matched' || anything}>
+  return <details className={`import-zone import-${zone.status}`} open={zoneOpen(zone)}>
     <summary>
       <strong>{zone.status === 'new' ? zone.name : zone.appName ?? zone.name}</strong>
       <span>{zone.players}-player {zone.kind}</span>
       {zone.appName && <span className="import-note">as {zone.name} in the paste</span>}
-      {zone.status === 'new' && <span className="drops-kind tables-added">new zone</span>}
-      {zone.status === 'matched' && zone.tickIn && <span className="drops-kind">not in {set.phase} yet</span>}
+      {chip && <span className={chip.added ? 'drops-kind tables-added' : 'drops-kind'}>{chip.text}</span>}
     </summary>
     <div className="import-zone-body">
-      {(zone.status === 'unmatched' || zone.how === 'pick' || zone.status === 'new') && <label className="import-answer">Zone
-        <select value={answer ? ('pick' in answer ? String(answer.pick) : 'new') : ''} disabled={set.busy} onChange={(event) => choose(event.target.value)}>
-          <option value="">Choose</option>
-          {zone.options.map((option) => <option key={option.zoneId} value={option.zoneId}>{option.name} ({option.players}-player {option.kind})</option>)}
-          {canMake && <option value="new">Make a new zone</option>}
-        </select>
-      </label>}
+      {zoneSelects(zone).map(({ answerKey, label }) => {
+        const answer = set.answers.zones[answerKey]
+        return <label key={answerKey} className="import-answer">{label}
+          <select value={answer ? ('pick' in answer ? String(answer.pick) : 'new') : ''} disabled={set.busy} onChange={(event) => choose(answerKey, event.target.value)}>
+            <option value="">Choose</option>
+            {zone.options.map((option) => <option key={option.zoneId} value={option.zoneId}>{option.name} ({option.players}-player {option.kind})</option>)}
+            {canMake && <option value="new">Make a new zone</option>}
+          </select>
+        </label>
+      })}
       {unmatchedWhy && <p className="import-note">{unmatchedWhy}</p>}
       {zone.status === 'new' && <p className="import-note">{zone.kind === 'raid' && [10, 20, 40].includes(zone.players) ? 'A zone is permanent, and a raid of this size can be scheduled.' : 'A zone is permanent.'}</p>}
       {zone.takenOut && <label className="import-answer import-check"><input type="checkbox" checked={zone.zoneTicked} disabled={set.busy} onChange={(event) => set.ticks(zone.id, event.target.checked)} />Put it back in {set.phase}</label>}
@@ -159,10 +131,11 @@ function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: Import
   </details>
 }
 
-export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; phaseNo: number; phase: string }) {
+// `nextPhase` is the next phase's name, given only when the phase picked is the current (live) one.
+export function DropImportPanel({ live, phaseNo, phase, nextPhase }: { live: TabContext; phaseNo: number; phase: string; nextPhase?: string }) {
   const [text, setText] = useState('')
   const [answers, setAnswers] = useState<ImportAnswers>(noAnswers)
-  const [confirming, setConfirming] = useState(false)
+  const [confirm, setConfirm] = useState<ConfirmFor | null>(null)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
   const { busy, setBusy, setMutationError } = live.feedback
   const docs = live.data.lootTables
@@ -174,35 +147,45 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
   const preview = useMemo(() => (paste && 'zones' in paste ? buildPreview(paste.zones, setup, answers) : null), [paste, setup, answers])
   const previewing = live.identity.isPreviewing
   const counts = preview?.counts
-  const nothing = !counts || (counts.items + counts.journalItems === 0 && counts.creatures === 0 && counts.zones === 0)
+  const nothing = nothingToSave(counts)
+  const hint = counts ? nextPhaseHint(counts, phase, nextPhase) : undefined
+  // The confirm step is for one phase and one text: picking another phase in the editor or loading a file closes it, and going back doesn't reopen it.
+  const confirming = confirmHolds(confirm, phaseNo, text)
+  if (confirm && !confirming) setConfirm(null)
 
-  const update = (next: ImportAnswers) => { setAnswers(next); setConfirming(false) }
+  const update = (next: ImportAnswers) => { setAnswers(next); setConfirm(null) }
   const set: Answering = { answers, update, busy, phase, ticks: (id, value) => update({ ...answers, ticks: { ...answers.ticks, [id]: value } }) }
 
   async function save() {
-    if (!preview || !paste || !('zones' in paste)) return
+    if (!preview || !paste || !('zones' in paste) || live.identity.isPreviewing) return // VIEW AS never saves
     const plan = buildImportSave(preview, setup)
+    // The second call is built from the documents as the first leaves them, so the whole save is known before anything is sent.
+    const second = plan.second(applyWrites(docs, plan.first))
+    const total = plan.first.length + second.ticks.length + second.journal.reduce((sum, call) => sum + call.writes.length, 0)
     const who = { uid: live.identity.uid, displayName: live.identity.displayName }
     const reason = importReason(paste.from, paste.ids)
-    const version = preview.zones.find((zone) => zone.journal)?.journal
     let written = 0
     setBusy(true)
-    setConfirming(false)
+    setConfirm(null)
     try {
       const count = (ids: string[]) => { written += ids.length }
       const write = (writes: TableWrite[], why: string) => (writes.length ? writeLootTables(writes, who, count, why) : Promise.resolve())
       await write(plan.first, reason)
-      const second = plan.second(applyWrites(docs, plan.first))
+      // A zone the import made gets a suggested color, as one made in Settings does (Guild Leaders); if that fails, it keeps the automatic color.
+      let colored = true
+      if (plan.made.length && setup.canMakeZones) {
+        try { await saveZoneColors(madeZoneColors(plan.made, setup, live.data.zoneColors), { uid: live.identity.uid }) } catch { colored = false }
+      }
       await write(second.ticks, reason)
-      await write(second.journal, journalReason(version))
+      for (const call of second.journal) await write(call.writes, journalReason(call.version)) // each version of DungeonJournal with its own reason
       setMutationError('')
-      setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.`, error: false })
+      setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.${colored ? '' : ` ${plural(plan.made.length, 'new zone keeps its', 'new zones keep their')} automatic color.`}`, error: false })
       setText('')
       setAnswers(noAnswers())
     } catch (error) {
       const stale = (error as { code?: string } | null)?.code === 'permission-denied'
       const why = stale ? 'The change was refused: someone may have changed the same list a moment ago, or the phase may have just started.' : error instanceof Error ? error.message : 'The save stopped.'
-      setMessage({ text: `${plural(written, 'change was', 'changes were')} saved before it stopped. ${why} Paste the same text again to finish.`, error: true })
+      setMessage({ text: importStoppedText(written, Math.max(0, total - written), why), error: true })
     } finally {
       setBusy(false)
     }
@@ -213,28 +196,32 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
     <div className="tables-import-inner">
       <div className="tables-add">
         <label>Drops strings from the addon, or a capture file
-          <textarea value={text} rows={3} disabled={busy} placeholder="IM1:drops:j:..." onChange={(event) => { setText(event.target.value); setAnswers(noAnswers()); setConfirming(false); setMessage(null) }} />
+          <textarea value={text} rows={3} disabled={busy} placeholder="IM1:drops:j:..." onChange={(event) => { setText(event.target.value); setAnswers(noAnswers()); setConfirm(null); setMessage(null) }} />
         </label>
         <label className="import-file">Or a capture file<input type="file" accept=".json,application/json,.txt,text/plain" disabled={busy} onChange={(event) => {
           const file = event.target.files?.[0]
-          if (file) void file.text().then((read) => { setText(read); setAnswers(noAnswers()); setMessage(null) })
+          if (file) void readFileText(file).then((read) => {
+            if ('error' in read) { setMessage({ text: read.error, error: true }); return }
+            setText(read.text); setAnswers(noAnswers()); setConfirm(null); setMessage(null)
+          })
           event.target.value = ''
         }} /></label>
       </div>
       {paste && 'errors' in paste && <ul className="tables-message tables-bad import-errors" role="alert">{paste.errors.map((error) => <li key={error}>{error}</li>)}</ul>}
       {paste && 'zones' in paste && paste.skipped > 0 && <p className="import-note">{plural(paste.skipped, 'row of the string could', 'rows of the string could')} not be read and {paste.skipped === 1 ? 'is' : 'are'} left out.</p>}
       {preview && <>
-        {preview.zones.map((zone) => <ZoneBlock key={zone.id} zone={zone} setup={setup} set={set} canMake={setup.canMakeZones} />)}
+        {preview.zones.map((zone) => <ZoneBlock key={zone.id} zone={zone} candidates={paste && 'zones' in paste ? paste.zones : []} setup={setup} set={set} canMake={setup.canMakeZones} />)}
         <div className="tables-setup-foot">
-          <span className="tables-note">{counts ? countsText(counts) : ''}{counts?.unanswered ? `. ${plural(counts.unanswered, 'question', 'questions')} unanswered: left out.` : ''}</span>
+          <span className="tables-note">{counts ? countsLine(counts, preview.zones, phase) : ''}</span>
           <span className="tables-actions">
-            {!confirming && <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => setConfirming(true)}>Save to {phase}</button>}
+            {!confirming && <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => setConfirm({ phaseNo, text })}>Save to {phase}</button>}
             {confirming && <>
-              <button type="button" className="button button-secondary tables-small" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
-              <button type="button" className="button button-primary tables-small" disabled={busy || previewing} onClick={() => void save()}>Save {counts ? countsText(counts) : ''}</button>
+              <button type="button" className="button button-secondary tables-small" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
+              <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => void save()}>{counts ? confirmLabel(phase, counts) : 'Save'}</button>
             </>}
           </span>
         </div>
+        {confirming && hint && <p className="import-note">{hint}</p>}
         {previewing && <p className="import-note">Saving is off in VIEW AS.</p>}
       </>}
       {message && <p className={message.error ? 'tables-message tables-bad' : 'tables-message'} role={message.error ? 'alert' : 'status'}>{message.text}</p>}

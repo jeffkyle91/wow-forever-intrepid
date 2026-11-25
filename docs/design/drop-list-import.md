@@ -139,7 +139,9 @@ The module writes only its own allow-listed fields.
   - Storing a journal list in the guild's Firestore, where every member reads it, is more than one player reading it on their own screen. Whether it may be saved at all is decision [D6](#open-questions).
 - **Saving (D6, changed by the loot owner, 2026-11-24).** Journal items can be saved. The maintainer's first answer (2026-11-14) kept them as information in the preview; the loot owner changed it so the site's dungeons can be made from the journal.
   - They start unticked, and are ticked one creature at a time, never for a whole paste.
+  - A creature's "Tick DungeonJournal's items" ticks its new ones only, never one a leader took off. It isn't offered under a creature a leader took out: Bring back comes first.
   - They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from.
+  - Strings from two versions of the journal are saved in one call per version, each zone with its own string's version. Two versions in one zone keep the first string's.
   - A dungeon the journal calls incomplete shows that note in the preview.
   - Switched off (`JOURNAL_ITEMS_SAVED` in `dropImport.ts`), they show as information ("DungeonJournal lists it, not seen in the game") and can't be ticked.
 - **Names.** The journal's names can differ from the game's ("Hall of Thanes" against "The Hall of Thanes"), and it splits one dungeon into wings ("Scarlet Monastery: Library"). See [section 6](#6-matching).
@@ -221,17 +223,19 @@ The module writes only its own allow-listed fields.
 **A zone the import makes:**
 - **Its id** is fixed before the first write: `50,000,000 + instanceId`, when the instance id is known, is at most 49,999,999 and that id is free. Otherwise it's a new random id. Difficulties don't matter: one app zone stands for every difficulty of an instance.
 - **Its first write** creates the zone document with its name, kind and size, but **without** `removed`, so it isn't in the phase yet.
+- **A blank name.** The string allows a name of only tabs or no-break spaces, but the rules refuse it. Such a zone is written as "Unnamed zone", and such a new creature as "NPC <id>", "Encounter <id>" or "Unnamed creature". A Differs row never offers a blank name.
 - **Its tick** comes after the creatures ([section 7](#7-the-preview-and-saving)).
-- **Its color.** A Guild Leader's import also saves a suggested color (`suggestColor`) to `settings/zoneColors`, as Settings does. If that fails, the zone keeps the automatic color.
+- **Its color.** A Guild Leader's import also saves a suggested color (`suggestColor`) to `settings/zoneColors`, as Settings does, once the first call has landed. A zone that has a color chosen keeps it. If that fails, the zone keeps the automatic color, and the drop lists still save.
 - **A retry** finds it in the raw documents: by the fixed id, or by name for a random id. Both work because the zone document, with its name, is written first.
 
 **A zone matched in another phase.** `listZones` also lists zones first named in the next phase. When the matched guild zone has no named document at or before the picked phase, the zone write in the picked phase repeats its name, kind and size, so the merge sees it there.
 
-**Several candidates for one app zone** (two wings of one bundled dungeon, or two strings) are grouped before anything is built.
+**Several candidates for one app zone** (two wings of one bundled dungeon, or two strings) are grouped before anything is built. The difficulties of one instance take one answer. A DungeonJournal list, which has no instance id, joins a zone of the same paste that has one and the same name key, so a dungeon pasted from both is made once.
 
-**Creatures in a matched zone**, removed ones included:
+**Creatures in a matched zone**, removed ones included (when two fit, the one in the lists wins over one a leader took out):
 1. The npc id: a bundled creature `npc{id}`, or a guild creature with that `npcId`.
 2. The encounter id, through the key `e{encounterId}` of a creature the import made from rolls. When the source also has an npc id, the same write stores it on that creature.
+   - A corpse joins it only when that creature has no npc id or the same one, and the zone's paste has no other corpse of that encounter (a fight of several bosses). Otherwise the corpse goes on to step 3.
 3. The name key.
 4. **A near name.** A guild creature of the same kind, with no npc id, whose name key starts or ends with the source's name key at a word boundary, or the other way round ("Grimtooth" and "Grimtooth the Test Boss"). The creature is **Unmatched**, and the leader picks "same as …" (the write stores the npc id on that creature) or "new".
 5. Otherwise it's new.
@@ -250,7 +254,8 @@ The module writes only its own allow-listed fields.
 | On another creature of the zone, or on the zone-wide list | Listed there, and not added. The app keeps one creature per item in a zone and has no move. |
 | On a creature a leader took out | Listed there, and not added. The check includes removed creatures, so bringing one back never puts an item on two creatures. |
 | Taken off by a leader, in this phase or an earlier phase of its follow chain | Taken off, unticked. |
-| More than this creature's remaining room for the phase (80 minus what its document already added) | Error: "the next phase can add it". |
+| More than this creature's remaining room for the phase (80 minus what its document already added, minus the items ticked before it) | Error: "the next phase can add it". |
+| Saved by an earlier row of this import | Listed under that row. Only a ticked item under a creature that is saved holds it: an unticked item, or one under a guessed, taken out, unanswered or unticked creature, holds nothing and takes no room. |
 | Anything else | New. |
 
 **Remembering what was taken off.** An item a leader adds and takes off within one phase leaves no trace in the documents today. Once the importer exists:
@@ -269,7 +274,7 @@ Both are rare and visible in the editor, and keeping every take-off is what lets
 ## 7. The preview and saving
 
 **Where.** The import is an **Import a drop list** panel in Browse drops, under **Edit the drop lists**, above the zones. Guild and Raid Leaders see it. It writes into the phase picked there (current or next).
-- The current phase is live, so the panel suggests the next phase when the import is large.
+- The current phase is live, so the panel suggests the next phase when the import is large: at 20 items or more, the confirm step says the phase is live and points to the next one.
 - The Save button is disabled while VIEW AS previews another role.
 
 **Layout.** The preview groups rows by zone, then by creature. Each item row shows:
@@ -283,7 +288,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | --- | --- |
 | **Unmatched zone** | Unanswered. Pick a zone, or (Guild Leader) make a new one. |
 | **Zone never in this phase** | Ticked into the phase only if something under it is saved. |
-| **Zone a leader took out of this phase** | Unticked, opt-in. |
+| **Zone a leader took out of this phase** | Unticked, opt-in. Ticked, it's put back even when nothing under it is saved. It starts open, marked "taken out of <phase>", and the counts line says how many such zones are left out. |
 | **New creature** | Ticked. A guessed boss is unticked, and says so. |
 | **Unmatched creature** | Unanswered: "same as …" or "new". |
 | **Differs** (a matched guild creature's name or kind) | Unanswered: keep the app's, or rename. |
@@ -297,7 +302,11 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Error** | Can't be ticked. Shows the reason. |
 | **Not in the paste** | Information only. Nothing is ever removed. |
 
-A counts line shows zones, creatures and items. Saving takes one confirm that repeats the counts.
+**Ticking an item** under a creature that isn't saved (a guessed boss, a new one a leader unticked, one a leader took out) ticks the creature too. Unticking an item never changes the creature: a new one with no item ticked is then unticked again by default.
+
+**Answers** are kept by the pasted zone and creature they answer, not by what those matched. So they hold when a zone is picked or made, when "same as …" is answered, and after a save whose first call landed. A zone picked into a zone that another pasted zone matched by itself keeps that zone's answers, and lists the pick. Every pick has its own Zone select there, named for the pasted zone, so it can be changed or taken back (Choose). Answering keeps the block it's asked in, open, so keyboard focus stays on the select; only a pick into a zone that another pasted zone matched by itself moves the rows (and the select) into that zone's block.
+
+A counts line shows zones, creatures and items. Saving takes one confirm that names the phase and repeats the counts ("Save to Phase 4: 1 zone, 2 creatures, 3 items"). Picking another phase or loading a file closes it, and it's off when there's nothing to save.
 
 **Saving.** The builder (`importZone`) works from the raw `lootTables` documents, not only the merged view. It never creates a document that already exists. Writes go through `writeLootTables` in chunks of 10. A batch can't hold two writes to one document: the rules check each edit against the document as it was before the batch. So saving is **two calls**, and in each call every document gets exactly one write, with all its changes merged into it:
 
@@ -305,7 +314,7 @@ A counts line shows zones, creatures and items. Saving takes one confirm that re
    - **A zone the import makes:** its zone document, not in the phase yet.
    - **A matched zone** that needs its name repeated in this phase, or (under D2) its instance id stored, and is already in the phase: one edit carrying both.
    - **Creatures:**
-     - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or a random key when there's neither. The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
+     - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or a random key when there's neither or when the phase already has a document with that key (one the merge leaves out, such as a document with no name outside the phase's follow chain). The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
      - **An existing creature** gets one edit of its document for this phase, or one create when the phase has none yet, carrying everything at once: new items, `removed:false` for a creature a leader took out, the npc id from "same as …", a rename from Differs.
      - **The zone-wide list** is the source document with the key `zonewide`, with no npc id or order. It's created or edited the same way, at most 80 items per phase. A creature beats the zone-wide list when both would hold an item in this import.
 2. **Second call, after the first has landed**, built from the stored documents:
@@ -321,7 +330,7 @@ If the second call fails, the zone stays out of the phase (nothing shows), and a
 - what wasn't sent;
 - the one reason the refused batch gives.
 
-Pasting the same string again finishes the job, and what was saved shows as Already listed:
+The text and the answers stay in the panel, so pressing Save again finishes the job: the preview is built again from the stored documents, and what was saved shows as Already listed. Pasting the same string again later works the same way:
 - **Fixed ids:** `n…` and `e…` keys, and a fixed zone id, are found by id.
 - **Random ids:** a random creature key, or a random zone id, is found by name. A zone made by the import has its name from its first write.
 

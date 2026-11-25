@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, readFileText, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, pasteReaders, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -223,5 +223,26 @@ describe('the import panel: a capture file', () => {
 
   it("says so when it can't be read, instead of failing unseen", async () => {
     assert.deepEqual(await readFileText({ text: () => Promise.reject(new Error('NotReadableError')) }), { error: "The file couldn't be read." })
+  })
+})
+
+describe('the import panel: reading the paste', () => {
+  it('reads nothing from blank text, and names what the reader refuses', () => {
+    assert.equal(readPaste('  \n'), null)
+    const refused = readPaste('IM1:drops:not a string')
+    assert.ok(refused && 'errors' in refused && refused.errors.length === 1)
+  })
+
+  it('never throws: an exception from reading or merging is shown as a paste error', () => {
+    const broken = (where: 'read' | 'merge') => ({
+      ...pasteReaders,
+      readDropsPaste: where === 'read' ? () => { throw new Error('Test reader broke') } : pasteReaders.readDropsPaste,
+      mergeDrops: where === 'merge' ? () => { throw new RangeError('Test merge broke') } : pasteReaders.mergeDrops,
+    })
+    const text = 'IM1:drops:not a string'
+    assert.deepEqual(readPaste(text, broken('read')), { errors: ["The text couldn't be read: Test reader broke"] })
+    const good = { ...pasteReaders, readDropsPaste: () => ({ ok: true as const, strings: [] }) }
+    assert.deepEqual(readPaste(text, { ...good, mergeDrops: broken('merge').mergeDrops }), { errors: ["The text couldn't be read: Test merge broke"] })
+    assert.deepEqual(readPaste(text, { ...pasteReaders, looksLikeCapture: () => { throw 'not an error' } }), { errors: ["The text couldn't be read."] })
   })
 })

@@ -1,6 +1,6 @@
 // What the drop list import panel (DropImportPanel.tsx, LOOT-008) shows and does with the leader's clicks, as pure functions so Node tests them.
 // dropImport.ts does the matching and builds the writes; this holds only the panel's own choices. Only types and pure functions are imported.
-import type { CandidateZone } from '../../shared/game/dropsString.ts'
+import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone } from '../../shared/game/dropsString.ts'
 import { importZoneKey, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ItemRow, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
@@ -106,3 +106,25 @@ export function tickItem(answers: ImportAnswers, row: CreatureRow, item: ItemRow
 /** A chosen file's text, or a message when the browser can't read it (moved, or no permission): never a rejection nobody sees. */
 export const readFileText = (file: { text(): Promise<string> }): Promise<{ text: string } | { error: string }> =>
   file.text().then((text) => ({ text }), () => ({ error: "The file couldn't be read." }))
+
+/** What the pasted text is: the addon's drops strings or a capture file, read into candidate zones, or why it can't be read. */
+export type Paste = { from: 'addon' | 'capture'; zones: CandidateZone[]; ids: string[]; skipped: number } | { errors: string[] } | null
+
+/** The readers readPaste uses (shared/game/dropsString.ts); a test can pass its own. */
+export const pasteReaders = { looksLikeCapture, readCapturePaste, readDropsPaste, mergeDrops }
+
+/** The pasted text, read. It never throws: the panel reads it on every keystroke, so an exception from reading or merging is shown as a paste error. */
+export function readPaste(text: string, readers = pasteReaders): Paste {
+  if (!text.trim()) return null
+  try {
+    if (readers.looksLikeCapture(text)) {
+      const read = readers.readCapturePaste(text)
+      return read.ok ? { from: 'capture', zones: read.zones, ids: [], skipped: 0 } : { errors: read.errors }
+    }
+    const read = readers.readDropsPaste(text)
+    if (!read.ok) return { errors: [read.message] }
+    return { from: 'addon', zones: readers.mergeDrops(read.strings.map((one) => one.model)), ids: read.strings.map((one) => one.model.id), skipped: read.strings.reduce((count, one) => count + one.rowErrors.length, 0) }
+  } catch (error) {
+    return { errors: [error instanceof Error && error.message ? `The text couldn't be read: ${error.message}` : "The text couldn't be read."] }
+  }
+}

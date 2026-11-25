@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { saveZoneColors, writeLootTables } from '../../guildApi'
-import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString'
+import type { CandidateZone, ItemEvidence } from '../../shared/game/dropsString'
 import type { TableWrite } from '../../shared/game/guildTables'
 import { dropTables as builtIn } from '../../shared/lib/dropTables'
 import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
@@ -11,26 +11,13 @@ import {
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, readFileText, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
 // "Import a drop list" (LOOT-008, docs/design/drop-list-import.md section 7), at the top of Edit the drop lists. A leader pastes the addon's drops
 // strings (/im drops) or a capture file, answers what isn't clear, and saves into the phase picked in the editor, in one confirm. The browser reads the
 // text itself and never stores it. dropImport.ts does the matching and builds the writes; this holds the answers and runs the save.
-
-type Paste = { from: 'addon' | 'capture'; zones: CandidateZone[]; ids: string[]; skipped: number } | { errors: string[] } | null
-
-function readPaste(text: string): Paste {
-  if (!text.trim()) return null
-  if (looksLikeCapture(text)) {
-    const read = readCapturePaste(text)
-    return read.ok ? { from: 'capture', zones: read.zones, ids: [], skipped: 0 } : { errors: read.errors }
-  }
-  const read = readDropsPaste(text)
-  if (!read.ok) return { errors: [read.message] }
-  return { from: 'addon', zones: mergeDrops(read.strings.map((one) => one.model)), ids: read.strings.map((one) => one.model.id), skipped: read.strings.reduce((count, one) => count + one.rowErrors.length, 0) }
-}
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const shortDate = (date: string) => `${MONTHS[Number(date.slice(5, 7)) - 1] ?? ''} ${Number(date.slice(8, 10))}`

@@ -368,6 +368,16 @@ describe('the drop list import, worked examples', () => {
     assert.equal(matched.zones[0]?.creatures[0]?.differs, undefined)
   })
 
+  it('two creatures the merge keeps apart have rows of their own', () => {
+    const trash = (name: string, itemId: number): DropsSource => ({ name, kind: 'trash', itemIds: [itemId], seen: [seen(itemId)] })
+    const pasted = candidates(hollow([trash('Test Ölm', 900051), trash('Test ölm', 900052)]))
+    assert.equal(pasted[0]?.sources.length, 2)
+    for (const zone of [buildPreview(pasted, setup([barrowMade()]), noAnswers()).zones[0], buildPreview(pasted, setup([barrowMade()]), pickBarrow).zones[0]]) {
+      const ids = zone?.creatures.map((row) => row.id) ?? []
+      assert.equal(new Set(ids).size, 2)
+    }
+  })
+
   it('places a new creature right after the creature it follows in the paste, else after the last one', () => {
     const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] }), sourceDoc(BARROW, 'n990009', 0, { name: 'Last Test Boss', kind: 'boss', npcId: 990009, order: 20, itemIds: [900090] })]
     const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001]), boss(990002, 'Lady Test Ipsum', [900003]), boss(990009, 'Last Test Boss', [900090]), boss(990010, 'After Test Boss', [900091])]))

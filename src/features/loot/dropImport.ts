@@ -11,7 +11,7 @@ import {
   type ZoneTableDoc,
 } from '../../shared/game/guildTables.ts'
 import type { LootSourceKind, LootTableCapture } from '../../shared/game/lootTables.ts'
-import { mergeCandidateSources, mergeEvidence, type CandidateItem, type CandidateSource, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString.ts'
+import { dropsNameKey, mergeCandidateSources, mergeEvidence, type CandidateItem, type CandidateSource, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString.ts'
 import { RAID_ZONE_NAME_MAX, listZones, zoneNameKey, type CatalogZone, type ListedZone } from '../../shared/game/zoneList.ts'
 
 /** What the import is matched against and written into. `phaseNo` is the phase picked in the editor (the current one or the next). */
@@ -287,7 +287,8 @@ function creatureRowsUnmatched(groupId: string, sources: CandidateSource[], zone
   return rows
 }
 
-const rowKeyOf = (source: { npcId?: number; encounterId?: number; name: string }) => (source.npcId !== undefined ? `n${source.npcId}` : source.encounterId !== undefined ? `e${source.encounterId}` : `t${creatureKeyOf(source.name)}`)
+// A row's key in its zone: the merge's own key (dropsNameKey for a name), so two creatures it keeps apart never share a row id.
+const rowKeyOf = (source: { npcId?: number; encounterId?: number; name: string }) => (source.npcId !== undefined ? `n${source.npcId}` : source.encounterId !== undefined ? `e${source.encounterId}` : `t${dropsNameKey(source.name)}`)
 const sourceFacts = (source: CandidateSource) => ({
   ...(source.npcId !== undefined ? { npcId: source.npcId } : {}), ...(source.encounterId !== undefined ? { encounterId: source.encounterId } : {}),
   ...(source.guessed ? { guessed: true as const } : {}), ...(source.kills !== undefined ? { kills: source.kills } : {}),

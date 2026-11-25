@@ -238,7 +238,7 @@ The module writes only its own allow-listed fields.
 2. The encounter id, through the key `e{encounterId}` of a creature the import made from rolls. When the source also has an npc id, the same write stores it on that creature.
    - A corpse joins it only when that creature has no npc id or the same one, and the zone's paste has no other corpse of that encounter (a fight of several bosses). Otherwise the corpse goes on to step 3.
    - Rolls (no npc id) always join it, also after it has learned its npc id or been renamed.
-3. The name key. A source known only by its name is also found by the key `t{hash}` the import made its creature with (step 5), so Save again finds it when it was written under another name ("Unnamed creature" for a blank one, or cut to 100 characters) or a leader renamed it.
+3. The name key. A source known only by its name is also found by the key `t{hash}` the import made its creature with (see Saving), so Save again finds it when it was written under another name ("Unnamed creature" for a blank one, or cut to 100 characters) or a leader renamed it.
 4. **A near name.** A guild creature of the same kind, with no npc id, whose name key starts or ends with the source's name key at a word boundary, or the other way round ("Grimtooth" and "Grimtooth the Test Boss"). The creature is **Unmatched**, and the leader picks "same as …" (the write stores the npc id on that creature) or "new".
 5. Otherwise it's new.
 
@@ -308,15 +308,30 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 **Ticking an item** under a creature that isn't saved (a guessed boss, a new one a leader unticked, one a leader took out) ticks the creature too, with that item only: every other item of it that a leader hasn't answered stays unticked until a leader ticks it, also one that had no room before the click. Unticking an item never changes the creature: a new one with no item ticked is then unticked again by default.
 
 **Answers** are kept by what they're about, never by which pasted zone heads a block or by the paste's order:
-- **A pasted zone's pick, or "make a new zone"**, is kept by that pasted zone (its instance id, else its name's key).
-- **Every other answer is about the app zone it lands in**, once that zone is decided (matched by itself, picked, or made), and is kept under that zone's id. A made zone's id is the one its answer carries, fixed when "make" is chosen, so it's the same before the save and after a first call that made the zone. A zone that isn't decided has nothing to tick or answer under it.
+- **A pasted zone's pick, or "make a new zone"**, is kept by that pasted zone (its instance id, else its name's key). "Make a new zone" fixes the new zone's id when it's chosen. The panel keeps that id with the answers, so choosing "make" again after a pick or Choose gives the same id back; a new text starts afresh.
+- **Every other answer is about the app zone it lands in**, once that zone is decided (matched by itself, picked, or made), and is kept under that zone's id. A made zone's id is the one its answer carries, so it's the same before the save and after a first call that made the zone. A zone that isn't decided has nothing to tick or answer under it.
   - Put it back is kept by the zone.
-  - A creature's tick and rename are kept by the zone and the creature's identity: its npc id, else its encounter id, else its name's key. Whether the creature exists in the app yet doesn't change it.
-  - An item's tick is kept by its creature row's key and the item. The zone-wide list's ticks are kept by the zone.
-- **"Same as …"** is about the pasted creature: it's kept by its pasted zone and its identity. An answer that names a creature that isn't in the zone it lands in is ignored.
-- **Sources that land on one creature** share one row. A source that found the creature by itself (npc id, encounter, name) heads it before one placed by "same as …"; among those, the lowest identity in sort order does. A "same as …" question on the row stays there, so it can be changed.
+  - A creature row's tick and rename are kept by the zone and the key of the creature the row writes to: the creature it found (by npc id, encounter, name, or "same as …"), or the key a new creature will be made with (`n{npcId}`, else `e{encounterId}`, else `t` and a hash of its name, the same on every build; see Saving).
+  - An item's tick is kept by its creature row and the item. The zone-wide list's ticks are kept by the zone.
+- **"Same as …" and "A new creature"** are about the pasted creature. The answer is written under every pasted creature the row has (each pasted zone of the block that lists it, and rolls the block joined to their encounter's corpse), and read from the first of them whose answer applies. An answer that names a creature that isn't a near name in the zone it lands in is ignored.
+- **Sources that land on one creature** share its row. It shows a source that found the creature by itself before one placed by "same as …", and keeps the "same as …" question, so it can be changed.
 
-So answers hold when a zone is picked or made, when another pick joins the block or is taken back, when "same as …" is answered, and after a save whose first call landed. They stay with their zone: changing a pick to another zone (or from "make" to a pick) shows that zone's own answers, and changing it back shows these again. The one exception: a pick that brings a source outranking a row's head (an npc id where the row was headed by a name) gives the row the new head's key, and its answers start over. A zone picked into a zone that another pasted zone matched by itself lists the pick. Every pick has its own Zone select there, named for the pasted zone, so it can be changed or taken back (Choose). Answering keeps the block it's asked in open, so keyboard focus stays on the select. A known limit: a block is keyed by the pasted zone that heads it, so a pick into a zone another pasted zone is in already (matched by itself or picked) moves the rows and the select into that zone's block, and focus is lost.
+Once its zone is decided, a row keeps its id, and so its answers:
+- when another pick joins the block or is taken back;
+- when another source lands on its creature, by a pick or by a "same as …" answered on another row (the two rows become one);
+- after a save whose first call landed: a creature found then by the npc id that call stored, or a new creature that call made, has the same key.
+
+A "same as …" answer given while two pasted zones of the block list the creature holds when either pick is taken back. Answers stay with their zone: changing a pick to another zone (or from "make" to a pick) shows that zone's own answers, and changing it back shows these again, except a "same as …" answered again there (see the limits).
+
+Answering "same as …" on an unanswered row moves the row to the key of the creature it names. Nothing under an unanswered row can be ticked, brought back or renamed, so no answer is lost. The creature's block keeps its React key (the question's first answer key), so focus stays on the select. Changing "A new creature" to "same as …", or back, moves the row between the two creatures in the same way, and each keeps its own ticks.
+
+A zone picked into a zone that another pasted zone matched by itself lists the pick. Every pick has its own Zone select there, named for the pasted zone, so it can be changed or taken back (Choose). Answering keeps the block it's asked in open, so keyboard focus stays on the select.
+
+**Known limits** of these keys:
+- **Rolls and a corpse of one encounter on two pasted zones** become one creature only while a pick puts them in one block. A new creature made from the rolls (`e{encounterId}`) then becomes the corpse's (`n{npcId}`), so the ticks given under the rolls' row start over; taking the pick back brings them back. A "same as …" answer given to the rolls holds.
+- **A "same as …" answered again in another zone replaces the first.** It's kept by the pasted creature, not by the zone, so after the pick is changed back the question is asked again. Not answered again there, the first answer comes back with the pick.
+- **An answer given before another pasted zone that lists the creature joined the block** is kept only by the pasted zone it was given in. Taking that pick back asks the question again for the one that joined.
+- **A block is keyed by the pasted zone that heads it**, so a pick into a zone another pasted zone is in already (matched by itself or picked) moves the rows and the select into that zone's block, and focus is lost.
 
 A counts line shows zones, creatures and items. Saving takes one confirm that names the phase and repeats the counts ("Save to Phase 4: 1 zone, 2 creatures, 3 items"). Picking another phase or loading a file closes it, and it's off when there's nothing to save.
 

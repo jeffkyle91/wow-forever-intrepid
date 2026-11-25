@@ -229,7 +229,7 @@ The module writes only its own allow-listed fields.
 
 **Several candidates for one app zone** (two wings of one bundled dungeon, or two strings) are grouped before anything is built.
 
-**Creatures in a matched zone**, removed ones included:
+**Creatures in a matched zone**, removed ones included (when two fit, the one in the lists wins over one a leader took out):
 1. The npc id: a bundled creature `npc{id}`, or a guild creature with that `npcId`.
 2. The encounter id, through the key `e{encounterId}` of a creature the import made from rolls. When the source also has an npc id, the same write stores it on that creature.
    - A corpse joins it only when that creature has no npc id or the same one, and the zone's paste has no other corpse of that encounter (a fight of several bosses). Otherwise the corpse goes on to step 3.

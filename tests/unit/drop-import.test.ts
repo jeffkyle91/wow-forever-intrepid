@@ -127,6 +127,19 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(write && 'existing' in write && write.changes, { itemIds: [900008, 900009], removed: false })
   })
 
+  it('7b. a creature in the lists wins over one a leader took out with the same npc id or name', () => {
+    const docs = [
+      barrowMade(),
+      sourceDoc(BARROW, 'cold1', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 5, itemIds: [900001], removed: true }),
+      sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900002] }),
+      sourceDoc(BARROW, 'cold2', 0, { name: 'Test Ghoul', kind: 'trash', order: 15, itemIds: [900050], removed: true }),
+      sourceDoc(BARROW, 'cnew2', 0, { name: 'Test Ghoul', kind: 'trash', order: 20, itemIds: [900051] }),
+    ]
+    const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900003]), { name: 'Test Ghoul', kind: 'trash', itemIds: [900052], seen: [seen(900052)] }]))
+    const rows = buildPreview(pasted, setup(docs), pickBarrow).zones[0]?.creatures ?? []
+    assert.deepEqual(rows.map((row) => [row.key, row.status, row.how]), [['n990001', 'matched', 'npc'], ['cnew2', 'matched', 'name']])
+  })
+
   it('8. a guessed boss is unticked until a leader ticks it', () => {
     const preview = buildPreview(candidates(hollow([boss(990004, 'Maybe Test Boss', [900010], { guessed: true })])), setup([barrowMade()]), pickBarrow)
     const row = zoneOf(preview.zones, `z${BARROW}`).creatures[0]

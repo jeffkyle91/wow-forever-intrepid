@@ -292,6 +292,9 @@ const sourceFacts = (source: CandidateSource) => ({
 
 type Draft = { row: CreatureRow; candidates: CandidateSource[]; existing?: MergedSource }
 
+// The first creature that fits, one in the lists before one a leader took out.
+const liveFirst = (creatures: MergedSource[], fits: (creature: MergedSource) => boolean) => creatures.find((creature) => !creature.removed && fits(creature)) ?? creatures.find(fits)
+
 function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSource[], fromCapture: CandidateItem[], setup: ImportSetup, answers: ImportAnswers, zoneTicked: boolean): CreatureRow[] {
   const existing = zone.sources // removed ones included: an item on a creature a leader took out stays there
   const drafts: Draft[] = []
@@ -303,14 +306,14 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     let how: CreatureRow['how']
     let near: { key: string; name: string }[] = []
     let answered = false
-    if (source.npcId !== undefined) { found = existing.find((creature) => creature.npcId === source.npcId); how = 'npc' }
+    if (source.npcId !== undefined) { found = liveFirst(existing, (creature) => creature.npcId === source.npcId); how = 'npc' }
     // A corpse joins the creature made from its encounter's rolls only when that creature has no other npc id and the corpse is the encounter's only one
     // here: in a fight of several bosses, which corpse dropped the rolled items isn't known (as mergeCandidateSources has it).
     if (!found && source.encounterId !== undefined && (source.npcId === undefined || sources.filter((other) => other.npcId !== undefined && other.encounterId === source.encounterId).length === 1)) {
       found = existing.find((creature) => creature.key === `e${source.encounterId}` && (creature.npcId === undefined || creature.npcId === source.npcId))
       how = 'encounter'
     }
-    if (!found) { found = existing.find((creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }
+    if (!found) { found = liveFirst(existing, (creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }
     if (!found) {
       // A near name is asked (worked example 15): the answer says which creature it is, or that it is a new one.
       near = existing.filter((creature) => !creature.builtIn && creature.kind === source.kind && creature.npcId === undefined && nearName(creatureKeyOf(creature.name), creatureKeyOf(source.name))).map((creature) => ({ key: creature.key, name: creature.name }))

@@ -6,7 +6,7 @@
 // Nothing is ever deleted, and nothing a leader took out comes back unless a leader ticks it. Pure: the panel (DropImportPanel.tsx) holds the
 // answers and calls writeLootTables. Only types and pure functions are imported, so Node runs the tests directly.
 import {
-  CUSTOM_ZONE_MIN, TABLE_ITEMS_MAX, TABLE_NAME_MAX, TABLE_ORDER_MAX, ZONE_WIDE_KEY, ZONE_WIDE_NAME, addItems, followChain, mergeTables, newCreatureKey, newZoneId,
+  CUSTOM_ZONE_MIN, TABLE_ITEMS_MAX, TABLE_NAME_MAX, TABLE_ORDER_MAX, ZONE_WIDE_KEY, ZONE_WIDE_NAME, addItems, followChain, hasText, mergeTables, newCreatureKey, newZoneId,
   setZoneInPhase, sourceDocId, zoneDocId, type LootTableDoc, type MergedSource, type MergedZone, type NewTableDoc, type TableChange, type TableWrite, type ZoneKind,
   type ZoneTableDoc,
 } from '../../shared/game/guildTables.ts'
@@ -190,6 +190,10 @@ export function zoneIdFor(candidate: { instanceId?: number }, taken: Set<number>
 
 // ---- Creatures and items
 
+// A name the rules accept (validTableName: something left after trimming, at most 100 characters), else the fallback. A name of only tabs or other blanks is
+// text to the drops string's reader, but the rules refuse it.
+const nameOr = (name: string, fallback: string) => { const cut = name.slice(0, TABLE_NAME_MAX).trim(); return hasText(cut) ? cut : fallback }
+const creatureName = (source: CandidateSource) => nameOr(source.name, source.npcId !== undefined ? `NPC ${source.npcId}` : source.encounterId !== undefined ? `Encounter ${source.encounterId}` : 'Unnamed creature')
 const isJournalOnly = (evidence: ItemEvidence) => evidence.journal === true && !evidence.seen && !evidence.ej && !evidence.capture
 const nearName = (a: string, b: string) => {
   if (a === b) return false
@@ -247,7 +251,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     } else if (group.make) {
       const zoneId = group.madeId !== undefined && group.madeId >= CUSTOM_ZONE_MIN && !taken.has(group.madeId) ? group.madeId : zoneIdFor(first, taken)
       taken.add(zoneId)
-      const name = (first.kind === 'raid' ? first.name.slice(0, RAID_ZONE_NAME_MAX) : first.name).slice(0, TABLE_NAME_MAX).trim()
+      const name = nameOr(first.kind === 'raid' ? first.name.slice(0, RAID_ZONE_NAME_MAX) : first.name, 'Unnamed zone')
       target = blankZone(zoneId, setup.phaseNo, name, first.kind, first.players)
       status = 'new'
     } else {
@@ -276,7 +280,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
 // An unmatched zone's rows: shown so the leader sees what it holds, nothing tickable until a zone is picked.
 function creatureRowsUnmatched(groupId: string, sources: CandidateSource[], zoneWide: CandidateItem[]): CreatureRow[] {
   const rows: CreatureRow[] = sources.map((source) => ({
-    id: `${groupId}|c${rowKeyOf(source)}`, name: source.name, kind: source.kind, ...sourceFacts(source), status: 'new', near: [], rename: false, saved: false, creatureTickable: false,
+    id: `${groupId}|c${rowKeyOf(source)}`, name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: 'new', near: [], rename: false, saved: false, creatureTickable: false,
     items: source.items.map((item) => ({ id: `${groupId}|c${rowKeyOf(source)}|${item.itemId}`, itemId: item.itemId, evidence: item.evidence, status: 'new', journalOnly: isJournalOnly(item.evidence), tickable: false, ticked: false })),
   }))
   if (zoneWide.length) rows.push({ id: `${groupId}|zonewide`, name: ZONE_WIDE_NAME, kind: 'zonewide', status: 'zoneWide', near: [], rename: false, saved: false, creatureTickable: false, items: zoneWide.map((item) => ({ id: `${groupId}|zonewide|${item.itemId}`, itemId: item.itemId, evidence: item.evidence, status: 'new', journalOnly: false, tickable: false, ticked: false })) })
@@ -325,7 +329,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       if (there) { there.candidates.push(source); continue }
       const differs: CreatureRow['differs'] = {}
       if (!found.builtIn) {
-        if (creatureKeyOf(found.name) !== creatureKeyOf(source.name)) differs.name = source.name
+        if (creatureKeyOf(found.name) !== creatureKeyOf(source.name) && hasText(source.name)) differs.name = source.name
         if (found.kind !== 'zonewide' && found.kind !== source.kind) differs.kind = source.kind
       }
       const draft: Draft = {
@@ -341,7 +345,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       byExisting.set(found.key, draft)
       drafts.push(draft)
     } else {
-      drafts.push({ row: { id: candidateId, name: source.name, kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(answered ? { answerKey: candidateId } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source] })
+      drafts.push({ row: { id: candidateId, name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(answered ? { answerKey: candidateId } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source] })
     }
   }
 
@@ -510,7 +514,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
         first.push({
           id: sourceDocId(zone.zoneId, key, setup.phaseNo),
           create: {
-            type: 'source', zoneId: zone.zoneId, key, phaseNo: setup.phaseNo, name: row.name.slice(0, TABLE_NAME_MAX).trim(), kind: row.kind as LootSourceKind,
+            type: 'source', zoneId: zone.zoneId, key, phaseNo: setup.phaseNo, name: nameOr(row.name, 'Unnamed creature'), kind: row.kind as LootSourceKind,
             ...(row.npcId !== undefined ? { npcId: row.npcId } : {}), order: row.order ?? TABLE_ORDER_MAX, itemIds: now, hiddenItemIds: [],
           },
         })
@@ -520,7 +524,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
         const extra: TableChange = {}
         if (row.status === 'takenOut') extra.removed = false
         if (row.storeNpcId !== undefined) extra.npcId = row.storeNpcId
-        if (row.rename && row.differs?.name) extra.name = row.differs.name.slice(0, TABLE_NAME_MAX).trim()
+        if (row.rename && row.differs?.name && hasText(row.differs.name.slice(0, TABLE_NAME_MAX))) extra.name = row.differs.name.slice(0, TABLE_NAME_MAX).trim()
         if (row.rename && row.differs?.kind) extra.kind = row.differs.kind
         const write = existingCreatureWrite(target, creature, now, extra)
         if (write) first.push(write)

@@ -221,6 +221,7 @@ The module writes only its own allow-listed fields.
 **A zone the import makes:**
 - **Its id** is fixed before the first write: `50,000,000 + instanceId`, when the instance id is known, is at most 49,999,999 and that id is free. Otherwise it's a new random id. Difficulties don't matter: one app zone stands for every difficulty of an instance.
 - **Its first write** creates the zone document with its name, kind and size, but **without** `removed`, so it isn't in the phase yet.
+- **A blank name.** The string allows a name of only tabs or no-break spaces, but the rules refuse it. Such a zone is written as "Unnamed zone", and such a new creature as "NPC <id>", "Encounter <id>" or "Unnamed creature". A Differs row never offers a blank name.
 - **Its tick** comes after the creatures ([section 7](#7-the-preview-and-saving)).
 - **Its color.** A Guild Leader's import also saves a suggested color (`suggestColor`) to `settings/zoneColors`, as Settings does. If that fails, the zone keeps the automatic color.
 - **A retry** finds it in the raw documents: by the fixed id, or by name for a random id. Both work because the zone document, with its name, is written first.

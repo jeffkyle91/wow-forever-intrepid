@@ -350,6 +350,24 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(first.filter((write) => docs.some((doc) => doc.id === write.id) && 'create' in write), [])
   })
 
+  it('a name that is only tabs or other blanks is never written: a new zone or creature gets a name the rules accept', () => {
+    const blank = '\t\t'
+    const pasted = candidates(hollow([
+      boss(990001, blank, [900001]), boss(990009, 'Grimtooth', [900009]),
+      { encounterId: 9105, name: ' ', kind: 'boss', itemIds: [900002], seen: [seen(900002)] },
+      { name: '　', kind: 'rare', itemIds: [900003], seen: [seen(900003)] },
+    ], { name: '\t' }))
+    const make = answers({ zones: { u9901: { make: true } } })
+    const preview = buildPreview(pasted, setup([]), make)
+    assert.equal(preview.zones[0]?.name, 'Unnamed zone')
+    const first = buildImportSave(preview, setup([])).first
+    assert.deepEqual(first.map((write) => 'create' in write && 'name' in write.create && write.create.name), ['Unnamed zone', 'NPC 990001', 'Grimtooth', 'Encounter 9105', 'Unnamed creature'])
+    // A matched creature is never offered a rename to a blank name.
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [] })]
+    const matched = buildPreview(candidates(hollow([boss(990001, blank, [900001])])), setup(docs), pickBarrow)
+    assert.equal(matched.zones[0]?.creatures[0]?.differs, undefined)
+  })
+
   it('places a new creature right after the creature it follows in the paste, else after the last one', () => {
     const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] }), sourceDoc(BARROW, 'n990009', 0, { name: 'Last Test Boss', kind: 'boss', npcId: 990009, order: 20, itemIds: [900090] })]
     const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001]), boss(990002, 'Lady Test Ipsum', [900003]), boss(990009, 'Last Test Boss', [900090]), boss(990010, 'After Test Boss', [900091])]))

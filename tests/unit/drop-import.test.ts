@@ -34,7 +34,7 @@ function save(docs: LootTableDoc[], rows: ReturnType<typeof buildPreview>, extra
   const plan = buildImportSave(rows, setup(docs, extra))
   const after = applyWrites(docs, plan.first)
   const second = plan.second(after)
-  return { first: plan.first, second, after: applyWrites(applyWrites(after, second.ticks), second.journal) }
+  return { first: plan.first, second, after: applyWrites(applyWrites(after, second.ticks), second.journal.flatMap((call) => call.writes)) }
 }
 
 describe('the drop list import, worked examples', () => {
@@ -283,8 +283,22 @@ describe('the drop list import, worked examples', () => {
     const { first, second } = save([], ticked, allowed)
     assert.deepEqual(created(first), [zoneDocId(zoneId, 0), sourceDocId(zoneId, 'n990011', 0)])
     assert.deepEqual((first[1] as { create: { itemIds: number[] } }).create.itemIds, [])
-    assert.deepEqual(second.journal.map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900101, 900102] }]])
+    assert.deepEqual(second.journal.flatMap((call) => call.writes).map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900101, 900102] }]])
     assert.equal(journalReason('ForeverDungeonJournal/2.0.3'), 'From DungeonJournal 2.0.3, not seen in the game')
+  })
+
+  it("16c. DungeonJournal's items keep the version of the string that listed them: one journal write per version", () => {
+    const listed = (id: string, version: string, name: string, instanceId: number, npcId: number, itemId: number) =>
+      ({ schema: 1 as const, id, at: 1797474600, by: 'IntrepidManager/test', journal: version, zones: [{ name, kind: 'dungeon' as const, players: 5, instanceId, sources: [{ npcId, name: `Boss of ${name}`, kind: 'boss' as const, itemIds: [itemId], journal: [itemId] }] }] })
+    const pasted = mergeDrops([listed('d-test-0009', 'ForeverDungeonJournal/2.0.3', 'Hollow Test Keep', 9100, 990101, 900101), listed('d-test-0010', 'ForeverDungeonJournal/2.1.0', 'Test Cloister', 9200, 990201, 900201)])
+    const given = answers({ zones: { u9100: { make: true }, u9200: { make: true } }, ticks: { 'u9100|cn990101|900101': true, 'u9200|cn990201|900201': true } })
+    const allowed = { journalSaving: true }
+    const { second } = save([], buildPreview(pasted, setup([], allowed), given), allowed)
+    assert.deepEqual(second.journal.map((call) => [call.version, call.writes.map((write) => write.id)]), [
+      ['ForeverDungeonJournal/2.0.3', [sourceDocId(50_009_100, 'n990101', 0)]],
+      ['ForeverDungeonJournal/2.1.0', [sourceDocId(50_009_200, 'n990201', 0)]],
+    ])
+    assert.deepEqual(second.journal.map((call) => journalReason(call.version)), ['From DungeonJournal 2.0.3, not seen in the game', 'From DungeonJournal 2.1.0, not seen in the game'])
   })
 
   it("16b. a creature with a new item seen in the game and one from DungeonJournal gets one write in each call", () => {
@@ -299,7 +313,7 @@ describe('the drop list import, worked examples', () => {
     const { first, second, after } = save(docs, ticked, allowed)
     const id = sourceDocId(BARROW, 'n990001', 0)
     assert.deepEqual(first.map((write) => [write.id, 'existing' in write && write.changes]), [[id, { itemIds: [900001, 900002] }]])
-    assert.deepEqual(second.journal.map((write) => [write.id, 'existing' in write && write.changes]), [[id, { itemIds: [900001, 900002, 900101] }]])
+    assert.deepEqual(second.journal.flatMap((call) => call.writes).map((write) => [write.id, 'existing' in write && write.changes]), [[id, { itemIds: [900001, 900002, 900101] }]])
     assert.deepEqual(edited(second.ticks), [zoneDocId(BARROW, 0)])
     assert.deepEqual((after.find((doc) => doc.id === id) as SourceTableDoc).itemIds, [900001, 900002, 900101])
   })
@@ -442,7 +456,7 @@ describe('the drop list import, worked examples', () => {
       const { first, second } = save(afterFirst, retry, allowed)
       assert.deepEqual(first, [])
       assert.deepEqual(second.ticks.map((write) => write.id), [zoneDocId(zoneId, 0)])
-      assert.deepEqual(second.journal.map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900100, 900101, 900102] }]])
+      assert.deepEqual(second.journal.flatMap((call) => call.writes).map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900100, 900101, 900102] }]])
     }
   })
 

@@ -515,10 +515,12 @@ function existingCreatureWrite(zone: MergedZone, creature: MergedSource, itemIds
   return { id: creature.docId, create: { type: 'source', zoneId: zone.zoneId, key: creature.key, phaseNo: zone.phaseNo, itemIds: [], hiddenItemIds: [], ...extra } as NewTableDoc }
 }
 
+/** DungeonJournal's items listed by one version of it, saved in their own call with that version's Log reason (journalReason). */
+export type JournalCall = { version: string | undefined; writes: TableWrite[] }
 export type ImportSave = {
   first: TableWrite[]
-  /** The second call, from the documents after the first (applyWrites): the zones' ticks, and DungeonJournal's items in their own write. */
-  second: (after: LootTableDoc[]) => { ticks: TableWrite[]; journal: TableWrite[] }
+  /** The second call, from the documents after the first (applyWrites): the zones' ticks, and DungeonJournal's items in their own writes, by version. */
+  second: (after: LootTableDoc[]) => { ticks: TableWrite[]; journal: JournalCall[] }
 }
 
 /** The writes of a save. Rows that are unanswered, unticked or information only write nothing; nothing is removed. */
@@ -567,7 +569,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
   const second = (after: LootTableDoc[]) => {
     const zonesAfter = mergeTables(setup.captures, after, setup.phaseNo)
     const ticks: TableWrite[] = []
-    const journal: TableWrite[] = []
+    const journal: JournalCall[] = []
     for (const plan of plans) {
       const zone = zonesAfter.find((candidate) => candidate.zoneId === plan.zone.zoneId)
       if (!zone) continue
@@ -576,7 +578,11 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
       for (const [key, itemIds] of plan.journal) {
         const creature = key === ZONE_WIDE_KEY ? zone.zoneWide : zone.sources.find((candidate) => candidate.key === key)
         const write = creature ? addItems(zone, creature, itemIds).write : null
-        if (write) journal.push(write)
+        if (!write) continue
+        const call = journal.find((candidate) => candidate.version === plan.zone.journal)
+        if (call) call.writes.push(write)
+        else journal.push({ version: plan.zone.journal, writes: [write] }) // each zone keeps the version its string gave
+
       }
     }
     return { ticks, journal }

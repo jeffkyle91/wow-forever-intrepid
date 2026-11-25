@@ -184,7 +184,6 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
     const plan = buildImportSave(preview, setup)
     const who = { uid: live.identity.uid, displayName: live.identity.displayName }
     const reason = importReason(paste.from, paste.ids)
-    const version = preview.zones.find((zone) => zone.journal)?.journal
     let written = 0
     setBusy(true)
     setConfirming(false)
@@ -194,7 +193,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
       await write(plan.first, reason)
       const second = plan.second(applyWrites(docs, plan.first))
       await write(second.ticks, reason)
-      await write(second.journal, journalReason(version))
+      for (const call of second.journal) await write(call.writes, journalReason(call.version)) // each version of DungeonJournal with its own reason
       setMutationError('')
       setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.`, error: false })
       setText('')

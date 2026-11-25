@@ -622,5 +622,13 @@ export function importReason(from: 'addon' | 'capture', stringIds: string[]): st
   return text.length <= 300 ? text : `Imported from the addon (${ids.length} strings)`
 }
 
+/**
+ * What a save that stopped says (design section 7, "After saving"): what was saved, what wasn't sent, and the reason. The text and the answers stay in the
+ * panel, so pressing Save again builds the rest from the stored documents.
+ */
+export function importStoppedText(saved: number, notSent: number, why: string): string {
+  return `${saved} ${saved === 1 ? 'change was' : 'changes were'} saved and ${notSent} ${notSent === 1 ? "wasn't" : "weren't"} sent. ${why} Press Save again to finish: the text and your answers are still here.`
+}
+
 /** The Log reason of DungeonJournal's items, saved in their own write (design section 4). */
 export const journalReason = (version: string | undefined) => `From DungeonJournal ${(version ?? '').replace(/^ForeverDungeonJournal\//, '') || 'unknown'}, not seen in the game`

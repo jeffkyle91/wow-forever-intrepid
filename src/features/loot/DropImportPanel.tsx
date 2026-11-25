@@ -7,7 +7,7 @@ import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
-  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, madeZoneColors, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
+  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
   type ImportCounts, type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import './DropImport.css'
@@ -182,6 +182,9 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
   async function save() {
     if (!preview || !paste || !('zones' in paste) || live.identity.isPreviewing) return // VIEW AS never saves
     const plan = buildImportSave(preview, setup)
+    // The second call is built from the documents as the first leaves them, so the whole save is known before anything is sent.
+    const second = plan.second(applyWrites(docs, plan.first))
+    const total = plan.first.length + second.ticks.length + second.journal.reduce((sum, call) => sum + call.writes.length, 0)
     const who = { uid: live.identity.uid, displayName: live.identity.displayName }
     const reason = importReason(paste.from, paste.ids)
     let written = 0
@@ -196,7 +199,6 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
       if (plan.made.length && setup.canMakeZones) {
         try { await saveZoneColors(madeZoneColors(plan.made, setup, live.data.zoneColors), { uid: live.identity.uid }) } catch { colored = false }
       }
-      const second = plan.second(applyWrites(docs, plan.first))
       await write(second.ticks, reason)
       for (const call of second.journal) await write(call.writes, journalReason(call.version)) // each version of DungeonJournal with its own reason
       setMutationError('')
@@ -206,7 +208,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
     } catch (error) {
       const stale = (error as { code?: string } | null)?.code === 'permission-denied'
       const why = stale ? 'The change was refused: someone may have changed the same list a moment ago, or the phase may have just started.' : error instanceof Error ? error.message : 'The save stopped.'
-      setMessage({ text: `${plural(written, 'change was', 'changes were')} saved before it stopped. ${why} Paste the same text again to finish.`, error: true })
+      setMessage({ text: importStoppedText(written, Math.max(0, total - written), why), error: true })
     } finally {
       setBusy(false)
     }

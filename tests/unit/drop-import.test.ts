@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, madeZoneColors, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
+import { JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
 import { captureCandidate, mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { mergeTables, sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type TableWrite, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
@@ -485,6 +485,12 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(unanswered.zones.map((zone) => [zone.id, zone.status, zone.creatures.length]), [['u9100', 'unmatched', 2]])
     const made = buildPreview(pasted, setup([]), answers({ zones: { u9100: { make: true } } }))
     assert.deepEqual(created(buildImportSave(made, setup([])).first), [zoneDocId(50_009_100, 0), sourceDocId(50_009_100, 'n990011', 0)])
+  })
+
+  it('a save that stopped says what was saved, what was not sent, and to press Save again', () => {
+    const why = 'The change was refused.'
+    assert.equal(importStoppedText(12, 5, why), "12 changes were saved and 5 weren't sent. The change was refused. Press Save again to finish: the text and your answers are still here.")
+    assert.equal(importStoppedText(1, 1, why), "1 change was saved and 1 wasn't sent. The change was refused. Press Save again to finish: the text and your answers are still here.")
   })
 
   it("the Log reason names each pasted string once", () => {

@@ -327,7 +327,7 @@ If the second call fails, the zone stays out of the phase (nothing shows), and a
 - what wasn't sent;
 - the one reason the refused batch gives.
 
-Pasting the same string again finishes the job, and what was saved shows as Already listed:
+The text and the answers stay in the panel, so pressing Save again finishes the job: the preview is built again from the stored documents, and what was saved shows as Already listed. Pasting the same string again later works the same way:
 - **Fixed ids:** `n…` and `e…` keys, and a fixed zone id, are found by id.
 - **Random ids:** a random creature key, or a random zone id, is found by name. A zone made by the import has its name from its first write.
 

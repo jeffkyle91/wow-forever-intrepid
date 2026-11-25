@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import { answerSubject, confirmHolds, confirmLabel, countsLine, nothingToSave, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
-import { zoneDocId, type LootTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
+import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
 
 // What the drop list import panel (DropImportPanel.tsx) shows and does, as pure functions. Every name and id is invented.
@@ -18,6 +18,8 @@ const boss = (npcId: number, name: string, itemIds: number[], extra: Partial<Dro
 const pasted = (...zones: DropsZone[]) => mergeDrops([{ schema: 1, id: 'd-test-0001', at: 1797474600, by: 'IntrepidManager/test', zones }])
 const answers = (patch: Partial<ImportAnswers> = {}): ImportAnswers => ({ ...noAnswers(), ...patch })
 const testAbbey = (sources: DropsSource[], extra: Partial<DropsZone> = {}): DropsZone => ({ name: 'Test Abbey', kind: 'dungeon', players: 5, instanceId: 7001, sources, ...extra })
+const sourceDoc = (zoneId: number, key: string, phaseNo: number, extra: Partial<SourceTableDoc> = {}): SourceTableDoc =>
+  ({ id: sourceDocId(zoneId, key, phaseNo), type: 'source', zoneId, key, phaseNo, itemIds: [], hiddenItemIds: [], rev: 1, ...extra })
 const counts = (patch: Partial<ImportCounts> = {}): ImportCounts => ({ zones: 0, newZones: 0, creatures: 0, newCreatures: 0, items: 0, journalItems: 0, unanswered: 0, ...patch })
 
 describe('the import panel: the confirm step', () => {
@@ -100,5 +102,41 @@ describe('the import panel: a pick can be changed or taken back', () => {
     // Every zone row's own answer key is found among the pasted zones, also one keyed by its name.
     const named = pasted(crypt({ instanceId: undefined }))
     assert.deepEqual(buildPreview(named, setup([]), noAnswers()).zones.map((zone) => answerSubject(zone.id, named).name), ['Some Other Crypt'])
+  })
+})
+
+describe('the import panel: answering keeps the block the leader is in', () => {
+  const BARROW = 50_000_123 // "Test Barrow", a raid of 10 made in Settings
+  const barrow = zoneDoc(BARROW, 0, { name: 'Test Barrow', kind: 'raid', players: 10, removed: false })
+  const hollow = (sources: DropsSource[]): DropsZone => ({ name: 'Hollow Test Barrow', kind: 'raid', players: 40, instanceId: 9901, sources })
+  // React keys: a zone block by its row id, a creature block by its row id. The same key keeps the block, and the select in it, mounted.
+  const keys = (preview: ReturnType<typeof buildPreview>) => preview.zones.map((zone) => [zone.id, zone.creatures.map((row) => row.id)])
+
+  it('a Zone pick or "Make a new zone" keeps the zone block, and the block stays open', () => {
+    const docs = [barrow, sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900001] })]
+    const night = pasted(hollow([boss(990001, 'Grimtooth the Test Boss', [900001])]))
+    const unanswered = buildPreview(night, setup(docs), noAnswers())
+    const picked = buildPreview(night, setup(docs), answers({ zones: { u9901: { pick: BARROW } } }))
+    const made = buildPreview(night, setup(docs), answers({ zones: { u9901: { make: true, zoneId: 61_234_567 } } }))
+    assert.deepEqual(keys(picked), keys(unanswered))
+    assert.deepEqual(keys(made), keys(unanswered))
+    assert.deepEqual(zoneSelects(picked.zones[0] as NonNullable<typeof picked.zones[0]>).map((one) => one.answerKey), ['u9901'])
+    // Everything under the picked zone is already listed: the zone still shows open, with the pick that was just answered.
+    assert.deepEqual(picked.zones[0]?.creatures[0]?.items.map((item) => item.status), ['already'])
+    assert.deepEqual([zoneOpen(unanswered.zones[0] as NonNullable<typeof unanswered.zones[0]>), zoneOpen(picked.zones[0] as NonNullable<typeof picked.zones[0]>), zoneOpen(made.zones[0] as NonNullable<typeof made.zones[0]>)], [true, true, true])
+  })
+
+  it('"Same as" keeps the creature block, and the zone stays open', () => {
+    const docs = [barrow, sourceDoc(BARROW, 'cgrim1', 0, { name: 'Grimtooth', kind: 'boss', itemIds: [900001] })]
+    const night = pasted(hollow([{ name: 'Grimtooth the Test Boss', kind: 'boss', itemIds: [900001], seen: [{ itemId: 900001, n: 1, last: '2026-12-10', via: 'window' }] }]))
+    const pick = { zones: { u9901: { pick: BARROW } } }
+    const asked = buildPreview(night, setup(docs), answers(pick))
+    const same = buildPreview(night, setup(docs), answers({ ...pick, creatures: { 'u9901|ctgrimtooth the test boss': { same: 'cgrim1' } } }))
+    const fresh = buildPreview(night, setup(docs), answers({ ...pick, creatures: { 'u9901|ctgrimtooth the test boss': { make: true } } }))
+    assert.equal(asked.zones[0]?.creatures[0]?.status, 'unmatched')
+    assert.deepEqual([same.zones[0]?.creatures[0]?.status, fresh.zones[0]?.creatures[0]?.status], ['matched', 'new'])
+    assert.deepEqual(keys(same), keys(asked))
+    assert.deepEqual(keys(fresh), keys(asked))
+    assert.deepEqual([zoneOpen(same.zones[0] as NonNullable<typeof same.zones[0]>), zoneOpen(fresh.zones[0] as NonNullable<typeof fresh.zones[0]>)], [true, true])
   })
 })

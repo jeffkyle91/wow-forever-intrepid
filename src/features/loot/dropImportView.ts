@@ -27,11 +27,13 @@ export const confirmHolds = (open: ConfirmFor | null, phaseNo: number, text: str
 
 /**
  * Whether a zone's block is open: when there is something to save or decide. A zone a leader took out of the phase is open, so its "Put it back"
- * shows. A zone whose rows are all already listed starts closed.
+ * shows, and so is one with a question the leader answered (a pick, "same as …" or "new"), so answering never closes the block they are in. A zone
+ * whose rows are all already listed starts closed.
  */
 export function zoneOpen(zone: ZoneRow): boolean {
   const anything = zone.creatures.some((creature) => creature.saved || creature.creatureTickable || creature.status === 'unmatched' || creature.differs || creature.items.some((item) => item.tickable))
-  return zone.status !== 'matched' || zone.takenOut || anything
+  const answered = zone.picks.length > 0 || zone.creatures.some((creature) => creature.answerKey !== undefined)
+  return zone.status !== 'matched' || zone.takenOut || answered || anything
 }
 
 /** The chip on a zone's summary line, if any. */

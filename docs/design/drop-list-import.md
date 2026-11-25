@@ -301,7 +301,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Error** | Can't be ticked. Shows the reason. |
 | **Not in the paste** | Information only. Nothing is ever removed. |
 
-**Answers** are kept by the pasted zone and creature they answer, not by what those matched. So they hold when a zone is picked or made, when "same as …" is answered, and after a save whose first call landed. A zone picked into a zone that another pasted zone matched by itself keeps that zone's answers, and lists the pick. Every pick has its own Zone select there, named for the pasted zone, so it can be changed or taken back (Choose).
+**Answers** are kept by the pasted zone and creature they answer, not by what those matched. So they hold when a zone is picked or made, when "same as …" is answered, and after a save whose first call landed. A zone picked into a zone that another pasted zone matched by itself keeps that zone's answers, and lists the pick. Every pick has its own Zone select there, named for the pasted zone, so it can be changed or taken back (Choose). Answering keeps the block it's asked in, open, so keyboard focus stays on the select; only a pick into a zone that another pasted zone matched by itself moves the rows (and the select) into that zone's block.
 
 A counts line shows zones, creatures and items. Saving takes one confirm that names the phase and repeats the counts ("Save to Phase 4: 1 zone, 2 creatures, 3 items"). Picking another phase or loading a file closes it, and it's off when there's nothing to save.
 

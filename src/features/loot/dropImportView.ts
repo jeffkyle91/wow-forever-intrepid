@@ -3,8 +3,8 @@
 import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone } from '../../shared/game/dropsString.ts'
 import { zoneDocId } from '../../shared/game/guildTables.ts'
 import {
-  buildPreview, importZoneKey, madeZoneColors, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ImportPreview, type ImportSetup, type ItemRow, type ZoneAnswer,
-  type ZoneRow,
+  buildPreview, importZoneKey, madeZoneColors, zoneIdFor, type CreatureAnswer, type CreatureRow, type ImportAnswers, type ImportCounts, type ImportPreview, type ImportSetup, type ItemRow,
+  type ZoneAnswer, type ZoneRow,
 } from './dropImport.ts'
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
@@ -36,7 +36,7 @@ export const confirmHolds = (open: ConfirmFor | null, phaseNo: number, text: str
  */
 export function zoneOpen(zone: ZoneRow): boolean {
   const anything = zone.creatures.some((creature) => creature.saved || creature.creatureTickable || creature.status === 'unmatched' || creature.differs || creature.items.some((item) => item.tickable))
-  const answered = zone.picks.length > 0 || zone.creatures.some((creature) => creature.answerKey !== undefined)
+  const answered = zone.picks.length > 0 || zone.creatures.some((creature) => creature.answerKeys !== undefined)
   return zone.status !== 'matched' || zone.takenOut || answered || anything
 }
 
@@ -79,6 +79,18 @@ export const answerSubject = (answerKey: string, candidates: CandidateZone[]): P
 export function zoneAnswer(value: string, subject: { instanceId?: number }, taken: Set<number>): ZoneAnswer | undefined {
   if (value === '') return undefined
   return value === 'new' ? { make: true, zoneId: zoneIdFor(subject, taken) } : { pick: Number(value) }
+}
+
+/** A creature's "Same as" select: the creature its answer names, "new" for a new creature, or "" (Choose) when it has no answer that applies here. */
+export const sameAsValue = (row: CreatureRow): string => (row.answer ? ('same' in row.answer ? row.answer.same : 'new') : '')
+
+/**
+ * The answers after a creature's "Same as" select is changed: the answer is written under every pasted creature the row has (each pasted zone of the
+ * block that lists it), so taking back one of those picks keeps it. Choose ("") clears it under each.
+ */
+export function answerSameAs(answers: ImportAnswers, row: CreatureRow, value: string): ImportAnswers {
+  const answer: CreatureAnswer | undefined = value === '' ? undefined : value === 'new' ? { make: true } : { same: value }
+  return { ...answers, creatures: { ...answers.creatures, ...Object.fromEntries((row.answerKeys ?? []).map((key) => [key, answer])) } }
 }
 
 /**

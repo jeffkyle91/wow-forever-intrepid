@@ -11,8 +11,8 @@ import {
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, previewOf, readFileText, readPaste, tickItem, tickJournal,
-  zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSameAs, answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, previewOf, readFileText, readPaste,
+  sameAsValue, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -74,8 +74,6 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
     ...(row.guessed ? ['guessed from the encounter'] : []),
     ...(row.status === 'takenOut' ? [`taken out of ${set.phase}`] : []),
   ]
-  const creatureAnswer = row.answerKey ?? row.id
-  const current = set.answers.creatures[creatureAnswer]
   return <section className={`import-creature${row.saved ? '' : ' import-creature-off'}`}>
     <header>
       {row.creatureTickable
@@ -84,10 +82,7 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
       {chips.map((chip) => <span key={chip} className="drops-kind">{chip}</span>)}
     </header>
     {row.near.length > 0 && zone.status !== 'unmatched' && <label className="import-answer">Same as
-      <select value={current && 'same' in current ? current.same : current ? 'new' : ''} disabled={set.busy} onChange={(event) => {
-        const value = event.target.value
-        set.update({ ...set.answers, creatures: { ...set.answers.creatures, [creatureAnswer]: value === '' ? undefined : value === 'new' ? { make: true } : { same: value } } })
-      }}>
+      <select value={sameAsValue(row)} disabled={set.busy} onChange={(event) => set.update(answerSameAs(set.answers, row, event.target.value))}>
         <option value="">Choose</option>
         {row.near.map((option) => <option key={option.key} value={option.key}>{option.name}</option>)}
         <option value="new">A new creature</option>

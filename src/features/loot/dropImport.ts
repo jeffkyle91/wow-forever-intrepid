@@ -418,17 +418,28 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
   }
   const zoneWideItems = [...fromCapture, ...drafts.filter((draft) => draft.row.kind === 'trash').flatMap((draft) => draft.candidates.flatMap((candidate) => candidate.items.filter((item) => offered.has(item.itemId))))]
   const ordered = [...drafts.filter((draft) => draft.row.kind !== 'trash'), zoneWideDraft, ...drafts.filter((draft) => draft.row.kind === 'trash')]
-  for (const draft of ordered) {
-    const isZoneWide = draft === zoneWideDraft
+  // Each row's items in the paste's order, every item once with the evidence of all its candidates.
+  const itemsOf = new Map(ordered.map((draft) => {
     const items = new Map<number, CandidateItem>()
-    for (const item of isZoneWide ? zoneWideItems : draft.candidates.flatMap((candidate) => candidate.items)) {
+    for (const item of draft === zoneWideDraft ? zoneWideItems : draft.candidates.flatMap((candidate) => candidate.items)) {
       const there = items.get(item.itemId)
       items.set(item.itemId, there ? { itemId: item.itemId, evidence: mergeEvidence(there.evidence, item.evidence) } : item)
     }
+    return [draft, [...items.values()]]
+  }))
+  // An item the game saw (or a capture or the game's journal lists) under a row is that row's: a DungeonJournal-only listing of it under another row
+  // yields to it, whatever the order and whatever is ticked.
+  const seenUnder = new Map<number, Draft>()
+  for (const draft of ordered) for (const item of itemsOf.get(draft) ?? []) if (!isJournalOnly(item.evidence) && !seenUnder.has(item.itemId)) seenUnder.set(item.itemId, draft)
+  for (const draft of ordered) {
+    const isZoneWide = draft === zoneWideDraft
+    const items = itemsOf.get(draft) ?? []
     const creature = draft.existing ?? draft.unnamed?.source
     let room = TABLE_ITEMS_MAX - (creature?.doc?.itemIds.length ?? 0)
     const decided = draft.row.status === 'unmatched' ? false : zoneTicked
-    for (const item of items.values()) {
+    const itemRows = new Map<number, ItemRow>()
+    // Items with the game's evidence take the room first, so ticking DungeonJournal's never pushes one into "no room". Shown in the paste's order.
+    for (const item of [...items.filter((one) => !isJournalOnly(one.evidence)), ...items.filter((one) => isJournalOnly(one.evidence))]) {
       const id = `${draft.row.id}|${item.itemId}`
       const journalOnly = isJournalOnly(item.evidence)
       let status: ItemStatus
@@ -436,6 +447,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       if (creature?.itemIds.includes(item.itemId)) status = 'already'
       else if (holders.has(item.itemId)) { status = 'elsewhere'; where = holders.get(item.itemId) }
       else if (claims.has(item.itemId)) { status = 'claimed'; where = claims.get(item.itemId) } // before taken off, so a tick never puts one item on two creatures
+      else if (journalOnly && seenUnder.has(item.itemId) && seenUnder.get(item.itemId) !== draft) { status = 'claimed'; where = seenUnder.get(item.itemId)?.row.name }
       else if (creature && (creature.hiddenItemIds.includes(item.itemId) || creature.goneItemIds.includes(item.itemId))) status = 'takenOff'
       else if (!isZoneWide && draft.row.kind === 'trash' && offered.has(item.itemId)) { status = 'zoneWide'; where = ZONE_WIDE_NAME }
       else if (journalOnly && !setup.journalSaving) status = 'journal'
@@ -445,8 +457,9 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       const byDefault = status === 'new' && !journalOnly && !item.evidence.seen?.quest && !(draft.row.kind === 'trash') && !(isZoneWide && !item.evidence.capture)
       const ticked = tickable && (answers.ticks[id] ?? byDefault)
       if (ticked) room -= 1 // only an item that is ticked takes room
-      draft.row.items.push({ id, itemId: item.itemId, evidence: item.evidence, status, ...(where ? { where } : {}), journalOnly, tickable, ticked })
+      itemRows.set(item.itemId, { id, itemId: item.itemId, evidence: item.evidence, status, ...(where ? { where } : {}), journalOnly, tickable, ticked })
     }
+    draft.row.items.push(...items.map((item) => itemRows.get(item.itemId) as ItemRow))
     // The creature itself: a new one is written when something under it is ticked, or (a boss with no items yet, a guessed boss) when a leader ticks it.
     const anyTicked = draft.row.items.some((item) => item.ticked)
     if (draft.row.status === 'new') {

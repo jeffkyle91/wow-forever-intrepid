@@ -140,6 +140,7 @@ The module writes only its own allow-listed fields.
 - **Saving (D6, changed by the loot owner, 2026-11-24).** Journal items can be saved. The maintainer's first answer (2026-11-14) kept them as information in the preview; the loot owner changed it so the site's dungeons can be made from the journal.
   - They start unticked, and are ticked one creature at a time, never for a whole paste.
   - A creature's "Tick DungeonJournal's items" ticks its new ones only, never one a leader took off. It isn't offered under a creature a leader took out: Bring back comes first.
+  - An item the game saw under another creature of the zone stays with that creature, whatever the order and the ticks: the journal's listing shows it there and can't be ticked. Under one creature, the items the game saw take the room first, so ticking the journal's never leaves one without room.
   - They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from.
   - Strings from two versions of the journal are saved in one call per version, each zone with its own string's version. Two versions in one zone keep the first string's.
   - A dungeon the journal calls incomplete shows that note in the preview.
@@ -255,7 +256,8 @@ The module writes only its own allow-listed fields.
 | On another creature of the zone, or on the zone-wide list | Listed there, and not added. The app keeps one creature per item in a zone and has no move. |
 | On a creature a leader took out | Listed there, and not added. The check includes removed creatures, so bringing one back never puts an item on two creatures. |
 | Taken off by a leader, in this phase or an earlier phase of its follow chain | Taken off, unticked. |
-| More than this creature's remaining room for the phase (80 minus what its document already added, minus the items ticked before it) | Error: "the next phase can add it". |
+| More than this creature's remaining room for the phase (80 minus what its document already added, minus the items ticked before it; the items the game saw count first, then DungeonJournal's) | Error: "the next phase can add it". |
+| Listed by DungeonJournal alone, while another creature of this import has it from the game (seen, rolled for, a capture, the game's journal) | Listed under that creature, whatever the order and the ticks. Can't be ticked. |
 | Saved by an earlier row of this import | Listed under that row, also when a leader took it off this creature, so one item is never written on two creatures. Only a ticked item under a creature that is saved holds it: an unticked item, or one under a guessed, taken out, unanswered or unticked creature, holds nothing and takes no room. |
 | Anything else | New. |
 

@@ -165,6 +165,38 @@ describe("the import panel: Tick DungeonJournal's items", () => {
     assert.deepEqual(journalToTick(row), [])
   })
 
+  it('never takes an item the game saw under another creature of the zone, in either paste order and whatever is ticked', () => {
+    const seenOnce = (itemId: number) => ({ itemId, n: 1, last: '2026-12-10', via: 'window' as const })
+    const aaa: DropsSource = { npcId: 990001, name: 'Aaa Test Boss', kind: 'boss', itemIds: [900101, 900777], seen: [seenOnce(900101)], journal: [900101, 900777] }
+    const bbb: DropsSource = { npcId: 990002, name: 'Bbb Test Boss', kind: 'boss', itemIds: [900777, 900201], seen: [seenOnce(900777)], journal: [900201, 900777] }
+    for (const order of [[aaa, bbb], [bbb, aaa]]) {
+      const shared = keep(order)
+      const rowOf = (preview: ReturnType<typeof buildPreview>, name: string) => preview.zones[0]?.creatures.find((row) => row.name === name) as NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
+      const before = buildPreview(shared, setup([barrow]), noAnswers())
+      const listed = rowOf(before, 'Aaa Test Boss')
+      assert.deepEqual(listed.items.map((item) => [item.itemId, item.status, item.where, item.tickable]), [[900101, 'new', undefined, true], [900777, 'claimed', 'Bbb Test Boss', false]])
+      assert.deepEqual(journalToTick(listed), [])
+      // Even a tick the leader gave it before doesn't take it, and the boss that dropped it saves it.
+      const forced = buildPreview(shared, setup([barrow]), tickJournal(answers({ ticks: { [`${listed.id}|900777`]: true } }), rowOf(before, 'Bbb Test Boss')))
+      assert.deepEqual(rowOf(forced, 'Aaa Test Boss').items.map((item) => [item.status, item.ticked]), [['new', true], ['claimed', false]])
+      assert.deepEqual(rowOf(forced, 'Bbb Test Boss').items.map((item) => [item.itemId, item.status, item.ticked]), [[900777, 'new', true], [900201, 'new', true]])
+    }
+  })
+
+  it('never pushes an item the game saw into "no room"', () => {
+    const journal = Array.from({ length: 79 }, (_, i) => 910000 + i)
+    const seenOnce = (itemId: number) => ({ itemId, n: 1, last: '2026-12-10', via: 'window' as const })
+    const night2 = keep([{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900001, ...journal, 900002, 900003], seen: [seenOnce(900001), seenOnce(900002), seenOnce(900003)], journal }])
+    const row = buildPreview(night2, setup([barrow]), noAnswers()).zones[0]?.creatures[0] as NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
+    assert.equal(journalToTick(row).length, 79)
+    const after = buildPreview(night2, setup([barrow]), tickJournal(noAnswers(), row))
+    const items = after.zones[0]?.creatures[0]?.items ?? []
+    assert.deepEqual(items.filter((item) => !item.journalOnly).map((item) => [item.itemId, item.status, item.ticked]), [[900001, 'new', true], [900002, 'new', true], [900003, 'new', true]])
+    assert.deepEqual(items.filter((item) => item.journalOnly).map((item) => item.status).filter((status) => status === 'noRoom').length, 2)
+    assert.deepEqual([after.counts.items, after.counts.journalItems], [3, 77])
+    assert.deepEqual(items.map((item) => item.itemId), [900001, ...journal, 900002, 900003]) // shown in the paste's order
+  })
+
   it('a new creature with only DungeonJournal items is ticked with them', () => {
     const row = buildPreview(night, setup([barrow]), noAnswers()).zones[0]?.creatures[0] as NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
     assert.deepEqual([row.status, row.saved, journalToTick(row).length], ['new', false, 2])

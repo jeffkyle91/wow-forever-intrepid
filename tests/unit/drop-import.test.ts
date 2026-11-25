@@ -203,14 +203,16 @@ describe('the drop list import, worked examples', () => {
     const allowed = { journalSaving: true }
     const preview = buildPreview(shared, setup([], allowed), make)
     const [aaa, bbb] = preview.zones[0]?.creatures ?? []
-    assert.deepEqual(aaa?.items.map((item) => [item.itemId, item.status, item.ticked]), [[900101, 'new', true], [900777, 'new', false]])
+    assert.deepEqual(aaa?.items.map((item) => [item.itemId, item.status, item.where, item.ticked]), [[900101, 'new', undefined, true], [900777, 'claimed', 'Bbb Test Boss', false]])
     assert.deepEqual(bbb?.items.map((item) => [item.itemId, item.status, item.ticked]), [[900777, 'new', true], [900201, 'new', false]])
     assert.deepEqual(buildImportSave(preview, setup([], allowed)).first.map((write) => [write.id, 'create' in write && 'itemIds' in write.create && write.create.itemIds]), [
       [zoneDocId(50_009_100, 0), false], [sourceDocId(50_009_100, 'n990001', 0), [900101]], [sourceDocId(50_009_100, 'n990002', 0), [900777]],
     ])
-    // Ticked on both, the first creature keeps it, as before.
-    const both = buildPreview(shared, setup([], allowed), { ...make, ticks: { [`${aaa?.id}|900777`]: true } })
-    assert.deepEqual(both.zones[0]?.creatures[1]?.items[0]?.status, 'claimed')
+    // A tick on the DungeonJournal listing doesn't take it from the boss that dropped it. Two that saw it: the first saved creature keeps it.
+    const forced = buildPreview(shared, setup([], allowed), { ...make, ticks: { [`${aaa?.id}|900777`]: true } })
+    assert.deepEqual(forced.zones[0]?.creatures.map((row) => row.items.find((item) => item.itemId === 900777)?.status), ['claimed', 'new'])
+    const sawBoth = keep([boss(990001, 'Aaa Test Boss', [900777]), boss(990002, 'Bbb Test Boss', [900777])])
+    assert.deepEqual(buildPreview(sawBoth, setup([], allowed), make).zones[0]?.creatures.map((row) => row.items[0]?.status), ['new', 'claimed'])
     // A guessed boss that isn't ticked doesn't block the item either.
     const guessed = keep([boss(990001, 'Aaa Test Boss', [900777], { guessed: true }), boss(990002, 'Bbb Test Boss', [900777])])
     const rows = buildPreview(guessed, setup([], allowed), make).zones[0]?.creatures

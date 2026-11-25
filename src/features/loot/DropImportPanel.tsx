@@ -124,7 +124,7 @@ function ZoneBlock({ zone, candidates, setup, set, canMake }: { zone: ZoneRow; c
       })}
       {unmatchedWhy && <p className="import-note">{unmatchedWhy}</p>}
       {zone.status === 'new' && <p className="import-note">{zone.kind === 'raid' && [10, 20, 40].includes(zone.players) ? 'A zone is permanent, and a raid of this size can be scheduled.' : 'A zone is permanent.'}</p>}
-      {zone.takenOut && <label className="import-answer import-check"><input type="checkbox" checked={zone.zoneTicked} disabled={set.busy} onChange={(event) => set.ticks(zone.id, event.target.checked)} />Put it back in {set.phase}</label>}
+      {zone.takenOut && <label className="import-answer import-check"><input type="checkbox" checked={zone.zoneTicked} disabled={set.busy} onChange={(event) => set.ticks(zone.tickKey, event.target.checked)} />Put it back in {set.phase}</label>}
       {zone.journalPartial && <p className="import-note">DungeonJournal calls its list for this dungeon incomplete.</p>}
       {zone.creatures.map((creature) => <CreatureBlock key={creature.id} zone={zone} row={creature} set={set} />)}
     </div>

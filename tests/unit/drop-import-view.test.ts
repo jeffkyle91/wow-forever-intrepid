@@ -59,7 +59,7 @@ describe('the import panel: a zone a leader took out of the phase', () => {
   })
 
   it('ticked back, it is counted and no longer left out', () => {
-    const preview = buildPreview(night, setup(docs), answers({ ticks: { u7001: true } }))
+    const preview = buildPreview(night, setup(docs), answers({ ticks: { z4321: true } }))
     const zone = preview.zones[0]
     assert.ok(zone)
     assert.equal(zoneOpen(zone), true)

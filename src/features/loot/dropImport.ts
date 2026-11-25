@@ -97,7 +97,8 @@ export type CreatureRow = {
 }
 
 export type ZoneRow = {
-  id: string
+  id: string // its first pasted zone that landed in it by itself, else its first pick: the block's key while the preview is open
+  tickKey: string // the answer key of its own tick (Put it back): z<zoneId> for a zone that exists, so it holds whichever pasted zone heads the block
   name: string
   kind: ZoneKind
   players: number
@@ -204,8 +205,8 @@ const nearName = (a: string, b: string) => {
 
 /**
  * A candidate's own answer key, from the candidate alone (its instance, else its name's key): the difficulties of one instance share it. It is also the id of
- * the zone row it heads and the start of its creatures' and items' ids, so the leader's answers keep their keys when a zone is picked or made, or a first
- * call that landed lets the zone be matched by itself.
+ * the zone row it heads, and its creatures' and items' ids start with it (rowIds), so the leader's answers keep their keys when a zone is picked or made,
+ * when another pick joins or leaves the block, or when a first call that landed lets the zone be matched by itself.
  */
 const ownIdOf = (candidate: CandidateZone) => `u${candidate.instanceId ?? importZoneKey(candidate.name)}`
 
@@ -236,6 +237,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     joins.candidates.push(...unit.candidates)
     units.splice(units.indexOf(unit), 1)
   }
+  const unitOf = new Map(units.flatMap((unit) => unit.candidates.map((candidate) => [candidate, unit.id] as const)))
   // Each placed by its first candidate the lists match (else its first candidate's miss), or by the leader's answer: a pick, or a zone to make.
   const groups = new Map<string, Unit[]>()
   for (const unit of units) {
@@ -265,6 +267,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     }
     const sources = mergeCandidateSources(inPaste.flatMap((candidate) => candidate.sources))
     const zoneWide = inPaste.flatMap((candidate) => candidate.zoneWide)
+    const ids = rowIds(inPaste, unitOf, group.id)
 
     let target: MergedZone | undefined
     let status: ZoneRow['status']
@@ -287,17 +290,18 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     }
 
     if (!target) {
-      zones.push({ ...base, status: 'unmatched', unmatchedWhy: 'zoneId' in group.hit ? 'none' : group.hit.unmatched, inPhase: false, takenOut: false, zoneTicked: false, tickIn: false, repeatIdentity: false, creatures: creatureRowsUnmatched(group.id, sources, zoneWide) })
+      zones.push({ ...base, tickKey: group.id, status: 'unmatched', unmatchedWhy: 'zoneId' in group.hit ? 'none' : group.hit.unmatched, inPhase: false, takenOut: false, zoneTicked: false, tickIn: false, repeatIdentity: false, creatures: creatureRowsUnmatched(ids, sources, zoneWide) })
       continue
     }
+    const tickKey = status === 'matched' ? `z${target.zoneId}` : group.id
     const takenOut = status === 'matched' && !target.inPhase && takenOutOf(setup.docs, target.zoneId, setup.phaseNo)
-    const zoneTicked = takenOut ? answers.ticks[group.id] === true : true
-    const creatures = creatureRows(group.id, target, sources, zoneWide, setup, answers, zoneTicked)
+    const zoneTicked = takenOut ? answers.ticks[tickKey] === true : true
+    const creatures = creatureRows(ids, target, sources, zoneWide, setup, answers, zoneTicked)
     // A retry after a first call that landed finds everything already there: the tick is what's left (worked example 4). A zone a leader took out and a
     // leader ticks is put back by that tick alone.
     const tickIn = !target.inPhase && zoneTicked && (takenOut || creatures.some((creature) => creature.saved || creature.items.some((item) => item.status === 'already')))
     zones.push({
-      ...base, status, ...(status === 'matched' ? { how: (group.hit as { how: NonNullable<ZoneRow['how']> }).how } : {}), zoneId: target.zoneId,
+      ...base, tickKey, status, ...(status === 'matched' ? { how: (group.hit as { how: NonNullable<ZoneRow['how']> }).how } : {}), zoneId: target.zoneId,
       ...(status === 'matched' && target.name !== first.name ? { appName: target.name } : {}),
       ...(status === 'new' ? { name: target.name } : {}),
       inPhase: target.inPhase, takenOut, zoneTicked, tickIn, repeatIdentity, creatures,
@@ -306,13 +310,24 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
   return { zones, counts: countsOf(zones) }
 }
 
+// The ids of a block's rows, which its answers are kept by: each row's is that of the pasted zone it came from (the first in the paste that has the
+// creature; for the zone-wide list, the first with zone-wide items or trash), never the block's head, so an answer holds when a pick joins or leaves.
+type RowIds = { creature: (source: CandidateSource) => string; zoneWide: string }
+function rowIds(inPaste: CandidateZone[], unitOf: Map<CandidateZone, string>, head: string): RowIds {
+  const from = (candidate: CandidateZone | undefined) => (candidate && unitOf.get(candidate)) ?? head
+  return {
+    creature: (source) => `${from(inPaste.find((candidate) => candidate.sources.some((one) => rowKeyOf(one) === rowKeyOf(source))))}|c${rowKeyOf(source)}`,
+    zoneWide: `${from(inPaste.find((candidate) => candidate.zoneWide.length > 0 || candidate.sources.some((one) => one.kind === 'trash')))}|zonewide`,
+  }
+}
+
 // An unmatched zone's rows: shown so the leader sees what it holds, nothing tickable until a zone is picked.
-function creatureRowsUnmatched(groupId: string, sources: CandidateSource[], zoneWide: CandidateItem[]): CreatureRow[] {
+function creatureRowsUnmatched(ids: RowIds, sources: CandidateSource[], zoneWide: CandidateItem[]): CreatureRow[] {
   const rows: CreatureRow[] = sources.map((source) => ({
-    id: `${groupId}|c${rowKeyOf(source)}`, name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: 'new', near: [], rename: false, saved: false, creatureTickable: false,
-    items: source.items.map((item) => ({ id: `${groupId}|c${rowKeyOf(source)}|${item.itemId}`, itemId: item.itemId, evidence: item.evidence, status: 'new', journalOnly: isJournalOnly(item.evidence), tickable: false, ticked: false })),
+    id: ids.creature(source), name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: 'new', near: [], rename: false, saved: false, creatureTickable: false,
+    items: source.items.map((item) => ({ id: `${ids.creature(source)}|${item.itemId}`, itemId: item.itemId, evidence: item.evidence, status: 'new', journalOnly: isJournalOnly(item.evidence), tickable: false, ticked: false })),
   }))
-  if (zoneWide.length) rows.push({ id: `${groupId}|zonewide`, name: ZONE_WIDE_NAME, kind: 'zonewide', status: 'zoneWide', near: [], rename: false, saved: false, creatureTickable: false, items: zoneWide.map((item) => ({ id: `${groupId}|zonewide|${item.itemId}`, itemId: item.itemId, evidence: item.evidence, status: 'new', journalOnly: false, tickable: false, ticked: false })) })
+  if (zoneWide.length) rows.push({ id: ids.zoneWide, name: ZONE_WIDE_NAME, kind: 'zonewide', status: 'zoneWide', near: [], rename: false, saved: false, creatureTickable: false, items: zoneWide.map((item) => ({ id: `${ids.zoneWide}|${item.itemId}`, itemId: item.itemId, evidence: item.evidence, status: 'new', journalOnly: false, tickable: false, ticked: false })) })
   return rows
 }
 
@@ -348,12 +363,12 @@ const plannedKey = (source: CandidateSource) => (source.npcId !== undefined ? `n
 // The first creature that fits, one in the lists before one a leader took out.
 const liveFirst = (creatures: MergedSource[], fits: (creature: MergedSource) => boolean) => creatures.find((creature) => !creature.removed && fits(creature)) ?? creatures.find(fits)
 
-function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSource[], fromCapture: CandidateItem[], setup: ImportSetup, answers: ImportAnswers, zoneTicked: boolean): CreatureRow[] {
+function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[], fromCapture: CandidateItem[], setup: ImportSetup, answers: ImportAnswers, zoneTicked: boolean): CreatureRow[] {
   const existing = zone.sources // removed ones included: an item on a creature a leader took out stays there
   const drafts: Draft[] = []
   const byExisting = new Map<string, Draft>()
   for (const source of sources) {
-    const candidateId = `${groupId}|c${rowKeyOf(source)}`
+    const candidateId = ids.creature(source)
     const answer = answers.creatures[candidateId]
     let found: MergedSource | undefined
     let how: CreatureRow['how']
@@ -411,7 +426,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
   const offered = new Set([...trashCount].filter(([, count]) => count >= 2).map(([id]) => id))
 
   const zoneWideDraft: Draft = {
-    row: { id: `${groupId}|zonewide`, name: ZONE_WIDE_NAME, kind: 'zonewide', status: 'zoneWide', key: ZONE_WIDE_KEY, near: [], rename: false, saved: false, creatureTickable: false, items: [] },
+    row: { id: ids.zoneWide, name: ZONE_WIDE_NAME, kind: 'zonewide', status: 'zoneWide', key: ZONE_WIDE_KEY, near: [], rename: false, saved: false, creatureTickable: false, items: [] },
     candidates: [], existing: zone.zoneWide,
   }
   const zoneWideItems = [...fromCapture, ...drafts.filter((draft) => draft.row.kind === 'trash').flatMap((draft) => draft.candidates.flatMap((candidate) => candidate.items.filter((item) => offered.has(item.itemId))))]

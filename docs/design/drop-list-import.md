@@ -305,7 +305,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Error** | Can't be ticked. Shows the reason. |
 | **Not in the paste** | Information only. Nothing is ever removed. |
 
-**Ticking an item** under a creature that isn't saved (a guessed boss, a new one a leader unticked, one a leader took out) ticks the creature too, with that item only: its other items stay unticked until a leader ticks them. Unticking an item never changes the creature: a new one with no item ticked is then unticked again by default.
+**Ticking an item** under a creature that isn't saved (a guessed boss, a new one a leader unticked, one a leader took out) ticks the creature too, with that item only: every other item of it that a leader hasn't answered stays unticked until a leader ticks it, also one that had no room before the click. Unticking an item never changes the creature: a new one with no item ticked is then unticked again by default.
 
 **Answers** are kept by what they're about, never by which pasted zone heads a block or by the paste's order:
 - **A pasted zone's pick, or "make a new zone"**, is kept by that pasted zone (its instance id, else its name's key).

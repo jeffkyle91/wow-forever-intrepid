@@ -244,6 +244,18 @@ describe('the import panel: ticking an item under a creature that is not saved',
     }
   })
 
+  it('ticks only the item clicked also near the room limit: an item with no room before the click never comes in by default after it', () => {
+    const held = Array.from({ length: 77 }, (_, i) => 910000 + i)
+    const four = [900020, 900021, 900022, 900023]
+    const out = [barrow, sourceDoc(BARROW, 'n990003', 0, { name: 'Warden of the Test Barrow', kind: 'boss', npcId: 990003, itemIds: held, removed: true })]
+    const takenOut = click(barrowNight([boss(990003, 'Warden of the Test Barrow', four)]), out, noAnswers(), true)
+    assert.deepEqual(takenOut.row.items.map((item) => item.status), ['new', 'new', 'new', 'noRoom'])
+    assert.deepEqual(takenOut.after.items.map((item) => [item.itemId, item.ticked]), [[900020, true], [900021, false], [900022, false], [900023, false]])
+    const many = Array.from({ length: 82 }, (_, i) => 920000 + i)
+    const guessed = click(barrowNight([boss(990004, 'Maybe Test Boss', many, { guessed: true })]), [barrow], noAnswers(), true)
+    assert.deepEqual(guessed.after.items.filter((item) => item.ticked).map((item) => item.itemId), [920000])
+  })
+
   it('a creature a leader took out is brought back with it', () => {
     const docs = [barrow, sourceDoc(BARROW, 'n990003', 0, { name: 'Warden of the Test Barrow', kind: 'boss', npcId: 990003, itemIds: [900008], removed: true })]
     const night = barrowNight([boss(990003, 'Warden of the Test Barrow', [900009])])

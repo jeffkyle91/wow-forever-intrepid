@@ -38,6 +38,8 @@ const isTrue = (value: unknown) => value === undefined || value === true
 const isDate = (value: unknown): value is string => typeof value === 'string' && DATE.test(value)
 /** Section 2's text: code points up to the limit, no NUL, and (when required) more than ASCII spaces. */
 const isText = (value: unknown, limit: number) => typeof value === 'string' && [...value].length <= limit && !value.includes('\u0000') && value.replace(/^ +| +$/g, '') !== ''
+/** A name with its leading and trailing ASCII spaces removed. Not String.trim: a tab or a no-break space is text (section 2). */
+const trimSpaces = (name: string) => name.replace(/^ +| +$/g, '')
 
 function itemSet(value: unknown): Set<number> | null {
   if (!Array.isArray(value) || value.length > MAX_ITEMS) return null
@@ -242,7 +244,7 @@ function candidateSource(source: DropsSource): CandidateSource {
   return {
     ...(source.npcId !== undefined ? { npcId: source.npcId } : {}),
     ...(source.encounterId !== undefined ? { encounterId: source.encounterId } : {}),
-    name: source.name.trim(),
+    name: trimSpaces(source.name),
     kind: source.kind,
     ...(source.guessed ? { guessed: true as const } : {}),
     ...(source.kills !== undefined ? { kills: source.kills } : {}),
@@ -291,7 +293,7 @@ export function mergeDrops(strings: DropsModel[]): CandidateZone[] {
       if (!entry) {
         entry = {
           zone: {
-            name: zone.name.trim(), kind: zone.kind, players: zone.players, ...(zone.zoneId !== undefined ? { zoneId: zone.zoneId } : {}),
+            name: trimSpaces(zone.name), kind: zone.kind, players: zone.players, ...(zone.zoneId !== undefined ? { zoneId: zone.zoneId } : {}),
             ...(zone.instanceId !== undefined ? { instanceId: zone.instanceId } : {}), difficultyIds: [], from: 'addon', sources: [], zoneWide: [],
           },
           sources: [],
@@ -317,8 +319,8 @@ export type CapturePaste = { ok: true; zones: CandidateZone[] } | { ok: false; e
 export function captureCandidate(capture: LootTableCapture): CandidateZone {
   const fromCapture = (itemId: number): CandidateItem => ({ itemId, evidence: { capture: true } })
   return {
-    name: capture.name.trim(), kind: capture.kind, players: capture.players, captureZoneId: capture.zoneId, difficultyIds: [], from: 'capture',
-    sources: capture.sources.map((source) => ({ npcId: source.npcId, name: source.name.trim(), kind: source.kind, items: source.itemIds.map(fromCapture) })),
+    name: trimSpaces(capture.name), kind: capture.kind, players: capture.players, captureZoneId: capture.zoneId, difficultyIds: [], from: 'capture',
+    sources: capture.sources.map((source) => ({ npcId: source.npcId, name: trimSpaces(source.name), kind: source.kind, items: source.itemIds.map(fromCapture) })),
     zoneWide: capture.zoneWideItemIds.map(fromCapture),
   }
 }

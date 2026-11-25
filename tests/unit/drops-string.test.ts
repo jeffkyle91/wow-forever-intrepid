@@ -239,6 +239,40 @@ describe('mergeDrops', () => {
     })
   })
 
+  // Spec section 2: only ASCII spaces are blank. A tab, a no-break space or an ideographic space is text, and the name key keeps it.
+  describe('names', () => {
+    it('trims ASCII spaces only, so a name of tabs (the fixture drops-ok-blank-names) stays a name', () => {
+      const result = readDropsPaste(fixture('cases/drops-ok-blank-names.txt'))
+      assert.equal(result.ok, true)
+      if (!result.ok) return
+      const source = mergeDrops(result.strings.map((one) => one.model)).flatMap((zone) => zone.sources).find((one) => one.npcId === 990001)
+      assert.equal(source?.name, '\t\t')
+      const zones = mergeDrops([model([raid([
+        { npcId: 990001, name: '  Grimtooth the Test Boss  ', kind: 'boss', itemIds: [900001], seen: [seen(900001, 1, '2026-12-10')] },
+        { npcId: 990002, name: ' Lady Test Ipsum　', kind: 'boss', itemIds: [900002], seen: [seen(900002, 1, '2026-12-10')] },
+      ], { name: ' Hollow Test Barrow ' })])])
+      assert.equal(zones[0]?.name, 'Hollow Test Barrow ')
+      assert.deepEqual(zones[0]?.sources.map((one) => one.name), ['Grimtooth the Test Boss', ' Lady Test Ipsum　'])
+    })
+
+    it('joins names the name key joins, and keeps apart names that differ by other whitespace', () => {
+      const ghoul = (name: string): DropsSource => ({ name, kind: 'trash', itemIds: [900030], seen: [seen(900030, 1, '2026-12-10')] })
+      const names = (...rows: DropsSource[]) => mergeDrops([model([raid(rows)])])[0]?.sources.map((one) => one.name)
+      assert.deepEqual(names(ghoul(' Stone  Test Ghoul'), ghoul('Stone Test Ghoul')), ['Stone  Test Ghoul'])
+      assert.deepEqual(names(ghoul('\tStone Test Ghoul'), ghoul('Stone Test Ghoul')), ['\tStone Test Ghoul', 'Stone Test Ghoul'])
+      assert.deepEqual(names(ghoul('Stone Test Ghoul '), ghoul('Stone Test Ghoul')), ['Stone Test Ghoul ', 'Stone Test Ghoul'])
+    })
+
+    it('trims ASCII spaces only in a capture file too', () => {
+      const zone = captureCandidate({
+        format: 1, zoneId: 5555, name: ' Hollow Test Barrow ', kind: 'raid', players: 40, source: 'https://example.invalid/test', capturedAt: '2026-12-10',
+        sources: [{ npcId: 990001, name: '\tGrimtooth the Test Boss  ', kind: 'boss', itemIds: [900001] }], zoneWideItemIds: [],
+      } as never)
+      assert.equal(zone.name, 'Hollow Test Barrow ')
+      assert.equal(zone.sources[0]?.name, '\tGrimtooth the Test Boss')
+    })
+  })
+
   it("names a creature as the game does, not as DungeonJournal does, whichever string comes first", () => {
     const game = model([raid([{ npcId: 990011, name: 'The Fixture Warden', kind: 'boss', kills: 1, itemIds: [900101], seen: [seen(900101, 1, '2026-12-01')] }])])
     const journal = model([raid([{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], journal: [900101, 900102] }])], 'ForeverDungeonJournal/2.0.3')

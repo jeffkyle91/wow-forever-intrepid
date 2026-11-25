@@ -1,6 +1,7 @@
 // What the drop list import panel (DropImportPanel.tsx, LOOT-008) shows and does with the leader's clicks, as pure functions so Node tests them.
 // dropImport.ts does the matching and builds the writes; this holds only the panel's own choices. Only types and pure functions are imported.
-import type { ImportCounts, ZoneRow } from './dropImport.ts'
+import type { CandidateZone } from '../../shared/game/dropsString.ts'
+import { importZoneKey, zoneIdFor, type ImportCounts, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
@@ -49,4 +50,27 @@ export function countsLine(counts: ImportCounts, zones: ZoneRow[], phase: string
     ...(out ? [`${plural(out, 'zone', 'zones')} taken out of ${phase}: left out.`] : []),
   ]
   return left.length ? `${countsText(counts)}. ${left.join(' ')}` : countsText(counts)
+}
+
+/**
+ * The Zone selects of a zone's block: which answer each one sets, and its label. An unmatched zone, or one a Guild Leader makes, has its own. A zone
+ * that pasted zones were picked into has one per pick, named for the pasted zone, so each pick can be changed or taken back (Choose), also when the
+ * zone matched by itself too.
+ */
+export function zoneSelects(zone: ZoneRow): { answerKey: string; label: string }[] {
+  if (zone.status !== 'matched') return [{ answerKey: zone.id, label: 'Zone' }]
+  return zone.picks.map((pick) => ({ answerKey: pick.answerKey, label: `Zone for ${pick.name}` }))
+}
+
+/**
+ * The pasted zone an answer key belongs to (its instance, else its name's key, as dropImport.ts keys a candidate's answers), so "Make a new zone" from a
+ * pick gets the id fixed from that zone's own instance.
+ */
+export const answerSubject = (answerKey: string, candidates: CandidateZone[]): Partial<CandidateZone> =>
+  candidates.find((candidate) => `u${candidate.instanceId ?? importZoneKey(candidate.name)}` === answerKey) ?? {}
+
+/** A Zone select's value as an answer: Choose clears it, "new" makes a zone (its id fixed now, so it doesn't change while the preview is open), else a pick. */
+export function zoneAnswer(value: string, subject: { instanceId?: number }, taken: Set<number>): ZoneAnswer | undefined {
+  if (value === '') return undefined
+  return value === 'new' ? { make: true, zoneId: zoneIdFor(subject, taken) } : { pick: Number(value) }
 }

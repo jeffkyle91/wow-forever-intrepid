@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { confirmHolds, confirmLabel, countsLine, nothingToSave, zoneChip, zoneOpen } from '../../src/features/loot/dropImportView.ts'
-import { buildPreview, noAnswers, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, nothingToSave, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { zoneDocId, type LootTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
@@ -69,5 +69,36 @@ describe('the import panel: a zone a leader took out of the phase', () => {
     assert.equal(zoneOpen(listed.zones[0] as NonNullable<typeof listed.zones[0]>), false)
     assert.equal(zoneChip(listed.zones[0] as NonNullable<typeof listed.zones[0]>, 'Phase 1'), undefined)
     assert.equal(countsLine(counts({ unanswered: 2 }), [], 'Phase 1'), '0 zones, 0 creatures, 0 items. 2 questions unanswered: left out.')
+  })
+})
+
+describe('the import panel: a pick can be changed or taken back', () => {
+  const crypt = (extra: Partial<DropsZone> = {}): DropsZone => ({ name: 'Some Other Crypt', kind: 'dungeon', players: 5, instanceId: 7002, sources: [boss(990200, 'Crypt Lord', [900205])], ...extra })
+  const night = pasted(testAbbey([boss(990100, 'Abbot of Fixtures', [900105])]), crypt())
+  const pick = answers({ zones: { u7002: { pick: 4321 } } })
+
+  it('a pick into a zone that also matched by itself has its own Zone select, named for the pasted zone', () => {
+    const before = buildPreview(night, setup([]), noAnswers())
+    assert.deepEqual(before.zones.map((zone) => [zone.id, zoneSelects(zone)]), [['u7001', []], ['u7002', [{ answerKey: 'u7002', label: 'Zone' }]]])
+    const after = buildPreview(night, setup([]), pick)
+    assert.deepEqual(after.zones.map((zone) => [zone.id, zone.how, zoneSelects(zone)]), [['u7001', 'name', [{ answerKey: 'u7002', label: 'Zone for Some Other Crypt' }]]])
+    // Choose (clear) takes the pick back: the pasted zone is asked about again on its own.
+    const cleared = buildPreview(night, setup([]), answers({ zones: { u7002: zoneAnswer('', {}, new Set()) } }))
+    assert.deepEqual(cleared.zones.map((zone) => [zone.id, zone.status]), [['u7001', 'matched'], ['u7002', 'unmatched']])
+  })
+
+  it('a zone picked alone keeps one select, named for the pasted zone', () => {
+    const alone = buildPreview(pasted(crypt()), setup([]), pick)
+    assert.deepEqual(alone.zones.map((zone) => [zone.id, zone.how, zoneSelects(zone)]), [['u7002', 'pick', [{ answerKey: 'u7002', label: 'Zone for Some Other Crypt' }]]])
+  })
+
+  it('a zone made from a pick gets the id fixed from its own instance', () => {
+    const subject = answerSubject('u7002', night)
+    assert.equal(subject.instanceId, 7002)
+    assert.deepEqual(zoneAnswer('new', subject, takenZoneIds(setup([]))), { make: true, zoneId: 50_007_002 })
+    assert.deepEqual(zoneAnswer('4321', subject, new Set()), { pick: 4321 })
+    // Every zone row's own answer key is found among the pasted zones, also one keyed by its name.
+    const named = pasted(crypt({ instanceId: undefined }))
+    assert.deepEqual(buildPreview(named, setup([]), noAnswers()).zones.map((zone) => answerSubject(zone.id, named).name), ['Some Other Crypt'])
   })
 })

@@ -7,10 +7,10 @@ import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
-  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
+  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
-import { confirmHolds, confirmLabel, countsLine, countsText, nothingToSave, plural, zoneChip, zoneOpen, type ConfirmFor } from './dropImportView'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, countsText, nothingToSave, plural, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor } from './dropImportView'
 import './DropImport.css'
 
 // "Import a drop list" (LOOT-008, docs/design/drop-list-import.md section 7), at the top of Edit the drop lists. A leader pastes the addon's drops
@@ -114,13 +114,9 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
   </section>
 }
 
-function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: ImportSetup; set: Answering; canMake: boolean }) {
-  const ownAnswer = zone.answerKeys[0] ?? zone.id
-  const answer = set.answers.zones[ownAnswer]
-  const choose = (value: string) => {
-    const next = value === '' ? undefined : value === 'new' ? { make: true as const, zoneId: zoneIdFor(zone, takenZoneIds(setup)) } : { pick: Number(value) }
-    set.update({ ...set.answers, zones: { ...set.answers.zones, [ownAnswer]: next } })
-  }
+function ZoneBlock({ zone, candidates, setup, set, canMake }: { zone: ZoneRow; candidates: CandidateZone[]; setup: ImportSetup; set: Answering; canMake: boolean }) {
+  const choose = (answerKey: string, value: string) =>
+    set.update({ ...set.answers, zones: { ...set.answers.zones, [answerKey]: zoneAnswer(value, answerSubject(answerKey, candidates), takenZoneIds(setup)) } })
   const chip = zoneChip(zone, set.phase)
   const unmatchedWhy = zone.unmatchedWhy === 'tie' ? 'More than one zone has this name.' : zone.unmatchedWhy === 'catalog' ? "It's in the older raid list, which can't hold drop lists." : undefined
   return <details className={`import-zone import-${zone.status}`} open={zoneOpen(zone)}>
@@ -131,13 +127,16 @@ function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: Import
       {chip && <span className={chip.added ? 'drops-kind tables-added' : 'drops-kind'}>{chip.text}</span>}
     </summary>
     <div className="import-zone-body">
-      {(zone.status === 'unmatched' || zone.how === 'pick' || zone.status === 'new') && <label className="import-answer">Zone
-        <select value={answer ? ('pick' in answer ? String(answer.pick) : 'new') : ''} disabled={set.busy} onChange={(event) => choose(event.target.value)}>
-          <option value="">Choose</option>
-          {zone.options.map((option) => <option key={option.zoneId} value={option.zoneId}>{option.name} ({option.players}-player {option.kind})</option>)}
-          {canMake && <option value="new">Make a new zone</option>}
-        </select>
-      </label>}
+      {zoneSelects(zone).map(({ answerKey, label }) => {
+        const answer = set.answers.zones[answerKey]
+        return <label key={answerKey} className="import-answer">{label}
+          <select value={answer ? ('pick' in answer ? String(answer.pick) : 'new') : ''} disabled={set.busy} onChange={(event) => choose(answerKey, event.target.value)}>
+            <option value="">Choose</option>
+            {zone.options.map((option) => <option key={option.zoneId} value={option.zoneId}>{option.name} ({option.players}-player {option.kind})</option>)}
+            {canMake && <option value="new">Make a new zone</option>}
+          </select>
+        </label>
+      })}
       {unmatchedWhy && <p className="import-note">{unmatchedWhy}</p>}
       {zone.status === 'new' && <p className="import-note">{zone.kind === 'raid' && [10, 20, 40].includes(zone.players) ? 'A zone is permanent, and a raid of this size can be scheduled.' : 'A zone is permanent.'}</p>}
       {zone.takenOut && <label className="import-answer import-check"><input type="checkbox" checked={zone.zoneTicked} disabled={set.busy} onChange={(event) => set.ticks(zone.id, event.target.checked)} />Put it back in {set.phase}</label>}
@@ -221,7 +220,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
       {paste && 'errors' in paste && <ul className="tables-message tables-bad import-errors" role="alert">{paste.errors.map((error) => <li key={error}>{error}</li>)}</ul>}
       {paste && 'zones' in paste && paste.skipped > 0 && <p className="import-note">{plural(paste.skipped, 'row of the string could', 'rows of the string could')} not be read and {paste.skipped === 1 ? 'is' : 'are'} left out.</p>}
       {preview && <>
-        {preview.zones.map((zone) => <ZoneBlock key={zone.id} zone={zone} setup={setup} set={set} canMake={setup.canMakeZones} />)}
+        {preview.zones.map((zone) => <ZoneBlock key={zone.id} zone={zone} candidates={paste && 'zones' in paste ? paste.zones : []} setup={setup} set={set} canMake={setup.canMakeZones} />)}
         <div className="tables-setup-foot">
           <span className="tables-note">{counts ? countsLine(counts, preview.zones, phase) : ''}</span>
           <span className="tables-actions">

@@ -344,9 +344,10 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     let answered = false
     if (source.npcId !== undefined) { found = liveFirst(existing, (creature) => creature.npcId === source.npcId); how = 'npc' }
     // A corpse joins the creature made from its encounter's rolls only when that creature has no other npc id and the corpse is the encounter's only one
-    // here: in a fight of several bosses, which corpse dropped the rolled items isn't known (as mergeCandidateSources has it).
+    // here: in a fight of several bosses, which corpse dropped the rolled items isn't known (as mergeCandidateSources has it). Rolls (no npc id) always
+    // join it, also once it has learned its npc id.
     if (!found && source.encounterId !== undefined && (source.npcId === undefined || sources.filter((other) => other.npcId !== undefined && other.encounterId === source.encounterId).length === 1)) {
-      found = existing.find((creature) => creature.key === `e${source.encounterId}` && (creature.npcId === undefined || creature.npcId === source.npcId))
+      found = existing.find((creature) => creature.key === `e${source.encounterId}` && (source.npcId === undefined || creature.npcId === undefined || creature.npcId === source.npcId))
       how = 'encounter'
     }
     if (!found) { found = liveFirst(existing, (creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }

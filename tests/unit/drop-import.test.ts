@@ -365,6 +365,26 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(created(buildImportSave(preview, setup(docs)).first), [sourceDocId(BARROW, 'n990022', 0)])
   })
 
+  it("19d. a raider's rolls still join the encounter creature after it learned its npc id, whatever its name is now", () => {
+    const rolls = (itemIds: number[]): DropsSource => ({ encounterId: 9101, name: 'Grimtooth', kind: 'boss', itemIds, seen: itemIds.map((id) => seen(id, 1, '2026-12-10', { via: 'roll' })) })
+    // Night 1: a raider's rolls make e9101. Night 2: the loot master's corpse matches it by encounter, and a leader takes the corpse's name.
+    let docs: LootTableDoc[] = save([barrowMade()], buildPreview(candidates(hollow([rolls([900001])])), setup([barrowMade()]), pickBarrow)).after
+    const corpse = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001, 900002], { encounterId: 9101 })]))
+    const asked = buildPreview(corpse, setup(docs), pickBarrow).zones[0]?.creatures[0]
+    assert.deepEqual([asked?.how, asked?.key, asked?.storeNpcId], ['encounter', 'e9101', 990001])
+    docs = save(docs, buildPreview(corpse, setup(docs), { ...pickBarrow, renames: { [asked?.id as string]: true } })).after
+    // Night 3: another raider's rolls of the same encounter.
+    const night3 = buildPreview(candidates(hollow([rolls([900001, 900003])])), setup(docs), pickBarrow)
+    const row = night3.zones[0]?.creatures[0]
+    assert.deepEqual([row?.status, row?.how, row?.key, row?.items.map((item) => [item.itemId, item.status, item.ticked])], ['matched', 'encounter', 'e9101', [[900001, 'already', false], [900003, 'new', true]]])
+    const after = save(docs, night3).after
+    assert.deepEqual(mergeTables([abbey], after, 0).find((zone) => zone.zoneId === BARROW)?.sources.map((source) => [source.key, source.npcId, source.itemIds]), [['e9101', 990001, [900001, 900002, 900003]]])
+    // The same when a leader renamed the creature in the editor.
+    const renamed = [barrowMade(), sourceDoc(BARROW, 'e9101', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900001], order: 10 })]
+    const again = buildPreview(candidates(hollow([rolls([900001, 900003])])), setup(renamed), pickBarrow).zones[0]?.creatures[0]
+    assert.deepEqual([again?.status, again?.how, again?.key], ['matched', 'encounter', 'e9101'])
+  })
+
   it('20. a zone first named in the next phase: the current phase write repeats its name, kind and size', () => {
     const docs = [barrowMade(1)]
     const preview = buildPreview(night1, setup(docs), pickBarrow)

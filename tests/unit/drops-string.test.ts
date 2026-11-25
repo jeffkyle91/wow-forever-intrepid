@@ -19,6 +19,11 @@ const codeOf = (run: () => unknown) => {
   try { run() } catch (error) { if (error instanceof ExchangeReadError) return error.code; throw error }
   return 'OK'
 }
+// A hand-made drops string around an ASCII payload, sealed as section 1 says.
+const seal = (payload: string) => {
+  const sealed = `IM1:drops:j:${payload.length}:${payload}:`
+  return sealed + crc32(sealed)
+}
 
 describe('the shared envelope reader and the spec cases', () => {
   it('computes every CRC-32 test vector', () => {
@@ -56,6 +61,47 @@ describe('the shared envelope reader and the spec cases', () => {
     assert.equal(exchangeMessage(new ExchangeReadError('E_SCHEMA', '2'), 'drops'), 'This string uses schema 2; this version reads up to 1. Update the addon (or reload the Raid Desk).')
     assert.equal(codeOf(() => readEnvelopes('Here it is: IM2:drops:j:2:{}:00000000', 'drops')), 'E_VERSION')
     assert.equal(codeOf(() => readEnvelopes('nothing here', 'drops')), 'E_NOT_IM')
+  })
+
+  // The Python reference reader (addon/tools/exchange_fixtures.py) gives these answers: "__proto__" is a key like any other, so an unknown field.
+  describe('a "__proto__" key is an unknown field, as in the reference reader', () => {
+    const head = '"schema":1,"id":"d-test-0001","at":1,"by":"IntrepidManager/test"'
+    const keep = '{"name":"Hollow Test Keep","kind":"dungeon","players":5,"sources":[]}'
+
+    it('in a zone: the zone has no name, kind or size, so it is the row error zone:1', () => {
+      const result = readDropsPaste(seal(`{${head},"zones":[{"__proto__":{"name":"Hollow Test Barrow","kind":"raid","players":40},"sources":[]},${keep}]}`))
+      assert.equal(result.ok, true)
+      if (!result.ok) return
+      assert.deepEqual(result.strings[0]?.rowErrors, ['zone:1'])
+      assert.deepEqual(mergeDrops(result.strings.map((one) => one.model)).map((zone) => zone.name), ['Hollow Test Keep'])
+    })
+
+    it('in a source: the source has no name or kind, so it is the row error zone:1/source:1', () => {
+      const result = readDropsPaste(seal(`{${head},"zones":[{"name":"Hollow Test Keep","kind":"dungeon","players":5,"sources":[{"__proto__":{"name":"Grimtooth","kind":"boss"},"itemIds":[]}]}]}`))
+      assert.equal(result.ok, true)
+      if (result.ok) assert.deepEqual(result.strings[0]?.rowErrors, ['zone:1/source:1'])
+    })
+
+    it('beside the fields a row needs: ignored, and kept as an ordinary field of a plain object', () => {
+      const payload = `{${head},"zones":[{"__proto__":{"name":"x"},"name":"Hollow Test Keep","kind":"dungeon","players":5,"sources":[{"__proto__":{"kind":"trash"},"name":"Grimtooth","kind":"boss","itemIds":[]}]}]}`
+      const [one] = readEnvelopes(seal(payload), 'drops', checkDrops)
+      assert.deepEqual(one?.rowErrors, [])
+      assert.deepEqual(one?.model, JSON.parse(payload))
+      const zone = (one?.model.zones as Record<string, unknown>[])[0] as Record<string, unknown>
+      assert.equal(Object.getPrototypeOf(zone), Object.prototype)
+      assert.equal(zone.name, 'Hollow Test Keep')
+      const result = readDropsPaste(seal(payload))
+      assert.equal(result.ok, true)
+      if (result.ok) assert.deepEqual(mergeDrops(result.strings.map((read) => read.model))[0]?.sources.map((source) => [source.name, source.kind]), [['Grimtooth', 'boss']])
+    })
+
+    it('at the top level: what is inside it is not read', () => {
+      const zones = `"zones":[${keep}]`
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"__proto__":{${head},${zones}}}`), 'drops', checkDrops)), 'E_PAYLOAD')
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"schema":1,"__proto__":{"id":"d-test-0001","at":1,"by":"IntrepidManager/test",${zones}}}`), 'drops', checkDrops)), 'E_PAYLOAD')
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"__proto__":{"schema":1},"schema":2,"id":"d-test-0001","at":1,"by":"IntrepidManager/test",${zones}}`), 'drops', checkDrops)), 'E_SCHEMA')
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"__proto__":{"schema":9},${head},${zones}}`), 'drops', checkDrops)), 'OK')
+    })
   })
 })
 

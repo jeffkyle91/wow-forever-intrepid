@@ -90,7 +90,8 @@ function depthOf(value: unknown): number {
 }
 
 // Section 3's reader rules: null and false in a field are absent, null in a list is an error, a lone surrogate is an error. Integers need nothing
-// here: JSON.parse already reads 2.0 and 2e0 as 2.
+// here: JSON.parse already reads 2.0 and 2e0 as 2. Each field is defined, not assigned, so a "__proto__" key is an unknown field (as JSON.parse
+// and the reference reader have it) and never sets the object's prototype.
 function normalize(value: unknown): unknown {
   if (Array.isArray(value)) {
     if (value.some((entry) => entry === null)) throw new ExchangeReadError('E_PAYLOAD', 'null in a list')
@@ -98,7 +99,9 @@ function normalize(value: unknown): unknown {
   }
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [key, entry] of Object.entries(value)) if (entry !== null && entry !== false) out[key] = normalize(entry)
+    for (const [key, entry] of Object.entries(value)) {
+      if (entry !== null && entry !== false) Object.defineProperty(out, key, { value: normalize(entry), enumerable: true, writable: true, configurable: true })
+    }
     return out
   }
   if (typeof value === 'string' && hasLoneSurrogate(value)) throw new ExchangeReadError('E_PAYLOAD', 'lone surrogate')

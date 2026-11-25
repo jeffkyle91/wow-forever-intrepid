@@ -435,9 +435,9 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       let where: string | undefined
       if (creature?.itemIds.includes(item.itemId)) status = 'already'
       else if (holders.has(item.itemId)) { status = 'elsewhere'; where = holders.get(item.itemId) }
+      else if (claims.has(item.itemId)) { status = 'claimed'; where = claims.get(item.itemId) } // before taken off, so a tick never puts one item on two creatures
       else if (creature && (creature.hiddenItemIds.includes(item.itemId) || creature.goneItemIds.includes(item.itemId))) status = 'takenOff'
       else if (!isZoneWide && draft.row.kind === 'trash' && offered.has(item.itemId)) { status = 'zoneWide'; where = ZONE_WIDE_NAME }
-      else if (claims.has(item.itemId)) { status = 'claimed'; where = claims.get(item.itemId) }
       else if (journalOnly && !setup.journalSaving) status = 'journal'
       else status = 'new'
       if ((status === 'new' || status === 'takenOff') && room <= 0) status = 'noRoom'

@@ -217,6 +217,18 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(rows?.map((row) => [row.saved, row.items.map((item) => [item.status, item.ticked])]), [[false, [['new', false]]], [true, [['new', true]]]])
   })
 
+  it('10d. an item an earlier row saves is claimed, also under a creature a leader took it off: it is never written on two creatures', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990002', 0, { name: 'Bbb Test Boss', kind: 'boss', npcId: 990002, order: 20, itemIds: [], hiddenItemIds: [900777] })]
+    const pasted = candidates(hollow([boss(990001, 'Aaa Test Boss', [900777]), boss(990002, 'Bbb Test Boss', [900777])]))
+    const view = (preview: ReturnType<typeof buildPreview>) => preview.zones[0]?.creatures.map((row) => [row.name, row.items.map((item) => [item.status, item.where, item.tickable, item.ticked])])
+    const preview = buildPreview(pasted, setup(docs), pickBarrow)
+    assert.deepEqual(view(preview), [['Aaa Test Boss', [['new', undefined, true, true]]], ['Bbb Test Boss', [['claimed', 'Aaa Test Boss', false, false]]]])
+    const bbb = preview.zones[0]?.creatures[1]
+    const ticked = buildPreview(pasted, setup(docs), { ...pickBarrow, ticks: { [`${bbb?.id}|900777`]: true } })
+    assert.deepEqual(view(ticked), view(preview))
+    assert.deepEqual(buildImportSave(ticked, setup(docs)).first.map((write) => write.id), [sourceDocId(BARROW, 'n990001', 0)])
+  })
+
   it('11. two wings of one built-in dungeon are one zone', () => {
     const wing = (name: string, npcId: number, itemId: number): DropsZone => ({ name, kind: 'dungeon', players: 5, sources: [boss(npcId, `Boss of ${name}`, [itemId])] })
     const preview = buildPreview(candidates(wing('Test Abbey: Library', 990110, 900110), wing('Test Abbey: Chapel', 990111, 900111)), setup([]), noAnswers())

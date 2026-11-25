@@ -256,7 +256,7 @@ The module writes only its own allow-listed fields.
 | On a creature a leader took out | Listed there, and not added. The check includes removed creatures, so bringing one back never puts an item on two creatures. |
 | Taken off by a leader, in this phase or an earlier phase of its follow chain | Taken off, unticked. |
 | More than this creature's remaining room for the phase (80 minus what its document already added, minus the items ticked before it) | Error: "the next phase can add it". |
-| Saved by an earlier row of this import | Listed under that row. Only a ticked item under a creature that is saved holds it: an unticked item, or one under a guessed, taken out, unanswered or unticked creature, holds nothing and takes no room. |
+| Saved by an earlier row of this import | Listed under that row, also when a leader took it off this creature, so one item is never written on two creatures. Only a ticked item under a creature that is saved holds it: an unticked item, or one under a guessed, taken out, unanswered or unticked creature, holds nothing and takes no room. |
 | Anything else | New. |
 
 **Remembering what was taken off.** An item a leader adds and takes off within one phase leaves no trace in the documents today. Once the importer exists:

@@ -10,7 +10,7 @@ import {
   JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
-import { confirmHolds, confirmLabel, countsText, nothingToSave, plural, type ConfirmFor } from './dropImportView'
+import { confirmHolds, confirmLabel, countsLine, countsText, nothingToSave, plural, zoneChip, zoneOpen, type ConfirmFor } from './dropImportView'
 import './DropImport.css'
 
 // "Import a drop list" (LOOT-008, docs/design/drop-list-import.md section 7), at the top of Edit the drop lists. A leader pastes the addon's drops
@@ -121,16 +121,14 @@ function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: Import
     const next = value === '' ? undefined : value === 'new' ? { make: true as const, zoneId: zoneIdFor(zone, takenZoneIds(setup)) } : { pick: Number(value) }
     set.update({ ...set.answers, zones: { ...set.answers.zones, [ownAnswer]: next } })
   }
-  // Open when there is something to save or decide; a zone whose rows are all already listed starts closed.
-  const anything = zone.creatures.some((creature) => creature.saved || creature.creatureTickable || creature.status === 'unmatched' || creature.differs || creature.items.some((item) => item.tickable))
+  const chip = zoneChip(zone, set.phase)
   const unmatchedWhy = zone.unmatchedWhy === 'tie' ? 'More than one zone has this name.' : zone.unmatchedWhy === 'catalog' ? "It's in the older raid list, which can't hold drop lists." : undefined
-  return <details className={`import-zone import-${zone.status}`} open={zone.status !== 'matched' || anything}>
+  return <details className={`import-zone import-${zone.status}`} open={zoneOpen(zone)}>
     <summary>
       <strong>{zone.status === 'new' ? zone.name : zone.appName ?? zone.name}</strong>
       <span>{zone.players}-player {zone.kind}</span>
       {zone.appName && <span className="import-note">as {zone.name} in the paste</span>}
-      {zone.status === 'new' && <span className="drops-kind tables-added">new zone</span>}
-      {zone.status === 'matched' && zone.tickIn && <span className="drops-kind">not in {set.phase} yet</span>}
+      {chip && <span className={chip.added ? 'drops-kind tables-added' : 'drops-kind'}>{chip.text}</span>}
     </summary>
     <div className="import-zone-body">
       {(zone.status === 'unmatched' || zone.how === 'pick' || zone.status === 'new') && <label className="import-answer">Zone
@@ -225,7 +223,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
       {preview && <>
         {preview.zones.map((zone) => <ZoneBlock key={zone.id} zone={zone} setup={setup} set={set} canMake={setup.canMakeZones} />)}
         <div className="tables-setup-foot">
-          <span className="tables-note">{counts ? countsText(counts) : ''}{counts?.unanswered ? `. ${plural(counts.unanswered, 'question', 'questions')} unanswered: left out.` : ''}</span>
+          <span className="tables-note">{counts ? countsLine(counts, preview.zones, phase) : ''}</span>
           <span className="tables-actions">
             {!confirming && <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => setConfirm({ phaseNo, text })}>Save to {phase}</button>}
             {confirming && <>

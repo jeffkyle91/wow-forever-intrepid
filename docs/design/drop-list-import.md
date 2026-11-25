@@ -300,6 +300,8 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Error** | Can't be ticked. Shows the reason. |
 | **Not in the paste** | Information only. Nothing is ever removed. |
 
+**Answers** are kept by the pasted zone and creature they answer, not by what it matched. So they hold when a zone is picked or made, when "same as …" is answered, and after a save whose first call landed. A zone picked into a zone that another pasted zone matched by itself keeps that zone's answers, and lists the pick.
+
 A counts line shows zones, creatures and items. Saving takes one confirm that repeats the counts.
 
 **Saving.** The builder (`importZone`) works from the raw `lootTables` documents, not only the merged view. It never creates a document that already exists. Writes go through `writeLootTables` in chunks of 10. A batch can't hold two writes to one document: the rules check each edit against the document as it was before the batch. So saving is **two calls**, and in each call every document gets exactly one write, with all its changes merged into it:

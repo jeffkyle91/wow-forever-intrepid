@@ -87,7 +87,7 @@ export type CreatureRow = {
   near: { key: string; name: string }[] // for an unmatched creature: the near names it may be
   differs?: { name?: string; kind?: LootSourceKind } // a matched guild creature whose name or kind differs from the paste's
   rename: boolean
-  answerKey?: string // the answer to its near names ("same as …" or "new"), to change it
+  answerKey?: string // the answer to its near names ("same as …" or "new"), to change it: the row's own id, which stays the same once it is answered
   storeNpcId?: number // the npc id the save writes onto the app's creature (same as …, or a creature known by its encounter)
   saved: boolean // the creature is written (new, brought back, or something under it is)
   optIn?: 'noItems' | 'guessed' | 'takenOut' // why the creature itself is unticked until a leader ticks it
@@ -108,7 +108,8 @@ export type ZoneRow = {
   how?: 'capture' | 'zoneId' | 'instance' | 'name' | 'pick'
   unmatchedWhy?: 'none' | 'tie' | 'catalog'
   options: ListedZone[] // zones a leader can pick for it: those of the same kind and size first
-  answerKeys: string[] // the zone answers that put candidates here (to change or take back a pick)
+  answerKeys: string[] // the answer keys of the candidates placed in this zone by a pick (to change or take back a pick)
+  picks: { answerKey: string; name: string }[] // the same, each with the zone's name in the paste, to label and change each pick
   zoneId?: number
   appName?: string // the matched zone's name, when it differs
   inPhase: boolean
@@ -201,7 +202,15 @@ const nearName = (a: string, b: string) => {
   return short.length > 0 && (long.startsWith(`${short} `) || long.endsWith(` ${short}`))
 }
 
-type Group = { id: string; candidates: CandidateZone[]; hit: ZoneHit; picked?: number; make?: boolean; madeId?: number; answerKeys: string[] }
+/**
+ * A candidate's own answer key, from the candidate alone (its instance, else its name's key): the difficulties of one instance share it. It is also the id of
+ * the zone row it heads and the start of its creatures' and items' ids, so the leader's answers keep their keys when a zone is picked or made, or a first
+ * call that landed lets the zone be matched by itself.
+ */
+const ownIdOf = (candidate: CandidateZone) => `u${candidate.instanceId ?? importZoneKey(candidate.name)}`
+
+// The candidates of one answer key, placed together: matched, picked, made, or unmatched.
+type Unit = { id: string; candidates: CandidateZone[]; hit: ZoneHit; picked?: number; make?: boolean; madeId?: number }
 
 /** The preview: every zone, creature and item of the paste, matched, with its category and whether it is ticked (the answers, else the default). */
 export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, answers: ImportAnswers): ImportPreview {
@@ -209,34 +218,44 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
   const merged = mergeTables(setup.captures, setup.docs, setup.phaseNo)
   const taken = takenZoneIds(setup)
 
-  // Group the candidates by the zone they land in: two difficulties of one instance, two wings of one dungeon, or a zone a leader picked.
-  const groups = new Map<string, Group>()
+  // The candidates by their own answer key, in the paste's order.
+  const units: Unit[] = []
   for (const candidate of candidates) {
-    const hit = matchZone(candidate, listed)
-    const ownId = 'zoneId' in hit ? `z${hit.zoneId}` : `u${candidate.instanceId ?? importZoneKey(candidate.name)}`
-    const answer = 'zoneId' in hit ? undefined : answers.zones[ownId]
-    const picked = answer && 'pick' in answer && listed.some((zone) => zone.zoneId === answer.pick) ? answer.pick : undefined
-    const id = picked !== undefined ? `z${picked}` : ownId
-    const make = answer !== undefined && 'make' in answer && setup.canMakeZones
-    const madeId = answer && 'make' in answer ? answer.zoneId : undefined
-    const group = groups.get(id) ?? { id, candidates: [], hit: picked !== undefined ? { zoneId: picked, how: 'pick' } : hit, ...(picked !== undefined ? { picked } : {}), ...(make ? { make } : {}), ...(madeId !== undefined ? { madeId } : {}), answerKeys: [] }
-    group.candidates.push(candidate)
-    if (answer && !group.answerKeys.includes(ownId)) group.answerKeys.push(ownId)
-    groups.set(id, group)
+    const id = ownIdOf(candidate)
+    const unit = units.find((one) => one.id === id)
+    if (unit) unit.candidates.push(candidate)
+    else units.push({ id, candidates: [candidate], hit: { unmatched: 'none' } })
+  }
+  // Each placed by its first candidate the lists match (else its first candidate's miss), or by the leader's answer: a pick, or a zone to make.
+  const groups = new Map<string, Unit[]>()
+  for (const unit of units) {
+    const hits = unit.candidates.map((candidate) => matchZone(candidate, listed))
+    unit.hit = hits.find((hit) => 'zoneId' in hit) ?? (hits[0] as ZoneHit)
+    const answer = 'zoneId' in unit.hit ? undefined : answers.zones[unit.id]
+    if (answer && 'pick' in answer && listed.some((zone) => zone.zoneId === answer.pick)) unit.picked = answer.pick
+    if (answer && 'make' in answer && setup.canMakeZones) { unit.make = true; if (answer.zoneId !== undefined) unit.madeId = answer.zoneId }
+    const place = unit.picked !== undefined ? `z${unit.picked}` : 'zoneId' in unit.hit ? `z${unit.hit.zoneId}` : `${unit.make ? 'm' : 'u'}${unit.id}`
+    groups.set(place, [...(groups.get(place) ?? []), unit])
   }
 
   const zones: ZoneRow[] = []
-  for (const group of groups.values()) {
-    const first = group.candidates[0] as CandidateZone
+  const order = new Map(candidates.map((candidate, index) => [candidate, index]))
+  for (const placed of groups.values()) {
+    // A zone row is headed by its first candidate that landed there by itself, so a pick into it never changes its keys; else by its first pick.
+    const head = placed.find((unit) => unit.picked === undefined) ?? (placed[0] as Unit)
+    const group: { id: string; hit: ZoneHit; make: boolean; madeId?: number } = { id: head.id, hit: head.picked !== undefined ? { zoneId: head.picked, how: 'pick' } : head.hit, make: head.make === true, ...(head.madeId !== undefined ? { madeId: head.madeId } : {}) }
+    const inPaste = placed.flatMap((unit) => unit.candidates).sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+    const first = head.candidates[0] as CandidateZone
+    const picks = placed.filter((unit) => unit.picked !== undefined).map((unit) => ({ answerKey: unit.id, name: (unit.candidates[0] as CandidateZone).name }))
     const base = {
       id: group.id, name: first.name, kind: first.kind, players: first.players, ...(first.instanceId !== undefined ? { instanceId: first.instanceId } : {}), from: first.from,
-      ...(group.candidates.find((candidate) => candidate.journal)?.journal ? { journal: group.candidates.find((candidate) => candidate.journal)?.journal as string } : {}),
-      ...(group.candidates.some((candidate) => candidate.journalPartial) ? { journalPartial: true as const } : {}),
+      ...(inPaste.find((candidate) => candidate.journal)?.journal ? { journal: inPaste.find((candidate) => candidate.journal)?.journal as string } : {}),
+      ...(inPaste.some((candidate) => candidate.journalPartial) ? { journalPartial: true as const } : {}),
       options: sameKindFirst(listed.filter((zone) => zone.zoneId !== undefined), first.kind, first.players),
-      answerKeys: group.answerKeys,
+      answerKeys: picks.map((pick) => pick.answerKey), picks,
     }
-    const sources = mergeCandidateSources(group.candidates.flatMap((candidate) => candidate.sources))
-    const zoneWide = group.candidates.flatMap((candidate) => candidate.zoneWide)
+    const sources = mergeCandidateSources(inPaste.flatMap((candidate) => candidate.sources))
+    const zoneWide = inPaste.flatMap((candidate) => candidate.zoneWide)
 
     let target: MergedZone | undefined
     let status: ZoneRow['status']
@@ -336,8 +355,8 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       }
       const draft: Draft = {
         row: {
-          id: `${groupId}|k${found.key}`, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(how ? { how } : {}), key: found.key, near,
-          ...(Object.keys(differs).length ? { differs } : {}), rename: Object.keys(differs).length > 0 && answers.renames[`${groupId}|k${found.key}`] === true,
+          id: candidateId, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(how ? { how } : {}), key: found.key, near,
+          ...(Object.keys(differs).length ? { differs } : {}), rename: Object.keys(differs).length > 0 && answers.renames[candidateId] === true,
           ...(answered ? { answerKey: candidateId } : {}),
           ...(source.npcId !== undefined && found.npcId === undefined && !found.builtIn ? { storeNpcId: source.npcId } : {}),
           saved: false, creatureTickable: false, items: [],

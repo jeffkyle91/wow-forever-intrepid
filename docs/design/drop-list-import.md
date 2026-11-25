@@ -305,7 +305,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Error** | Can't be ticked. Shows the reason. |
 | **Not in the paste** | Information only. Nothing is ever removed. |
 
-**Ticking an item** under a creature that isn't saved (a guessed boss, a new one a leader unticked, one a leader took out) ticks the creature too. Unticking an item never changes the creature: a new one with no item ticked is then unticked again by default.
+**Ticking an item** under a creature that isn't saved (a guessed boss, a new one a leader unticked, one a leader took out) ticks the creature too, with that item only: its other items stay unticked until a leader ticks them. Unticking an item never changes the creature: a new one with no item ticked is then unticked again by default.
 
 **Answers** are kept by the pasted zone and creature they answer, not by what those matched or by which pasted zone heads the block. A creature's are kept by the first pasted zone that has it, and Put it back by the app's zone. So they hold when a zone is picked or made, when another pick joins the block or is taken back, when "same as …" is answered, and after a save whose first call landed. A zone picked into a zone that another pasted zone matched by itself keeps that zone's answers, and lists the pick. Every pick has its own Zone select there, named for the pasted zone, so it can be changed or taken back (Choose). Answering keeps the block it's asked in open, so keyboard focus stays on the select. A known limit: a pick into a zone another pasted zone is in already (matched by itself or picked) moves the rows and the select into that zone's block, and focus is lost.
 

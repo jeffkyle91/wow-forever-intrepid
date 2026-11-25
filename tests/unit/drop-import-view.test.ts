@@ -225,6 +225,24 @@ describe('the import panel: ticking an item under a creature that is not saved',
     assert.deepEqual([after.saved, after.items[0]?.ticked], [true, true])
   })
 
+  it('ticks only the item clicked: the creature\'s other items stay unticked until the leader ticks them', () => {
+    const three = [900010, 900011, 900012]
+    const out = [barrow, sourceDoc(BARROW, 'n990003', 0, { name: 'Warden of the Test Barrow', kind: 'boss', npcId: 990003, itemIds: [900008], removed: true })]
+    for (const [night, docs] of [
+      [barrowNight([boss(990004, 'Maybe Test Boss', three, { guessed: true })]), [barrow]],
+      [barrowNight([boss(990003, 'Warden of the Test Barrow', three)]), out],
+      [barrowNight([boss(990001, 'Grimtooth the Test Boss', three)]), [barrow]],
+    ] as const) {
+      const unticked = night[0]?.sources[0]?.npcId === 990001 ? answers({ ticks: { 'utest barrow|cn990001': false } }) : noAnswers()
+      const { next, after } = click(night, [...docs], unticked, true)
+      assert.deepEqual([after.saved, after.items.map((item) => [item.itemId, item.ticked])], [true, [[900010, true], [900011, false], [900012, false]]])
+      // A tick the leader gave before stays.
+      const kept = click(night, [...docs], { ...unticked, ticks: { ...unticked.ticks, [`${after.id}|900012`]: true } }, true)
+      assert.deepEqual(kept.after.items.map((item) => item.ticked), [true, false, true])
+      assert.equal(buildPreview(night, setup([...docs]), next).counts.items, 1)
+    }
+  })
+
   it('a creature a leader took out is brought back with it', () => {
     const docs = [barrow, sourceDoc(BARROW, 'n990003', 0, { name: 'Warden of the Test Barrow', kind: 'boss', npcId: 990003, itemIds: [900008], removed: true })]
     const night = barrowNight([boss(990003, 'Warden of the Test Barrow', [900009])])

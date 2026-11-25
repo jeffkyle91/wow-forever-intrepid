@@ -508,6 +508,26 @@ describe('the drop list import, worked examples', () => {
     }
   })
 
+  it('a creature whose pasted items all sit on its document with no name is saved by default: naming it is what shows them', () => {
+    const docs: LootTableDoc[] = [
+      { id: 'p1', type: 'phase', phaseNo: 1, rev: 2 }, barrowMade(), zoneDoc(BARROW, 1, { removed: false }),
+      sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] }),
+      sourceDoc(BARROW, 'n990001', 1, { itemIds: [900002] }),
+    ]
+    const preview = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900002])])), setup(docs, { phaseNo: 1 }), pickBarrow)
+    const row = preview.zones[0]?.creatures[0]
+    assert.deepEqual([row?.status, row?.saved, row?.optIn, row?.creatureTickable, row?.items.map((item) => [item.itemId, item.status, item.ticked])], ['new', true, undefined, true, [[900002, 'already', false]]])
+    assert.deepEqual([preview.counts.creatures, preview.counts.items], [1, 0])
+    const { first, after } = save(docs, preview, { phaseNo: 1 })
+    assert.deepEqual(first.map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(BARROW, 'n990001', 1), { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10 }]])
+    assert.deepEqual(mergeTables([abbey], after, 1).find((zone) => zone.zoneId === BARROW)?.sources.map((source) => [source.key, source.name, source.itemIds]), [['n990001', 'Grimtooth the Test Boss', [900002]]])
+    // A guessed boss still waits for a leader's tick, and a leader can untick it.
+    const guessed = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900002], { guessed: true })])), setup(docs, { phaseNo: 1 }), pickBarrow)
+    assert.deepEqual([guessed.zones[0]?.creatures[0]?.saved, guessed.zones[0]?.creatures[0]?.optIn], [false, 'guessed'])
+    const unticked = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900002])])), setup(docs, { phaseNo: 1 }), { ...pickBarrow, ticks: { [row?.id as string]: false } })
+    assert.equal(unticked.zones[0]?.creatures[0]?.saved, false)
+  })
+
   it('a name that is only tabs or other blanks is never written: a new zone or creature gets a name the rules accept', () => {
     const blank = '\t\t'
     const pasted = candidates(hollow([

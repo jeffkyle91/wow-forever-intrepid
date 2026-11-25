@@ -508,9 +508,10 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
     }
     draft.row.items.push(...items.map((item) => itemRows.get(item.itemId) as ItemRow))
     // The creature itself: a new one is written when something under it is ticked, or (a boss with no items yet, a guessed boss) when a leader ticks it.
+    // One whose document is there with no name is written by default, also when its items are all on that document: naming it is what shows them.
     const anyTicked = draft.row.items.some((item) => item.ticked)
     if (draft.row.status === 'new') {
-      const optIn: CreatureRow['optIn'] = draft.row.guessed ? 'guessed' : !anyTicked ? 'noItems' : undefined
+      const optIn: CreatureRow['optIn'] = draft.row.guessed ? 'guessed' : !anyTicked && !draft.unnamed ? 'noItems' : undefined
       draft.row.creatureTickable = decided
       draft.row.saved = decided && (answers.ticks[draft.row.id] ?? (!optIn))
       if (optIn) draft.row.optIn = optIn

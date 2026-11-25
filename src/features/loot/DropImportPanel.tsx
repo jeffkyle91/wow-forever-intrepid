@@ -8,8 +8,9 @@ import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
   JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, zoneIdFor, type CreatureRow, type ImportAnswers,
-  type ImportCounts, type ImportSetup, type ItemRow, type ZoneRow,
+  type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
+import { confirmHolds, confirmLabel, countsText, nothingToSave, plural, type ConfirmFor } from './dropImportView'
 import './DropImport.css'
 
 // "Import a drop list" (LOOT-008, docs/design/drop-list-import.md section 7), at the top of Edit the drop lists. A leader pastes the addon's drops
@@ -31,7 +32,6 @@ function readPaste(text: string): Paste {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const shortDate = (date: string) => `${MONTHS[Number(date.slice(5, 7)) - 1] ?? ''} ${Number(date.slice(8, 10))}`
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
 function evidenceText(evidence: ItemEvidence, trash: boolean): string[] {
   const parts: string[] = []
@@ -55,16 +55,6 @@ function statusText(row: ItemRow, phase: string): string | undefined {
     case 'noRoom': return `no room left in ${phase}: the next phase can add it`
     default: return undefined
   }
-}
-
-function countsText(counts: ImportCounts): string {
-  const parts = [
-    counts.newZones ? `${plural(counts.zones, 'zone', 'zones')} (${counts.newZones} new)` : plural(counts.zones, 'zone', 'zones'),
-    counts.newCreatures ? `${plural(counts.creatures, 'creature', 'creatures')} (${counts.newCreatures} new)` : plural(counts.creatures, 'creature', 'creatures'),
-    plural(counts.items, 'item', 'items'),
-    ...(counts.journalItems ? [`${counts.journalItems} from DungeonJournal`] : []),
-  ]
-  return parts.join(', ')
 }
 
 type Answering = { ticks: (id: string, value: boolean) => void; answers: ImportAnswers; update: (next: ImportAnswers) => void; busy: boolean; phase: string }
@@ -162,7 +152,7 @@ function ZoneBlock({ zone, setup, set, canMake }: { zone: ZoneRow; setup: Import
 export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; phaseNo: number; phase: string }) {
   const [text, setText] = useState('')
   const [answers, setAnswers] = useState<ImportAnswers>(noAnswers)
-  const [confirming, setConfirming] = useState(false)
+  const [confirm, setConfirm] = useState<ConfirmFor | null>(null)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
   const { busy, setBusy, setMutationError } = live.feedback
   const docs = live.data.lootTables
@@ -174,9 +164,12 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
   const preview = useMemo(() => (paste && 'zones' in paste ? buildPreview(paste.zones, setup, answers) : null), [paste, setup, answers])
   const previewing = live.identity.isPreviewing
   const counts = preview?.counts
-  const nothing = !counts || (counts.items + counts.journalItems === 0 && counts.creatures === 0 && counts.zones === 0)
+  const nothing = nothingToSave(counts)
+  // The confirm step is for one phase and one text: picking another phase in the editor or loading a file closes it, and going back doesn't reopen it.
+  const confirming = confirmHolds(confirm, phaseNo, text)
+  if (confirm && !confirming) setConfirm(null)
 
-  const update = (next: ImportAnswers) => { setAnswers(next); setConfirming(false) }
+  const update = (next: ImportAnswers) => { setAnswers(next); setConfirm(null) }
   const set: Answering = { answers, update, busy, phase, ticks: (id, value) => update({ ...answers, ticks: { ...answers.ticks, [id]: value } }) }
 
   async function save() {
@@ -189,7 +182,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
     const reason = importReason(paste.from, paste.ids)
     let written = 0
     setBusy(true)
-    setConfirming(false)
+    setConfirm(null)
     try {
       const count = (ids: string[]) => { written += ids.length }
       const write = (writes: TableWrite[], why: string) => (writes.length ? writeLootTables(writes, who, count, why) : Promise.resolve())
@@ -219,11 +212,11 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
     <div className="tables-import-inner">
       <div className="tables-add">
         <label>Drops strings from the addon, or a capture file
-          <textarea value={text} rows={3} disabled={busy} placeholder="IM1:drops:j:..." onChange={(event) => { setText(event.target.value); setAnswers(noAnswers()); setConfirming(false); setMessage(null) }} />
+          <textarea value={text} rows={3} disabled={busy} placeholder="IM1:drops:j:..." onChange={(event) => { setText(event.target.value); setAnswers(noAnswers()); setConfirm(null); setMessage(null) }} />
         </label>
         <label className="import-file">Or a capture file<input type="file" accept=".json,application/json,.txt,text/plain" disabled={busy} onChange={(event) => {
           const file = event.target.files?.[0]
-          if (file) void file.text().then((read) => { setText(read); setAnswers(noAnswers()); setMessage(null) })
+          if (file) void file.text().then((read) => { setText(read); setAnswers(noAnswers()); setConfirm(null); setMessage(null) })
           event.target.value = ''
         }} /></label>
       </div>
@@ -234,10 +227,10 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
         <div className="tables-setup-foot">
           <span className="tables-note">{counts ? countsText(counts) : ''}{counts?.unanswered ? `. ${plural(counts.unanswered, 'question', 'questions')} unanswered: left out.` : ''}</span>
           <span className="tables-actions">
-            {!confirming && <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => setConfirming(true)}>Save to {phase}</button>}
+            {!confirming && <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => setConfirm({ phaseNo, text })}>Save to {phase}</button>}
             {confirming && <>
-              <button type="button" className="button button-secondary tables-small" disabled={busy} onClick={() => setConfirming(false)}>Cancel</button>
-              <button type="button" className="button button-primary tables-small" disabled={busy || previewing} onClick={() => void save()}>Save {counts ? countsText(counts) : ''}</button>
+              <button type="button" className="button button-secondary tables-small" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
+              <button type="button" className="button button-primary tables-small" disabled={busy || previewing || nothing} onClick={() => void save()}>{counts ? confirmLabel(phase, counts) : 'Save'}</button>
             </>}
           </span>
         </div>

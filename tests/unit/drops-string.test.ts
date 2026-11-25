@@ -87,7 +87,7 @@ describe('the shared envelope reader and the spec cases', () => {
       const [one] = readEnvelopes(seal(payload), 'drops', checkDrops)
       assert.deepEqual(one?.rowErrors, [])
       assert.deepEqual(one?.model, JSON.parse(payload))
-      const zone = (one?.model.zones as Record<string, unknown>[])[0] as Record<string, unknown>
+      const zone = (one?.model.zones as Record<string, unknown>[] | undefined)?.[0] as Record<string, unknown>
       assert.equal(Object.getPrototypeOf(zone), Object.prototype)
       assert.equal(zone.name, 'Hollow Test Keep')
       const result = readDropsPaste(seal(payload))

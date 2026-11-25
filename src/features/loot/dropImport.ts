@@ -106,7 +106,7 @@ export type ZoneRow = {
   from: 'addon' | 'capture'
   journalPartial?: true
   status: 'matched' | 'unmatched' | 'new'
-  how?: 'capture' | 'zoneId' | 'instance' | 'name' | 'pick'
+  how?: 'capture' | 'zoneId' | 'instance' | 'name' | 'pick' | 'made' // made: the zone its own "make" answer made, found again on Save again
   unmatchedWhy?: 'none' | 'tie' | 'catalog'
   options: ListedZone[] // zones a leader can pick for it: those of the same kind and size first
   answerKeys: string[] // the answer keys of the candidates placed in this zone by a pick (to change or take back a pick)
@@ -146,7 +146,7 @@ function matchZone(candidate: CandidateZone, listed: ListedZone[]): ZoneHit {
     const fixed = CUSTOM_ZONE_MIN + candidate.instanceId
     if (lists.some((zone) => zone.zoneId === fixed)) return { zoneId: fixed, how: 'instance' }
   }
-  const key = importZoneKey(madeZoneName(candidate)) // the name a zone made from it has, so a retry finds one made with a random id
+  const key = importZoneKey(candidate.name)
   for (const wanted of [key, beforeColon(key)]) {
     if (!wanted) continue
     const hits = lists.filter((zone) => importZoneKey(zone.name) === wanted)
@@ -245,8 +245,11 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
   for (const unit of units) {
     const hits = unit.candidates.map((candidate) => matchZone(candidate, listed))
     unit.hit = hits.find((hit) => 'zoneId' in hit) ?? (hits[0] as ZoneHit)
-    const answer = 'zoneId' in unit.hit ? undefined : answers.zones[unit.id]
     const given = answers.zones[unit.id]
+    // Save again after a first call that made the zone: it lands in the zone its "make" answer gave the id to, whatever that zone is named (a blank name
+    // is written "Unnamed zone", a long raid name is cut). Another pasted zone with such a name is asked about again.
+    if (!('zoneId' in unit.hit) && given && 'make' in given && given.zoneId !== undefined && listed.some((zone) => zone.zoneId === given.zoneId)) unit.hit = { zoneId: given.zoneId, how: 'made' }
+    const answer = 'zoneId' in unit.hit ? undefined : given
     if ('zoneId' in unit.hit && setup.canMakeZones && given && 'make' in given && (given.zoneId === undefined || given.zoneId === unit.hit.zoneId)) unit.madeBefore = true
     if (answer && 'pick' in answer && listed.some((zone) => zone.zoneId === answer.pick)) unit.picked = answer.pick
     if (answer && 'make' in answer && setup.canMakeZones) { unit.make = true; if (answer.zoneId !== undefined) unit.madeId = answer.zoneId }

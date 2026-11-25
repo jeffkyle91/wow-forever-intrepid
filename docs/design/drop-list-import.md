@@ -227,7 +227,7 @@ The module writes only its own allow-listed fields.
 - **A blank name.** The string allows a name of only tabs or no-break spaces, but the rules refuse it. Such a zone is written as "Unnamed zone", and such a new creature as "NPC <id>", "Encounter <id>" or "Unnamed creature". A Differs row never offers a blank name.
 - **Its tick** comes after the creatures ([section 7](#7-the-preview-and-saving)).
 - **Its color.** A Guild Leader's import also saves a suggested color (`suggestColor`) to `settings/zoneColors`, as Settings does, once the zone document has landed, also when a later batch of the first call fails. On Save again, a zone the import made that still has no color chosen gets one. A zone that has a color chosen keeps it. If saving the color fails, the zone keeps the automatic color, the drop lists still save, and the message says so, whether the save finished or stopped.
-- **A retry** finds it in the raw documents: by the fixed id, or by name for a random id. Both work because the zone document, with its name, is written first. The name matched is the one the import wrote: "Unnamed zone" for a blank name, and a raid's name cut to 80 characters.
+- **A retry** (Save again, with the answers still in the panel) finds it in the raw documents: by the fixed id, or by the id its "make" answer carries, whatever the zone is named ("Unnamed zone" for a blank name, a raid's name cut to 80 characters). Both work because the zone document is written first. Names are matched only as pasted, so a different blank-named zone in a later paste never lands in an "Unnamed zone" by itself: it's asked about again.
 
 **A zone matched in another phase.** `listZones` also lists zones first named in the next phase. When the matched guild zone has no named document at or before the picked phase, the zone write in the picked phase repeats its name, kind and size, so the merge sees it there.
 
@@ -345,7 +345,7 @@ If the second call fails, the zone stays out of the phase (nothing shows), and a
 
 The text and the answers stay in the panel, so pressing Save again finishes the job: the preview is built again from the stored documents, and what was saved shows as Already listed. Pasting the same string again later works the same way:
 - **Fixed ids:** `n…` and `e…` keys, and a fixed zone id, are found by id.
-- **Random ids:** a random creature key, or a random zone id, is found by name. A zone made by the import has its name from its first write.
+- **Random ids:** a random creature key, or a random zone id, is found by name. A zone made by the import has its name from its first write. A zone written as "Unnamed zone", or with its raid name cut, isn't found by name in a later paste: the leader picks it.
 
 For a zone already in a live phase, the creatures saved before a failure are visible at once.
 

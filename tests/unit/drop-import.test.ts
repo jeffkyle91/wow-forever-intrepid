@@ -546,19 +546,30 @@ describe('the drop list import, worked examples', () => {
     assert.equal(matched.zones[0]?.creatures[0]?.differs, undefined)
   })
 
-  it('a zone made with a random id is found again by the name the import wrote, also "Unnamed zone" or a raid name cut to fit', () => {
+  it('a zone made with a random id is found again on Save again: by its "make" answer when it was written "Unnamed zone" or with a raid name cut to fit, else by name', () => {
     const warden = (name: string, kind: 'dungeon' | 'raid'): DropsZone => ({ name, kind, players: kind === 'raid' ? 10 : 5, sources: [boss(990011, 'The Fixture Warden', [900101])] })
-    for (const zone of [warden('\t\t', 'dungeon'), warden(`Test ${'Long '.repeat(20)}Crypt`, 'raid'), warden('Hollow Test Keep', 'dungeon')]) {
+    for (const [zone, how] of [[warden('\t\t', 'dungeon'), 'made'], [warden(`Test ${'Long '.repeat(20)}Crypt`, 'raid'), 'made'], [warden('Hollow Test Keep', 'dungeon'), 'name']] as const) {
       const pasted = candidates(zone)
       const unitId = buildPreview(pasted, setup([]), noAnswers()).zones[0]?.id as string
       const given = answers({ zones: { [unitId]: { make: true, zoneId: 61_234_567 } } })
       // The first call landed and the tick didn't: Save again finds the zone and only ticks it in.
       const afterFirst = applyWrites([], buildImportSave(buildPreview(pasted, setup([]), given), setup([])).first)
       const retry = buildPreview(pasted, setup(afterFirst), given)
-      assert.deepEqual([retry.zones[0]?.status, retry.zones[0]?.how, retry.zones[0]?.zoneId], ['matched', 'name', 61_234_567], JSON.stringify(zone.name))
+      assert.deepEqual([retry.zones[0]?.status, retry.zones[0]?.how, retry.zones[0]?.zoneId, retry.zones[0]?.madeBefore], ['matched', how, 61_234_567, true], JSON.stringify(zone.name))
       const again = save(afterFirst, retry)
       assert.deepEqual([again.first, again.second.ticks.map((write) => write.id)], [[], [zoneDocId(61_234_567, 0)]])
     }
+  })
+
+  it('a different blank-named zone in a later paste is asked about again: only its own "make" answer finds the "Unnamed zone" an import made', () => {
+    const blank = (name: string, source: DropsSource): DropsZone => ({ name, kind: 'dungeon', players: 5, sources: [source] })
+    const night1 = candidates(blank('\t\t', boss(990011, 'The Fixture Warden', [900101])))
+    const given = answers({ zones: { [buildPreview(night1, setup([]), noAnswers()).zones[0]?.id as string]: { make: true, zoneId: 61_234_567 } } })
+    const { after } = save([], buildPreview(night1, setup([]), given))
+    assert.equal(after.find((doc) => doc.id === zoneDocId(61_234_567, 0) && doc.type === 'zone' && doc.name === 'Unnamed zone')?.id, zoneDocId(61_234_567, 0))
+    const night2 = candidates(blank('  ', boss(990077, 'Another Test Keeper', [900777])))
+    const zone = buildPreview(night2, setup(after), noAnswers()).zones[0]
+    assert.deepEqual([zone?.status, zone?.unmatchedWhy, zone?.zoneId], ['unmatched', 'none', undefined])
   })
 
   it('two creatures the merge keeps apart have rows of their own', () => {

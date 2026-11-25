@@ -396,19 +396,36 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual([merged?.name, merged?.inPhase, merged?.sources.length], ['Test Barrow', true, 2])
   })
 
-  it('never creates a creature document that is there already, also one outside the follow chain the merge leaves out', () => {
-    // Phase 1 followed phase 0 when a leader added an item to Grimtooth there (a document with no name); the link was then taken away.
-    const docs: LootTableDoc[] = [
+  it('never creates a creature document that is there already: a document no phase of the chain names is named in one edit, with its items', () => {
+    // Phase 1 followed phase 0 when a leader added 900002 to Grimtooth there and took 900004 off (a document with no name); the link was then taken away.
+    const unnamed = (extra: Partial<SourceTableDoc> = {}) => sourceDoc(BARROW, 'n990001', 1, { itemIds: [900002], hiddenItemIds: [900004], ...extra })
+    const docsWith = (doc: SourceTableDoc): LootTableDoc[] => [
       { id: 'p1', type: 'phase', phaseNo: 1, rev: 2 }, barrowMade(), zoneDoc(BARROW, 1, { removed: false }),
-      sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900001] }),
-      sourceDoc(BARROW, 'n990001', 1, { itemIds: [900002] }),
+      sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, itemIds: [900001] }), doc,
     ]
-    const preview = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900003])])), setup(docs, { phaseNo: 1 }), pickBarrow)
+    const docs = docsWith(unnamed())
+    const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900002, 900003, 900004])]))
+    const preview = buildPreview(pasted, setup(docs, { phaseNo: 1 }), pickBarrow)
     const row = preview.zones[0]?.creatures[0]
-    assert.equal(row?.status, 'new')
-    assert.notEqual(row?.key, 'n990001')
-    const first = buildImportSave(preview, setup(docs, { phaseNo: 1 })).first
-    assert.deepEqual(first.filter((write) => docs.some((doc) => doc.id === write.id) && 'create' in write), [])
+    assert.deepEqual([row?.status, row?.key, row?.saved], ['new', 'n990001', true])
+    assert.deepEqual(row?.items.map((item) => [item.itemId, item.status, item.ticked]), [[900002, 'already', false], [900003, 'new', true], [900004, 'takenOff', false]])
+    const { first, after } = save(docs, preview, { phaseNo: 1 })
+    assert.deepEqual(first.map((write) => [write.id, 'existing' in write && write.existing.rev, 'existing' in write && write.changes]), [
+      [sourceDocId(BARROW, 'n990001', 1), 1, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900002, 900003] }],
+    ])
+    assert.deepEqual(mergeTables([abbey], after, 1).find((zone) => zone.zoneId === BARROW)?.sources.map((source) => [source.key, source.name, source.itemIds, source.hiddenItemIds]), [['n990001', 'Grimtooth the Test Boss', [900002, 900003], [900004]]])
+    // A retry finds it by npc id. When the follow link comes back, phase 1 still has one Grimtooth.
+    assert.deepEqual(save(after, buildPreview(pasted, setup(after, { phaseNo: 1 }), pickBarrow), { phaseNo: 1 }).first, [])
+    const relinked = after.map((doc) => (doc.type === 'phase' ? { ...doc, follows: 0, rev: 3 } : doc))
+    assert.deepEqual(mergeTables([abbey], relinked, 1).find((zone) => zone.zoneId === BARROW)?.sources.map((source) => [source.key, source.itemIds]), [['n990001', [900001, 900002, 900003]]])
+    // A ticked item it took off comes back in the same edit; one it took out is put back; its room counts the items it already adds.
+    const ticked = buildPreview(pasted, setup(docs, { phaseNo: 1 }), { ...pickBarrow, ticks: { [`${row?.id}|900004`]: true } })
+    assert.deepEqual(save(docs, ticked, { phaseNo: 1 }).first.map((write) => 'existing' in write && [write.changes.itemIds, write.changes.hiddenItemIds]), [[[900002, 900003, 900004], []]])
+    const out = docsWith(unnamed({ removed: true }))
+    assert.deepEqual(save(out, buildPreview(pasted, setup(out, { phaseNo: 1 }), pickBarrow), { phaseNo: 1 }).first.map((write) => 'existing' in write && write.changes.removed), [false])
+    const full = docsWith(unnamed({ itemIds: Array.from({ length: 79 }, (_, i) => 910000 + i) }))
+    const crowded = buildPreview(candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900003, 900005])])), setup(full, { phaseNo: 1 }), pickBarrow)
+    assert.deepEqual(crowded.zones[0]?.creatures[0]?.items.map((item) => item.status), ['new', 'noRoom'])
   })
 
   it('a name that is only tabs or other blanks is never written: a new zone or creature gets a name the rules accept', () => {

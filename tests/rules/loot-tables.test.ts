@@ -627,6 +627,18 @@ for (const who of RAID_STAFF as readonly Staff[]) {
       }
     })
 
+    test('one edit can name a creature document that has no name, with its kind, number, order and items, and put it back (the drop list import does)', async () => {
+      // A leader changed the creature's items while this phase followed another, and the link was then taken away: the document names nothing.
+      const id = sourceTableId(ZONE_NO, 'n4887', 0)
+      await storeTable(id, { type: 'source', zoneId: ZONE_NO, key: 'n4887', phaseNo: 0, itemIds: [1111], hiddenItemIds: [2222], removed: true })
+      await expectAllowed(editOf(id, { name: 'Test Boss', kind: 'boss', npcId: 4887, order: 10, removed: false, itemIds: [1111, 3333] }))
+      const saved = await stored(`lootTables/${id}`)
+      assert.deepEqual([saved?.name, saved?.kind, saved?.npcId, saved?.order, saved?.removed, saved?.itemIds, saved?.hiddenItemIds, saved?.rev], ['Test Boss', 'boss', 4887, 10, false, [1111, 3333], [2222], 2])
+      const logged = await stored(`auditLog/${entryId('table', id, 2)}`)
+      assert.equal(logged?.item, '', 'the label is the name before the edit: none')
+      assert.deepEqual(((logged?.changed ?? []) as string[]).slice().sort(), ['itemIds', 'kind', 'name', 'npcId', 'order', 'removed'])
+    })
+
     test('a creature can be taken out of the lists and brought back, with the items it has', async () => {
       await storeTable(SOURCE_TABLE, sourceTableDoc())
       await expectAllowed(edit({ removed: true }), 'out')

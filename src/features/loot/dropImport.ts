@@ -7,8 +7,8 @@
 // answers and calls writeLootTables. Only types and pure functions are imported, so Node runs the tests directly.
 import {
   CUSTOM_ZONE_MIN, TABLE_ITEMS_MAX, TABLE_NAME_MAX, TABLE_ORDER_MAX, ZONE_WIDE_KEY, ZONE_WIDE_NAME, addItems, followChain, hasText, mergeTables, newCreatureKey, newZoneId,
-  setZoneInPhase, sourceDocId, zoneDocId, type LootTableDoc, type MergedSource, type MergedZone, type NewTableDoc, type TableChange, type TableWrite, type ZoneKind,
-  type ZoneTableDoc,
+  setZoneInPhase, sourceDocId, zoneDocId, type LootTableDoc, type MergedSource, type MergedZone, type NewTableDoc, type SourceTableDoc, type TableChange, type TableWrite,
+  type ZoneKind, type ZoneTableDoc,
 } from '../../shared/game/guildTables.ts'
 import type { LootSourceKind, LootTableCapture } from '../../shared/game/lootTables.ts'
 import { dropsNameKey, mergeCandidateSources, mergeEvidence, type CandidateItem, type CandidateSource, type CandidateZone, type ItemEvidence } from '../../shared/game/dropsString.ts'
@@ -326,7 +326,26 @@ const sourceFacts = (source: CandidateSource) => ({
   ...(source.first !== undefined ? { first: source.first } : {}), ...(source.last !== undefined ? { last: source.last } : {}),
 })
 
-type Draft = { row: CreatureRow; candidates: CandidateSource[]; existing?: MergedSource }
+// `unnamed`: a new creature whose key has documents already that no document of the chain names (written while the phase followed another), as it is
+// once the import names it.
+type Draft = { row: CreatureRow; candidates: CandidateSource[]; existing?: MergedSource; unnamed?: Named }
+type Named = { zone: MergedZone; source: MergedSource }
+
+/**
+ * A creature key whose documents in the phase's follow chain name nothing, so the merge leaves it out (a leader changed its items while this phase
+ * followed another, and the link was then taken away): the zone and the creature as they are once the import names it. Its items, the room its
+ * document has left and the items it takes off then show, and the save names it in its document's one write instead of creating a document that exists.
+ */
+function unnamedCreature(setup: Pick<ImportSetup, 'captures' | 'docs' | 'phaseNo'>, zoneId: number, key: string, name: string): Named | undefined {
+  const chain = new Set(followChain(setup.docs, setup.phaseNo))
+  const own = setup.docs.filter((doc): doc is SourceTableDoc => doc.type === 'source' && doc.zoneId === zoneId && doc.key === key && doc.phaseNo <= setup.phaseNo && chain.has(doc.phaseNo))
+  const last = own.sort((a, b) => a.phaseNo - b.phaseNo).at(-1)
+  if (!last) return undefined
+  const zone = mergeTables(setup.captures, setup.docs.map((doc) => (doc === last ? { ...last, name } : doc)), setup.phaseNo).find((candidate) => candidate.zoneId === zoneId)
+  const source = zone?.sources.find((candidate) => candidate.key === key)
+  return zone && source ? { zone, source } : undefined
+}
+const plannedKey = (source: CandidateSource) => (source.npcId !== undefined ? `n${source.npcId}` : source.encounterId !== undefined ? `e${source.encounterId}` : undefined)
 
 // The first creature that fits, one in the lists before one a leader took out.
 const liveFirst = (creatures: MergedSource[], fits: (creature: MergedSource) => boolean) => creatures.find((creature) => !creature.removed && fits(creature)) ?? creatures.find(fits)
@@ -378,7 +397,9 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       byExisting.set(found.key, draft)
       drafts.push(draft)
     } else {
-      drafts.push({ row: { id: candidateId, name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(answered ? { answerKey: candidateId } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source] })
+      const planned = plannedKey(source)
+      const unnamed = planned !== undefined && !existing.some((creature) => creature.key === planned) ? unnamedCreature(setup, zone.zoneId, planned, creatureName(source)) : undefined
+      drafts.push({ row: { id: candidateId, name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(answered ? { answerKey: candidateId } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source], ...(unnamed ? { unnamed } : {}) })
     }
   }
 
@@ -404,7 +425,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       const there = items.get(item.itemId)
       items.set(item.itemId, there ? { itemId: item.itemId, evidence: mergeEvidence(there.evidence, item.evidence) } : item)
     }
-    const creature = draft.existing
+    const creature = draft.existing ?? draft.unnamed?.source
     let room = TABLE_ITEMS_MAX - (creature?.doc?.itemIds.length ?? 0)
     const decided = draft.row.status === 'unmatched' ? false : zoneTicked
     for (const item of items.values()) {
@@ -451,8 +472,9 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
 }
 
 // The keys and places of new creatures (design section 6, "Order"): one right after the matched creature it follows in the paste when there's room,
-// else after the zone's last creature, in the paste's order. A key whose document is there already, also one the merge leaves out (outside the phase's
-// follow chain, or never named), gets a random key instead: the save never creates a document that exists (section 7).
+// else after the zone's last creature, in the paste's order. A creature whose key has documents no document of the chain names keeps that key: the save
+// names it in one write (unnamedCreature). Any other key whose document is there already gets a random key: the save never creates a document that
+// exists (section 7).
 function placeNewCreatures(zone: MergedZone, drafts: Draft[], docIds: Set<string>) {
   const orders = zone.sources.map((creature) => creature.order)
   const used = new Set(orders)
@@ -461,9 +483,8 @@ function placeNewCreatures(zone: MergedZone, drafts: Draft[], docIds: Set<string
   const keys = new Set(zone.sources.map((creature) => creature.key))
   for (const draft of drafts) {
     if (draft.existing) { after = draft.existing.order; continue }
-    const source = draft.candidates[0] as CandidateSource
-    let key = source.npcId !== undefined ? `n${source.npcId}` : source.encounterId !== undefined ? `e${source.encounterId}` : newCreatureKey()
-    if (keys.has(key) || docIds.has(sourceDocId(zone.zoneId, key, zone.phaseNo))) key = newCreatureKey()
+    let key = draft.unnamed?.source.key ?? plannedKey(draft.candidates[0] as CandidateSource) ?? newCreatureKey()
+    if (!draft.unnamed && (keys.has(key) || docIds.has(sourceDocId(zone.zoneId, key, zone.phaseNo)))) key = newCreatureKey()
     keys.add(key)
     draft.row.key = key
     const nextUp = after === undefined ? undefined : Math.min(...orders.filter((order) => order > (after as number)), TABLE_ORDER_MAX + 1)
@@ -552,13 +573,17 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
       const later = row.items.filter((item) => item.ticked && item.journalOnly).map((item) => item.itemId)
       if (row.status === 'new') {
         const key = row.key as string
-        first.push({
-          id: sourceDocId(zone.zoneId, key, setup.phaseNo),
-          create: {
-            type: 'source', zoneId: zone.zoneId, key, phaseNo: setup.phaseNo, name: nameOr(row.name, 'Unnamed creature'), kind: row.kind as LootSourceKind,
-            ...(row.npcId !== undefined ? { npcId: row.npcId } : {}), order: row.order ?? TABLE_ORDER_MAX, itemIds: now, hiddenItemIds: [],
-          },
-        })
+        const id = sourceDocId(zone.zoneId, key, setup.phaseNo)
+        const identity = { name: nameOr(row.name, 'Unnamed creature'), kind: row.kind as LootSourceKind, ...(row.npcId !== undefined ? { npcId: row.npcId } : {}), order: row.order ?? TABLE_ORDER_MAX }
+        const unnamed = unnamedCreature(setup, zone.zoneId, key, identity.name)
+        if (unnamed) {
+          // Its documents are there with no name: one write names it, puts it back when one took it out, and adds the items to what its document holds.
+          const items = now.length ? addItems(unnamed.zone, unnamed.source, now).write : null
+          const lists = !items ? {} : 'create' in items ? { itemIds: (items.create as { itemIds: number[] }).itemIds, hiddenItemIds: (items.create as { hiddenItemIds: number[] }).hiddenItemIds } : items.changes
+          const changes: TableChange = { ...identity, ...(unnamed.source.removed ? { removed: false } : {}), ...lists }
+          const raw = setup.docs.find((doc) => doc.id === id)
+          first.push(raw ? { id, existing: raw, changes } : { id, create: { type: 'source', zoneId: zone.zoneId, key, phaseNo: setup.phaseNo, itemIds: [], hiddenItemIds: [], ...changes } as NewTableDoc })
+        } else first.push({ id, create: { type: 'source', zoneId: zone.zoneId, key, phaseNo: setup.phaseNo, ...identity, itemIds: now, hiddenItemIds: [] } })
       } else {
         const creature = row.status === 'zoneWide' ? target.zoneWide : target.sources.find((candidate) => candidate.key === row.key)
         if (!creature) continue

@@ -158,7 +158,7 @@ describe('the drop list import, worked examples', () => {
     const [warden, grimtooth] = zoneOf(preview.zones, 'u9901').creatures
     assert.deepEqual([warden?.status, warden?.optIn, warden?.saved], ['takenOut', 'takenOut', false])
     assert.deepEqual(grimtooth?.items.map((item) => [item.status, item.where]), [['elsewhere', 'Warden of the Test Barrow (taken out)']])
-    const ticked = buildPreview(pasted, setup(docs), { ...pickBarrow, ticks: { 'u9901|cn990003': true } })
+    const ticked = buildPreview(pasted, setup(docs), { ...pickBarrow, ticks: { [`z${BARROW}|cn990003`]: true } })
     const write = buildImportSave(ticked, setup(docs)).first.find((candidate) => candidate.id === sourceDocId(BARROW, 'n990003', 0))
     assert.deepEqual(write && 'existing' in write && write.changes, { itemIds: [900008, 900009], removed: false })
   })
@@ -307,7 +307,9 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual([row?.status, row?.how, row?.storeNpcId, row?.differs], ['matched', 'answer', 990001, { name: 'Grimtooth the Test Boss' }])
     const write = buildImportSave(same, setup(docs)).first[0]
     assert.deepEqual(write && 'existing' in write && write.changes, { itemIds: [900001, 900011], npcId: 990001 })
-    const renamed = buildPreview(pasted, setup(docs), { ...pickBarrow, creatures: { 'u9901|cn990001': { same: 'cgrim1' } }, renames: { 'u9901|cn990001': true } })
+    // "Same as" is kept by the pasted creature; the rename, like every other answer, by the row in the zone.
+    assert.deepEqual([asked?.answerKey, row?.answerKey, row?.id], ['u9901|cn990001', 'u9901|cn990001', `z${BARROW}|cn990001`])
+    const renamed = buildPreview(pasted, setup(docs), { ...pickBarrow, creatures: { 'u9901|cn990001': { same: 'cgrim1' } }, renames: { [`z${BARROW}|cn990001`]: true } })
     const renameWrite = buildImportSave(renamed, setup(docs)).first[0]
     assert.deepEqual(renameWrite && 'existing' in renameWrite && renameWrite.changes, { itemIds: [900001, 900011], npcId: 990001, name: 'Grimtooth the Test Boss' })
   })
@@ -327,7 +329,7 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(offered.zones[0]?.creatures[0]?.items.map((item) => [item.status, item.tickable, item.ticked]), [['new', true, false], ['new', true, false]])
     const zoneId = offered.zones[0]?.zoneId as number
     assert.equal(zoneId, 61_234_567)
-    const rowId = `uhollow test keep|cn990011`
+    const rowId = 'z61234567|cn990011'
     const ticked = buildPreview(pasted, setup([], allowed), { ...make, ticks: { [`${rowId}|900101`]: true, [`${rowId}|900102`]: true } })
     assert.deepEqual(ticked.counts, { zones: 1, newZones: 1, creatures: 1, newCreatures: 1, items: 0, journalItems: 2, unanswered: 0 })
     const { first, second } = save([], ticked, allowed)
@@ -341,7 +343,7 @@ describe('the drop list import, worked examples', () => {
     const listed = (id: string, version: string, name: string, instanceId: number, npcId: number, itemId: number) =>
       ({ schema: 1 as const, id, at: 1797474600, by: 'IntrepidManager/test', journal: version, zones: [{ name, kind: 'dungeon' as const, players: 5, instanceId, sources: [{ npcId, name: `Boss of ${name}`, kind: 'boss' as const, itemIds: [itemId], journal: [itemId] }] }] })
     const pasted = mergeDrops([listed('d-test-0009', 'ForeverDungeonJournal/2.0.3', 'Hollow Test Keep', 9100, 990101, 900101), listed('d-test-0010', 'ForeverDungeonJournal/2.1.0', 'Test Cloister', 9200, 990201, 900201)])
-    const given = answers({ zones: { u9100: { make: true }, u9200: { make: true } }, ticks: { 'u9100|cn990101|900101': true, 'u9200|cn990201|900201': true } })
+    const given = answers({ zones: { u9100: { make: true }, u9200: { make: true } }, ticks: { 'z50009100|cn990101|900101': true, 'z50009200|cn990201|900201': true } })
     const allowed = { journalSaving: true }
     const { second } = save([], buildPreview(pasted, setup([], allowed), given), allowed)
     assert.deepEqual(second.journal.map((call) => [call.versions, call.writes.map((write) => write.id)]), [
@@ -358,7 +360,7 @@ describe('the drop list import, worked examples', () => {
       keep('d-test-0011', 'ForeverDungeonJournal/2.0.3', [listing(990101, [900101, 900103])]),
       keep('d-test-0012', 'ForeverDungeonJournal/2.1.0', [listing(990101, [900102, 900103]), listing(990102, [900201])]),
     ])
-    const row = (npcId: number) => `u9100|cn${npcId}`
+    const row = (npcId: number) => `z50009100|cn${npcId}`
     const given = answers({ zones: { u9100: { make: true } }, ticks: Object.fromEntries([...[900101, 900102, 900103].map((id) => `${row(990101)}|${id}`), `${row(990102)}|900201`].map((id) => [id, true])) })
     const allowed = { journalSaving: true }
     const { second, after } = save([], buildPreview(pasted, setup([], allowed), given), allowed)
@@ -540,18 +542,24 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(fresh.map((row) => row.order), [30, 40])
   })
 
-  it('the answer keys stay the same when a zone is picked or "same as" is answered', () => {
+  it('the answer keys stay the same when a zone is picked or "same as" is answered: a pick or make by the pasted zone, the rest by the zone it lands in', () => {
     const docs = [barrowMade(), sourceDoc(BARROW, 'cgrim1', 0, { name: 'Grimtooth', kind: 'boss', itemIds: [] })]
     const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900001]), boss(990002, 'Lady Test Ipsum', [900003])]))
-    const ids = (preview: ReturnType<typeof buildPreview>) => preview.zones.map((zone) => [zone.id, zone.creatures.map((row) => [row.id, row.items.map((item) => item.id)])])
+    const ids = (preview: ReturnType<typeof buildPreview>) => preview.zones.map((zone) => [zone.id, zone.tickKey, zone.creatures.map((row) => [row.id, row.answerKey, row.items.map((item) => item.id)])])
     const unanswered = buildPreview(pasted, setup(docs), noAnswers())
     const picked = buildPreview(pasted, setup(docs), pickBarrow)
     const same = buildPreview(pasted, setup(docs), { ...pickBarrow, creatures: { 'u9901|cn990001': { same: 'cgrim1' } } })
-    assert.deepEqual(ids(picked), ids(unanswered))
-    assert.deepEqual(ids(same), ids(unanswered))
+    // Nothing can be answered under a zone that isn't decided yet: its rows are keyed by the pasted zone, and its pick by the pasted zone too.
+    assert.deepEqual(ids(unanswered), [['u9901', 'u9901', [['u9901|cn990001', undefined, ['u9901|cn990001|900001']], ['u9901|cn990002', undefined, ['u9901|cn990002|900003']]]]])
+    assert.ok(unanswered.zones[0]?.creatures.every((row) => !row.creatureTickable && row.items.every((item) => !item.tickable)))
+    assert.deepEqual(ids(picked), [['u9901', `z${BARROW}`, [[`z${BARROW}|cn990001`, 'u9901|cn990001', [`z${BARROW}|cn990001|900001`]], [`z${BARROW}|cn990002`, undefined, [`z${BARROW}|cn990002|900003`]]]]])
+    assert.deepEqual(ids(same), ids(picked))
     assert.deepEqual([same.zones[0]?.creatures[0]?.status, same.zones[0]?.creatures[0]?.key], ['matched', 'cgrim1'])
     assert.deepEqual([picked.zones[0]?.answerKeys, picked.zones[0]?.picks], [['u9901'], [{ answerKey: 'u9901', name: 'Hollow Test Barrow' }]])
     assert.deepEqual([unanswered.zones[0]?.answerKeys, unanswered.zones[0]?.picks], [[], []])
+    // A zone a Guild Leader makes keeps its answers under the id its make answer carries.
+    const made = buildPreview(pasted, setup(docs), answers({ zones: { u9901: { make: true, zoneId: 61_234_567 } } }))
+    assert.deepEqual([made.zones[0]?.id, made.zones[0]?.tickKey, made.zones[0]?.creatures.map((row) => row.id)], ['u9901', 'z61234567', ['z61234567|cn990001', 'z61234567|cn990002']])
   })
 
   it('a pick into a zone another pasted zone matched by itself keeps that zone\'s keys, and names the pick', () => {
@@ -590,7 +598,7 @@ describe('the drop list import, worked examples', () => {
     const rows = buildPreview(pasted, setup(docs), both).zones[0]?.creatures ?? []
     const grim = rows.find((row) => row.near.length) as NonNullable<typeof rows[0]>
     const maybe = rows.find((row) => row.name === 'Maybe Test Boss') as NonNullable<typeof rows[0]>
-    const given = { ...both, creatures: { [grim.id]: { same: 'cgrim1' } }, ticks: { [`${grim.id}|900011`]: false, [maybe.id]: true } }
+    const given = { ...both, creatures: { [grim.answerKey as string]: { same: 'cgrim1' } }, ticks: { [`${grim.id}|900011`]: false, [maybe.id]: true } }
     const back = buildPreview(pasted, setup(docs), { ...given, zones: { ...given.zones, u7003: undefined } })
     const zone = back.zones.find((one) => one.zoneId === BARROW)
     assert.deepEqual(zone?.creatures.map((row) => [row.name, row.status, row.saved, row.items.map((item) => [item.itemId, item.ticked])]), [
@@ -599,13 +607,81 @@ describe('the drop list import, worked examples', () => {
     ])
   })
 
+  it('the answers hold when a pick that shares a creature or trash with the zone joins or leaves the block, whichever is answered first', () => {
+    // The abbey's string matches it by name; another wing, earlier in the paste and picked into it, lists the Abbot too and has trash of its own.
+    const trash = (npcId: number, name: string, itemIds: number[]): DropsSource => ({ npcId, name, kind: 'trash', itemIds, seen: itemIds.map((id) => seen(id)) })
+    const abbeyZ: DropsZone = { name: 'Test Abbey', kind: 'dungeon', players: 5, instanceId: 7001, sources: [boss(990100, 'Abbot of Fixtures', [900150, 900151]), trash(990150, 'Test Monk', [900170]), trash(990151, 'Test Acolyte', [900170])] }
+    const wingZ: DropsZone = { name: 'Test Abbey Library Wing', kind: 'dungeon', players: 5, instanceId: 7009, sources: [boss(990100, 'Abbot of Fixtures', [900152]), trash(990160, 'Test Scribe', [900180])] }
+    const pasted = candidates(wingZ, abbeyZ)
+    const abbeyOf = (given: ImportAnswers) => buildPreview(pasted, setup([]), given).zones.find((zone) => zone.zoneId === 4321) as ZoneRow
+    const abbotOf = (zone: ZoneRow) => zone.creatures.find((row) => row.npcId === 990100) as ZoneRow['creatures'][0]
+    const wideOf = (zone: ZoneRow) => zone.creatures.find((row) => row.kind === 'zonewide') as ZoneRow['creatures'][0]
+    // The leader unticks the Abbot's 900151 and ticks the offered zone-wide 900170.
+    const answered = (zone: ZoneRow, given: ImportAnswers): ImportAnswers => ({ ...given, ticks: { [`${abbotOf(zone).id}|900151`]: false, [`${wideOf(zone).id}|900170`]: true } })
+    const state = (zone: ZoneRow) => [abbotOf(zone).id, abbotOf(zone).items.find((item) => item.itemId === 900151)?.ticked, wideOf(zone).id, wideOf(zone).items.find((item) => item.itemId === 900170)?.ticked]
+    const held = ['z4321|cn990100', false, 'z4321|zonewide', true]
+    // Answered alone, then the wing picked in, then the pick taken back.
+    const first = answered(abbeyOf(noAnswers()), noAnswers())
+    const joined = { ...first, zones: { u7009: { pick: 4321 } } }
+    assert.deepEqual([abbotOf(abbeyOf(joined)).items.find((item) => item.itemId === 900151)?.ticked, wideOf(abbeyOf(joined)).items.find((item) => item.itemId === 900170)?.ticked], [false, true])
+    assert.deepEqual(state(abbeyOf(joined)), held)
+    const writes = buildImportSave(buildPreview(pasted, setup([]), joined), setup([])).first
+    assert.deepEqual(writes.filter((write) => write.id === sourceDocId(4321, 'npc990100', 0) || write.id === sourceDocId(4321, 'zonewide', 0)).map((write) => [write.id, 'create' in write && write.create.itemIds]), [
+      [sourceDocId(4321, 'npc990100', 0), [900152, 900150]], [sourceDocId(4321, 'zonewide', 0), [900170]],
+    ])
+    assert.deepEqual(state(abbeyOf({ ...joined, zones: { u7009: undefined } })), held)
+    // The wing picked in first, answered then, and the pick taken back.
+    const pickFirst = answers({ zones: { u7009: { pick: 4321 } } })
+    const second = answered(abbeyOf(pickFirst), pickFirst)
+    assert.deepEqual(state(abbeyOf({ ...second, zones: { u7009: undefined } })), held)
+  })
+
+  it('a "same as" answer holds when a pick that has the same creature joins the block and is taken back', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'cgrim1', 0, { name: 'Grimtooth', kind: 'boss' })]
+    const vault: DropsZone = { name: 'Lower Test Vault', kind: 'raid', players: 10, instanceId: 7003, sources: [boss(990001, 'Grimtooth the Test Boss', [900002])] }
+    const pasted = candidates(vault, hollow([boss(990001, 'Grimtooth the Test Boss', [900001, 900011])]))
+    const grimOf = (given: ImportAnswers) => buildPreview(pasted, setup(docs), given).zones.find((zone) => zone.zoneId === BARROW)?.creatures.find((row) => row.npcId === 990001) as ZoneRow['creatures'][0]
+    const asked = grimOf(pickBarrow)
+    // The panel's Same as select writes the answer to the row's answer key; the leader also unticks 900011.
+    const given = { ...pickBarrow, creatures: { [asked.answerKey ?? asked.id]: { same: 'cgrim1' } }, ticks: { [`${asked.id}|900011`]: false } }
+    const state = (row: ZoneRow['creatures'][0]) => [row.status, row.how, row.key, row.storeNpcId, row.items.find((item) => item.itemId === 900011)?.ticked]
+    assert.deepEqual(state(grimOf(given)), ['matched', 'answer', 'cgrim1', 990001, false])
+    const both = { ...given, zones: { ...given.zones, u7003: { pick: BARROW } } }
+    assert.deepEqual(state(grimOf(both)), ['matched', 'answer', 'cgrim1', 990001, false])
+    assert.deepEqual(state(grimOf({ ...both, zones: { ...both.zones, u7003: undefined } })), ['matched', 'answer', 'cgrim1', 990001, false])
+    assert.deepEqual([asked.id, asked.answerKey, grimOf(both).id, grimOf(both).answerKey], [`z${BARROW}|cn990001`, 'u9901|cn990001', `z${BARROW}|cn990001`, 'u9901|cn990001'])
+    // Picked into another zone, where the creature it names isn't, the answer is ignored.
+    const elsewhere = buildPreview(pasted, setup(docs), { ...given, zones: { u9901: { pick: 4321 } } }).zones.find((zone) => zone.zoneId === 4321)?.creatures.find((row) => row.npcId === 990001)
+    assert.deepEqual([elsewhere?.id, elsewhere?.status, elsewhere?.key, elsewhere?.near], ['z4321|cn990001', 'new', 'n990001', []])
+  })
+
+  it('a creature row is keyed by its zone and the source that heads it: one matched by itself before one placed by "same as", else the lowest identity', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'cgrim1', 0, { name: 'Grimtooth', kind: 'boss', itemIds: [900001] }), sourceDoc(BARROW, 'n990009', 0, { name: 'Last Test Boss', kind: 'boss', npcId: 990009, itemIds: [900090] })]
+    const vault = (sources: DropsSource[]): DropsZone => ({ name: 'Lower Test Vault', kind: 'raid', players: 10, instanceId: 7003, sources })
+    const byName: DropsSource = { name: 'Grimtooth', kind: 'boss', itemIds: [900003], seen: [seen(900003)] } // matched by its name
+    const near = boss(990001, 'Grimtooth the Test Boss', [900002]) // a near name, placed by "same as"
+    const lastByName: DropsSource = { name: 'Last Test Boss', kind: 'boss', itemIds: [900091], seen: [seen(900091)] } // matched by its name
+    const lastByNpc = boss(990009, 'Last Test Boss', [900092]) // matched by its npc id
+    const given = answers({ zones: { u7003: { pick: BARROW }, u9901: { pick: BARROW } }, creatures: { 'u9901|cn990001': { same: 'cgrim1' } } })
+    for (const pasted of [candidates(vault([byName, lastByName]), hollow([near, lastByNpc])), candidates(hollow([near, lastByNpc]), vault([byName, lastByName]))]) {
+      const rows = buildPreview(pasted, setup(docs), given).zones[0]?.creatures ?? []
+      assert.deepEqual(rows.map((row) => [row.id, row.key, row.how, row.answerKey, row.near.map((option) => option.key), row.storeNpcId]).sort(), [
+        [`z${BARROW}|cn990009`, 'n990009', 'npc', undefined, [], undefined],
+        [`z${BARROW}|ctgrimtooth`, 'cgrim1', 'name', 'u9901|cn990001', ['cgrim1'], 990001],
+      ])
+    }
+    // A pick that brings a source outranking the head re-keys the row: the vault alone heads the Last Test Boss row by its name.
+    const vaultOnly = buildPreview(candidates(vault([lastByName]), hollow([lastByNpc])), setup(docs), answers({ zones: { u7003: { pick: BARROW } } })).zones.find((zone) => zone.zoneId === BARROW)
+    assert.deepEqual(vaultOnly?.creatures.map((row) => row.id), [`z${BARROW}|ctlast test boss`])
+  })
+
   it('the answers still hold after the first call of a save landed: the second call saves the journal items and the tick', () => {
     const allowed = { journalSaving: true }
     const keep = (extra: Partial<DropsZone>) => mergeDrops([{ schema: 1, id: 'd-test-0006', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [{
       name: 'Hollow Test Keep', kind: 'dungeon', players: 5, ...extra, sources: [boss(990011, 'Warden of Fixtures', [900100, 900101, 900102], { seen: [seen(900100)], journal: [900101, 900102] })],
     }] }])
     for (const [pasted, zoneKey, zoneId] of [[keep({ instanceId: 9100 }), 'u9100', 50_009_100], [keep({}), 'uhollow test keep', 61_234_567]] as const) {
-      const rowId = `${zoneKey}|cn990011`
+      const rowId = `z${zoneId}|cn990011` // the same before the save and after its first call made the zone
       const given = answers({ zones: { [zoneKey]: { make: true, zoneId } }, ticks: { [`${rowId}|900101`]: true, [`${rowId}|900102`]: true } })
       const preview = buildPreview(pasted, setup([], allowed), given)
       assert.deepEqual(created(buildImportSave(preview, setup([], allowed)).first), [zoneDocId(zoneId, 0), sourceDocId(zoneId, 'n990011', 0)])

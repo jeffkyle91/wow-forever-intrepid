@@ -88,7 +88,7 @@ export type CreatureRow = {
   near: { key: string; name: string }[] // for an unmatched creature: the near names it may be
   differs?: { name?: string; kind?: LootSourceKind } // a matched guild creature whose name or kind differs from the paste's
   rename: boolean
-  answerKey?: string // the answer to its near names ("same as …" or "new"), to change it: the row's own id, which stays the same once it is answered
+  answerKey?: string // the key of the answer to its near names ("same as …" or "new"): the pasted creature's (its pasted zone's own id and its identity)
   storeNpcId?: number // the npc id the save writes onto the app's creature (same as …, or a creature known by its encounter)
   saved: boolean // the creature is written (new, brought back, or something under it is)
   optIn?: 'noItems' | 'guessed' | 'takenOut' // why the creature itself is unticked until a leader ticks it
@@ -98,7 +98,7 @@ export type CreatureRow = {
 
 export type ZoneRow = {
   id: string // its first pasted zone that landed in it by itself, else its first pick: the block's key while the preview is open
-  tickKey: string // the answer key of its own tick (Put it back): z<zoneId> for a zone that exists, so it holds whichever pasted zone heads the block
+  tickKey: string // the answer key of its own tick (Put it back), and the start of its rows' ids: z<zoneId> once the zone is decided (matched, picked or made)
   name: string
   kind: ZoneKind
   players: number
@@ -207,9 +207,8 @@ const nearName = (a: string, b: string) => {
 }
 
 /**
- * A candidate's own answer key, from the candidate alone (its instance, else its name's key): the difficulties of one instance share it. It is also the id of
- * the zone row it heads, and its creatures' and items' ids start with it (rowIds), so the leader's answers keep their keys when a zone is picked or made,
- * when another pick joins or leaves the block, or when a first call that landed lets the zone be matched by itself.
+ * A candidate's own answer key, from the candidate alone (its instance, else its name's key): the difficulties of one instance share it. Its pick or make
+ * answer is kept by it, and so are its creatures' "same as …" answers (rowIds). It is also the id of the zone row it heads: the block's React key.
  */
 const ownIdOf = (candidate: CandidateZone) => `u${candidate.instanceId ?? importZoneKey(candidate.name)}`
 
@@ -272,7 +271,6 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     }
     const sources = mergeCandidateSources(inPaste.flatMap((candidate) => candidate.sources))
     const zoneWide = inPaste.flatMap((candidate) => candidate.zoneWide)
-    const ids = rowIds(inPaste, unitOf, group.id)
 
     let target: MergedZone | undefined
     let status: ZoneRow['status']
@@ -294,10 +292,14 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     }
 
     if (!target) {
-      zones.push({ ...base, tickKey: group.id, status: 'unmatched', unmatchedWhy: 'zoneId' in group.hit ? 'none' : group.hit.unmatched, inPhase: false, takenOut: false, zoneTicked: false, tickIn: false, repeatIdentity: false, creatures: creatureRowsUnmatched(ids, sources, zoneWide) })
+      // Nothing can be ticked or answered under a zone that isn't decided: its rows' ids start with its own key.
+      zones.push({ ...base, tickKey: group.id, status: 'unmatched', unmatchedWhy: 'zoneId' in group.hit ? 'none' : group.hit.unmatched, inPhase: false, takenOut: false, zoneTicked: false, tickIn: false, repeatIdentity: false, creatures: creatureRowsUnmatched(rowIds(group.id, inPaste, unitOf, group.id), sources, zoneWide) })
       continue
     }
-    const tickKey = status === 'matched' ? `z${target.zoneId}` : group.id
+    // The answers about the zone it lands in, and about its creatures and items, are kept under that zone: the same whichever pasted zone heads the
+    // block, and before and after the first call of a save makes it (a made zone's id is the one its make answer carries).
+    const tickKey = `z${target.zoneId}`
+    const ids = rowIds(tickKey, inPaste, unitOf, group.id)
     const takenOut = status === 'matched' && !target.inPhase && takenOutOf(setup.docs, target.zoneId, setup.phaseNo)
     const zoneTicked = takenOut ? answers.ticks[tickKey] === true : true
     const creatures = creatureRows(ids, target, sources, zoneWide, setup, answers, zoneTicked)
@@ -315,16 +317,23 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
   return { zones, counts: countsOf(zones) }
 }
 
-// The ids of a block's rows, which its answers are kept by: each row's is that of the pasted zone it came from (the first in the paste that has the
-// creature; for the zone-wide list, the first with zone-wide items or trash), never the block's head, so an answer holds when a pick joins or leaves.
-type RowIds = { creature: (source: CandidateSource) => string; zoneWide: string }
-function rowIds(inPaste: CandidateZone[], unitOf: Map<CandidateZone, string>, head: string): RowIds {
-  const from = (candidate: CandidateZone | undefined) => (candidate && unitOf.get(candidate)) ?? head
+// The ids of a block's rows, which its answers are kept by (design section 7, "Answers"): the zone's key (z<zoneId>) with the identity of the source that
+// heads the row (rowKeyOf), or "zonewide". They never depend on which pasted zone heads the block or on the paste's order. "Same as …" is the one answer
+// about the pasted creature: its keys are the own keys of the block's pasted zones that have it, with its identity, in sort order.
+type RowIds = { creature: (source: CandidateSource) => string; zoneWide: string; answerKeys: (source: CandidateSource) => string[] }
+function rowIds(prefix: string, inPaste: CandidateZone[], unitOf: Map<CandidateZone, string>, head: string): RowIds {
   return {
-    creature: (source) => `${from(inPaste.find((candidate) => candidate.sources.some((one) => rowKeyOf(one) === rowKeyOf(source))))}|c${rowKeyOf(source)}`,
-    zoneWide: `${from(inPaste.find((candidate) => candidate.zoneWide.length > 0 || candidate.sources.some((one) => one.kind === 'trash')))}|zonewide`,
+    creature: (source) => `${prefix}|c${rowKeyOf(source)}`,
+    zoneWide: `${prefix}|zonewide`,
+    answerKeys: (source) => {
+      const identity = rowKeyOf(source)
+      const units = [...new Set(inPaste.filter((candidate) => candidate.sources.some((one) => rowKeyOf(one) === identity)).map((candidate) => unitOf.get(candidate) ?? head))]
+      return (units.length ? units : [head]).sort().map((unit) => `${unit}|c${identity}`)
+    },
   }
 }
+// Sort order by code units, never the locale: the head of a row is the same in every browser.
+const byCode = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 // An unmatched zone's rows: shown so the leader sees what it holds, nothing tickable until a zone is picked.
 function creatureRowsUnmatched(ids: RowIds, sources: CandidateSource[], zoneWide: CandidateItem[]): CreatureRow[] {
@@ -347,6 +356,8 @@ const sourceFacts = (source: CandidateSource) => ({
 // `unnamed`: a new creature whose key has documents already that no document of the chain names (written while the phase followed another), as it is
 // once the import names it.
 type Draft = { row: CreatureRow; candidates: CandidateSource[]; existing?: MergedSource; unnamed?: Named }
+// A source as it was placed: how it found its creature, and its "same as …" question (near names) with the key its answer is kept by.
+type Placed = { source: CandidateSource; how?: CreatureRow['how']; near: { key: string; name: string }[]; answered: boolean; answerKey: string }
 type Named = { zone: MergedZone; source: MergedSource }
 
 /**
@@ -370,11 +381,13 @@ const liveFirst = (creatures: MergedSource[], fits: (creature: MergedSource) => 
 
 function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[], fromCapture: CandidateItem[], setup: ImportSetup, answers: ImportAnswers, zoneTicked: boolean): CreatureRow[] {
   const existing = zone.sources // removed ones included: an item on a creature a leader took out stays there
-  const drafts: Draft[] = []
-  const byExisting = new Map<string, Draft>()
+  // Each source finds its creature (or none); sources that find one creature are placed on one row.
+  const slots: { found?: MergedSource; placed: Placed[] }[] = []
+  const byExisting = new Map<string, Placed[]>()
   for (const source of sources) {
-    const candidateId = ids.creature(source)
-    const answer = answers.creatures[candidateId]
+    const keys = ids.answerKeys(source)
+    const answerKey = keys.find((key) => answers.creatures[key] !== undefined) ?? (keys[0] as string)
+    const answer = answers.creatures[answerKey]
     let found: MergedSource | undefined
     let how: CreatureRow['how']
     let near: { key: string; name: string }[] = []
@@ -394,30 +407,44 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
       if (near.length && answer && 'same' in answer && near.some((option) => option.key === answer.same)) { found = existing.find((creature) => creature.key === answer.same); how = 'answer'; answered = true }
       else if (near.length && answer && 'make' in answer) answered = true
     }
+    const placed: Placed = { source, ...(found && how ? { how } : {}), near, answered, answerKey }
+    const there = found && byExisting.get(found.key)
+    if (there) { there.push(placed); continue }
+    const slot = { ...(found ? { found } : {}), placed: [placed] }
+    if (found) byExisting.set(found.key, slot.placed)
+    slots.push(slot)
+  }
+
+  const drafts: Draft[] = []
+  for (const { found, placed } of slots) {
     if (found) {
-      const there = byExisting.get(found.key)
-      if (there) { there.candidates.push(source); continue }
+      // The row is headed by a source that found the creature by itself before one placed by "same as …", then by the lowest identity (never the paste's
+      // order), so a pick joining or leaving the block re-keys it only when it brings a source that outranks the head.
+      const head = [...placed].sort((a, b) => Number(a.how === 'answer') - Number(b.how === 'answer') || byCode(rowKeyOf(a.source), rowKeyOf(b.source)))[0] as Placed
+      const source = head.source
+      const id = ids.creature(source)
+      const asked = head.near.length ? head : placed.find((one) => one.near.length) // its "same as …" question, so a leader can change it
+      const npcId = [head, ...placed].find((one) => one.source.npcId !== undefined)?.source.npcId
       const differs: CreatureRow['differs'] = {}
       if (!found.builtIn) {
         if (creatureKeyOf(found.name) !== creatureKeyOf(source.name) && hasText(source.name)) differs.name = source.name
         if (found.kind !== 'zonewide' && found.kind !== source.kind) differs.kind = source.kind
       }
-      const draft: Draft = {
+      drafts.push({
         row: {
-          id: candidateId, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(how ? { how } : {}), key: found.key, near,
-          ...(Object.keys(differs).length ? { differs } : {}), rename: Object.keys(differs).length > 0 && answers.renames[candidateId] === true,
-          ...(answered ? { answerKey: candidateId } : {}),
-          ...(source.npcId !== undefined && found.npcId === undefined && !found.builtIn ? { storeNpcId: source.npcId } : {}),
+          id, name: found.name, kind: found.kind, ...sourceFacts(source), status: found.removed ? 'takenOut' : 'matched', ...(head.how ? { how: head.how } : {}), key: found.key, near: asked?.near ?? [],
+          ...(Object.keys(differs).length ? { differs } : {}), rename: Object.keys(differs).length > 0 && answers.renames[id] === true,
+          ...(asked ? { answerKey: asked.answerKey } : {}),
+          ...(npcId !== undefined && found.npcId === undefined && !found.builtIn ? { storeNpcId: npcId } : {}),
           saved: false, creatureTickable: false, items: [],
         },
-        candidates: [source], existing: found,
-      }
-      byExisting.set(found.key, draft)
-      drafts.push(draft)
+        candidates: placed.map((one) => one.source), existing: found,
+      })
     } else {
+      const { source, near, answered, answerKey } = placed[0] as Placed
       const planned = plannedKey(source)
       const unnamed = planned !== undefined && !existing.some((creature) => creature.key === planned) ? unnamedCreature(setup, zone.zoneId, planned, creatureName(source)) : undefined
-      drafts.push({ row: { id: candidateId, name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(answered ? { answerKey: candidateId } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source], ...(unnamed ? { unnamed } : {}) })
+      drafts.push({ row: { id: ids.creature(source), name: creatureName(source), kind: source.kind, ...sourceFacts(source), status: near.length && !answered ? 'unmatched' : 'new', near, ...(near.length ? { answerKey } : {}), rename: false, saved: false, creatureTickable: false, items: [] }, candidates: [source], ...(unnamed ? { unnamed } : {}) })
     }
   }
 

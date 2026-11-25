@@ -119,8 +119,9 @@ describe('the import panel: answering keeps the block the leader is in', () => {
     const unanswered = buildPreview(night, setup(docs), noAnswers())
     const picked = buildPreview(night, setup(docs), answers({ zones: { u9901: { pick: BARROW } } }))
     const made = buildPreview(night, setup(docs), answers({ zones: { u9901: { make: true, zoneId: 61_234_567 } } }))
-    assert.deepEqual(keys(picked), keys(unanswered))
-    assert.deepEqual(keys(made), keys(unanswered))
+    // The Zone select is in the zone block, which keeps its key. Nothing can be answered under the creatures until the zone is decided, so their rows
+    // move from the pasted zone's key to the zone's then.
+    assert.deepEqual([keys(unanswered), keys(picked), keys(made)], [[['u9901', ['u9901|cn990001']]], [['u9901', ['z50000123|cn990001']]], [['u9901', ['z61234567|cn990001']]]])
     assert.deepEqual(zoneSelects(picked.zones[0] as NonNullable<typeof picked.zones[0]>).map((one) => one.answerKey), ['u9901'])
     // Everything under the picked zone is already listed: the zone still shows open, with the pick that was just answered.
     assert.deepEqual(picked.zones[0]?.creatures[0]?.items.map((item) => item.status), ['already'])
@@ -233,7 +234,7 @@ describe('the import panel: ticking an item under a creature that is not saved',
       [barrowNight([boss(990003, 'Warden of the Test Barrow', three)]), out],
       [barrowNight([boss(990001, 'Grimtooth the Test Boss', three)]), [barrow]],
     ] as const) {
-      const unticked = night[0]?.sources[0]?.npcId === 990001 ? answers({ ticks: { 'utest barrow|cn990001': false } }) : noAnswers()
+      const unticked = night[0]?.sources[0]?.npcId === 990001 ? answers({ ticks: { 'z50000123|cn990001': false } }) : noAnswers()
       const { next, after } = click(night, [...docs], unticked, true)
       assert.deepEqual([after.saved, after.items.map((item) => [item.itemId, item.ticked])], [true, [[900010, true], [900011, false], [900012, false]]])
       // A tick the leader gave before stays.
@@ -253,14 +254,14 @@ describe('the import panel: ticking an item under a creature that is not saved',
 
   it('a new creature the leader unticked is ticked again with it', () => {
     const night = barrowNight([boss(990001, 'Grimtooth the Test Boss', [900001])])
-    const { after } = click(night, [barrow], answers({ ticks: { 'utest barrow|cn990001': false } }), true)
+    const { after } = click(night, [barrow], answers({ ticks: { 'z50000123|cn990001': false } }), true)
     assert.deepEqual([after.saved, after.items[0]?.ticked], [true, true])
   })
 
   it('a new creature with no item ticked by default is left to the model: saved with the item, and not without it', () => {
     const night = barrowNight([boss(990002, 'Quest Test Boss', [900020], { seen: [{ itemId: 900020, n: 1, last: '2026-12-10', via: 'window', quest: true }] })])
     const ticked = click(night, [barrow], noAnswers(), true)
-    assert.deepEqual([ticked.row.saved, ticked.after.saved, ticked.next.ticks['utest barrow|cn990002']], [false, true, undefined])
+    assert.deepEqual([ticked.row.saved, ticked.after.saved, ticked.next.ticks['z50000123|cn990002']], [false, true, undefined])
     const unticked = click(night, [barrow], ticked.next, false)
     assert.deepEqual([unticked.after.saved, unticked.after.items[0]?.ticked], [false, false])
   })

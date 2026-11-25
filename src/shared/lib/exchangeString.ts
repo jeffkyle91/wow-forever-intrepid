@@ -53,7 +53,7 @@ export function crc32(text: string): string {
 /** What a string holds once it reads: its payload with section 3's reader rules applied, and the rows the content check rejected. */
 export type ReadEnvelope = { kind: ExchangeKind; model: Record<string, unknown>; rowErrors: string[] }
 /**
- * The content check of one kind (step 9): the sorted row errors, or ExchangeReadError E_PAYLOAD for a broken top level. The importers pass their own;
+ * The content check of one kind (step 9): the row errors in the order met, or ExchangeReadError E_PAYLOAD for a broken top level. The importers pass their own;
  * without one, a string that passes steps 1 to 8 reads with no row errors.
  */
 export type ContentCheck = (model: Record<string, unknown>) => string[]
@@ -90,7 +90,8 @@ function depthOf(value: unknown): number {
 }
 
 // Section 3's reader rules: null and false in a field are absent, null in a list is an error, a lone surrogate is an error. Integers need nothing
-// here: JSON.parse already reads 2.0 and 2e0 as 2.
+// here: JSON.parse already reads 2.0 and 2e0 as 2. Each field is defined, not assigned, so a "__proto__" key is an unknown field (as JSON.parse
+// and the reference reader have it) and never sets the object's prototype.
 function normalize(value: unknown): unknown {
   if (Array.isArray(value)) {
     if (value.some((entry) => entry === null)) throw new ExchangeReadError('E_PAYLOAD', 'null in a list')
@@ -98,7 +99,9 @@ function normalize(value: unknown): unknown {
   }
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [key, entry] of Object.entries(value)) if (entry !== null && entry !== false) out[key] = normalize(entry)
+    for (const [key, entry] of Object.entries(value)) {
+      if (entry !== null && entry !== false) Object.defineProperty(out, key, { value: normalize(entry), enumerable: true, writable: true, configurable: true })
+    }
     return out
   }
   if (typeof value === 'string' && hasLoneSurrogate(value)) throw new ExchangeReadError('E_PAYLOAD', 'lone surrogate')

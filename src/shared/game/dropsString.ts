@@ -38,6 +38,8 @@ const isTrue = (value: unknown) => value === undefined || value === true
 const isDate = (value: unknown): value is string => typeof value === 'string' && DATE.test(value)
 /** Section 2's text: code points up to the limit, no NUL, and (when required) more than ASCII spaces. */
 const isText = (value: unknown, limit: number) => typeof value === 'string' && [...value].length <= limit && !value.includes('\u0000') && value.replace(/^ +| +$/g, '') !== ''
+/** A name with its leading and trailing ASCII spaces removed. Not String.trim: a tab or a no-break space is text (section 2). */
+const trimSpaces = (name: string) => name.replace(/^ +| +$/g, '')
 
 function itemSet(value: unknown): Set<number> | null {
   if (!Array.isArray(value) || value.length > MAX_ITEMS) return null
@@ -197,9 +199,17 @@ function mergeItems(into: CandidateItem[], from: CandidateItem[]): CandidateItem
   return out
 }
 
-/** Two rows that are one creature: the larger counts, the wider dates, every item once. A guess stays a guess only while every row guesses. */
+// A row that names its npc a boss without guessing: the game's, or DungeonJournal's (design 2.2 step 3). A trash row, or the rolls of an encounter
+// (no npc id), says nothing about which npc is the boss.
+const sureBoss = (source: CandidateSource) => source.kind === 'boss' && !source.guessed && source.npcId !== undefined
+// Whose name a merged creature keeps: a corpse's (an npc id) over an encounter's (rolls), and the game's (a kill or an item seen) over DungeonJournal's.
+const nameRank = (source: CandidateSource) =>
+  (source.npcId !== undefined ? 2 : 0) + (source.kills !== undefined || source.items.some((item) => item.evidence.seen) ? 1 : 0)
+
+/** Two rows that are one creature: the larger counts, the wider dates, every item once. A guess stays a guess until a sure boss row confirms it. */
 function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSource {
   const kind = KIND_RANK[from.kind] > KIND_RANK[into.kind] ? from.kind : into.kind
+  const guessed = (into.guessed || from.guessed) && !sureBoss(into) && !sureBoss(from)
   const npcId = into.npcId ?? from.npcId
   const encounterId = into.encounterId ?? from.encounterId
   const kills = maxOf(into.kills, from.kills)
@@ -208,10 +218,9 @@ function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSo
   return {
     ...(npcId !== undefined ? { npcId } : {}),
     ...(encounterId !== undefined ? { encounterId } : {}),
-    // A corpse's name beats a name known only from rolls (the encounter's): keep the row with the npc id's name.
-    name: into.npcId === undefined && from.npcId !== undefined ? from.name : into.name,
+    name: nameRank(from) > nameRank(into) ? from.name : into.name,
     kind,
-    ...(into.guessed && from.guessed ? { guessed: true as const } : {}),
+    ...(guessed ? { guessed: true as const } : {}),
     ...(kills !== undefined ? { kills } : {}),
     ...(first !== undefined ? { first } : {}),
     ...(last !== undefined ? { last } : {}),
@@ -235,7 +244,7 @@ function candidateSource(source: DropsSource): CandidateSource {
   return {
     ...(source.npcId !== undefined ? { npcId: source.npcId } : {}),
     ...(source.encounterId !== undefined ? { encounterId: source.encounterId } : {}),
-    name: source.name.trim(),
+    name: trimSpaces(source.name),
     kind: source.kind,
     ...(source.guessed ? { guessed: true as const } : {}),
     ...(source.kills !== undefined ? { kills: source.kills } : {}),
@@ -284,7 +293,7 @@ export function mergeDrops(strings: DropsModel[]): CandidateZone[] {
       if (!entry) {
         entry = {
           zone: {
-            name: zone.name.trim(), kind: zone.kind, players: zone.players, ...(zone.zoneId !== undefined ? { zoneId: zone.zoneId } : {}),
+            name: trimSpaces(zone.name), kind: zone.kind, players: zone.players, ...(zone.zoneId !== undefined ? { zoneId: zone.zoneId } : {}),
             ...(zone.instanceId !== undefined ? { instanceId: zone.instanceId } : {}), difficultyIds: [], from: 'addon', sources: [], zoneWide: [],
           },
           sources: [],
@@ -310,8 +319,8 @@ export type CapturePaste = { ok: true; zones: CandidateZone[] } | { ok: false; e
 export function captureCandidate(capture: LootTableCapture): CandidateZone {
   const fromCapture = (itemId: number): CandidateItem => ({ itemId, evidence: { capture: true } })
   return {
-    name: capture.name.trim(), kind: capture.kind, players: capture.players, captureZoneId: capture.zoneId, difficultyIds: [], from: 'capture',
-    sources: capture.sources.map((source) => ({ npcId: source.npcId, name: source.name.trim(), kind: source.kind, items: source.itemIds.map(fromCapture) })),
+    name: trimSpaces(capture.name), kind: capture.kind, players: capture.players, captureZoneId: capture.zoneId, difficultyIds: [], from: 'capture',
+    sources: capture.sources.map((source) => ({ npcId: source.npcId, name: trimSpaces(source.name), kind: source.kind, items: source.itemIds.map(fromCapture) })),
     zoneWide: capture.zoneWideItemIds.map(fromCapture),
   }
 }

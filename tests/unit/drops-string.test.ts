@@ -19,6 +19,11 @@ const codeOf = (run: () => unknown) => {
   try { run() } catch (error) { if (error instanceof ExchangeReadError) return error.code; throw error }
   return 'OK'
 }
+// A hand-made drops string around an ASCII payload, sealed as section 1 says.
+const seal = (payload: string) => {
+  const sealed = `IM1:drops:j:${payload.length}:${payload}:`
+  return sealed + crc32(sealed)
+}
 
 describe('the shared envelope reader and the spec cases', () => {
   it('computes every CRC-32 test vector', () => {
@@ -56,6 +61,47 @@ describe('the shared envelope reader and the spec cases', () => {
     assert.equal(exchangeMessage(new ExchangeReadError('E_SCHEMA', '2'), 'drops'), 'This string uses schema 2; this version reads up to 1. Update the addon (or reload the Raid Desk).')
     assert.equal(codeOf(() => readEnvelopes('Here it is: IM2:drops:j:2:{}:00000000', 'drops')), 'E_VERSION')
     assert.equal(codeOf(() => readEnvelopes('nothing here', 'drops')), 'E_NOT_IM')
+  })
+
+  // The Python reference reader (addon/tools/exchange_fixtures.py) gives these answers: "__proto__" is a key like any other, so an unknown field.
+  describe('a "__proto__" key is an unknown field, as in the reference reader', () => {
+    const head = '"schema":1,"id":"d-test-0001","at":1,"by":"IntrepidManager/test"'
+    const keep = '{"name":"Hollow Test Keep","kind":"dungeon","players":5,"sources":[]}'
+
+    it('in a zone: the zone has no name, kind or size, so it is the row error zone:1', () => {
+      const result = readDropsPaste(seal(`{${head},"zones":[{"__proto__":{"name":"Hollow Test Barrow","kind":"raid","players":40},"sources":[]},${keep}]}`))
+      assert.equal(result.ok, true)
+      if (!result.ok) return
+      assert.deepEqual(result.strings[0]?.rowErrors, ['zone:1'])
+      assert.deepEqual(mergeDrops(result.strings.map((one) => one.model)).map((zone) => zone.name), ['Hollow Test Keep'])
+    })
+
+    it('in a source: the source has no name or kind, so it is the row error zone:1/source:1', () => {
+      const result = readDropsPaste(seal(`{${head},"zones":[{"name":"Hollow Test Keep","kind":"dungeon","players":5,"sources":[{"__proto__":{"name":"Grimtooth","kind":"boss"},"itemIds":[]}]}]}`))
+      assert.equal(result.ok, true)
+      if (result.ok) assert.deepEqual(result.strings[0]?.rowErrors, ['zone:1/source:1'])
+    })
+
+    it('beside the fields a row needs: ignored, and kept as an ordinary field of a plain object', () => {
+      const payload = `{${head},"zones":[{"__proto__":{"name":"x"},"name":"Hollow Test Keep","kind":"dungeon","players":5,"sources":[{"__proto__":{"kind":"trash"},"name":"Grimtooth","kind":"boss","itemIds":[]}]}]}`
+      const [one] = readEnvelopes(seal(payload), 'drops', checkDrops)
+      assert.deepEqual(one?.rowErrors, [])
+      assert.deepEqual(one?.model, JSON.parse(payload))
+      const zone = (one?.model.zones as Record<string, unknown>[] | undefined)?.[0] as Record<string, unknown>
+      assert.equal(Object.getPrototypeOf(zone), Object.prototype)
+      assert.equal(zone.name, 'Hollow Test Keep')
+      const result = readDropsPaste(seal(payload))
+      assert.equal(result.ok, true)
+      if (result.ok) assert.deepEqual(mergeDrops(result.strings.map((read) => read.model))[0]?.sources.map((source) => [source.name, source.kind]), [['Grimtooth', 'boss']])
+    })
+
+    it('at the top level: what is inside it is not read', () => {
+      const zones = `"zones":[${keep}]`
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"__proto__":{${head},${zones}}}`), 'drops', checkDrops)), 'E_PAYLOAD')
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"schema":1,"__proto__":{"id":"d-test-0001","at":1,"by":"IntrepidManager/test",${zones}}}`), 'drops', checkDrops)), 'E_PAYLOAD')
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"__proto__":{"schema":1},"schema":2,"id":"d-test-0001","at":1,"by":"IntrepidManager/test",${zones}}`), 'drops', checkDrops)), 'E_SCHEMA')
+      assert.equal(codeOf(() => readEnvelopes(seal(`{"__proto__":{"schema":9},${head},${zones}}`), 'drops', checkDrops)), 'OK')
+    })
   })
 })
 
@@ -135,13 +181,105 @@ describe('mergeDrops', () => {
     assert.deepEqual(mergeDrops([one])[0]?.sources.map((source) => source.name), ['Test Twin One', 'Test Twin Two', 'The Test Twins'])
   })
 
-  it('keeps a guess only while every row guesses, and a boss stays a boss', () => {
-    const guessed = model([raid([{ npcId: 990005, encounterId: 9105, name: 'Guessed Test Boss', kind: 'boss', guessed: true, itemIds: [900020], seen: [seen(900020, 1, '2026-12-10')] }])])
-    const sure = model([raid([{ npcId: 990005, name: 'Guessed Test Boss', kind: 'trash', itemIds: [900021], seen: [seen(900021, 1, '2026-12-10')] }])])
-    assert.equal(mergeDrops([guessed])[0]?.sources[0]?.guessed, true)
-    const merged = mergeDrops([guessed, sure])[0]?.sources[0]
-    assert.equal(merged?.guessed, undefined)
-    assert.equal(merged?.kind, 'boss')
+  // Design 2.2 step 3: a guess is confirmed only by a sure boss row for the same npc (the game's, or DungeonJournal naming it as a boss).
+  describe('a guessed boss', () => {
+    const guessedRow: DropsSource = { npcId: 990005, encounterId: 9105, name: 'Guessed Test Boss', kind: 'boss', guessed: true, kills: 1, itemIds: [900020], seen: [seen(900020, 1, '2026-12-10')] }
+    const guessed = model([raid([guessedRow])])
+    const only = (zones: ReturnType<typeof mergeDrops>) => {
+      assert.equal(zones.length, 1)
+      assert.equal(zones[0]?.sources.length, 1)
+      return zones[0]?.sources[0]
+    }
+
+    it('stays guessed alone, and with another guess of the same kill', () => {
+      assert.equal(only(mergeDrops([guessed]))?.guessed, true)
+      assert.equal(only(mergeDrops([guessed, guessed]))?.guessed, true)
+    })
+
+    it("stays guessed, and a boss, when a raider's string has the same npc as trash, in either order", () => {
+      const raider = model([raid([{ npcId: 990005, name: 'Guessed Test Boss', kind: 'trash', kills: 1, itemIds: [900020, 900021], seen: [seen(900020, 1, '2026-12-10'), seen(900021, 1, '2026-12-10')] }])])
+      for (const strings of [[guessed, raider], [raider, guessed]]) {
+        const merged = only(mergeDrops(strings))
+        assert.equal(merged?.guessed, true)
+        assert.equal(merged?.kind, 'boss')
+        assert.deepEqual(merged?.items.map((item) => item.itemId).sort(), [900020, 900021])
+      }
+    })
+
+    it("stays guessed when the encounter's rolls join the corpse, in one string or two", () => {
+      const rollsRow: DropsSource = { encounterId: 9105, name: 'Guessed Test Encounter', kind: 'boss', kills: 1, itemIds: [900040], seen: [seen(900040, 1, '2026-12-17', 'roll')] }
+      for (const strings of [[model([raid([guessedRow, rollsRow])])], [guessed, model([raid([rollsRow])])], [model([raid([rollsRow])]), guessed]]) {
+        const merged = only(mergeDrops(strings))
+        assert.equal(merged?.npcId, 990005)
+        assert.equal(merged?.guessed, true)
+        assert.deepEqual(merged?.items.map((item) => item.itemId), [900020, 900040])
+      }
+    })
+
+    it('is confirmed by a sure boss row for the same npc, in either order', () => {
+      const sure = model([raid([{ npcId: 990005, encounterId: 9105, name: 'Guessed Test Boss', kind: 'boss', kills: 1, itemIds: [900020], seen: [seen(900020, 1, '2026-12-17')] }])])
+      for (const strings of [[guessed, sure], [sure, guessed]]) assert.equal(only(mergeDrops(strings))?.guessed, undefined)
+    })
+
+    it('is confirmed by DungeonJournal naming the same npc as a boss', () => {
+      const journal = model([raid([{ npcId: 990005, name: 'Guessed Test Boss', kind: 'boss', itemIds: [900020, 900022], journal: [900020, 900022] }])], 'ForeverDungeonJournal/2.0.3')
+      for (const strings of [[guessed, journal], [journal, guessed]]) {
+        const merged = only(mergeDrops(strings))
+        assert.equal(merged?.guessed, undefined)
+        assert.equal(merged?.kind, 'boss')
+      }
+    })
+
+    it('stays guessed when a trash row and the rolls both join it, and a sure boss row still confirms it after them', () => {
+      const raider = { npcId: 990005, name: 'Guessed Test Boss', kind: 'trash' as const, itemIds: [900021], seen: [seen(900021, 1, '2026-12-10')] }
+      const rolls = { encounterId: 9105, name: 'Guessed Test Encounter', kind: 'boss' as const, itemIds: [900040], seen: [seen(900040, 1, '2026-12-17', 'roll')] }
+      assert.equal(only(mergeDrops([model([raid([raider, rolls, guessedRow])])]))?.guessed, true)
+      const sure = { npcId: 990005, name: 'Guessed Test Boss', kind: 'boss' as const, itemIds: [900020], seen: [seen(900020, 1, '2026-12-17')] }
+      assert.equal(only(mergeDrops([model([raid([raider, rolls, guessedRow, sure])])]))?.guessed, undefined)
+    })
+  })
+
+  // Spec section 2: only ASCII spaces are blank. A tab, a no-break space or an ideographic space is text, and the name key keeps it.
+  describe('names', () => {
+    it('trims ASCII spaces only, so a name of tabs (the fixture drops-ok-blank-names) stays a name', () => {
+      const result = readDropsPaste(fixture('cases/drops-ok-blank-names.txt'))
+      assert.equal(result.ok, true)
+      if (!result.ok) return
+      const source = mergeDrops(result.strings.map((one) => one.model)).flatMap((zone) => zone.sources).find((one) => one.npcId === 990001)
+      assert.equal(source?.name, '\t\t')
+      const zones = mergeDrops([model([raid([
+        { npcId: 990001, name: '  Grimtooth the Test Boss  ', kind: 'boss', itemIds: [900001], seen: [seen(900001, 1, '2026-12-10')] },
+        { npcId: 990002, name: ' Lady Test Ipsum　', kind: 'boss', itemIds: [900002], seen: [seen(900002, 1, '2026-12-10')] },
+      ], { name: ' Hollow Test Barrow ' })])])
+      assert.equal(zones[0]?.name, 'Hollow Test Barrow ')
+      assert.deepEqual(zones[0]?.sources.map((one) => one.name), ['Grimtooth the Test Boss', ' Lady Test Ipsum　'])
+    })
+
+    it('joins names the name key joins, and keeps apart names that differ by other whitespace', () => {
+      const ghoul = (name: string): DropsSource => ({ name, kind: 'trash', itemIds: [900030], seen: [seen(900030, 1, '2026-12-10')] })
+      const names = (...rows: DropsSource[]) => mergeDrops([model([raid(rows)])])[0]?.sources.map((one) => one.name)
+      assert.deepEqual(names(ghoul(' Stone  Test Ghoul'), ghoul('Stone Test Ghoul')), ['Stone  Test Ghoul'])
+      assert.deepEqual(names(ghoul('\tStone Test Ghoul'), ghoul('Stone Test Ghoul')), ['\tStone Test Ghoul', 'Stone Test Ghoul'])
+      assert.deepEqual(names(ghoul('Stone Test Ghoul '), ghoul('Stone Test Ghoul')), ['Stone Test Ghoul ', 'Stone Test Ghoul'])
+    })
+
+    it('trims ASCII spaces only in a capture file too', () => {
+      const zone = captureCandidate({
+        format: 1, zoneId: 5555, name: ' Hollow Test Barrow ', kind: 'raid', players: 40, source: 'https://example.invalid/test', capturedAt: '2026-12-10',
+        sources: [{ npcId: 990001, name: '\tGrimtooth the Test Boss  ', kind: 'boss', itemIds: [900001] }], zoneWideItemIds: [],
+      } as never)
+      assert.equal(zone.name, 'Hollow Test Barrow ')
+      assert.equal(zone.sources[0]?.name, '\tGrimtooth the Test Boss')
+    })
+  })
+
+  it("names a creature as the game does, not as DungeonJournal does, whichever string comes first", () => {
+    const game = model([raid([{ npcId: 990011, name: 'The Fixture Warden', kind: 'boss', kills: 1, itemIds: [900101], seen: [seen(900101, 1, '2026-12-01')] }])])
+    const journal = model([raid([{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], journal: [900101, 900102] }])], 'ForeverDungeonJournal/2.0.3')
+    const noItemsYet = model([raid([{ npcId: 990011, name: 'The Fixture Warden', kind: 'boss', kills: 1, itemIds: [] }])])
+    for (const strings of [[game, journal], [journal, game], [noItemsYet, journal], [journal, noItemsYet]]) {
+      assert.deepEqual(mergeDrops(strings)[0]?.sources.map((source) => source.name), ['The Fixture Warden'])
+    }
   })
 
   it("marks DungeonJournal's items and carries its version and notes on the zone", () => {

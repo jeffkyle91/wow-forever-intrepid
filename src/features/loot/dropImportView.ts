@@ -90,3 +90,15 @@ export function tickJournal(answers: ImportAnswers, row: CreatureRow): ImportAns
   if (row.status === 'new') ticks[row.id] = true
   return { ...answers, ticks }
 }
+
+/**
+ * The answers after an item's checkbox is clicked. Ticking an item under a creature that isn't saved (a guessed boss, a new one the leader unticked,
+ * one a leader took out) ticks the creature too, so the click never vanishes. A new creature whose items alone decide it (no item ticked by default)
+ * is left to the model, so unticking its last item leaves it as the model decides. Unticking never changes the creature.
+ */
+export function tickItem(answers: ImportAnswers, row: CreatureRow, item: ItemRow, value: boolean): ImportAnswers {
+  const ticks = { ...answers.ticks, [item.id]: value }
+  const itemDecides = row.status === 'new' && !row.guessed && answers.ticks[row.id] === undefined
+  if (value && !row.saved && row.creatureTickable && !itemDecides) ticks[row.id] = true
+  return { ...answers, ticks }
+}

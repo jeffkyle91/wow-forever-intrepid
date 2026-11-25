@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
-import { mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
+import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
 
@@ -20,6 +20,7 @@ const answers = (patch: Partial<ImportAnswers> = {}): ImportAnswers => ({ ...noA
 const testAbbey = (sources: DropsSource[], extra: Partial<DropsZone> = {}): DropsZone => ({ name: 'Test Abbey', kind: 'dungeon', players: 5, instanceId: 7001, sources, ...extra })
 const sourceDoc = (zoneId: number, key: string, phaseNo: number, extra: Partial<SourceTableDoc> = {}): SourceTableDoc =>
   ({ id: sourceDocId(zoneId, key, phaseNo), type: 'source', zoneId, key, phaseNo, itemIds: [], hiddenItemIds: [], rev: 1, ...extra })
+type CandidateZones = CandidateZone[]
 const counts = (patch: Partial<ImportCounts> = {}): ImportCounts => ({ zones: 0, newZones: 0, creatures: 0, newCreatures: 0, items: 0, journalItems: 0, unanswered: 0, ...patch })
 
 describe('the import panel: the confirm step', () => {
@@ -169,5 +170,48 @@ describe("the import panel: Tick DungeonJournal's items", () => {
     assert.deepEqual([row.status, row.saved, journalToTick(row).length], ['new', false, 2])
     const after = buildPreview(night, setup([barrow]), tickJournal(noAnswers(), row))
     assert.deepEqual([after.zones[0]?.creatures[0]?.saved, after.counts.journalItems], [true, 2])
+  })
+})
+
+describe('the import panel: ticking an item under a creature that is not saved', () => {
+  const BARROW = 50_000_123
+  const barrow = zoneDoc(BARROW, 0, { name: 'Test Barrow', kind: 'raid', players: 10, removed: false })
+  const barrowNight = (sources: DropsSource[]) => pasted({ name: 'Test Barrow', kind: 'raid', players: 10, sources })
+  type Row = NonNullable<ReturnType<typeof buildPreview>['zones'][0]['creatures'][0]>
+  // Click the first item's checkbox, as the panel does, and read the creature again.
+  const click = (night: CandidateZones, docs: LootTableDoc[], before: ImportAnswers, value: boolean) => {
+    const row = buildPreview(night, setup(docs), before).zones[0]?.creatures[0] as Row
+    const next = tickItem(before, row, row.items[0] as Row['items'][0], value)
+    const after = buildPreview(night, setup(docs), next).zones[0]?.creatures[0] as Row
+    return { row, next, after }
+  }
+
+  it('a guessed boss is ticked with it, so the click shows', () => {
+    const night = barrowNight([boss(990004, 'Maybe Test Boss', [900010], { guessed: true })])
+    const { row, after } = click(night, [barrow], noAnswers(), true)
+    assert.deepEqual([row.saved, row.items[0]?.ticked], [false, false])
+    assert.deepEqual([after.saved, after.items[0]?.ticked], [true, true])
+  })
+
+  it('a creature a leader took out is brought back with it', () => {
+    const docs = [barrow, sourceDoc(BARROW, 'n990003', 0, { name: 'Warden of the Test Barrow', kind: 'boss', npcId: 990003, itemIds: [900008], removed: true })]
+    const night = barrowNight([boss(990003, 'Warden of the Test Barrow', [900009])])
+    const { row, after } = click(night, docs, noAnswers(), true)
+    assert.deepEqual([row.status, row.saved], ['takenOut', false])
+    assert.deepEqual([after.saved, after.items[0]?.ticked], [true, true])
+  })
+
+  it('a new creature the leader unticked is ticked again with it', () => {
+    const night = barrowNight([boss(990001, 'Grimtooth the Test Boss', [900001])])
+    const { after } = click(night, [barrow], answers({ ticks: { 'utest barrow|cn990001': false } }), true)
+    assert.deepEqual([after.saved, after.items[0]?.ticked], [true, true])
+  })
+
+  it('a new creature with no item ticked by default is left to the model: saved with the item, and not without it', () => {
+    const night = barrowNight([boss(990002, 'Quest Test Boss', [900020], { seen: [{ itemId: 900020, n: 1, last: '2026-12-10', via: 'window', quest: true }] })])
+    const ticked = click(night, [barrow], noAnswers(), true)
+    assert.deepEqual([ticked.row.saved, ticked.after.saved, ticked.next.ticks['utest barrow|cn990002']], [false, true, undefined])
+    const unticked = click(night, [barrow], ticked.next, false)
+    assert.deepEqual([unticked.after.saved, unticked.after.items[0]?.ticked], [false, false])
   })
 })

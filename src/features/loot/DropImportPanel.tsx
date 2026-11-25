@@ -11,7 +11,7 @@ import {
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -61,14 +61,14 @@ function statusText(row: ItemRow, phase: string): string | undefined {
 
 type Answering = { ticks: (id: string, value: boolean) => void; answers: ImportAnswers; update: (next: ImportAnswers) => void; busy: boolean; phase: string }
 
-function ItemLine({ row, trash, set }: { row: ItemRow; trash: boolean; set: Answering }) {
+function ItemLine({ row, creature, trash, set }: { row: ItemRow; creature: CreatureRow; trash: boolean; set: Answering }) {
   const state = useItemInfo(row.itemId)
   const gameName = row.evidence.seen?.name
   const status = statusText(row, set.phase)
   const notes = [...evidenceText(row.evidence, trash), ...(status ? [status] : [])]
   return <li className={`import-item${row.tickable ? '' : ' import-item-off'}`}>
     {row.tickable
-      ? <input type="checkbox" checked={row.ticked} disabled={set.busy} aria-label={`Add item ${gameName ?? row.itemId}`} onChange={(event) => set.ticks(row.id, event.target.checked)} />
+      ? <input type="checkbox" checked={row.ticked} disabled={set.busy} aria-label={`Add item ${gameName ?? row.itemId}`} onChange={(event) => set.update(tickItem(set.answers, creature, row, event.target.checked))} />
       : <span className="import-tick-space" aria-hidden="true" />}
     <ItemTooltip itemId={row.itemId} {...(gameName ? { fallbackName: gameName } : {})} />
     {isMissingItem(state) && <small className="import-note">not on Wowhead yet</small>}
@@ -107,7 +107,7 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
     </label>}
     {row.differs && <label className="import-answer import-check"><input type="checkbox" checked={row.rename} disabled={set.busy} onChange={(event) => set.update({ ...set.answers, renames: { ...set.answers.renames, [row.id]: event.target.checked } })} />
       Rename to {row.differs.name ?? row.name}{row.differs.kind ? ` (${row.differs.kind})` : ''}</label>}
-    <ul className="import-items">{row.items.map((item) => <ItemLine key={item.id} row={item} trash={row.kind === 'trash'} set={set} />)}</ul>
+    <ul className="import-items">{row.items.map((item) => <ItemLine key={item.id} row={item} creature={row} trash={row.kind === 'trash'} set={set} />)}</ul>
     {journal.length > 0 && <button type="button" className="button button-secondary tables-small" disabled={set.busy} onClick={() => set.update(tickJournal(set.answers, row))}>Tick DungeonJournal&rsquo;s {plural(journal.length, 'item', 'items')}</button>}
   </section>
 }

@@ -177,7 +177,7 @@ export function DropImportPanel({ live, phaseNo, phase, nextPhase }: { live: Tab
         try { await saveZoneColors(madeZoneColors(plan.made, setup, live.data.zoneColors), { uid: live.identity.uid }) } catch { colored = false }
       }
       await write(second.ticks, reason)
-      for (const call of second.journal) await write(call.writes, journalReason(call.version)) // each version of DungeonJournal with its own reason
+      for (const call of second.journal) await write(call.writes, journalReason(call.versions)) // each version of DungeonJournal with its own reason
       setMutationError('')
       setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.${colored ? '' : ` ${plural(plan.made.length, 'new zone keeps its', 'new zones keep their')} automatic color.`}`, error: false })
       setText('')

@@ -142,7 +142,7 @@ The module writes only its own allow-listed fields.
   - A creature's "Tick DungeonJournal's items" ticks its new ones only, never one a leader took off. It isn't offered under a creature a leader took out: Bring back comes first.
   - An item the game saw under another creature of the zone stays with that creature, whatever the order and the ticks: the journal's listing shows it there and can't be ticked. Under one creature, the items the game saw take the room first, so ticking the journal's never leaves one without room.
   - They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from.
-  - Strings from two versions of the journal are saved in one call per version, each zone with its own string's version. Two versions in one zone keep the first string's.
+  - Each item keeps the version of the string that listed it. They're saved in one call per version, and an item two versions list is saved with both in its reason ("From DungeonJournal 2.0.3 and 2.1.0, not seen in the game").
   - A dungeon the journal calls incomplete shows that note in the preview.
   - Switched off (`JOURNAL_ITEMS_SAVED` in `dropImport.ts`), they show as information ("DungeonJournal lists it, not seen in the game") and can't be ticked.
 - **Names.** The journal's names can differ from the game's ("Hall of Thanes" against "The Hall of Thanes"), and it splits one dungeon into wings ("Scarlet Monastery: Library"). See [section 6](#6-matching).
@@ -323,7 +323,7 @@ A counts line shows zones, creatures and items. Saving takes one confirm that na
      - **The zone-wide list** is the source document with the key `zonewide`, with no npc id or order. It's created or edited the same way, at most 80 items per phase. A creature beats the zone-wide list when both would hold an item in this import.
 2. **Second call, after the first has landed**, built from the stored documents:
    - **The zone's tick**, for a zone that isn't in the phase, merged with its D2 instance id when both apply.
-   - **Journal items** (D6): their own edit of each creature's document, with their own reason.
+   - **Journal items** (D6): their own edit of each creature's document, with their own reason, in one call per version (or set of versions) that lists them. Each call is built from the documents as the calls before it left them.
 
 If the second call fails, the zone stays out of the phase (nothing shows), and a retry ticks it.
 

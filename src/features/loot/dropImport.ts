@@ -103,7 +103,6 @@ export type ZoneRow = {
   players: number
   instanceId?: number
   from: 'addon' | 'capture'
-  journal?: string
   journalPartial?: true
   status: 'matched' | 'unmatched' | 'new'
   how?: 'capture' | 'zoneId' | 'instance' | 'name' | 'pick'
@@ -260,7 +259,6 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     const picks = placed.filter((unit) => unit.picked !== undefined).map((unit) => ({ answerKey: unit.id, name: (unit.candidates[0] as CandidateZone).name }))
     const base = {
       id: group.id, name: first.name, kind: first.kind, players: first.players, ...(first.instanceId !== undefined ? { instanceId: first.instanceId } : {}), from: first.from,
-      ...(inPaste.find((candidate) => candidate.journal)?.journal ? { journal: inPaste.find((candidate) => candidate.journal)?.journal as string } : {}),
       ...(inPaste.some((candidate) => candidate.journalPartial) ? { journalPartial: true as const } : {}),
       options: sameKindFirst(listed.filter((zone) => zone.zoneId !== undefined), first.kind, first.players),
       answerKeys: picks.map((pick) => pick.answerKey), picks,
@@ -551,13 +549,13 @@ function existingCreatureWrite(zone: MergedZone, creature: MergedSource, itemIds
   return { id: creature.docId, create: { type: 'source', zoneId: zone.zoneId, key: creature.key, phaseNo: zone.phaseNo, itemIds: [], hiddenItemIds: [], ...extra } as NewTableDoc }
 }
 
-/** DungeonJournal's items listed by one version of it, saved in their own call with that version's Log reason (journalReason). */
-export type JournalCall = { version: string | undefined; writes: TableWrite[] }
+/** DungeonJournal's items listed by one version of it, or by the same set of versions, saved in their own call with their Log reason (journalReason). */
+export type JournalCall = { versions: string[]; writes: TableWrite[] }
 export type ImportSave = {
   first: TableWrite[]
   /** The zones the first call makes: a Guild Leader's save gives each a suggested color (madeZoneColors). */
   made: number[]
-  /** The second call, from the documents after the first (applyWrites): the zones' ticks, and DungeonJournal's items in their own writes, by version. */
+  /** The second call, from the documents after the first (applyWrites): the zones' ticks, and DungeonJournal's items in their own calls, by version. */
   second: (after: LootTableDoc[]) => { ticks: TableWrite[]; journal: JournalCall[] }
 }
 
@@ -566,7 +564,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
   const first: TableWrite[] = []
   const merged = mergeTables(setup.captures, setup.docs, setup.phaseNo)
   const listed = listZones(setup.captures, setup.docs, setup.catalog, setup.currentPhase)
-  const plans: { zone: ZoneRow; journal: Map<string, number[]> }[] = []
+  const plans: { zone: ZoneRow; journal: { key: string; itemId: number; versions: string[] }[] }[] = []
   const made: number[] = []
   for (const zone of preview.zones) {
     if (zone.status === 'unmatched' || zone.zoneId === undefined || !zone.zoneTicked) continue
@@ -580,10 +578,10 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
       made.push(zone.zoneId)
     }
     else if (zone.repeatIdentity) first.push({ id: zoneDocId(zone.zoneId, setup.phaseNo), create: { type: 'zone', zoneId: zone.zoneId, phaseNo: setup.phaseNo, name: target.name, kind: target.kind, players: target.players } })
-    const journal = new Map<string, number[]>()
+    const journal: { key: string; itemId: number; versions: string[] }[] = []
     for (const row of saved) {
       const now = row.items.filter((item) => item.ticked && !item.journalOnly).map((item) => item.itemId)
-      const later = row.items.filter((item) => item.ticked && item.journalOnly).map((item) => item.itemId)
+      const later = row.items.filter((item) => item.ticked && item.journalOnly)
       if (row.status === 'new') {
         const key = row.key as string
         const id = sourceDocId(zone.zoneId, key, setup.phaseNo)
@@ -608,28 +606,44 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
         const write = existingCreatureWrite(target, creature, now, extra)
         if (write) first.push(write)
       }
-      if (later.length) journal.set(row.key as string, later)
+      for (const item of later) journal.push({ key: row.key as string, itemId: item.itemId, versions: item.evidence.journal ?? [] })
     }
     plans.push({ zone, journal })
   }
   const second = (after: LootTableDoc[]) => {
     const zonesAfter = mergeTables(setup.captures, after, setup.phaseNo)
     const ticks: TableWrite[] = []
-    const journal: JournalCall[] = []
     for (const plan of plans) {
       const zone = zonesAfter.find((candidate) => candidate.zoneId === plan.zone.zoneId)
-      if (!zone) continue
-      const tick = plan.zone.tickIn ? setZoneInPhase(zone, true) : null
+      const tick = zone && plan.zone.tickIn ? setZoneInPhase(zone, true) : null
       if (tick) ticks.push(tick)
-      for (const [key, itemIds] of plan.journal) {
-        const creature = key === ZONE_WIDE_KEY ? zone.zoneWide : zone.sources.find((candidate) => candidate.key === key)
-        const write = creature ? addItems(zone, creature, itemIds).write : null
-        if (!write) continue
-        const call = journal.find((candidate) => candidate.version === plan.zone.journal)
-        if (call) call.writes.push(write)
-        else journal.push({ version: plan.zone.journal, writes: [write] }) // each zone keeps the version its string gave
-
+    }
+    // DungeonJournal's items by the versions that list them: one call per version, or set of versions, in the order met. Each call is built from the
+    // documents as the calls before it leave them, so a creature that two versions list gets a write in each.
+    const groups = new Map<string, { versions: string[]; items: Map<string, { zoneId: number; key: string; itemIds: number[] }> }>()
+    for (const plan of plans) {
+      for (const entry of plan.journal) {
+        const group = groups.get(entry.versions.join('\n')) ?? { versions: entry.versions, items: new Map() }
+        groups.set(entry.versions.join('\n'), group)
+        const creature = `${plan.zone.zoneId}|${entry.key}`
+        const listed = group.items.get(creature) ?? { zoneId: plan.zone.zoneId as number, key: entry.key, itemIds: [] }
+        group.items.set(creature, { ...listed, itemIds: [...listed.itemIds, entry.itemId] })
       }
+    }
+    const journal: JournalCall[] = []
+    let docs = after
+    for (const group of groups.values()) {
+      const zones = mergeTables(setup.captures, docs, setup.phaseNo)
+      const writes: TableWrite[] = []
+      for (const { zoneId, key, itemIds } of group.items.values()) {
+        const zone = zones.find((candidate) => candidate.zoneId === zoneId)
+        const creature = key === ZONE_WIDE_KEY ? zone?.zoneWide : zone?.sources.find((candidate) => candidate.key === key)
+        const write = zone && creature ? addItems(zone, creature, itemIds).write : null
+        if (write) writes.push(write)
+      }
+      if (!writes.length) continue
+      journal.push({ versions: group.versions, writes })
+      docs = applyWrites(docs, writes)
     }
     return { ticks, journal }
   }
@@ -669,5 +683,13 @@ export function importStoppedText(saved: number, notSent: number, why: string): 
   return `${saved} ${saved === 1 ? 'change was' : 'changes were'} saved and ${notSent} ${notSent === 1 ? "wasn't" : "weren't"} sent. ${why} Press Save again to finish: the text and your answers are still here.`
 }
 
-/** The Log reason of DungeonJournal's items, saved in their own write (design section 4). */
-export const journalReason = (version: string | undefined) => `From DungeonJournal ${(version ?? '').replace(/^ForeverDungeonJournal\//, '') || 'unknown'}, not seen in the game`
+/**
+ * The Log reason of DungeonJournal's items, saved in their own write (design section 4): the versions that list them ("2.0.3", "2.0.3 and 2.1.0"). Too
+ * long for the rules' 300 characters, it gives their number.
+ */
+export function journalReason(versions: readonly string[]): string {
+  const names = [...new Set(versions.map((version) => version.replace(/^ForeverDungeonJournal\//, '') || 'unknown'))]
+  const listed = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0] ?? 'unknown'
+  const text = `From DungeonJournal ${listed}, not seen in the game`
+  return text.length <= 300 ? text : `From DungeonJournal (${names.length} versions), not seen in the game`
+}

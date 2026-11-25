@@ -299,7 +299,6 @@ describe('the drop list import, worked examples', () => {
     const row = info.zones[0]?.creatures[0]
     assert.deepEqual(row?.items.map((item) => [item.status, item.tickable]), [['journal', false], ['journal', false]])
     assert.deepEqual([row?.optIn, row?.saved], ['noItems', false])
-    assert.equal(info.zones[0]?.journal, 'ForeverDungeonJournal/2.0.3')
 
     const allowed = { journalSaving: true }
     const offered = buildPreview(pasted, setup([], allowed), make)
@@ -313,7 +312,7 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(created(first), [zoneDocId(zoneId, 0), sourceDocId(zoneId, 'n990011', 0)])
     assert.deepEqual((first[1] as { create: { itemIds: number[] } }).create.itemIds, [])
     assert.deepEqual(second.journal.flatMap((call) => call.writes).map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900101, 900102] }]])
-    assert.equal(journalReason('ForeverDungeonJournal/2.0.3'), 'From DungeonJournal 2.0.3, not seen in the game')
+    assert.equal(journalReason(['ForeverDungeonJournal/2.0.3']), 'From DungeonJournal 2.0.3, not seen in the game')
   })
 
   it("16c. DungeonJournal's items keep the version of the string that listed them: one journal write per version", () => {
@@ -323,11 +322,35 @@ describe('the drop list import, worked examples', () => {
     const given = answers({ zones: { u9100: { make: true }, u9200: { make: true } }, ticks: { 'u9100|cn990101|900101': true, 'u9200|cn990201|900201': true } })
     const allowed = { journalSaving: true }
     const { second } = save([], buildPreview(pasted, setup([], allowed), given), allowed)
-    assert.deepEqual(second.journal.map((call) => [call.version, call.writes.map((write) => write.id)]), [
-      ['ForeverDungeonJournal/2.0.3', [sourceDocId(50_009_100, 'n990101', 0)]],
-      ['ForeverDungeonJournal/2.1.0', [sourceDocId(50_009_200, 'n990201', 0)]],
+    assert.deepEqual(second.journal.map((call) => [call.versions, call.writes.map((write) => write.id)]), [
+      [['ForeverDungeonJournal/2.0.3'], [sourceDocId(50_009_100, 'n990101', 0)]],
+      [['ForeverDungeonJournal/2.1.0'], [sourceDocId(50_009_200, 'n990201', 0)]],
     ])
-    assert.deepEqual(second.journal.map((call) => journalReason(call.version)), ['From DungeonJournal 2.0.3, not seen in the game', 'From DungeonJournal 2.1.0, not seen in the game'])
+    assert.deepEqual(second.journal.map((call) => journalReason(call.versions)), ['From DungeonJournal 2.0.3, not seen in the game', 'From DungeonJournal 2.1.0, not seen in the game'])
+  })
+
+  it("16d. two versions of DungeonJournal in one zone: each item keeps its own string's version, and an item both list names both", () => {
+    const keep = (id: string, version: string, sources: DropsSource[]) => ({ schema: 1 as const, id, at: 1797474600, by: 'IntrepidManager/test', journal: version, zones: [{ name: 'Hollow Test Keep', kind: 'dungeon' as const, players: 5, instanceId: 9100, sources }] })
+    const listing = (npcId: number, itemIds: number[]): DropsSource => ({ npcId, name: `Boss ${npcId}`, kind: 'boss', itemIds, journal: itemIds })
+    const pasted = mergeDrops([
+      keep('d-test-0011', 'ForeverDungeonJournal/2.0.3', [listing(990101, [900101, 900103])]),
+      keep('d-test-0012', 'ForeverDungeonJournal/2.1.0', [listing(990101, [900102, 900103]), listing(990102, [900201])]),
+    ])
+    const row = (npcId: number) => `u9100|cn${npcId}`
+    const given = answers({ zones: { u9100: { make: true } }, ticks: Object.fromEntries([...[900101, 900102, 900103].map((id) => `${row(990101)}|${id}`), `${row(990102)}|900201`].map((id) => [id, true])) })
+    const allowed = { journalSaving: true }
+    const { second, after } = save([], buildPreview(pasted, setup([], allowed), given), allowed)
+    const doc = (npcId: number) => sourceDocId(50_009_100, `n${npcId}`, 0)
+    assert.deepEqual(second.journal.map((call) => [journalReason(call.versions), call.writes.map((write) => [write.id, 'existing' in write && write.existing.rev, 'existing' in write && write.changes.itemIds])]), [
+      ['From DungeonJournal 2.0.3, not seen in the game', [[doc(990101), 1, [900101]]]],
+      ['From DungeonJournal 2.0.3 and 2.1.0, not seen in the game', [[doc(990101), 2, [900101, 900103]]]],
+      ['From DungeonJournal 2.1.0, not seen in the game', [[doc(990101), 3, [900101, 900103, 900102]], [doc(990102), 1, [900201]]]],
+    ])
+    assert.deepEqual(after.filter((one): one is SourceTableDoc => one.type === 'source').map((one) => [one.key, one.itemIds]), [['n990101', [900101, 900103, 900102]], ['n990102', [900201]]])
+    // The Log reason fits the rules' 300 characters, also with many long version names.
+    const many = Array.from({ length: 4 }, (_, i) => `ForeverDungeonJournal/${String(i).repeat(90)}`)
+    assert.equal(journalReason(many), 'From DungeonJournal (4 versions), not seen in the game')
+    assert.equal(journalReason([]), 'From DungeonJournal unknown, not seen in the game')
   })
 
   it("16b. a creature with a new item seen in the game and one from DungeonJournal gets one write in each call", () => {

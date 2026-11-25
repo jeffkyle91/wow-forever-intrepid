@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, pasteReaders, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nextPhaseHint, nothingToSave, pasteReaders, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -244,5 +244,19 @@ describe('the import panel: reading the paste', () => {
     const good = { ...pasteReaders, readDropsPaste: () => ({ ok: true as const, strings: [] }) }
     assert.deepEqual(readPaste(text, { ...good, mergeDrops: broken('merge').mergeDrops }), { errors: ["The text couldn't be read: Test merge broke"] })
     assert.deepEqual(readPaste(text, { ...pasteReaders, looksLikeCapture: () => { throw 'not an error' } }), { errors: ["The text couldn't be read."] })
+  })
+})
+
+describe('the import panel: a large import into the live phase', () => {
+  const line = 'Phase 3 is live: everyone sees this import at once. To prepare it for later, pick Phase 4 below.'
+
+  it('points to the next phase at 20 items or more, DungeonJournal items included', () => {
+    assert.equal(nextPhaseHint(counts({ zones: 1, creatures: 3, items: 20 }), 'Phase 3', 'Phase 4'), line)
+    assert.equal(nextPhaseHint(counts({ zones: 1, creatures: 3, items: 12, journalItems: 8 }), 'Phase 3', 'Phase 4'), line)
+  })
+
+  it('says nothing for a smaller import, or when the phase picked is not the live one', () => {
+    assert.equal(nextPhaseHint(counts({ zones: 1, creatures: 3, items: 19 }), 'Phase 3', 'Phase 4'), undefined)
+    assert.equal(nextPhaseHint(counts({ zones: 1, creatures: 3, items: 40 }), 'Phase 4', undefined), undefined)
   })
 })

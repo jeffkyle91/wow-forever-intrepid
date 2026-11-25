@@ -11,7 +11,7 @@ import {
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nextPhaseHint, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -131,7 +131,8 @@ function ZoneBlock({ zone, candidates, setup, set, canMake }: { zone: ZoneRow; c
   </details>
 }
 
-export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; phaseNo: number; phase: string }) {
+// `nextPhase` is the next phase's name, given only when the phase picked is the current (live) one.
+export function DropImportPanel({ live, phaseNo, phase, nextPhase }: { live: TabContext; phaseNo: number; phase: string; nextPhase?: string }) {
   const [text, setText] = useState('')
   const [answers, setAnswers] = useState<ImportAnswers>(noAnswers)
   const [confirm, setConfirm] = useState<ConfirmFor | null>(null)
@@ -147,6 +148,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
   const previewing = live.identity.isPreviewing
   const counts = preview?.counts
   const nothing = nothingToSave(counts)
+  const hint = counts ? nextPhaseHint(counts, phase, nextPhase) : undefined
   // The confirm step is for one phase and one text: picking another phase in the editor or loading a file closes it, and going back doesn't reopen it.
   const confirming = confirmHolds(confirm, phaseNo, text)
   if (confirm && !confirming) setConfirm(null)
@@ -219,6 +221,7 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
             </>}
           </span>
         </div>
+        {confirming && hint && <p className="import-note">{hint}</p>}
         {previewing && <p className="import-note">Saving is off in VIEW AS.</p>}
       </>}
       {message && <p className={message.error ? 'tables-message tables-bad' : 'tables-message'} role={message.error ? 'alert' : 'status'}>{message.text}</p>}

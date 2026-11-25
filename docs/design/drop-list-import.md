@@ -274,7 +274,7 @@ Both are rare and visible in the editor, and keeping every take-off is what lets
 ## 7. The preview and saving
 
 **Where.** The import is an **Import a drop list** panel in Browse drops, under **Edit the drop lists**, above the zones. Guild and Raid Leaders see it. It writes into the phase picked there (current or next).
-- The current phase is live, so the panel suggests the next phase when the import is large.
+- The current phase is live, so the panel suggests the next phase when the import is large: at 20 items or more, the confirm step says the phase is live and points to the next one.
 - The Save button is disabled while VIEW AS previews another role.
 
 **Layout.** The preview groups rows by zone, then by creature. Each item row shows:

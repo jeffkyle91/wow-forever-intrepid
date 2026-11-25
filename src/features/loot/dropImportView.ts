@@ -128,3 +128,15 @@ export function readPaste(text: string, readers = pasteReaders): Paste {
     return { errors: [error instanceof Error && error.message ? `The text couldn't be read: ${error.message}` : "The text couldn't be read."] }
   }
 }
+
+/** An import this large into the live phase is pointed at the next phase (design section 7). */
+export const LARGE_IMPORT = 20
+
+/**
+ * The line the confirm step shows when the import is large and the phase picked is the live one: `nextPhase` is the next phase's name, given only
+ * then (TablesEditor.tsx knows which phase is current).
+ */
+export function nextPhaseHint(counts: ImportCounts, phase: string, nextPhase: string | undefined): string | undefined {
+  if (nextPhase === undefined || counts.items + counts.journalItems < LARGE_IMPORT) return undefined
+  return `${phase} is live: everyone sees this import at once. To prepare it for later, pick ${nextPhase} below.`
+}

@@ -145,7 +145,7 @@ function matchZone(candidate: CandidateZone, listed: ListedZone[]): ZoneHit {
     const fixed = CUSTOM_ZONE_MIN + candidate.instanceId
     if (lists.some((zone) => zone.zoneId === fixed)) return { zoneId: fixed, how: 'instance' }
   }
-  const key = importZoneKey(candidate.name)
+  const key = importZoneKey(madeZoneName(candidate)) // the name a zone made from it has, so a retry finds one made with a random id
   for (const wanted of [key, beforeColon(key)]) {
     if (!wanted) continue
     const hits = lists.filter((zone) => importZoneKey(zone.name) === wanted)
@@ -195,6 +195,8 @@ export function zoneIdFor(candidate: { instanceId?: number }, taken: Set<number>
 // A name the rules accept (validTableName: something left after trimming, at most 100 characters), else the fallback. A name of only tabs or other blanks is
 // text to the drops string's reader, but the rules refuse it.
 const nameOr = (name: string, fallback: string) => { const cut = name.slice(0, TABLE_NAME_MAX).trim(); return hasText(cut) ? cut : fallback }
+/** The name a zone the import makes is written with: a raid's cut to what Settings allows, a blank one "Unnamed zone". */
+const madeZoneName = (candidate: Pick<CandidateZone, 'name' | 'kind'>) => nameOr(candidate.kind === 'raid' ? candidate.name.slice(0, RAID_ZONE_NAME_MAX) : candidate.name, 'Unnamed zone')
 const creatureName = (source: CandidateSource) => nameOr(source.name, source.npcId !== undefined ? `NPC ${source.npcId}` : source.encounterId !== undefined ? `Encounter ${source.encounterId}` : 'Unnamed creature')
 const isJournalOnly = (evidence: ItemEvidence) => evidence.journal !== undefined && !evidence.seen && !evidence.ej && !evidence.capture
 const nearName = (a: string, b: string) => {
@@ -282,8 +284,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     } else if (group.make) {
       const zoneId = group.madeId !== undefined && group.madeId >= CUSTOM_ZONE_MIN && !taken.has(group.madeId) ? group.madeId : zoneIdFor(first, taken)
       taken.add(zoneId)
-      const name = nameOr(first.kind === 'raid' ? first.name.slice(0, RAID_ZONE_NAME_MAX) : first.name, 'Unnamed zone')
-      target = blankZone(zoneId, setup.phaseNo, name, first.kind, first.players)
+      target = blankZone(zoneId, setup.phaseNo, madeZoneName(first), first.kind, first.players)
       status = 'new'
     } else {
       status = 'unmatched'

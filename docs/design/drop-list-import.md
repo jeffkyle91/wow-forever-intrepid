@@ -227,7 +227,7 @@ The module writes only its own allow-listed fields.
 - **A blank name.** The string allows a name of only tabs or no-break spaces, but the rules refuse it. Such a zone is written as "Unnamed zone", and such a new creature as "NPC <id>", "Encounter <id>" or "Unnamed creature". A Differs row never offers a blank name.
 - **Its tick** comes after the creatures ([section 7](#7-the-preview-and-saving)).
 - **Its color.** A Guild Leader's import also saves a suggested color (`suggestColor`) to `settings/zoneColors`, as Settings does, once the first call has landed. A zone that has a color chosen keeps it. If that fails, the zone keeps the automatic color, and the drop lists still save.
-- **A retry** finds it in the raw documents: by the fixed id, or by name for a random id. Both work because the zone document, with its name, is written first.
+- **A retry** finds it in the raw documents: by the fixed id, or by name for a random id. Both work because the zone document, with its name, is written first. The name matched is the one the import wrote: "Unnamed zone" for a blank name, and a raid's name cut to 80 characters.
 
 **A zone matched in another phase.** `listZones` also lists zones first named in the next phase. When the matched guild zone has no named document at or before the picked phase, the zone write in the picked phase repeats its name, kind and size, so the merge sees it there.
 

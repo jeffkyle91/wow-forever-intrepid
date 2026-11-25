@@ -252,6 +252,29 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(write && 'existing' in write && write.changes, { npcId: 990002 })
   })
 
+  it('19b. two corpses of one encounter never land on the creature an earlier import made from its rolls', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'e9110', 0, { name: 'The Test Twins', kind: 'boss', order: 10, itemIds: [900011, 900012] })]
+    const twins = candidates(hollow([
+      boss(990011, 'Test Twin One', [900011, 900013], { encounterId: 9110 }),
+      boss(990012, 'Test Twin Two', [900012, 900014], { encounterId: 9110 }),
+    ]))
+    const preview = buildPreview(twins, setup(docs), pickBarrow)
+    const rows = preview.zones[0]?.creatures ?? []
+    assert.deepEqual(rows.map((row) => [row.name, row.status, row.key, row.storeNpcId, row.items.map((item) => [item.itemId, item.status, item.ticked])]), [
+      ['Test Twin One', 'new', 'n990011', undefined, [[900011, 'elsewhere', false], [900013, 'new', true]]],
+      ['Test Twin Two', 'new', 'n990012', undefined, [[900012, 'elsewhere', false], [900014, 'new', true]]],
+    ])
+    assert.deepEqual(created(buildImportSave(preview, setup(docs)).first), [sourceDocId(BARROW, 'n990011', 0), sourceDocId(BARROW, 'n990012', 0)])
+  })
+
+  it('19c. a corpse never lands on an encounter creature that learned another npc id', () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'e9102', 0, { name: 'Councillor Alpha', kind: 'boss', npcId: 990021, order: 10, itemIds: [900021] })]
+    const preview = buildPreview(candidates(hollow([boss(990022, 'Councillor Beta', [900022], { encounterId: 9102 })])), setup(docs), pickBarrow)
+    const row = preview.zones[0]?.creatures[0]
+    assert.deepEqual([row?.name, row?.status, row?.key, row?.differs, row?.items.map((item) => [item.status, item.ticked])], ['Councillor Beta', 'new', 'n990022', undefined, [['new', true]]])
+    assert.deepEqual(created(buildImportSave(preview, setup(docs)).first), [sourceDocId(BARROW, 'n990022', 0)])
+  })
+
   it('20. a zone first named in the next phase: the current phase write repeats its name, kind and size', () => {
     const docs = [barrowMade(1)]
     const preview = buildPreview(night1, setup(docs), pickBarrow)

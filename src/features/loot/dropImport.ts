@@ -304,7 +304,12 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     let near: { key: string; name: string }[] = []
     let answered = false
     if (source.npcId !== undefined) { found = existing.find((creature) => creature.npcId === source.npcId); how = 'npc' }
-    if (!found && source.encounterId !== undefined) { found = existing.find((creature) => creature.key === `e${source.encounterId}`); how = 'encounter' }
+    // A corpse joins the creature made from its encounter's rolls only when that creature has no other npc id and the corpse is the encounter's only one
+    // here: in a fight of several bosses, which corpse dropped the rolled items isn't known (as mergeCandidateSources has it).
+    if (!found && source.encounterId !== undefined && (source.npcId === undefined || sources.filter((other) => other.npcId !== undefined && other.encounterId === source.encounterId).length === 1)) {
+      found = existing.find((creature) => creature.key === `e${source.encounterId}` && (creature.npcId === undefined || creature.npcId === source.npcId))
+      how = 'encounter'
+    }
     if (!found) { found = existing.find((creature) => creatureKeyOf(creature.name) === creatureKeyOf(source.name)); how = 'name' }
     if (!found) {
       // A near name is asked (worked example 15): the answer says which creature it is, or that it is a new one.

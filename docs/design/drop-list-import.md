@@ -232,6 +232,7 @@ The module writes only its own allow-listed fields.
 **Creatures in a matched zone**, removed ones included:
 1. The npc id: a bundled creature `npc{id}`, or a guild creature with that `npcId`.
 2. The encounter id, through the key `e{encounterId}` of a creature the import made from rolls. When the source also has an npc id, the same write stores it on that creature.
+   - A corpse joins it only when that creature has no npc id or the same one, and the zone's paste has no other corpse of that encounter (a fight of several bosses). Otherwise the corpse goes on to step 3.
 3. The name key.
 4. **A near name.** A guild creature of the same kind, with no npc id, whose name key starts or ends with the source's name key at a word boundary, or the other way round ("Grimtooth" and "Grimtooth the Test Boss"). The creature is **Unmatched**, and the leader picks "same as …" (the write stores the npc id on that creature) or "new".
 5. Otherwise it's new.

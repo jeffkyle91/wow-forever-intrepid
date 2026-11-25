@@ -11,8 +11,8 @@ import {
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSameAs, answerSubject, colorMadeZones, confirmHolds, creatureBlockKey, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, previewOf, readFileText, readPaste,
-  sameAsValue, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSameAs, answerSubject, chooseZone, colorMadeZones, confirmHolds, creatureBlockKey, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, previewOf, readFileText, readPaste,
+  sameAsValue, tickItem, tickJournal, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -96,8 +96,7 @@ function CreatureBlock({ zone, row, set }: { zone: ZoneRow; row: CreatureRow; se
 }
 
 function ZoneBlock({ zone, candidates, setup, set, canMake }: { zone: ZoneRow; candidates: CandidateZone[]; setup: ImportSetup; set: Answering; canMake: boolean }) {
-  const choose = (answerKey: string, value: string) =>
-    set.update({ ...set.answers, zones: { ...set.answers.zones, [answerKey]: zoneAnswer(value, answerSubject(answerKey, candidates), takenZoneIds(setup)) } })
+  const choose = (answerKey: string, value: string) => set.update(chooseZone(set.answers, answerKey, value, answerSubject(answerKey, candidates), takenZoneIds(setup)))
   const chip = zoneChip(zone, set.phase)
   const unmatchedWhy = zone.unmatchedWhy === 'tie' ? 'More than one zone has this name.' : zone.unmatchedWhy === 'catalog' ? "It's in the older raid list, which can't hold drop lists." : undefined
   return <details className={`import-zone import-${zone.status}`} open={zoneOpen(zone)}>

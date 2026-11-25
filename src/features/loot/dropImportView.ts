@@ -75,10 +75,23 @@ export function zoneSelects(zone: ZoneRow): { answerKey: string; label: string }
 export const answerSubject = (answerKey: string, candidates: CandidateZone[]): Partial<CandidateZone> =>
   candidates.find((candidate) => `u${candidate.instanceId ?? importZoneKey(candidate.name)}` === answerKey) ?? {}
 
-/** A Zone select's value as an answer: Choose clears it, "new" makes a zone (its id fixed now, so it doesn't change while the preview is open), else a pick. */
-export function zoneAnswer(value: string, subject: { instanceId?: number }, taken: Set<number>): ZoneAnswer | undefined {
+/**
+ * A Zone select's value as an answer: Choose clears it, "new" makes a zone, else a pick. The zone to make gets `made`, the id this pasted zone was given
+ * before, else one now (zoneIdFor), so its id doesn't change while the preview is open.
+ */
+export function zoneAnswer(value: string, subject: { instanceId?: number }, taken: Set<number>, made?: number): ZoneAnswer | undefined {
   if (value === '') return undefined
-  return value === 'new' ? { make: true, zoneId: zoneIdFor(subject, taken) } : { pick: Number(value) }
+  return value === 'new' ? { make: true, zoneId: made ?? zoneIdFor(subject, taken) } : { pick: Number(value) }
+}
+
+/**
+ * The answers after a Zone select is changed. The id "Make a new zone" gives the pasted zone is kept with the answers, so choosing it again after a pick
+ * or Choose gives the same id back, and the answers under that zone come back with it.
+ */
+export function chooseZone(answers: ImportAnswers, answerKey: string, value: string, subject: { instanceId?: number }, taken: Set<number>): ImportAnswers {
+  const answer = zoneAnswer(value, subject, taken, answers.made?.[answerKey])
+  const made = answer && 'make' in answer && answer.zoneId !== undefined ? { made: { ...answers.made, [answerKey]: answer.zoneId } } : {}
+  return { ...answers, zones: { ...answers.zones, [answerKey]: answer }, ...made }
 }
 
 /**

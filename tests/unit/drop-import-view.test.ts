@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, colorMadeZones, creatureBlockKey, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, previewOf, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, chooseZone, colorMadeZones, creatureBlockKey, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, previewOf, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -100,6 +100,19 @@ describe('the import panel: a pick can be changed or taken back', () => {
     assert.equal(subject.instanceId, 7002)
     assert.deepEqual(zoneAnswer('new', subject, takenZoneIds(setup([]))), { make: true, zoneId: 50_007_002 })
     assert.deepEqual(zoneAnswer('4321', subject, new Set()), { pick: 4321 })
+    // Changed away from "Make a new zone" and back, a pasted zone gets the id it had, so the answers under it come back; a new text starts afresh.
+    const keep = pasted({ name: 'Hollow Test Keep', kind: 'dungeon', players: 5, sources: [boss(990011, 'The Fixture Warden', [900101, 900102])] })
+    const unit = buildPreview(keep, setup([]), noAnswers()).zones[0]?.id as string
+    const own = answerSubject(unit, keep)
+    const made = chooseZone(noAnswers(), unit, 'new', own, takenZoneIds(setup([])))
+    const zoneId = (made.zones[unit] as { zoneId: number }).zoneId
+    const unticked = { ...made, ticks: { [`z${zoneId}|cn990011|900102`]: false } }
+    for (const away of ['4321', '']) {
+      const back = chooseZone(chooseZone(unticked, unit, away, own, takenZoneIds(setup([]))), unit, 'new', own, takenZoneIds(setup([])))
+      assert.deepEqual(back.zones[unit], { make: true, zoneId }, away)
+      assert.deepEqual(buildPreview(keep, setup([]), back).zones[0]?.creatures[0]?.items.map((item) => [item.itemId, item.ticked]), [[900101, true], [900102, false]], away)
+    }
+    assert.deepEqual(noAnswers().made, undefined)
     // Every zone row's own answer key is found among the pasted zones, also one keyed by its name.
     const named = pasted(crypt({ instanceId: undefined }))
     assert.deepEqual(buildPreview(named, setup([]), noAnswers()).zones.map((zone) => answerSubject(zone.id, named).name), ['Some Other Crypt'])

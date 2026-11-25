@@ -40,6 +40,8 @@ export type ImportAnswers = {
   creatures: Record<string, CreatureAnswer | undefined>
   renames: Record<string, boolean | undefined> // a Differs row: true renames the app's creature, otherwise the app's name and kind stay
   ticks: Record<string, boolean | undefined>
+  /** The zone id "Make a new zone" last gave each pasted zone, kept with the answers (so a new text starts afresh): choosing it again gives it back. */
+  made?: Record<string, number | undefined>
 }
 export const noAnswers = (): ImportAnswers => ({ zones: {}, creatures: {}, renames: {}, ticks: {} })
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, previewOf, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -312,6 +312,16 @@ describe('the import panel: reading the paste', () => {
     const good = { ...pasteReaders, readDropsPaste: () => ({ ok: true as const, strings: [] }) }
     assert.deepEqual(readPaste(text, { ...good, mergeDrops: broken('merge').mergeDrops }), { errors: ["The text couldn't be read: Test merge broke"] })
     assert.deepEqual(readPaste(text, { ...pasteReaders, looksLikeCapture: () => { throw 'not an error' } }), { errors: ["The text couldn't be read."] })
+  })
+})
+
+describe('the import panel: building the preview', () => {
+  it('never throws: an exception from matching is shown as a paste error', () => {
+    const night = pasted(testAbbey([boss(990100, 'Abbot of Fixtures', [900105])]))
+    const built = previewOf(night, setup([]), noAnswers())
+    assert.ok('preview' in built && built.preview.zones.length === 1)
+    assert.deepEqual(previewOf(night, setup([]), noAnswers(), () => { throw new Error('Test match broke') }), { errors: ["The preview couldn't be made: Test match broke"] })
+    assert.deepEqual(previewOf(night, setup([]), noAnswers(), () => { throw 'not an error' }), { errors: ["The preview couldn't be made."] })
   })
 })
 

@@ -7,12 +7,12 @@ import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
-  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
+  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, importReason, importStoppedText, journalReason, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen,
-  zoneSelects, type ConfirmFor,
+  answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, previewOf, readFileText, readPaste, tickItem, tickJournal,
+  zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -145,7 +145,9 @@ export function DropImportPanel({ live, phaseNo, phase, nextPhase }: { live: Tab
     captures: builtIn, docs, catalog: live.data.raidZoneCatalog, currentPhase: live.data.settings.phaseHistory?.length ?? 0, phaseNo,
     journalSaving: JOURNAL_ITEMS_SAVED, canMakeZones: live.identity.canEditRoster,
   }), [docs, live.data.raidZoneCatalog, live.data.settings.phaseHistory, phaseNo, live.identity.canEditRoster])
-  const preview = useMemo(() => (paste && 'zones' in paste ? buildPreview(paste.zones, setup, answers) : null), [paste, setup, answers])
+  const built = useMemo(() => (paste && 'zones' in paste ? previewOf(paste.zones, setup, answers) : null), [paste, setup, answers])
+  const preview = built && 'preview' in built ? built.preview : null
+  const pasteErrors = paste && 'errors' in paste ? paste.errors : built && 'errors' in built ? built.errors : []
   const previewing = live.identity.isPreviewing
   const counts = preview?.counts
   const nothing = nothingToSave(counts)
@@ -211,7 +213,7 @@ export function DropImportPanel({ live, phaseNo, phase, nextPhase }: { live: Tab
           event.target.value = ''
         }} /></label>
       </div>
-      {paste && 'errors' in paste && <ul className="tables-message tables-bad import-errors" role="alert">{paste.errors.map((error) => <li key={error}>{error}</li>)}</ul>}
+      {pasteErrors.length > 0 && <ul className="tables-message tables-bad import-errors" role="alert">{pasteErrors.map((error) => <li key={error}>{error}</li>)}</ul>}
       {paste && 'zones' in paste && paste.skipped > 0 && <p className="import-note">{plural(paste.skipped, 'row of the string could', 'rows of the string could')} not be read and {paste.skipped === 1 ? 'is' : 'are'} left out.</p>}
       {preview && <>
         {preview.zones.map((zone) => <ZoneBlock key={zone.id} zone={zone} candidates={paste && 'zones' in paste ? paste.zones : []} setup={setup} set={set} canMake={setup.canMakeZones} />)}

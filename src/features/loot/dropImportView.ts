@@ -2,7 +2,10 @@
 // dropImport.ts does the matching and builds the writes; this holds only the panel's own choices. Only types and pure functions are imported.
 import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone } from '../../shared/game/dropsString.ts'
 import { zoneDocId } from '../../shared/game/guildTables.ts'
-import { importZoneKey, madeZoneColors, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ImportSetup, type ItemRow, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
+import {
+  buildPreview, importZoneKey, madeZoneColors, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ImportPreview, type ImportSetup, type ItemRow, type ZoneAnswer,
+  type ZoneRow,
+} from './dropImport.ts'
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
@@ -148,6 +151,15 @@ export function readPaste(text: string, readers = pasteReaders): Paste {
     return { from: 'addon', zones: readers.mergeDrops(read.strings.map((one) => one.model)), ids: read.strings.map((one) => one.model.id), skipped: read.strings.reduce((count, one) => count + one.rowErrors.length, 0) }
   } catch (error) {
     return { errors: [error instanceof Error && error.message ? `The text couldn't be read: ${error.message}` : "The text couldn't be read."] }
+  }
+}
+
+/** The preview of the pasted zones, or the error to show with the paste's. It never throws: the panel builds it on every answer. `build` is for a test. */
+export function previewOf(zones: CandidateZone[], setup: ImportSetup, answers: ImportAnswers, build = buildPreview): { preview: ImportPreview } | { errors: string[] } {
+  try {
+    return { preview: build(zones, setup, answers) }
+  } catch (error) {
+    return { errors: [error instanceof Error && error.message ? `The preview couldn't be made: ${error.message}` : "The preview couldn't be made."] }
   }
 }
 

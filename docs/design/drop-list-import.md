@@ -251,7 +251,8 @@ The module writes only its own allow-listed fields.
 | On another creature of the zone, or on the zone-wide list | Listed there, and not added. The app keeps one creature per item in a zone and has no move. |
 | On a creature a leader took out | Listed there, and not added. The check includes removed creatures, so bringing one back never puts an item on two creatures. |
 | Taken off by a leader, in this phase or an earlier phase of its follow chain | Taken off, unticked. |
-| More than this creature's remaining room for the phase (80 minus what its document already added) | Error: "the next phase can add it". |
+| More than this creature's remaining room for the phase (80 minus what its document already added, minus the items ticked before it) | Error: "the next phase can add it". |
+| Saved by an earlier row of this import | Listed under that row. Only a ticked item under a creature that is saved holds it: an unticked item, or one under a guessed, taken out, unanswered or unticked creature, holds nothing and takes no room. |
 | Anything else | New. |
 
 **Remembering what was taken off.** An item a leader adds and takes off within one phase leaves no trace in the documents today. Once the importer exists:

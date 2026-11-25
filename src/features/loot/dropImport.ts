@@ -47,9 +47,9 @@ export type ItemStatus =
   | 'already' // already on this creature in the phase
   | 'elsewhere' // on another creature of the zone (a creature a leader took out included) or on the zone-wide list: not added, the app keeps one creature per item
   | 'takenOff' // a leader took it off this creature, in this phase or an earlier phase of its chain: unticked, opt-in
-  | 'claimed' // another row of this import takes it (a creature beats the zone-wide list, the first creature beats the next)
+  | 'claimed' // another row of this import saves it (a creature beats the zone-wide list, the first creature beats the next)
   | 'zoneWide' // two or more trash creatures dropped it: offered for the zone-wide list instead
-  | 'noRoom' // more than the creature's room for the phase: the next phase can add it
+  | 'noRoom' // more than the creature's room for the phase, counting the items ticked before it: the next phase can add it
   | 'journal' // DungeonJournal's alone, while its items aren't saved (D6 switched off): information
 
 export type ItemRow = {
@@ -345,7 +345,7 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     }
   }
 
-  // Items: a creature claims what is new in the paste's order, bosses and rares before trash, and before the zone-wide list.
+  // Items: a creature that is saved claims what it saves in the paste's order, bosses and rares before trash, and before the zone-wide list.
   const holders = new Map<number, string>()
   // Creatures in the lists first, so an item two hold is named where it shows; one a leader took out is named so ("taken out").
   for (const creature of [...existing.filter((one) => !one.removed), zone.zoneWide, ...existing.filter((one) => one.removed)]) for (const id of creature.itemIds) if (!holders.has(id)) holders.set(id, creature.removed ? `${creature.name} (taken out)` : creature.name)
@@ -383,10 +383,10 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
       else if (journalOnly && !setup.journalSaving) status = 'journal'
       else status = 'new'
       if ((status === 'new' || status === 'takenOff') && room <= 0) status = 'noRoom'
-      if (status === 'new' || status === 'takenOff') { room -= 1; claims.set(item.itemId, draft.row.name) }
       const tickable = decided && (status === 'new' || status === 'takenOff')
       const byDefault = status === 'new' && !journalOnly && !item.evidence.seen?.quest && !(draft.row.kind === 'trash') && !(isZoneWide && !item.evidence.capture)
       const ticked = tickable && (answers.ticks[id] ?? byDefault)
+      if (ticked) room -= 1 // only an item that is ticked takes room
       draft.row.items.push({ id, itemId: item.itemId, evidence: item.evidence, status, ...(where ? { where } : {}), journalOnly, tickable, ticked })
     }
     // The creature itself: a new one is written when something under it is ticked, or (a boss with no items yet, a guessed boss) when a leader ticks it.
@@ -405,6 +405,8 @@ function creatureRows(groupId: string, zone: MergedZone, sources: CandidateSourc
     } else if (draft.row.status === 'matched' || draft.row.status === 'zoneWide') {
       draft.row.saved = anyTicked || draft.row.rename || draft.row.storeNpcId !== undefined
     }
+    // Only what is saved claims its item: an unticked item, or one under a creature that isn't saved, leaves it to the rows after (the first saved row wins).
+    if (draft.row.saved) for (const item of draft.row.items) if (item.ticked) claims.set(item.itemId, draft.row.name)
   }
   placeNewCreatures(zone, drafts)
   const rows = drafts.map((draft) => draft.row)

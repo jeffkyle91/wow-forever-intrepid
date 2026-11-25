@@ -166,6 +166,42 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(statuses, [...Array(10).fill('new'), ...Array(5).fill('noRoom')])
   })
 
+  it('10b. an item that is not saved never takes the room of one that is', () => {
+    const journal = Array.from({ length: 79 }, (_, i) => 910000 + i)
+    const pasted = mergeDrops([
+      { schema: 1, id: 'd-test-0003', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [hollow([boss(990001, 'Grimtooth the Test Boss', [900001, ...journal], { seen: [seen(900001)], journal })])] },
+      { schema: 1, id: 'd-test-0004', at: 1797474600, by: 'IntrepidManager/test', zones: [hollow([boss(990001, 'Grimtooth the Test Boss', [900002, 900003])])] },
+    ])
+    const preview = buildPreview(pasted, setup([barrowMade()], { journalSaving: true }), pickBarrow)
+    const seenItems = preview.zones[0]?.creatures[0]?.items.filter((item) => !item.journalOnly)
+    assert.deepEqual(seenItems?.map((item) => [item.itemId, item.status, item.ticked]), [[900001, 'new', true], [900002, 'new', true], [900003, 'new', true]])
+    assert.equal(preview.counts.items, 3)
+  })
+
+  it('10c. only a row that is saved claims an item: an unticked journal item or an unsaved boss never blocks the boss that dropped it', () => {
+    const keep = (sources: DropsSource[]) => mergeDrops([{ schema: 1, id: 'd-test-0005', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [{ name: 'Hollow Test Keep', kind: 'dungeon', players: 5, instanceId: 9100, sources }] }])
+    const shared = keep([
+      boss(990001, 'Aaa Test Boss', [900101, 900777], { seen: [seen(900101)], journal: [900101, 900777] }),
+      boss(990002, 'Bbb Test Boss', [900777, 900201], { seen: [seen(900777)], journal: [900201, 900777] }),
+    ])
+    const make = answers({ zones: { u9100: { make: true, zoneId: 50_009_100 } } })
+    const allowed = { journalSaving: true }
+    const preview = buildPreview(shared, setup([], allowed), make)
+    const [aaa, bbb] = preview.zones[0]?.creatures ?? []
+    assert.deepEqual(aaa?.items.map((item) => [item.itemId, item.status, item.ticked]), [[900101, 'new', true], [900777, 'new', false]])
+    assert.deepEqual(bbb?.items.map((item) => [item.itemId, item.status, item.ticked]), [[900777, 'new', true], [900201, 'new', false]])
+    assert.deepEqual(buildImportSave(preview, setup([], allowed)).first.map((write) => [write.id, 'create' in write && 'itemIds' in write.create && write.create.itemIds]), [
+      [zoneDocId(50_009_100, 0), false], [sourceDocId(50_009_100, 'n990001', 0), [900101]], [sourceDocId(50_009_100, 'n990002', 0), [900777]],
+    ])
+    // Ticked on both, the first creature keeps it, as before.
+    const both = buildPreview(shared, setup([], allowed), { ...make, ticks: { [`${aaa?.id}|900777`]: true } })
+    assert.deepEqual(both.zones[0]?.creatures[1]?.items[0]?.status, 'claimed')
+    // A guessed boss that isn't ticked doesn't block the item either.
+    const guessed = keep([boss(990001, 'Aaa Test Boss', [900777], { guessed: true }), boss(990002, 'Bbb Test Boss', [900777])])
+    const rows = buildPreview(guessed, setup([], allowed), make).zones[0]?.creatures
+    assert.deepEqual(rows?.map((row) => [row.saved, row.items.map((item) => [item.status, item.ticked])]), [[false, [['new', false]]], [true, [['new', true]]]])
+  })
+
   it('11. two wings of one built-in dungeon are one zone', () => {
     const wing = (name: string, npcId: number, itemId: number): DropsZone => ({ name, kind: 'dungeon', players: 5, sources: [boss(npcId, `Boss of ${name}`, [itemId])] })
     const preview = buildPreview(candidates(wing('Test Abbey: Library', 990110, 900110), wing('Test Abbey: Chapel', 990111, 900111)), setup([]), noAnswers())

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { ExchangeReadError, crc32, exchangeMessage, readEnvelopes, readSingleEnvelope, type ExchangeKind } from '../../src/shared/lib/exchangeString.ts'
-import { captureCandidate, checkDrops, looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type DropsModel, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
+import { captureCandidate, checkDrops, looksLikeCapture, mergeDrops, mergeEvidence, readCapturePaste, readDropsPaste, type DropsModel, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 
 // The fixtures of docs/spec/fixtures/ are the authority (docs/spec/exchange-v0.md section 12): the Python reference reader and the addon's Lua reader
 // give these answers on every case. Every name in them and here is invented.
@@ -290,7 +290,23 @@ describe('mergeDrops', () => {
     assert.equal(zone?.journal, 'ForeverDungeonJournal/2.0.3')
     assert.equal(zone?.journalPartial, true)
     assert.equal(zone?.journalSkipped, 2)
-    assert.deepEqual(zone?.sources[0]?.items.map((item) => item.evidence), [{ seen: { n: 1, last: '2026-12-01', via: 'window' }, journal: true }, { journal: true }])
+    const listed = ['ForeverDungeonJournal/2.0.3']
+    assert.deepEqual(zone?.sources[0]?.items.map((item) => item.evidence), [{ seen: { n: 1, last: '2026-12-01', via: 'window' }, journal: listed }, { journal: listed }])
+  })
+
+  it("keeps on each DungeonJournal item the versions of the strings that list it", () => {
+    const keep = (itemIds: number[]) => [{ name: 'Hollow Test Keep', kind: 'dungeon' as const, players: 5, instanceId: 9100, sources: [{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss' as const, itemIds, journal: itemIds }] }]
+    const newer = model(keep([900102, 900103]), 'ForeverDungeonJournal/2.10.0')
+    const older = model(keep([900101, 900103]), 'ForeverDungeonJournal/2.9.1')
+    for (const strings of [[newer, older], [older, newer]]) {
+      const items = mergeDrops(strings)[0]?.sources[0]?.items ?? []
+      assert.deepEqual(Object.fromEntries(items.map((item) => [item.itemId, item.evidence.journal])), {
+        900101: ['ForeverDungeonJournal/2.9.1'], 900102: ['ForeverDungeonJournal/2.10.0'], 900103: ['ForeverDungeonJournal/2.9.1', 'ForeverDungeonJournal/2.10.0'],
+      })
+    }
+    // A string that lists the journal's items without saying its version has the version the addon sends when it doesn't know it.
+    assert.deepEqual(mergeDrops([model(keep([900101]))])[0]?.sources[0]?.items[0]?.evidence, { journal: ['ForeverDungeonJournal/unknown'] })
+    assert.deepEqual(mergeEvidence({ journal: ['ForeverDungeonJournal/2.1.0'], seen: { n: 1, last: '2026-12-01' } }, { journal: ['ForeverDungeonJournal/2.0.3', 'ForeverDungeonJournal/2.1.0'] }), { seen: { n: 1, last: '2026-12-01' }, journal: ['ForeverDungeonJournal/2.0.3', 'ForeverDungeonJournal/2.1.0'] })
   })
 
   it('merges the fixture drops-small into its two zones', () => {

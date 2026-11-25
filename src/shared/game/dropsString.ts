@@ -133,7 +133,7 @@ export function readDropsPaste(text: string): DropsPaste {
 /** Where an item's place in the lists comes from. A capture's items and the game's are facts; a journal's are hints (design sections 3 and 4). */
 export type ItemEvidence = {
   seen?: { n: number; last: string; via?: 'window' | 'roll'; name?: string; quality?: number; boe?: true; quest?: true }
-  journal?: true // DungeonJournal lists it
+  journal?: string[] // DungeonJournal lists it: the versions of the strings that list it ("ForeverDungeonJournal/2.0.3"), each once, oldest first
   ej?: true // the game's Encounter Journal lists it (reserved: Forever has none)
   capture?: true // a capture file lists it
 }
@@ -148,7 +148,7 @@ export type CandidateZone = {
   captureZoneId?: number // a capture file's zone id (Wowhead's): never written as an app zone id (design section 6)
   instanceId?: number
   difficultyIds: number[]
-  journal?: string // DungeonJournal's version, when an item here is listed by it
+  journal?: string // DungeonJournal's version, when an item here is listed by it (the first string's; each item's evidence has its own)
   journalPartial?: true
   journalSkipped?: number
   from: 'addon' | 'capture'
@@ -168,7 +168,11 @@ const minDate = (a?: string, b?: string) => (a === undefined ? b : b === undefin
 const maxDate = (a?: string, b?: string) => (a === undefined ? b : b === undefined ? a : a > b ? a : b)
 const maxOf = (a?: number, b?: number) => (a === undefined ? b : b === undefined ? a : Math.max(a, b))
 
-/** One item's evidence from two rows: the larger count, the later date, a loot window over a roll, any flag either has. */
+/** What a string that lists DungeonJournal's items without its version stands for: the addon's own word for a version it doesn't know. */
+const JOURNAL_UNKNOWN = 'ForeverDungeonJournal/unknown'
+const versionOrder = (a: string, b: string) => a.localeCompare(b, 'en', { numeric: true })
+
+/** One item's evidence from two rows: the larger count, the later date, a loot window over a roll, any flag either has, every DungeonJournal version either has. */
 export function mergeEvidence(into: ItemEvidence, from: ItemEvidence): ItemEvidence {
   const seen = into.seen && from.seen
     ? {
@@ -183,7 +187,7 @@ export function mergeEvidence(into: ItemEvidence, from: ItemEvidence): ItemEvide
     : into.seen ?? from.seen
   return {
     ...(seen ? { seen } : {}),
-    ...(into.journal || from.journal ? { journal: true as const } : {}),
+    ...(into.journal || from.journal ? { journal: [...new Set([...(into.journal ?? []), ...(from.journal ?? [])])].sort(versionOrder) } : {}),
     ...(into.ej || from.ej ? { ej: true as const } : {}),
     ...(into.capture || from.capture ? { capture: true as const } : {}),
   }
@@ -228,7 +232,7 @@ function mergeSources(into: CandidateSource, from: CandidateSource): CandidateSo
   }
 }
 
-function candidateSource(source: DropsSource): CandidateSource {
+function candidateSource(source: DropsSource, version: string | undefined): CandidateSource {
   const seen = new Map((source.seen ?? []).map((entry) => [entry.itemId, entry]))
   const journal = new Set(source.journal ?? [])
   const ej = new Set(source.ej ?? [])
@@ -236,7 +240,7 @@ function candidateSource(source: DropsSource): CandidateSource {
     const entry = seen.get(itemId)
     const evidence: ItemEvidence = {
       ...(entry ? { seen: { n: entry.n, last: entry.last, ...(entry.via ? { via: entry.via } : {}), ...(entry.name ? { name: entry.name } : {}), ...(entry.quality !== undefined ? { quality: entry.quality } : {}), ...(entry.boe ? { boe: true as const } : {}), ...(entry.quest ? { quest: true as const } : {}) } } : {}),
-      ...(journal.has(itemId) ? { journal: true as const } : {}),
+      ...(journal.has(itemId) ? { journal: [version ?? JOURNAL_UNKNOWN] } : {}),
       ...(ej.has(itemId) ? { ej: true as const } : {}),
     }
     return { itemId, evidence }
@@ -305,7 +309,7 @@ export function mergeDrops(strings: DropsModel[]): CandidateZone[] {
       if (zone.journalPartial) target.journalPartial = true
       if (zone.journalSkipped !== undefined) target.journalSkipped = Math.max(target.journalSkipped ?? 0, zone.journalSkipped)
       if (model.journal && zone.sources.some((source) => (source.journal ?? []).length > 0)) target.journal ??= model.journal
-      entry.sources.push(...zone.sources.map(candidateSource))
+      entry.sources.push(...zone.sources.map((source) => candidateSource(source, model.journal)))
     }
   }
   return [...zones.values()].map(({ zone, sources }) => ({ ...zone, sources: mergeCandidateSources(sources) }))

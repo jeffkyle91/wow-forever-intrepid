@@ -489,6 +489,25 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(crowded.zones[0]?.creatures[0]?.items.map((item) => item.status), ['new', 'noRoom'])
   })
 
+  it('an item on a document with no name is held by the creature the import names there: the save never puts it on a second creature', () => {
+    // Phase 1 has Grimtooth's document with no name (the follow link was taken away), and it lists 900002. Another boss of the paste dropped 900002.
+    const docs: LootTableDoc[] = [
+      { id: 'p1', type: 'phase', phaseNo: 1, rev: 2 }, barrowMade(), zoneDoc(BARROW, 1, { removed: false }),
+      sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] }),
+      sourceDoc(BARROW, 'n990001', 1, { itemIds: [900002] }),
+    ]
+    const grim = boss(990001, 'Grimtooth the Test Boss', [900003])
+    const other = boss(990005, 'Other Test Boss', [900002])
+    for (const pasted of [candidates(hollow([grim, other])), candidates(hollow([other, grim]))]) {
+      const preview = buildPreview(pasted, setup(docs, { phaseNo: 1 }), pickBarrow)
+      const row = preview.zones[0]?.creatures.find((one) => one.npcId === 990005)
+      assert.deepEqual(row?.items.map((item) => [item.itemId, item.status, item.where, item.tickable]), [[900002, 'elsewhere', 'Grimtooth the Test Boss', false]])
+      const { after } = save(docs, preview, { phaseNo: 1 })
+      const holders = mergeTables([abbey], after, 1).find((zone) => zone.zoneId === BARROW)?.sources.filter((source) => source.itemIds.includes(900002)).map((source) => source.name)
+      assert.deepEqual(holders, ['Grimtooth the Test Boss'])
+    }
+  })
+
   it('a name that is only tabs or other blanks is never written: a new zone or creature gets a name the rules accept', () => {
     const blank = '\t\t'
     const pasted = candidates(hollow([

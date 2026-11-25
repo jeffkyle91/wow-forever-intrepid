@@ -253,7 +253,7 @@ The module writes only its own allow-listed fields.
 | Case | What the preview says |
 | --- | --- |
 | Already on this creature in the phase | Already listed. |
-| On another creature of the zone, or on the zone-wide list | Listed there, and not added. The app keeps one creature per item in a zone and has no move. |
+| On another creature of the zone, or on the zone-wide list (a creature's document with no name that the import names included) | Listed there, and not added. The app keeps one creature per item in a zone and has no move. |
 | On a creature a leader took out | Listed there, and not added. The check includes removed creatures, so bringing one back never puts an item on two creatures. |
 | Taken off by a leader, in this phase or an earlier phase of its follow chain | Taken off, unticked. |
 | More than this creature's remaining room for the phase (80 minus what its document already added, minus the items ticked before it; the items the game saw count first, then DungeonJournal's) | Error: "the next phase can add it". |
@@ -327,7 +327,7 @@ A counts line shows zones, creatures and items. Saving takes one confirm that na
    - **A matched zone** that needs its name repeated in this phase, or (under D2) its instance id stored, and is already in the phase: one edit carrying both.
    - **Creatures:**
      - **A new creature** is one create with its name, kind, npc id, order and items. Its key is `n{npcId}`, or `e{encounterId}` for a creature from rolls, or a random key when there's neither or the key is taken. The key avoids the `npc` prefix, because the rules never let an `npc…` creature be removed.
-     - **A creature whose document is there with no name** (a leader changed its items while the phase followed another, and the link was then taken away) keeps its key, and gets one edit of that document instead of a create: its name, kind, npc id and order, `removed:false` if it was taken out, and the new items added to what the document holds. Those count toward its room, and what it takes off shows as Taken off.
+     - **A creature whose document is there with no name** (a leader changed its items while the phase followed another, and the link was then taken away) keeps its key, and gets one edit of that document instead of a create: its name, kind, npc id and order, `removed:false` if it was taken out, and the new items added to what the document holds. Those count toward its room, and what it takes off shows as Taken off. The items it holds are that creature's, so no other creature of the import gets one of them.
      - **An existing creature** gets one edit of its document for this phase, or one create when the phase has none yet, carrying everything at once: new items, `removed:false` for a creature a leader took out, the npc id from "same as …", a rename from Differs.
      - **The zone-wide list** is the source document with the key `zonewide`, with no npc id or order. It's created or edited the same way, at most 80 items per phase. A creature beats the zone-wide list when both would hold an item in this import.
 2. **Second call, after the first has landed**, built from the stored documents:

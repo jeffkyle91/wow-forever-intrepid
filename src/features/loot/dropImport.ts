@@ -451,7 +451,9 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
   // Items: a creature that is saved claims what it saves in the paste's order, bosses and rares before trash, and before the zone-wide list.
   const holders = new Map<number, string>()
   // Creatures in the lists first, so an item two hold is named where it shows; one a leader took out is named so ("taken out").
-  for (const creature of [...existing.filter((one) => !one.removed), zone.zoneWide, ...existing.filter((one) => one.removed)]) for (const id of creature.itemIds) if (!holders.has(id)) holders.set(id, creature.removed ? `${creature.name} (taken out)` : creature.name)
+  // A document with no name that the import names holds its items as that creature, so no other row of the save puts one on a second creature.
+  const unnamed = drafts.flatMap((draft) => (draft.unnamed ? [draft.unnamed.source] : []))
+  for (const creature of [...existing.filter((one) => !one.removed), zone.zoneWide, ...existing.filter((one) => one.removed), ...unnamed]) for (const id of creature.itemIds) if (!holders.has(id)) holders.set(id, creature.removed ? `${creature.name} (taken out)` : creature.name)
   const claims = new Map<number, string>()
   const trashCount = new Map<number, number>()
   for (const draft of drafts) if (draft.row.kind === 'trash') for (const id of new Set(draft.candidates.flatMap((candidate) => candidate.items.map((item) => item.itemId)))) if (!holders.has(id)) trashCount.set(id, (trashCount.get(id) ?? 0) + 1)

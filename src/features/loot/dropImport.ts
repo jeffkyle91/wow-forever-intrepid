@@ -481,6 +481,7 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
   // yields to it, whatever the order and whatever is ticked.
   const seenUnder = new Map<number, Draft>()
   for (const draft of ordered) for (const item of itemsOf.get(draft) ?? []) if (!isJournalOnly(item.evidence) && !seenUnder.has(item.itemId)) seenUnder.set(item.itemId, draft)
+  const yielded: ItemRow[] = [] // those listings: once every row is known, each names the row that saves the item
   for (const draft of ordered) {
     const isZoneWide = draft === zoneWideDraft
     const items = itemsOf.get(draft) ?? []
@@ -507,7 +508,9 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
       const byDefault = status === 'new' && !journalOnly && !item.evidence.seen?.quest && !(draft.row.kind === 'trash') && !(isZoneWide && !item.evidence.capture)
       const ticked = tickable && (answers.ticks[id] ?? byDefault)
       if (ticked) room -= 1 // only an item that is ticked takes room
-      itemRows.set(item.itemId, { id, itemId: item.itemId, evidence: item.evidence, status, ...(where ? { where } : {}), journalOnly, tickable, ticked })
+      const row: ItemRow = { id, itemId: item.itemId, evidence: item.evidence, status, ...(where ? { where } : {}), journalOnly, tickable, ticked }
+      if (status === 'claimed' && !claims.has(item.itemId)) yielded.push(row)
+      itemRows.set(item.itemId, row)
     }
     draft.row.items.push(...items.map((item) => itemRows.get(item.itemId) as ItemRow))
     // The creature itself: a new one is written when something under it is ticked, or (a boss with no items yet, a guessed boss) when a leader ticks it.
@@ -530,6 +533,9 @@ function creatureRows(ids: RowIds, zone: MergedZone, sources: CandidateSource[],
     // Only what is saved claims its item: an unticked item, or one under a creature that isn't saved, leaves it to the rows after (the first saved row wins).
     if (draft.row.saved) for (const item of draft.row.items) if (item.ticked) claims.set(item.itemId, draft.row.name)
   }
+  // A DungeonJournal listing that yielded names the creature that saves the item, when one does (a row after the one that saw it first may), else the
+  // first that saw it.
+  for (const row of yielded) row.where = claims.get(row.itemId) ?? row.where
   placeNewCreatures(zone, drafts, new Set(setup.docs.map((doc) => doc.id)))
   const rows = drafts.map((draft) => draft.row)
   return zoneWideDraft.row.items.length ? [...rows, zoneWideDraft.row] : rows

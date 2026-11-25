@@ -252,6 +252,27 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(buildImportSave(ticked, setup(docs)).first.map((write) => write.id), [sourceDocId(BARROW, 'n990001', 0)])
   })
 
+  it('10e. a DungeonJournal listing of an item another creature saw names the creature that saves it, else the first that saw it', () => {
+    const pasted = mergeDrops([{ schema: 1, id: 'd-test-0013', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [{ name: 'Hollow Test Keep', kind: 'dungeon', players: 5, instanceId: 9100, sources: [
+      boss(990001, 'Aaa Test Boss', [900101, 900777], { seen: [seen(900101)], journal: [900777] }),
+      boss(990002, 'Bbb Test Boss', [900777]),
+      boss(990003, 'Ccc Test Boss', [900777, 900301]),
+    ] }] }])
+    const allowed = { journalSaving: true }
+    const make = answers({ zones: { u9100: { make: true, zoneId: 50_009_100 } } })
+    const preview = (given: ImportAnswers) => buildPreview(pasted, setup([], allowed), given)
+    const listing = (given: ImportAnswers) => { const item = preview(given).zones[0]?.creatures[0]?.items.find((one) => one.itemId === 900777); return [item?.status, item?.where] }
+    const [, bbb, ccc] = preview(make).zones[0]?.creatures ?? []
+    assert.deepEqual(listing(make), ['claimed', 'Bbb Test Boss'])
+    // The leader unticks Bbb: Ccc saves the item, and the listing names Ccc.
+    const noBbb = { ...make, ticks: { [bbb?.id as string]: false } }
+    assert.deepEqual(listing(noBbb), ['claimed', 'Ccc Test Boss'])
+    const holders = applyWrites([], buildImportSave(preview(noBbb), setup([], allowed)).first).filter((doc): doc is SourceTableDoc => doc.type === 'source' && doc.itemIds.includes(900777)).map((doc) => doc.name)
+    assert.deepEqual(holders, ['Ccc Test Boss'])
+    // Nobody saves it: the first creature that saw it.
+    assert.deepEqual(listing({ ...make, ticks: { [bbb?.id as string]: false, [`${ccc?.id}|900777`]: false } }), ['claimed', 'Bbb Test Boss'])
+  })
+
   it('11. two wings of one built-in dungeon are one zone', () => {
     const wing = (name: string, npcId: number, itemId: number): DropsZone => ({ name, kind: 'dungeon', players: 5, sources: [boss(npcId, `Boss of ${name}`, [itemId])] })
     const preview = buildPreview(candidates(wing('Test Abbey: Library', 990110, 900110), wing('Test Abbey: Chapel', 990111, 900111)), setup([]), noAnswers())

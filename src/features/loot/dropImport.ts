@@ -21,14 +21,14 @@ export type ImportSetup = {
   catalog: readonly CatalogZone[]
   currentPhase: number
   phaseNo: number
-  /** Decision D6: whether DungeonJournal's items may be saved (one creature at a time, with their own Log reason). Until the maintainer says so, no. */
+  /** Decision D6: whether DungeonJournal's items may be saved (one creature at a time, with their own Log reason). The panel passes JOURNAL_ITEMS_SAVED. */
   journalSaving: boolean
   /** Decision D1: only a Guild Leader makes a zone from the import. */
   canMakeZones: boolean
 }
 
-/** D6 as the maintainer decided it on 2026-11-14: DungeonJournal's items are information in the preview. One switch, here, when that changes. */
-export const JOURNAL_ITEMS_SAVED = false
+/** D6 as the loot owner changed it on 2026-11-24: DungeonJournal's items can be saved, unticked by default, one creature at a time, in their own write (the maintainer's 2026-11-14 answer kept them as information). One switch. */
+export const JOURNAL_ITEMS_SAVED = true
 
 /** A zone the leader picks, or one a Guild Leader makes (its id, kept by the panel so it doesn't change while the preview is open; zoneIdFor gives it). */
 export type ZoneAnswer = { pick: number } | { make: true; zoneId?: number }
@@ -50,7 +50,7 @@ export type ItemStatus =
   | 'claimed' // another row of this import takes it (a creature beats the zone-wide list, the first creature beats the next)
   | 'zoneWide' // two or more trash creatures dropped it: offered for the zone-wide list instead
   | 'noRoom' // more than the creature's room for the phase: the next phase can add it
-  | 'journal' // DungeonJournal's alone, and its items aren't saved (D6): information
+  | 'journal' // DungeonJournal's alone, while its items aren't saved (D6 switched off): information
 
 export type ItemRow = {
   id: string

@@ -137,10 +137,11 @@ The module writes only its own allow-listed fields.
   - DungeonJournal is All Rights Reserved.
   - Its code and data never enter this repository. Fixtures and examples are invented, and DungeonJournal joins the no-copy list in `AGENTS.md`.
   - Storing a journal list in the guild's Firestore, where every member reads it, is more than one player reading it on their own screen. Whether it may be saved at all is decision [D6](#open-questions).
-- **Until decided otherwise (D6, the maintainer, 2026-11-14):**
-  - Journal items show in the preview as information ("DungeonJournal lists it; not seen in the game") and can't be ticked.
-  - The preview compares, and a leader can still type an item in by hand after checking it.
-- **If saving is allowed.** Journal items are ticked one creature at a time, never for a whole paste. They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from. A dungeon the journal calls incomplete shows that note in the preview.
+- **Saving (D6, changed by the loot owner, 2026-11-24).** Journal items can be saved. The maintainer's first answer (2026-11-14) kept them as information in the preview; the loot owner changed it so the site's dungeons can be made from the journal.
+  - They start unticked, and are ticked one creature at a time, never for a whole paste.
+  - They're saved in their own write with the Log reason "From DungeonJournal <version>, not seen in the game", so the Log keeps where they came from.
+  - A dungeon the journal calls incomplete shows that note in the preview.
+  - Switched off (`JOURNAL_ITEMS_SAVED` in `dropImport.ts`), they show as information ("DungeonJournal lists it, not seen in the game") and can't be ticked.
 - **Names.** The journal's names can differ from the game's ("Hall of Thanes" against "The Hall of Thanes"), and it splits one dungeon into wings ("Scarlet Monastery: Library"). See [section 6](#6-matching).
 
 ## 5. The drops string
@@ -290,7 +291,7 @@ A Wowhead answer of "unreachable" or "busy" is shown as that, with a retry. It's
 | **Creature a leader took out** | Unticked, opt-in. Ticking it brings it back with the items, in one write. |
 | **New item: seen in the game, or in the Encounter Journal** | Ticked, also when Wowhead doesn't know it yet. A quest item ("starts a quest") is unticked. |
 | **New item: from trash** | Unticked. Offered for the zone-wide list instead when 2 or more different trash creatures dropped it. |
-| **New item: DungeonJournal only** | Information only (D6). If that's ever changed to allow saving, unticked and ticked per creature. |
+| **New item: DungeonJournal only** | Unticked, ticked per creature (D6). |
 | **Already listed**, **On another creature** | Can't be ticked. |
 | **Taken off by a leader** | Unticked, opt-in. |
 | **Error** | Can't be ticked. Shows the reason. |
@@ -309,7 +310,7 @@ A counts line shows zones, creatures and items. Saving takes one confirm that re
      - **The zone-wide list** is the source document with the key `zonewide`, with no npc id or order. It's created or edited the same way, at most 80 items per phase. A creature beats the zone-wide list when both would hold an item in this import.
 2. **Second call, after the first has landed**, built from the stored documents:
    - **The zone's tick**, for a zone that isn't in the phase, merged with its D2 instance id when both apply.
-   - **Journal items**, if D6 allows saving: their own edit of each creature's document, with their own reason.
+   - **Journal items** (D6): their own edit of each creature's document, with their own reason.
 
 If the second call fails, the zone stays out of the phase (nothing shows), and a retry ticks it.
 
@@ -360,7 +361,7 @@ Every name and id is invented. "The phase" is the one picked in the editor.
 13. **A capture file for a raid.** A format-1 capture with Wowhead zone id 5555, not bundled. The id isn't used: the zone is matched by name, or Unmatched.
 14. **Not on Wowhead yet.** 900099 was seen twice; Wowhead doesn't know it. Shown with the game's name and quality, "not on Wowhead yet", ticked.
 15. **An unmatched creature.** "Test Barrow" has a hand-made "Grimtooth" with no npc id. The paste has "Grimtooth the Test Boss" (990001). Unmatched creature: "same as Grimtooth" writes the npc id onto it in an audited edit.
-16. **Journal hints.** A dungeon from DungeonJournal, all journal only. Until D6: information only, nothing tickable.
+16. **Journal hints.** A dungeon from DungeonJournal, all journal only. Unticked; ticking a creature's items makes the creature, and the items follow in the second call with the journal reason. Switched off: information only, nothing tickable.
 17. **A broken paste.** A changed character: the whole paste is refused with the checksum message.
 18. **The loot master and a raider paste together.**
     - The loot master's string has boss A (npc 990001, encounter 9101: 900001 from the corpse).
@@ -463,6 +464,6 @@ The DungeonJournal part was built at the loot owner's request (build 0.0.18) and
 - **D3.** Trash items start unticked, and only items from 2 or more trash creatures are offered for the zone-wide list. **Decided (the loot owner, 2026-11-12): yes.**
 - **D4.** The backlog mapping in section 12. **Decided (the maintainer, 2026-11-14, as proposed):** the format and probes under ADDON-001, the drop log and export under ADDON-002, the app import under LOOT-008.
 - **D5.** Should the night string carry the app's zones, so the addon can put `zoneId` in the string? Proposed: when "Copy for addon" is built, not before. Open: "Copy for addon" isn't built yet (ADDON-002).
-- **D6.** May items from DungeonJournal (All Rights Reserved) be saved in the guild's drop lists at all, one creature at a time, with their own Log reason? Or should they stay information in the preview? The maintainer's call for this public repository. **Decided (the maintainer, 2026-11-14, as proposed): information in the preview, until decided otherwise.**
+- **D6.** May items from DungeonJournal (All Rights Reserved) be saved in the guild's drop lists at all, one creature at a time, with their own Log reason? Or should they stay information in the preview? The maintainer's call for this public repository. **Decided (the maintainer, 2026-11-14, as proposed): information in the preview, until decided otherwise. Changed (the loot owner, 2026-11-24): saved, unticked by default, one creature at a time, in their own write with the journal reason (section 4).**
 - **D7.** An item Wowhead doesn't know yet can be saved to a drop list, but Browse drops can't make a priority for it, because a priority stores the item's name. Proposed options: wait for Wowhead, or store the game's name as a fallback (a rules and data change). Open: #202 had no single proposal to approve.
 - **D8.** Which loot masters run the drop log on December 9, and how they get the build before the production addon (ADDON-002, target December 22)? **Decided (the loot owner, 2026-11-12): every team's loot master, from a zip with install steps the loot owner hands out before November 30.**

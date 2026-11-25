@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { applyWrites, buildImportSave, buildPreview, importReason, journalReason, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
+import { JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, journalReason, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
 import { captureCandidate, mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { mergeTables, sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type TableWrite, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
 import type { LootTableCapture } from '../../src/shared/game/lootTables.ts'
@@ -200,7 +200,8 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual(renameWrite && 'existing' in renameWrite && renameWrite.changes, { itemIds: [900001, 900011], npcId: 990001, name: 'Grimtooth the Test Boss' })
   })
 
-  it("16. DungeonJournal's items are information until D6 allows saving them, and then a second write with their own reason", () => {
+  it("16. DungeonJournal's items are unticked and saved one creature at a time in a second write with their own reason (D6); switched off, they are information", () => {
+    assert.equal(JOURNAL_ITEMS_SAVED, true)
     const journalDungeon: DropsZone = { name: 'Hollow Test Keep', kind: 'dungeon', players: 5, journalPartial: true, sources: [{ npcId: 990011, name: 'Warden of Fixtures', kind: 'boss', itemIds: [900101, 900102], journal: [900101, 900102] }] }
     const pasted = mergeDrops([{ schema: 1, id: 'd-test-0002', at: 1797474600, by: 'IntrepidManager/test', journal: 'ForeverDungeonJournal/2.0.3', zones: [journalDungeon] }])
     const make = answers({ zones: { 'uhollow test keep': { make: true, zoneId: 61_234_567 } } })
@@ -223,6 +224,23 @@ describe('the drop list import, worked examples', () => {
     assert.deepEqual((first[1] as { create: { itemIds: number[] } }).create.itemIds, [])
     assert.deepEqual(second.journal.map((write) => [write.id, 'existing' in write && write.changes]), [[sourceDocId(zoneId, 'n990011', 0), { itemIds: [900101, 900102] }]])
     assert.equal(journalReason('ForeverDungeonJournal/2.0.3'), 'From DungeonJournal 2.0.3, not seen in the game')
+  })
+
+  it("16b. a creature with a new item seen in the game and one from DungeonJournal gets one write in each call", () => {
+    const docs = [barrowMade(), sourceDoc(BARROW, 'n990001', 0, { name: 'Grimtooth the Test Boss', kind: 'boss', npcId: 990001, order: 10, itemIds: [900001] })]
+    const pasted = candidates(hollow([boss(990001, 'Grimtooth the Test Boss', [900002, 900101], { seen: [seen(900002)], journal: [900002, 900101] })]))
+    const allowed = { journalSaving: true }
+    const offered = buildPreview(pasted, setup(docs, allowed), pickBarrow)
+    const row = offered.zones[0]?.creatures[0]
+    assert.deepEqual(row?.items.map((item) => [item.itemId, item.status, item.journalOnly, item.ticked]), [[900002, 'new', false, true], [900101, 'new', true, false]])
+    const ticked = buildPreview(pasted, setup(docs, allowed), { ...pickBarrow, ticks: { [`${row?.id}|900101`]: true } })
+    assert.deepEqual([ticked.counts.items, ticked.counts.journalItems], [1, 1])
+    const { first, second, after } = save(docs, ticked, allowed)
+    const id = sourceDocId(BARROW, 'n990001', 0)
+    assert.deepEqual(first.map((write) => [write.id, 'existing' in write && write.changes]), [[id, { itemIds: [900001, 900002] }]])
+    assert.deepEqual(second.journal.map((write) => [write.id, 'existing' in write && write.changes]), [[id, { itemIds: [900001, 900002, 900101] }]])
+    assert.deepEqual(edited(second.ticks), [zoneDocId(BARROW, 0)])
+    assert.deepEqual((after.find((doc) => doc.id === id) as SourceTableDoc).itemIds, [900001, 900002, 900101])
   })
 
   it("19. a creature known by its encounter learns its npc id in the same write", () => {

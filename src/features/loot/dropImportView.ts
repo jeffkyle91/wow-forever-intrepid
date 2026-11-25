@@ -102,3 +102,7 @@ export function tickItem(answers: ImportAnswers, row: CreatureRow, item: ItemRow
   if (value && !row.saved && row.creatureTickable && !itemDecides) ticks[row.id] = true
   return { ...answers, ticks }
 }
+
+/** A chosen file's text, or a message when the browser can't read it (moved, or no permission): never a rejection nobody sees. */
+export const readFileText = (file: { text(): Promise<string> }): Promise<{ text: string } | { error: string }> =>
+  file.text().then((text) => ({ text }), () => ({ error: "The file couldn't be read." }))

@@ -11,7 +11,7 @@ import {
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nothingToSave, plural, readFileText, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -211,7 +211,10 @@ export function DropImportPanel({ live, phaseNo, phase }: { live: TabContext; ph
         </label>
         <label className="import-file">Or a capture file<input type="file" accept=".json,application/json,.txt,text/plain" disabled={busy} onChange={(event) => {
           const file = event.target.files?.[0]
-          if (file) void file.text().then((read) => { setText(read); setAnswers(noAnswers()); setConfirm(null); setMessage(null) })
+          if (file) void readFileText(file).then((read) => {
+            if ('error' in read) { setMessage({ text: read.error, error: true }); return }
+            setText(read.text); setAnswers(noAnswers()); setConfirm(null); setMessage(null)
+          })
           event.target.value = ''
         }} /></label>
       </div>

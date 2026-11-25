@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nothingToSave, readFileText, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -213,5 +213,15 @@ describe('the import panel: ticking an item under a creature that is not saved',
     assert.deepEqual([ticked.row.saved, ticked.after.saved, ticked.next.ticks['utest barrow|cn990002']], [false, true, undefined])
     const unticked = click(night, [barrow], ticked.next, false)
     assert.deepEqual([unticked.after.saved, unticked.after.items[0]?.ticked], [false, false])
+  })
+})
+
+describe('the import panel: a capture file', () => {
+  it('gives its text', async () => {
+    assert.deepEqual(await readFileText({ text: () => Promise.resolve('{"format":1}') }), { text: '{"format":1}' })
+  })
+
+  it("says so when it can't be read, instead of failing unseen", async () => {
+    assert.deepEqual(await readFileText({ text: () => Promise.reject(new Error('NotReadableError')) }), { error: "The file couldn't be read." })
   })
 })

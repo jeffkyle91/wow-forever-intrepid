@@ -196,7 +196,7 @@ export function zoneIdFor(candidate: { instanceId?: number }, taken: Set<number>
 // text to the drops string's reader, but the rules refuse it.
 const nameOr = (name: string, fallback: string) => { const cut = name.slice(0, TABLE_NAME_MAX).trim(); return hasText(cut) ? cut : fallback }
 const creatureName = (source: CandidateSource) => nameOr(source.name, source.npcId !== undefined ? `NPC ${source.npcId}` : source.encounterId !== undefined ? `Encounter ${source.encounterId}` : 'Unnamed creature')
-const isJournalOnly = (evidence: ItemEvidence) => evidence.journal === true && !evidence.seen && !evidence.ej && !evidence.capture
+const isJournalOnly = (evidence: ItemEvidence) => evidence.journal !== undefined && !evidence.seen && !evidence.ej && !evidence.capture
 const nearName = (a: string, b: string) => {
   if (a === b) return false
   const [short, long] = a.length < b.length ? [a, b] : [b, a]

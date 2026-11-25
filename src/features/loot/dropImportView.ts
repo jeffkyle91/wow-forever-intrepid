@@ -1,7 +1,8 @@
 // What the drop list import panel (DropImportPanel.tsx, LOOT-008) shows and does with the leader's clicks, as pure functions so Node tests them.
 // dropImport.ts does the matching and builds the writes; this holds only the panel's own choices. Only types and pure functions are imported.
 import { looksLikeCapture, mergeDrops, readCapturePaste, readDropsPaste, type CandidateZone } from '../../shared/game/dropsString.ts'
-import { importZoneKey, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ItemRow, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
+import { zoneDocId } from '../../shared/game/guildTables.ts'
+import { importZoneKey, madeZoneColors, zoneIdFor, type CreatureRow, type ImportAnswers, type ImportCounts, type ImportSetup, type ItemRow, type ZoneAnswer, type ZoneRow } from './dropImport.ts'
 
 export const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
@@ -102,6 +103,23 @@ export function tickItem(answers: ImportAnswers, row: CreatureRow, item: ItemRow
   if (value && !row.saved && row.creatureTickable && !itemDecides) ticks[row.id] = true
   return { ...answers, ticks }
 }
+
+/** The zones a save made whose zone document a batch of the first call wrote (writeLootTables' onWritten ids): they get their color even when a later batch fails. */
+export const madeZonesWritten = (made: number[], ids: string[], phaseNo: number) => made.filter((zoneId) => ids.includes(zoneDocId(zoneId, phaseNo)))
+
+/**
+ * Saves the suggested colors of zones the import made (madeZoneColors), as Settings gives a zone it makes: `save` is saveZoneColors. A zone with a color
+ * chosen keeps it. Never throws: it gives how many zones keep the automatic color because their colors couldn't be saved.
+ */
+export async function colorMadeZones(zoneIds: number[], setup: Pick<ImportSetup, 'captures' | 'docs' | 'catalog' | 'currentPhase'>, chosen: Readonly<Record<string, string>>, save: (colors: Record<string, string>) => Promise<void>): Promise<number> {
+  const colors = madeZoneColors(zoneIds, setup, chosen)
+  const count = Object.keys(colors).length
+  if (!count) return 0
+  try { await save(colors); return 0 } catch { return count }
+}
+
+/** What the save's message adds when a zone it made keeps the automatic color. */
+export const keptColorText = (count: number) => `${plural(count, 'new zone keeps its', 'new zones keep their')} automatic color.`
 
 /** A chosen file's text, or a message when the browser can't read it (moved, or no permission): never a rejection nobody sees. */
 export const readFileText = (file: { text(): Promise<string> }): Promise<{ text: string } | { error: string }> =>

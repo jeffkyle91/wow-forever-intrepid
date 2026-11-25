@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answerSubject, confirmHolds, confirmLabel, countsLine, journalToTick, nextPhaseHint, nothingToSave, pasteReaders, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
+import { answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, journalToTick, keptColorText, nextPhaseHint, nothingToSave, pasteReaders, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects } from '../../src/features/loot/dropImportView.ts'
 import { buildPreview, noAnswers, takenZoneIds, type ImportAnswers, type ImportCounts, type ImportSetup } from '../../src/features/loot/dropImport.ts'
 import { mergeDrops, type CandidateZone, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -245,6 +245,24 @@ describe('the import panel: ticking an item under a creature that is not saved',
     assert.deepEqual([ticked.row.saved, ticked.after.saved, ticked.next.ticks['utest barrow|cn990002']], [false, true, undefined])
     const unticked = click(night, [barrow], ticked.next, false)
     assert.deepEqual([unticked.after.saved, unticked.after.items[0]?.ticked], [false, false])
+  })
+})
+
+describe('the import panel: the colors of the zones it makes', () => {
+  const docs = [zoneDoc(50_000_123, 0, { name: 'Test Barrow', kind: 'raid', players: 10, removed: false })]
+  it('saves a suggested color for each zone with none chosen, and counts the zones that keep the automatic color when that fails', async () => {
+    const sent: Record<string, string>[] = []
+    const ok = (colors: Record<string, string>) => { sent.push(colors); return Promise.resolve() }
+    assert.equal(await colorMadeZones([50_009_300, 50_009_301], setup(docs), { '50009301': '#278794' }, ok), 0)
+    assert.deepEqual(sent.map((colors) => Object.keys(colors)), [['50009300']])
+    assert.equal(await colorMadeZones([50_009_301], setup(docs), { '50009301': '#278794' }, ok), 0)
+    assert.equal(sent.length, 1, 'nothing to save when every zone has a color chosen')
+    assert.equal(await colorMadeZones([50_009_300, 50_009_302], setup(docs), {}, () => Promise.reject(new Error('permission-denied'))), 2)
+  })
+
+  it('says when a made zone keeps the automatic color', () => {
+    assert.equal(keptColorText(1), '1 new zone keeps its automatic color.')
+    assert.equal(keptColorText(2), '2 new zones keep their automatic color.')
   })
 })
 

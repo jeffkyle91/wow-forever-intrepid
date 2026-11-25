@@ -7,11 +7,12 @@ import { isMissingItem, useItemInfo } from '../../shared/lib/itemInfo'
 import type { TabContext } from '../../shared/tabs/types'
 import { ItemTooltip } from '../../shared/ui/ItemTooltip'
 import {
-  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
+  JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, noAnswers, takenZoneIds, type CreatureRow, type ImportAnswers,
   type ImportSetup, type ItemRow, type ZoneRow,
 } from './dropImport'
 import {
-  answerSubject, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, nextPhaseHint, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen, zoneSelects, type ConfirmFor,
+  answerSubject, colorMadeZones, confirmHolds, confirmLabel, countsLine, countsText, journalToTick, keptColorText, madeZonesWritten, nextPhaseHint, nothingToSave, plural, readFileText, readPaste, tickItem, tickJournal, zoneAnswer, zoneChip, zoneOpen,
+  zoneSelects, type ConfirmFor,
 } from './dropImportView'
 import './DropImport.css'
 
@@ -165,27 +166,30 @@ export function DropImportPanel({ live, phaseNo, phase, nextPhase }: { live: Tab
     const who = { uid: live.identity.uid, displayName: live.identity.displayName }
     const reason = importReason(paste.from, paste.ids)
     let written = 0
+    const madeWritten: number[] = [] // zones the first call made whose document has landed
+    let keptColor = 0 // zones the import made that keep the automatic color: their colors couldn't be saved
     setBusy(true)
     setConfirm(null)
     try {
-      const count = (ids: string[]) => { written += ids.length }
+      const count = (ids: string[]) => { written += ids.length; madeWritten.push(...madeZonesWritten(plan.made, ids, setup.phaseNo)) }
       const write = (writes: TableWrite[], why: string) => (writes.length ? writeLootTables(writes, who, count, why) : Promise.resolve())
-      await write(plan.first, reason)
-      // A zone the import made gets a suggested color, as one made in Settings does (Guild Leaders); if that fails, it keeps the automatic color.
-      let colored = true
-      if (plan.made.length && setup.canMakeZones) {
-        try { await saveZoneColors(madeZoneColors(plan.made, setup, live.data.zoneColors), { uid: live.identity.uid }) } catch { colored = false }
+      try {
+        await write(plan.first, reason)
+      } finally {
+        // A zone the import made gets a suggested color, as one made in Settings does (Guild Leaders), once its document has landed, also when a later batch
+        // failed; on Save again, one an earlier save made gets its color if it has none. If that fails, it keeps the automatic color.
+        if (setup.canMakeZones) keptColor = await colorMadeZones([...plan.madeBefore, ...madeWritten], setup, live.data.zoneColors, (colors) => saveZoneColors(colors, { uid: live.identity.uid }))
       }
       await write(second.ticks, reason)
       for (const call of second.journal) await write(call.writes, journalReason(call.versions)) // each version of DungeonJournal with its own reason
       setMutationError('')
-      setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.${colored ? '' : ` ${plural(plan.made.length, 'new zone keeps its', 'new zones keep their')} automatic color.`}`, error: false })
+      setMessage({ text: `Saved to ${phase}: ${countsText(preview.counts)}.${keptColor ? ` ${keptColorText(keptColor)}` : ''}`, error: false })
       setText('')
       setAnswers(noAnswers())
     } catch (error) {
       const stale = (error as { code?: string } | null)?.code === 'permission-denied'
       const why = stale ? 'The change was refused: someone may have changed the same list a moment ago, or the phase may have just started.' : error instanceof Error ? error.message : 'The save stopped.'
-      setMessage({ text: importStoppedText(written, Math.max(0, total - written), why), error: true })
+      setMessage({ text: importStoppedText(written, Math.max(0, total - written), why, keptColor ? keptColorText(keptColor) : ''), error: true })
     } finally {
       setBusy(false)
     }

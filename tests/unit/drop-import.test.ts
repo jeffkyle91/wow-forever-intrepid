@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { madeZonesWritten } from '../../src/features/loot/dropImportView.ts'
 import { JOURNAL_ITEMS_SAVED, applyWrites, buildImportSave, buildPreview, importReason, importStoppedText, journalReason, madeZoneColors, noAnswers, type ImportAnswers, type ImportSetup, type ZoneRow } from '../../src/features/loot/dropImport.ts'
 import { captureCandidate, mergeDrops, type DropsSource, type DropsZone } from '../../src/shared/game/dropsString.ts'
 import { mergeTables, sourceDocId, zoneDocId, type LootTableDoc, type SourceTableDoc, type TableWrite, type ZoneTableDoc } from '../../src/shared/game/guildTables.ts'
@@ -108,6 +109,26 @@ describe('the drop list import, worked examples', () => {
     assert.ok(Object.values(colors).every((color) => !inUse.includes(color)))
     assert.notEqual(colors['50009901'], colors['50009902'])
     assert.deepEqual(madeZoneColors([], setup(docs), chosen), {})
+  })
+
+  it('4d. a made zone whose first call stopped after its document landed is colored then, and Save again colors it if it still has no color', () => {
+    // One zone and 12 creatures: 13 writes, sent in batches of 10. The first batch, with the zone document, lands; the second is refused.
+    const twelve = Array.from({ length: 12 }, (_, i) => boss(990300 + i, `Test Npc ${i}`, [900300 + i]))
+    const pasted = candidates({ name: 'Test Cloister', kind: 'dungeon', players: 5, instanceId: 9300, sources: twelve })
+    const make = answers({ zones: { u9300: { make: true, zoneId: 50_009_300 } } })
+    const plan = buildImportSave(buildPreview(pasted, setup([]), make), setup([]))
+    assert.deepEqual([plan.made, plan.madeBefore, plan.first.length], [[50_009_300], [], 13])
+    const batch1 = plan.first.slice(0, 10).map((write) => write.id)
+    assert.deepEqual(madeZonesWritten(plan.made, batch1, 0), [50_009_300])
+    assert.deepEqual(madeZonesWritten(plan.made, plan.first.slice(10).map((write) => write.id), 0), [])
+    const afterBatch1 = applyWrites([], plan.first.slice(0, 10))
+    const retry = buildPreview(pasted, setup(afterBatch1), make)
+    assert.deepEqual([retry.zones[0]?.status, retry.zones[0]?.madeBefore], ['matched', true])
+    const again = buildImportSave(retry, setup(afterBatch1))
+    assert.deepEqual([again.made, again.madeBefore, again.first.length], [[], [50_009_300], 3])
+    // A zone that matched by itself with no "make" answer, or that a Raid Leader's answer can't make, is never colored by the import.
+    assert.deepEqual(buildImportSave(buildPreview(pasted, setup(afterBatch1), noAnswers()), setup(afterBatch1)).madeBefore, [])
+    assert.deepEqual(buildImportSave(buildPreview(pasted, setup(afterBatch1, { canMakeZones: false }), make), setup(afterBatch1, { canMakeZones: false })).madeBefore, [])
   })
 
   it('4b. only a Guild Leader can make a zone', () => {
@@ -617,6 +638,7 @@ describe('the drop list import, worked examples', () => {
     const why = 'The change was refused.'
     assert.equal(importStoppedText(12, 5, why), "12 changes were saved and 5 weren't sent. The change was refused. Press Save again to finish: the text and your answers are still here.")
     assert.equal(importStoppedText(1, 1, why), "1 change was saved and 1 wasn't sent. The change was refused. Press Save again to finish: the text and your answers are still here.")
+    assert.equal(importStoppedText(10, 3, why, '1 new zone keeps its automatic color.'), "10 changes were saved and 3 weren't sent. The change was refused. 1 new zone keeps its automatic color. Press Save again to finish: the text and your answers are still here.")
   })
 
   it("the Log reason names each pasted string once", () => {

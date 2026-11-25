@@ -118,6 +118,7 @@ export type ZoneRow = {
   zoneTicked: boolean
   tickIn: boolean // the second call puts the zone in the phase: it isn't, and the import saves something under it, finds its items already there, or a leader ticked it back
   repeatIdentity: boolean // a guild zone first named in a later phase: its write here repeats its name, kind and size (worked example 20)
+  madeBefore?: true // a Guild Leader answered "make" and it now matches by itself: a first call of this import made it, so a retry colors it if it has no color
   creatures: CreatureRow[] // in the paste's order; the zone-wide list last
 }
 
@@ -213,7 +214,7 @@ const nearName = (a: string, b: string) => {
 const ownIdOf = (candidate: CandidateZone) => `u${candidate.instanceId ?? importZoneKey(candidate.name)}`
 
 // The candidates of one answer key, placed together: matched, picked, made, or unmatched.
-type Unit = { id: string; candidates: CandidateZone[]; hit: ZoneHit; picked?: number; make?: boolean; madeId?: number }
+type Unit = { id: string; candidates: CandidateZone[]; hit: ZoneHit; picked?: number; make?: boolean; madeId?: number; madeBefore?: boolean }
 
 /** The preview: every zone, creature and item of the paste, matched, with its category and whether it is ticked (the answers, else the default). */
 export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, answers: ImportAnswers): ImportPreview {
@@ -246,6 +247,8 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
     const hits = unit.candidates.map((candidate) => matchZone(candidate, listed))
     unit.hit = hits.find((hit) => 'zoneId' in hit) ?? (hits[0] as ZoneHit)
     const answer = 'zoneId' in unit.hit ? undefined : answers.zones[unit.id]
+    const given = answers.zones[unit.id]
+    if ('zoneId' in unit.hit && setup.canMakeZones && given && 'make' in given && (given.zoneId === undefined || given.zoneId === unit.hit.zoneId)) unit.madeBefore = true
     if (answer && 'pick' in answer && listed.some((zone) => zone.zoneId === answer.pick)) unit.picked = answer.pick
     if (answer && 'make' in answer && setup.canMakeZones) { unit.make = true; if (answer.zoneId !== undefined) unit.madeId = answer.zoneId }
     const place = unit.picked !== undefined ? `z${unit.picked}` : 'zoneId' in unit.hit ? `z${unit.hit.zoneId}` : `${unit.make ? 'm' : 'u'}${unit.id}`
@@ -306,6 +309,7 @@ export function buildPreview(candidates: CandidateZone[], setup: ImportSetup, an
       ...(status === 'matched' && target.name !== first.name ? { appName: target.name } : {}),
       ...(status === 'new' ? { name: target.name } : {}),
       inPhase: target.inPhase, takenOut, zoneTicked, tickIn, repeatIdentity, creatures,
+      ...(status === 'matched' && placed.some((unit) => unit.picked === undefined && unit.madeBefore) ? { madeBefore: true as const } : {}),
     })
   }
   return { zones, counts: countsOf(zones) }
@@ -569,8 +573,10 @@ function existingCreatureWrite(zone: MergedZone, creature: MergedSource, itemIds
 export type JournalCall = { versions: string[]; writes: TableWrite[] }
 export type ImportSave = {
   first: TableWrite[]
-  /** The zones the first call makes: a Guild Leader's save gives each a suggested color (madeZoneColors). */
+  /** The zones the first call makes: a Guild Leader's save gives each a suggested color (madeZoneColors) once its document has landed. */
   made: number[]
+  /** The zones an earlier save of this import made (ZoneRow.madeBefore): a retry gives one its color when it has none. */
+  madeBefore: number[]
   /** The second call, from the documents after the first (applyWrites): the zones' ticks, and DungeonJournal's items in their own calls, by version. */
   second: (after: LootTableDoc[]) => { ticks: TableWrite[]; journal: JournalCall[] }
 }
@@ -582,6 +588,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
   const listed = listZones(setup.captures, setup.docs, setup.catalog, setup.currentPhase)
   const plans: { zone: ZoneRow; journal: { key: string; itemId: number; versions: string[] }[] }[] = []
   const made: number[] = []
+  const madeBefore = preview.zones.flatMap((zone) => (zone.madeBefore && zone.zoneId !== undefined ? [zone.zoneId] : []))
   for (const zone of preview.zones) {
     if (zone.status === 'unmatched' || zone.zoneId === undefined || !zone.zoneTicked) continue
     const saved = zone.creatures.filter((creature) => creature.saved)
@@ -663,7 +670,7 @@ export function buildImportSave(preview: ImportPreview, setup: ImportSetup): Imp
     }
     return { ticks, journal }
   }
-  return { first, made, second }
+  return { first, made, madeBefore, second }
 }
 
 /**
@@ -695,8 +702,8 @@ export function importReason(from: 'addon' | 'capture', stringIds: string[]): st
  * What a save that stopped says (design section 7, "After saving"): what was saved, what wasn't sent, and the reason. The text and the answers stay in the
  * panel, so pressing Save again builds the rest from the stored documents.
  */
-export function importStoppedText(saved: number, notSent: number, why: string): string {
-  return `${saved} ${saved === 1 ? 'change was' : 'changes were'} saved and ${notSent} ${notSent === 1 ? "wasn't" : "weren't"} sent. ${why} Press Save again to finish: the text and your answers are still here.`
+export function importStoppedText(saved: number, notSent: number, why: string, note = ''): string {
+  return `${saved} ${saved === 1 ? 'change was' : 'changes were'} saved and ${notSent} ${notSent === 1 ? "wasn't" : "weren't"} sent. ${why}${note ? ` ${note}` : ''} Press Save again to finish: the text and your answers are still here.`
 }
 
 /**
